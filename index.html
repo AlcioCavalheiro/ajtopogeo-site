@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- ===== SEO PRIMARY ===== -->
+  <title>AJ TopoGeo | Georreferenciamento, Drones e Agrimensura em Sidrolândia–MS</title>
+  <meta name="description" content="Empresa especializada em georreferenciamento INCRA, topografia, mapeamento com drones, agricultura de precisão NDVI/NDRE e inteligência artificial. Atendemos o Centro-Oeste e Sudeste. Sidrolândia–MS. CFT/ART em todas as entregas." />
+  <meta name="keywords" content="georreferenciamento Sidrolândia MS, topografia Mato Grosso do Sul, drone mapeamento Centro-Oeste, agrimensura MS, CAR cadastro ambiental rural, INCRA georreferenciamento, usucapião topografia, agricultura de precisão NDVI, ortomosaico drone, regularização rural MS, AJ TopoGeo" />
+  <meta name="author" content="AJ TopoGeo" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://ajtopogeo.com.br/" />
+
+  <!-- ===== OPEN GRAPH / SOCIAL ===== -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://ajtopogeo.com.br/" />
+  <meta property="og:title" content="AJ TopoGeo | Georreferenciamento, Drones e Agrimensura – Sidrolândia MS" />
+  <meta property="og:description" content="Precisão centimétrica RTK/PPK, cobertura 100% da área, responsabilidade técnica CFT em todas as entregas. Sidrolândia–MS." />
+  <meta property="og:image" content="https://ajtopogeo.com.br/img/hero-drone.jpg" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <!-- ===== SCHEMA.ORG LOCAL BUSINESS ===== -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "ProfessionalService",
+    "name": "AJ TopoGeo",
+    "description": "Engenharia e Inteligência Geoespacial — Agrimensura, Georreferenciamento INCRA, Drones RTK/PPK, Agricultura de Precisão e Inteligência Artificial.",
+    "url": "https://ajtopogeo.com.br",
+    "telephone": "+55-67-99348-0660",
+    "email": "ajtopogeo@gmail.com",
+    "image": "https://ajtopogeo.com.br/img/hero-drone.jpg",
+    "priceRange": "$$",
+    "currenciesAccepted": "BRL",
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "Rua João Márcio Ferreira Terra, 290",
+      "addressLocality": "Sidrolândia",
+      "addressRegion": "MS",
+      "postalCode": "79170-000",
+      "addressCountry": "BR"
+    },
+    "geo": {
+      "@type": "GeoCoordinates",
+      "latitude": -20.93,
+      "longitude": -54.96
+    },
+    "areaServed": [
+      {"@type": "State", "name": "Mato Grosso do Sul"},
+      {"@type": "State", "name": "São Paulo"},
+      {"@type": "State", "name": "Minas Gerais"}
+    ],
+    "hasOfferCatalog": {
+      "@type": "OfferCatalog",
+      "name": "Serviços Geoespaciais",
+      "itemListElement": [
+        {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Georreferenciamento INCRA"}},
+        {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Mapeamento com Drones RTK/PPK"}},
+        {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Cadastro Ambiental Rural – CAR"}},
+        {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Agricultura de Precisão NDVI/NDRE"}},
+        {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Inteligência Artificial e Automação"}},
+        {"@type": "Offer", "itemOffered": {"@type": "Service", "name": "Regularização Fundiária e Usucapião"}}
+      ]
+    },
+    "sameAs": [
+      "https://www.instagram.com/aj_topogeo"
+    ]
+  }
+  </script>
+
+  <!-- ===== FONTS ===== -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="css/style.css" />
+
+  <!-- Favicon inline -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%232ecc71'/><text x='16' y='22' font-size='16' text-anchor='middle' fill='%230d1b2a' font-family='Arial' font-weight='900'>AJ</text></svg>" />
+
+  <style>
+    /* Animações fade-in */
+    .fade-in { opacity: 0; transform: translateY(28px); transition: opacity 0.6s ease, transform 0.6s ease; }
+    .fade-in.visible { opacity: 1; transform: none; }
+    .fade-in-delay-1 { transition-delay: 0.1s; }
+    .fade-in-delay-2 { transition-delay: 0.2s; }
+    .fade-in-delay-3 { transition-delay: 0.3s; }
+    .fade-in-delay-4 { transition-delay: 0.4s; }
+    .fade-in-delay-5 { transition-delay: 0.5s; }
+  </style>
+</head>
+
+<body>
+
+<!-- ===== NAVEGAÇÃO ===== -->
+<nav id="main-nav">
+  <div class="container nav-inner">
+    <a href="#hero" class="logo">
+      <div class="logo-icon">AJ</div>
+      <span class="logo-text">AJ <span>TopoGeo</span></span>
+    </a>
+    <ul class="nav-links" id="nav-links">
+      <li><a href="#sobre">Sobre</a></li>
+      <li><a href="#servicos">Serviços</a></li>
+      <li><a href="#processo">Como Trabalhamos</a></li>
+      <li><a href="#galeria">Galeria</a></li>
+      <li><a href="#contato" class="nav-cta">Solicitar Orçamento</a></li>
+    </ul>
+    <button class="nav-toggle" id="nav-toggle" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+</nav>
+
+<!-- ===== HERO ===== -->
+<section id="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-overlay"></div>
+  <div class="container" style="position:relative;z-index:2;width:100%;">
+    <div class="hero-content">
+      <div class="hero-badge">Sidrolândia–MS · Centro-Oeste & Sudeste</div>
+      <h1 class="hero-title">
+        Tecnologia de Precisão<br/>para <span>Decisões Ágeis</span>
+      </h1>
+      <p class="hero-sub">
+        Engenharia Geoespacial com drones DJI Matrice 4, GNSS RTK/PPK e Inteligência Artificial.
+        Georreferenciamento, CAR, INCRA, ortomosaicos e agricultura de precisão — com responsabilidade técnica CFT em cada entrega.
+      </p>
+      <div class="hero-buttons">
+        <a href="https://wa.me/5567993480660?text=Olá!%20Vim%20pelo%20site%20e%20gostaria%20de%20um%20orçamento." target="_blank" rel="noopener" class="btn-primary">
+          📲 Solicitar Orçamento
+        </a>
+        <a href="#servicos" class="btn-secondary">
+          Ver Serviços ↓
+        </a>
+      </div>
+    </div>
+    <div class="hero-stats">
+      <div class="stat">
+        <div class="stat-num"><span data-alvo="100" data-sufixo="%">0%</span></div>
+        <div class="stat-label">Área mapeada sem amostragem</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">RTK<span style="color:var(--verde)">/PPK</span></div>
+        <div class="stat-label">Precisão centimétrica</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">Até <span data-alvo="35" data-sufixo="%">0%</span></div>
+        <div class="stat-label">Economia em insumos</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num"><span style="color:var(--verde)">CFT</span></div>
+        <div class="stat-label">ART em todas as entregas</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SOBRE ===== -->
+<section id="sobre">
+  <div class="container">
+    <div class="sobre-grid">
+      <div class="sobre-img-wrap fade-in">
+        <img src="img/campo-gnss.jpg" alt="Técnico da AJ TopoGeo realizando levantamento com equipamento GNSS em campo aberto em Sidrolândia MS" class="sobre-img-main" loading="lazy" />
+        <img src="img/equipe-campo.jpg" alt="Equipe AJ TopoGeo trabalhando em levantamento topográfico" class="sobre-img-float" loading="lazy" />
+      </div>
+      <div class="fade-in fade-in-delay-2">
+        <span class="section-label">Quem Somos</span>
+        <h2 class="section-title">A empresa que une agrimensura clássica à Inteligência Artificial</h2>
+        <p style="color:var(--cinza);margin-bottom:20px;font-size:0.95rem;line-height:1.8;">
+          A AJ TopoGeo nasceu com um propósito claro: entregar dados geoespaciais confiáveis com segurança jurídica e ganho real de produtividade no campo. Sediados em <strong style="color:var(--branco)">Sidrolândia–MS</strong>, atendemos com agilidade as regiões <strong style="color:var(--branco)">Centro-Oeste e Sudeste</strong> do Brasil.
+        </p>
+        <p style="color:var(--cinza);margin-bottom:28px;font-size:0.95rem;line-height:1.8;">
+          Combinamos agrimensura tradicional, drones <strong style="color:var(--branco)">DJI Matrice 4 Enterprise</strong> com RTK/PPK, e modelos de IA (visão computacional com YOLO) para transformar imagens em informações acionáveis — do diagnóstico à entrega com ART/CFT.
+        </p>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:28px;">
+          <span class="sobre-tag">✓ Segurança Jurídica</span>
+          <span class="sobre-tag">✓ Dados em Tempo Real</span>
+          <span class="sobre-tag">✓ Cobertura 100% da Área</span>
+          <span class="sobre-tag">✓ Relatórios Automatizados</span>
+          <span class="sobre-tag">✓ CFT / ART</span>
+          <span class="sobre-tag">✓ CNPJ 46.639.961/0001-41</span>
+        </div>
+        <div class="diferenciais">
+          <div class="dif-item">
+            <div class="dif-icon">📍</div>
+            <h4>Atuação Estratégica</h4>
+            <p>Sidrolândia–MS, próximos ao agronegócio que mais cresce no país.</p>
+          </div>
+          <div class="dif-item">
+            <div class="dif-icon">🎓</div>
+            <h4>Equipe Técnica</h4>
+            <p>Especialistas com responsabilidade técnica registrada no CFT.</p>
+          </div>
+          <div class="dif-item">
+            <div class="dif-icon">🤖</div>
+            <h4>Inovação 4.0</h4>
+            <p>IA e drones de última geração para dados precisos e confiáveis.</p>
+          </div>
+          <div class="dif-item">
+            <div class="dif-icon">⚡</div>
+            <h4>Entrega Ágil</h4>
+            <p>Fluxo rastreável do diagnóstico à entrega final com suporte técnico.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== SERVIÇOS ===== -->
+<section id="servicos">
+  <div class="container">
+    <div class="fade-in">
+      <span class="section-label">O que Oferecemos</span>
+      <h2 class="section-title">Seis frentes que cobrem todo o ciclo da sua propriedade</h2>
+      <p class="section-sub">Do levantamento topográfico à regularização documental, do mapeamento com drone à inteligência artificial — tudo com ART/CFT.</p>
+    </div>
+    <div class="servicos-grid">
+
+      <div class="servico-card fade-in fade-in-delay-1">
+        <div class="servico-num">SERVIÇO 01</div>
+        <div class="servico-icon">📐</div>
+        <h3>Agrimensura & Regularização</h3>
+        <p>Levantamentos topográficos com precisão centimétrica e regularização completa de propriedades urbanas e rurais.</p>
+        <ul class="servico-lista">
+          <li>Georreferenciamento Rural – INCRA</li>
+          <li>Georreferenciamento Urbano – SIG-RI</li>
+          <li>Usucapião e Escritura de Estremação</li>
+          <li>Loteamentos, remembramentos e desmembramentos</li>
+          <li>Locação de obras e terraplanagem</li>
+          <li>Levantamentos planialtimétricos cadastrais</li>
+        </ul>
+      </div>
+
+      <div class="servico-card fade-in fade-in-delay-2">
+        <div class="servico-num">SERVIÇO 02</div>
+        <div class="servico-icon">🌿</div>
+        <h3>Gestão & Perícia Ambiental</h3>
+        <p>Certificações, licenciamentos e recuperação ambiental com laudo técnico e responsabilidade legal.</p>
+        <ul class="servico-lista">
+          <li>CAR – Cadastro Ambiental Rural</li>
+          <li>ADA – Ato Declaratório Ambiental</li>
+          <li>Outorgas de água e licenciamento</li>
+          <li>PRAD – Recuperação de Áreas Degradadas</li>
+          <li>Inventário Florestal e DOF</li>
+          <li>Perícia ambiental especializada</li>
+        </ul>
+      </div>
+
+      <div class="servico-card fade-in fade-in-delay-3">
+        <div class="servico-num">SERVIÇO 03</div>
+        <div class="servico-icon">📄</div>
+        <h3>Licenças & Documentação Rural</h3>
+        <p>Regularidade fiscal e documental para vender, financiar ou suceder sua propriedade com tranquilidade.</p>
+        <ul class="servico-lista">
+          <li>ITR – Imposto Territorial Rural</li>
+          <li>CCIR – Certificado de Cadastro de Imóvel Rural</li>
+          <li>Parecer técnico especializado</li>
+          <li>Assessoria em compra e venda rural</li>
+          <li>Documentação ambiental e fiscal regularizada</li>
+        </ul>
+      </div>
+
+      <div class="servico-card fade-in fade-in-delay-1">
+        <div class="servico-num">SERVIÇO 04</div>
+        <div class="servico-icon">🚁</div>
+        <h3>Engenharia com Drones</h3>
+        <p>DJI Matrice 4 Enterprise com RTK/PPK — a plataforma aérea mais avançada para levantamentos de alta fidelidade.</p>
+        <ul class="servico-lista">
+          <li>Ortomosaicos RGB de alta resolução</li>
+          <li>Modelos de terreno e superfície (MDT/MDS)</li>
+          <li>Modelos 3D para inspeção de fachadas</li>
+          <li>Curvas de nível e volumes de corte/aterro</li>
+          <li>Inspeção de linhas de transmissão</li>
+        </ul>
+      </div>
+
+      <div class="servico-card fade-in fade-in-delay-2">
+        <div class="servico-num">SERVIÇO 05</div>
+        <div class="servico-icon">🌾</div>
+        <h3>Agricultura de Precisão</h3>
+        <p>Mapas de prescrição, vigor vegetativo e otimização operacional para reduzir custos e aumentar produtividade.</p>
+        <ul class="servico-lista">
+          <li>Taxa variável – compatível com John Deere, Trimble, CNH</li>
+          <li>NDVI e NDRE – estresse nutricional via satélite</li>
+          <li>Planejamento de linhas de plantio e colheita</li>
+          <li>Pulverização com desligamento automático</li>
+          <li>Até 35% de economia em insumos</li>
+        </ul>
+      </div>
+
+      <div class="servico-card fade-in fade-in-delay-3">
+        <div class="servico-num">SERVIÇO 06</div>
+        <div class="servico-icon">🤖</div>
+        <h3>Inteligência Artificial & Automação</h3>
+        <p>Transformamos imagens e dados brutos em informação acionável, eliminando estimativas manuais.</p>
+        <ul class="servico-lista">
+          <li>Visão computacional com modelos YOLO</li>
+          <li>Contagem de estande em 100% da área</li>
+          <li>Detecção de falhas e infestação de daninhas</li>
+          <li>Automação Python para relatórios em massa</li>
+          <li>Detecção automática de gado e animais</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ===== VANTAGEM ===== -->
+<section style="background:var(--azul3);padding:72px 0;">
+  <div class="container fade-in">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center;">
+      <div>
+        <span class="section-label">Por que a AJ TopoGeo</span>
+        <h2 class="section-title">O método convencional x nossa engenharia</h2>
+        <p style="color:var(--cinza);font-size:0.95rem;line-height:1.8;">
+          Enquanto o método convencional depende de amostragens pontuais, processos manuais lentos e estimativas aproximadas, a AJ TopoGeo entrega cobertura total da área com dados em tempo real e segurança jurídica.
+        </p>
+      </div>
+      <div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:0.78rem;font-weight:700;color:var(--cinza);text-transform:uppercase;letter-spacing:0.06em;padding:0 12px;">
+            <span>Critério</span><span style="color:var(--cinza)">Convencional</span><span style="color:var(--verde)">AJ TopoGeo</span>
+          </div>
+          <div style="background:rgba(255,255,255,0.04);border-radius:8px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:12px;font-size:0.82rem;">
+            <span style="color:var(--branco);font-weight:600;">Monitoramento</span>
+            <span style="color:var(--cinza);">Amostragem pontual</span>
+            <span style="color:var(--verde);font-weight:600;">Varredura 100%</span>
+          </div>
+          <div style="background:rgba(255,255,255,0.04);border-radius:8px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:12px;font-size:0.82rem;">
+            <span style="color:var(--branco);font-weight:600;">Precisão</span>
+            <span style="color:var(--cinza);">Estimativas aprox.</span>
+            <span style="color:var(--verde);font-weight:600;">Centimétrica RTK</span>
+          </div>
+          <div style="background:rgba(255,255,255,0.04);border-radius:8px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:12px;font-size:0.82rem;">
+            <span style="color:var(--branco);font-weight:600;">Identificação</span>
+            <span style="color:var(--cinza);">Visual reativa</span>
+            <span style="color:var(--verde);font-weight:600;">IA preventiva</span>
+          </div>
+          <div style="background:rgba(255,255,255,0.04);border-radius:8px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:12px;font-size:0.82rem;">
+            <span style="color:var(--branco);font-weight:600;">Relatórios</span>
+            <span style="color:var(--cinza);">Processos manuais</span>
+            <span style="color:var(--verde);font-weight:600;">Automação</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== PROCESSO ===== -->
+<section id="processo">
+  <div class="container">
+    <div class="fade-in" style="text-align:center;margin-bottom:64px;">
+      <span class="section-label">Como Trabalhamos</span>
+      <h2 class="section-title">Um fluxo claro e rastreável</h2>
+      <p class="section-sub" style="margin:0 auto;">Do primeiro contato até a entrega com responsabilidade técnica — você acompanha cada etapa.</p>
+    </div>
+    <div class="processo-grid">
+      <div class="passo fade-in fade-in-delay-1">
+        <div class="passo-num">01</div>
+        <h3>Diagnóstico</h3>
+        <p>Entendemos o objetivo, o imóvel e a exigência legal. Definimos escopo e prazo personalizado.</p>
+      </div>
+      <div class="passo fade-in fade-in-delay-2">
+        <div class="passo-num">02</div>
+        <h3>Coleta em Campo</h3>
+        <p>Levantamento com GNSS RTK e drone DJI Matrice 4, cobrindo 100% da área com precisão.</p>
+      </div>
+      <div class="passo fade-in fade-in-delay-3">
+        <div class="passo-num">03</div>
+        <h3>Processamento</h3>
+        <p>Geoprocessamento e IA geram mapas, modelos e análises precisas em laboratório.</p>
+      </div>
+      <div class="passo fade-in fade-in-delay-4">
+        <div class="passo-num">04</div>
+        <h3>Entrega & ART</h3>
+        <p>Documentação final com responsabilidade técnica CFT/ART e suporte pós-entrega.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== GALERIA ===== -->
+<section id="galeria">
+  <div class="container">
+    <div class="fade-in" style="margin-bottom:40px;">
+      <span class="section-label">Galeria de Projetos</span>
+      <h2 class="section-title">Nosso trabalho em campo</h2>
+    </div>
+    <div class="galeria-grid fade-in">
+      <div class="galeria-item">
+        <img src="img/ortomosaico.jpg" alt="Ortomosaico aéreo georreferenciado gerado com drone DJI em propriedade rural no Mato Grosso do Sul" loading="lazy" />
+      </div>
+      <div class="galeria-item">
+        <img src="img/drone-controle.jpg" alt="Operação de drone DJI com mapeamento urbano em andamento no controle RTK" loading="lazy" />
+      </div>
+      <div class="galeria-item">
+        <img src="img/tecnico-rtk.jpg" alt="Técnica da AJ TopoGeo realizando georreferenciamento com receptor GNSS RTK em obra" loading="lazy" />
+      </div>
+      <div class="galeria-item">
+        <img src="img/mapa-geo.jpg" alt="Mapa topográfico com curvas de nível e pontos georreferenciados de propriedade rural" loading="lazy" />
+      </div>
+      <div class="galeria-item">
+        <img src="img/estacao-rtk.jpg" alt="Estação de referência GNSS RTK em tripé durante levantamento topográfico urbano" loading="lazy" />
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== CONTATO ===== -->
+<section id="contato">
+  <div class="container">
+    <div class="fade-in" style="text-align:center;margin-bottom:64px;">
+      <span class="section-label">Entre em Contato</span>
+      <h2 class="section-title">Vamos mapear o seu próximo projeto?</h2>
+      <p class="section-sub" style="margin:0 auto;">Fale com nossa equipe e receba um orçamento sob medida para sua propriedade ou obra.</p>
+    </div>
+    <div class="contato-grid">
+      <div class="contato-info fade-in">
+        <div class="contato-item">
+          <div class="contato-icone">📲</div>
+          <div>
+            <h4>WhatsApp / Telefone</h4>
+            <a href="https://wa.me/5567993480660" target="_blank" rel="noopener">(67) 99348-0660</a><br/>
+            <a href="https://wa.me/5567998228594" target="_blank" rel="noopener">(67) 99822-8594</a>
+          </div>
+        </div>
+        <div class="contato-item">
+          <div class="contato-icone">✉️</div>
+          <div>
+            <h4>E-mail</h4>
+            <a href="mailto:ajtopogeo@gmail.com">ajtopogeo@gmail.com</a>
+          </div>
+        </div>
+        <div class="contato-item">
+          <div class="contato-icone">📍</div>
+          <div>
+            <h4>Endereço</h4>
+            <p>Rua João Márcio Ferreira Terra, 290<br/>Sidrolândia – MS</p>
+          </div>
+        </div>
+        <div class="contato-item">
+          <div class="contato-icone">📸</div>
+          <div>
+            <h4>Instagram</h4>
+            <a href="https://instagram.com/aj_topogeo" target="_blank" rel="noopener">@aj_topogeo</a>
+          </div>
+        </div>
+        <div style="margin-top:8px;">
+          <img src="img/equipe-campo.jpg" alt="Equipe da AJ TopoGeo realizando levantamento topográfico em campo, Sidrolândia MS" style="width:100%;height:220px;object-fit:cover;object-position:center top;border-radius:12px;" loading="lazy" />
+        </div>
+      </div>
+      <div class="fade-in fade-in-delay-2">
+        <form id="form-contato" novalidate>
+          <div class="form-group">
+            <label for="nome">Seu Nome *</label>
+            <input type="text" id="nome" name="nome" placeholder="Nome completo" required />
+          </div>
+          <div class="form-group">
+            <label for="telefone">WhatsApp / Telefone *</label>
+            <input type="tel" id="telefone" name="telefone" placeholder="(67) 99999-9999" required />
+          </div>
+          <div class="form-group">
+            <label for="servico">Serviço de Interesse</label>
+            <select id="servico" name="servico">
+              <option value="Georreferenciamento INCRA">Georreferenciamento INCRA</option>
+              <option value="Mapeamento com Drone">Mapeamento com Drone (Ortomosaico / MDT)</option>
+              <option value="CAR / Gestão Ambiental">CAR / Gestão Ambiental</option>
+              <option value="Agricultura de Precisão">Agricultura de Precisão (NDVI/NDRE)</option>
+              <option value="Documentação Rural (ITR/CCIR)">Documentação Rural (ITR / CCIR)</option>
+              <option value="Inteligência Artificial">Inteligência Artificial & Automação</option>
+              <option value="Outro">Outro / Não sei ainda</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="mensagem">Descreva sua Necessidade</label>
+            <textarea id="mensagem" name="mensagem" placeholder="Ex: Tenho uma fazenda de 200 ha em Sidrolândia e preciso de georreferenciamento para o INCRA..."></textarea>
+          </div>
+          <button type="submit" class="form-submit">
+            📲 Enviar via WhatsApp
+          </button>
+          <p style="font-size:0.75rem;color:var(--cinza);margin-top:10px;text-align:center;">Respondemos em até 2 horas em dias úteis</p>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div class="logo">
+        <div class="logo-icon">AJ</div>
+        <span class="logo-text">AJ <span>TopoGeo</span></span>
+      </div>
+      <div class="social-links">
+        <a href="https://instagram.com/aj_topogeo" target="_blank" rel="noopener" class="social-link" title="Instagram AJ TopoGeo">📸</a>
+        <a href="https://wa.me/5567993480660" target="_blank" rel="noopener" class="social-link" title="WhatsApp">💬</a>
+        <a href="mailto:ajtopogeo@gmail.com" class="social-link" title="E-mail">✉️</a>
+      </div>
+    </div>
+    <div style="border-top:1px solid rgba(255,255,255,0.06);padding-top:20px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+      <p class="footer-copy">© 2026 AJ TopoGeo · CNPJ 46.639.961/0001-41 · Sidrolândia–MS</p>
+      <p class="footer-copy">
+        <a href="#servicos">Serviços</a> ·
+        <a href="#sobre">Sobre</a> ·
+        <a href="#contato">Contato</a>
+      </p>
+    </div>
+  </div>
+</footer>
+
+<!-- ===== WHATSAPP FLUTUANTE ===== -->
+<a href="https://wa.me/5567993480660?text=Olá!%20Vim%20pelo%20site%20da%20AJ%20TopoGeo%20e%20gostaria%20de%20um%20orçamento."
+   target="_blank" rel="noopener"
+   class="whatsapp-float"
+   aria-label="Fale conosco pelo WhatsApp">
+  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor" viewBox="0 0 16 16">
+    <path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592zm3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.729.729 0 0 0-.529.247c-.182.198-.691.677-.691 1.654 0 .977.71 1.916.81 2.049.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232z"/>
+  </svg>
+</a>
+
+<script src="js/main.js"></script>
+</body>
+</html>
