@@ -173,12 +173,12 @@ select.fc{cursor:pointer}
 :root{--sb:240px}
 .sb{transition:transform .25s cubic-bezier(.4,0,.2,1),width .25s}
 .sb.collapsed{transform:translateX(-100%)}
-.main{transition:margin-left .25s}
+.mn{transition:margin-left .25s}
 
 /* Botão hambúrguer fixo */
 #menu-toggle{
   position:fixed;top:12px;left:12px;z-index:200;
-  width:38px;height:38px;border-radius:8px;
+  width:40px;height:40px;border-radius:8px;
   background:var(--bd);color:#fff;border:none;
   cursor:pointer;display:flex;align-items:center;justify-content:center;
   font-size:18px;box-shadow:0 2px 8px rgba(0,0,0,.25);
@@ -194,48 +194,93 @@ select.fc{cursor:pointer}
 
 /* ── MOBILE (≤768px) ──────────────────────────────── */
 @media(max-width:768px){
-  :root{}
-  .sb{
-    position:fixed!important;top:0;left:0;height:100vh;z-index:100;
-    transform:translateX(-100%);width:var(--sb)!important;
-  }
-  .sb.open{transform:translateX(0)!important}
-  .sb:not(.open){transform:translateX(-100%)!important}
-  .main{margin-left:0!important;padding:1rem!important}
-  #sb-overlay{display:block}
-  #sb-overlay.visible{display:block}
+  /* Sidebar — JS controla via inline style; CSS define apenas padrão inicial */
+  .sb{position:fixed!important;top:0;left:0;height:100vh;z-index:100;transform:translateX(-100%);width:var(--sb)!important}
 
-  /* Cards em coluna no mobile */
+  /* Conteúdo principal */
+  .mn{margin-left:0!important}
+  .ct{padding:.75rem!important}
+
+  /* Overlay — usa opacity para não bloquear cliques quando fechado */
+  #sb-overlay{display:block;opacity:0;pointer-events:none;transition:opacity .25s}
+  #sb-overlay.visible{opacity:1;pointer-events:auto}
+
+  /* Topbar */
+  .tb{padding:0 .75rem 0 54px!important;height:50px!important}
+  #pt{font-size:13px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:45vw}
+  .tb .sb2{display:none!important}
+  #ba{padding:7px 10px!important}
+  #ba span{display:none}
+  #ba .ti{font-size:17px}
+
+  /* Navegação lateral — alvos maiores para toque */
+  .ni{padding:12px 1.25rem!important}
+  .ni i{font-size:20px!important}
+
+  /* Grids */
   .g2,.g3,.g4{grid-template-columns:1fr!important}
   .stat-grid{grid-template-columns:1fr 1fr!important}
-  .tw{overflow-x:auto}
-  table{min-width:520px}
+  #dash-pipeline-grid{grid-template-columns:repeat(2,1fr)!important}
 
-  /* Header mobile */
-  .hd{padding:.75rem 1rem .75rem 56px!important}
-  .hd .ph{font-size:14px!important}
+  /* Tabelas — scroll suave com momentum */
+  .tw{overflow-x:auto;-webkit-overflow-scrolling:touch;scroll-behavior:smooth}
+  table{min-width:0;font-size:12px}
+  th{padding:8px 10px;font-size:11px}
+  td{padding:8px 10px}
 
-  /* Dashboard pipeline em 3 colunas no mobile */
-  #dash-pipeline-grid{grid-template-columns:repeat(3,1fr)!important}
+  /* Formulários — font-size 16px evita zoom automático no iOS */
+  .fc,select.fc,textarea.fc{font-size:16px!important;padding:10px 12px!important}
 
-  /* Kanban horizontal scroll */
-  .kb-wrap{padding-bottom:1rem}
-  .kb-col{min-width:200px}
+  /* Botões — altura mínima para toque confortável */
+  .btn{min-height:40px}
+  .bsm{min-height:36px;padding:7px 12px}
+  .bxs{min-height:32px}
 
-  /* Modais em tela cheia no mobile */
-  .ov{align-items:flex-end!important}
-  .md{border-radius:16px 16px 0 0!important;max-height:92vh;overflow-y:auto;width:100%!important;max-width:100%!important;margin:0!important}
-  .md2{border-radius:16px 16px 0 0!important;max-height:92vh;overflow-y:auto;width:100%!important;max-width:100%!important;margin:0!important}
+  /* Modais em bottom sheet */
+  .ov{align-items:flex-end!important;padding:.5rem 0 0!important}
+  .md,.md2,.mdl{border-radius:18px 18px 0 0!important;max-height:93vh!important;overflow-y:auto!important;width:100%!important;max-width:100%!important;margin:0!important}
+  .mh{position:relative;padding-top:1.6rem!important}
+  .mh::before{content:'';display:block;width:36px;height:4px;background:#ddd;border-radius:99px;position:absolute;top:8px;left:50%;transform:translateX(-50%)}
 
-  /* Botão de nova ação */
-  .hd .btn{font-size:12px;padding:6px 12px}
+  /* Itens de orçamento — oculta coluna Vlr Unit. para economizar espaço */
+  .oh{grid-template-columns:1fr 64px 80px 30px!important;gap:4px!important}
+  .oh>span:nth-child(3){display:none!important}
+  .oi{grid-template-columns:1fr 64px 80px 30px!important;gap:4px!important}
+  .oi>*:nth-child(3){display:none!important}
+
+  /* Kanban — scroll com snap por coluna */
+  .kb-wrap{scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;gap:8px}
+  .kb-col{min-width:calc(85vw);max-width:calc(85vw);scroll-snap-align:start;flex-shrink:0}
+
+  /* Calendário — células compactas */
+  .cg{gap:1px}
+  .cdn{font-size:9px;padding:4px 2px;text-transform:uppercase}
+  .cd{min-height:50px;padding:3px 2px}
+  .cdn2{font-size:10px;font-weight:700}
+  .ce{font-size:9px;padding:1px 2px;margin-bottom:1px}
+
+  /* Cards */
+  .card{padding:.875rem}
+  .mc{padding:.75rem}
+  .mv{font-size:18px}
+
+  /* Abas — scroll horizontal */
+  .tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{padding:8px 12px;font-size:12px;white-space:nowrap;flex-shrink:0}
+
+  /* Toast — largura de tela cheia */
+  .toast{bottom:.75rem;right:.75rem;left:.75rem;max-width:none}
+
+  /* Títulos de seção */
+  .st{font-size:13px}
 }
 
 /* ── TABLET (769–1024px) ──────────────────────────── */
 @media(min-width:769px) and (max-width:1024px){
   :root{--sb:200px}
   .sb{width:var(--sb)!important}
-  .main{margin-left:var(--sb)!important}
+  .mn{margin-left:var(--sb)!important}
   .g4{grid-template-columns:1fr 1fr!important}
 }
 </style>

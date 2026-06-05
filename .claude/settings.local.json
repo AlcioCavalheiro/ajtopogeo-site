@@ -3,7 +3,32 @@
     "allow": [
       "Bash(python3 -c ' *)",
       "mcp__Claude_Preview__preview_start",
-      "PowerShell(head -5)"
+      "PowerShell(head -5)",
+      "Bash(cd \"C:\\\\Users\\\\ALCIO\\\\Downloads\" && ls AJ_TopoGeo_Gestor.zip)",
+      "Bash(Expand-Archive -Path \"AJ_TopoGeo_Gestor.zip\" -DestinationPath \"C:\\\\Users\\\\ALCIO\\\\Downloads\\\\AJ_TopoGeo_Gestor_temp\" -Force)",
+      "Bash(Select-Object -First 5)",
+      "Bash(Get-ChildItem \"C:\\\\Users\\\\ALCIO\\\\Downloads\\\\AJ_TopoGeo_Gestor_temp\" -Recurse)",
+      "Bash(Select-Object FullName, Extension, Length)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(Out-String -Width 200)",
+      "PowerShell(Expand-Archive -Path \"C:\\\\Users\\\\ALCIO\\\\Downloads\\\\AJ_TopoGeo_Gestor.zip\" -DestinationPath \"C:\\\\Users\\\\ALCIO\\\\Downloads\\\\AJ_TopoGeo_Gestor_temp\" -Force; Get-ChildItem \"C:\\\\Users\\\\ALCIO\\\\Downloads\\\\AJ_TopoGeo_Gestor_temp\" -Recurse | Select-Object FullName, Extension, @{N='KB';E={[math]::Round\\($_.Length/1KB,1\\)}} | Format-Table -AutoSize)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(node -c index.html)",
+      "Bash(cd /tmp)",
+      "Bash(curl -s -o gestor_live.html -w \"HTTP %{http_code} | size: %{size_download} bytes\\\\n\" \"https://ajtopogeo.com.br/gestor/\")",
+      "Bash(wc -c \"/c/Users/ALCIO/Documents/SITE/gestor/index.html\")",
+      "Bash(curl -s -o gestor_live.html -w \"HTTP %{http_code} | bytes: %{size_download}\\\\n\" \"https://ajtopogeo.com.br/gestor/\")",
+      "Read(//tmp/**)",
+      "Bash(curl -s \"https://ajtopogeo.com.br/gestor/\" -o live.html)",
+      "Bash(xxd)",
+      "Bash(curl -s -I -H \"Accept-Encoding: gzip, br\" \"https://ajtopogeo.com.br/gestor/\")",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "mcp__Claude_in_Chrome__navigate",
+      "mcp__Claude_in_Chrome__javascript_tool",
+      "mcp__Claude_in_Chrome__read_console_messages",
+      "mcp__Claude_in_Chrome__tabs_close_mcp"
     ]
   }
 }
