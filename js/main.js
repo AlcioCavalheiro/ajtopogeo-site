@@ -34,7 +34,7 @@ document.getElementById('form-contato').addEventListener('submit', function(e) {
   const servico  = document.getElementById('servico').value;
   const mensagem = document.getElementById('mensagem').value.trim();
   const texto = `Olá! Vim pelo site da AJ TopoGeo.\n\n*Nome:* ${nome}\n*Telefone:* ${telefone}\n*Serviço:* ${servico}\n*Mensagem:* ${mensagem}`;
-  const url = `https://wa.me/5567993480660?text=${encodeURIComponent(texto)}`;
+  const url = `https://wa.me/5567991379210?text=${encodeURIComponent(texto)}`;
   window.open(url, '_blank');
 });
 
