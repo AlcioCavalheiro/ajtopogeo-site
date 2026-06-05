@@ -855,7 +855,8 @@ footer {
   position: absolute;
   top: 100%;
   left: 50%;
-  transform: translateX(-50%) translateY(8px);
+  transform: translateX(-50%);
+  margin-top: 6px;
   background: rgba(13,27,42,0.98);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 10px;
@@ -863,14 +864,23 @@ footer {
   min-width: 270px;
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.2s, transform 0.2s;
+  transition: opacity 0.18s ease;
   box-shadow: 0 12px 40px rgba(0,0,0,0.4);
   backdrop-filter: blur(8px);
 }
-.has-dropdown:hover .dropdown-menu {
+/* Ponte invisível: cobre o vão entre "Serviços" e o menu para o hover não cair */
+.dropdown-menu::before {
+  content: '';
+  position: absolute;
+  top: -22px;
+  left: 0;
+  right: 0;
+  height: 22px;
+}
+.has-dropdown:hover .dropdown-menu,
+.has-dropdown:focus-within .dropdown-menu {
   opacity: 1;
   visibility: visible;
-  transform: translateX(-50%) translateY(4px);
 }
 .dropdown-menu a {
   display: block;
