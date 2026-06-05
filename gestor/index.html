@@ -988,7 +988,7 @@ async function rDash(){
         </div>
         ${atrs.map(a=>`<div class="fxb" style="padding:8px 0;border-bottom:1px solid #fcd5d5">
           <div style="flex:1"><div class="w5">${a.titulo}</div><div class="mu sm">${fd(a.data)}${a.os_numero?' · OS: '+a.os_numero:''}</div></div>
-          <span class="bd br">Atrasado</span>
+          <div class="fx g8"><button class="btn bxs" style="background:#EAF3DE;color:#27500A;border:1px solid #b5d98a;padding:3px 10px;font-size:12px" onclick="concluirAgenda('${a.id}')"><i class="ti ti-check"></i> Concluir</button><span class="bd br">Atrasado</span></div>
         </div>`).join('')}
       </div>`;
     } else {
@@ -1045,7 +1045,8 @@ async function rAgenda(){
           const statusTx=atrasado?'Atrasado':'Pendente';
           const acoes=isPag
             ?`<button class="btn bxs" style="background:#FFF8E7;color:#633806" onclick="nav('pagamentos')"><i class="ti ti-credit-card"></i> Ver pagamentos</button>`
-            :`<button class="btn bxs" onclick="editAgenda('${a.id}')"><i class="ti ti-edit"></i> Editar</button>
+            :`<button class="btn bxs" style="background:#EAF3DE;color:#27500A;border:1px solid #b5d98a" onclick="concluirAgenda('${a.id}')"><i class="ti ti-check"></i> Concluir</button>
+              <button class="btn bxs" onclick="editAgenda('${a.id}')"><i class="ti ti-edit"></i> Editar</button>
               <button class="btn bxs bdr" onclick="excluirReg('agenda','${a.id}','${a.titulo}')"><i class="ti ti-trash"></i> Excluir</button>`;
           return`<div style="padding:10px 0;border-bottom:1px solid var(--bor)${bordColor?';border-left:3px solid '+bordColor+';padding-left:8px':''}${bgColor?';background:'+bgColor:''}">
             <div class="fxb"><div class="w5">${a.titulo}</div><div class="fx g8"><span class="bd ${statusBd}">${statusTx}</span><span class="bd ${tipoBd}">${a.tipo||'Geral'}</span></div></div>
@@ -1085,6 +1086,13 @@ function buildCal(evts){
 function calNav(d){CM2+=d;if(CM2>11){CM2=0;CY++;}if(CM2<0){CM2=11;CY--;}rAgenda();}
 function addAgDay(date){buildAgForm(null,date);}
 async function editAgenda(id){const{data}=await sb.from('agenda').select('*').eq('id',id).single();buildAgForm(data);}
+async function concluirAgenda(id){
+  const{error}=await sb.from('agenda').update({concluido:true,concluida:true}).eq('id',id);
+  if(error){toast('Erro ao concluir: '+error.message,true);return;}
+  toast('Marcado como concluído!');
+  if(document.getElementById('ov').classList.contains('open'))closeModal();
+  renderPage();
+}
 async function viewAgenda(id){
   const{data:a}=await sb.from('agenda').select('*').eq('id',id).single();
   if(!a)return;
@@ -1109,6 +1117,7 @@ async function viewAgenda(id){
   document.getElementById('mf').innerHTML=`
     <button class="btn" onclick="closeModal()">Fechar</button>
     <button class="btn bdr bsm" onclick="closeModal();excluirReg('agenda','${a.id}','${a.titulo}')"><i class="ti ti-trash"></i> Excluir</button>
+    ${!a.concluido?`<button class="btn bxs" style="background:#EAF3DE;color:#27500A;border:1px solid #b5d98a" onclick="concluirAgenda('${a.id}')"><i class="ti ti-check"></i> Concluir</button>`:''}
     <button class="btn bp2" onclick="editAgenda('${a.id}')"><i class="ti ti-edit"></i> Editar</button>`;
   document.getElementById('ov').classList.add('open');
 }
@@ -3149,12 +3158,12 @@ async function rPendencias(){
     sb.from('agenda').select('*').lt('data',hj).or('concluido.eq.false,concluido.is.null').order('data'),
   ]);
   const ps=(todos||[]).filter(p=>(p.pendencias||[]).some(d=>!d.ok));
-  const agAtrasada=(agendaAtrasada||[]);
+  const agAtrasada=(agendaAtrasada||[]).filter(a=>!(a.concluido||a.concluida));
   if(!ps.length&&!agAtrasada.length){document.getElementById('ct').innerHTML='<div class="card" style="text-align:center;padding:2rem"><i class="ti ti-check" style="font-size:40px;color:#3B6D11;display:block;margin-bottom:.5rem"></i><div class="w6">Nenhuma pendência!</div></div>';return;}
   let html='';
   if(agAtrasada.length){
     html+='<div class="card mb1" style="border-left:4px solid #E24B4A"><div class="st mb1"><i class="ti ti-calendar-exclamation" style="color:#E24B4A"></i>Compromissos atrasados</div>';
-    html+=agAtrasada.map(a=>'<div class="fxb" style="padding:8px 0;border-bottom:1px solid var(--bor)"><div><div class="w5">'+a.titulo+'</div><div class="mu sm">'+fd(a.data)+(a.hora?' · '+a.hora:'')+(a.descricao?' — '+a.descricao:'')+'</div></div><div class="fx g8">'+(a.os_id?'<button class="btn bxs" onclick="nav(\'ordens\');setTimeout(()=>abrirOS(\''+a.os_id+'\'),400)"><i class="ti ti-clipboard-list"></i> OS</button>':'')+'<button class="btn bxs" onclick="editAgenda(\''+a.id+'\')"><i class="ti ti-edit"></i> Editar</button></div></div>').join('');
+    html+=agAtrasada.map(a=>'<div class="fxb" style="padding:8px 0;border-bottom:1px solid var(--bor)"><div><div class="w5">'+a.titulo+'</div><div class="mu sm">'+fd(a.data)+(a.hora?' · '+a.hora:'')+(a.descricao?' — '+a.descricao:'')+'</div></div><div class="fx g8">'+(a.os_id?'<button class="btn bxs" onclick="nav(\'ordens\');setTimeout(()=>abrirOS(\''+a.os_id+'\'),400)"><i class="ti ti-clipboard-list"></i> OS</button>':'')+'<button class="btn bxs" style="background:#EAF3DE;color:#27500A;border:1px solid #b5d98a" onclick="concluirAgenda(\''+a.id+'\')"><i class="ti ti-check"></i> Concluir</button><button class="btn bxs" onclick="editAgenda(\''+a.id+'\')"><i class="ti ti-edit"></i> Editar</button></div></div>').join('');
     html+='</div>';
   }
   ps.forEach(p=>{
@@ -3603,8 +3612,9 @@ async function saveRecord(){
   let error,data2;
   if(EID){({error}=await sb.from(tb).update(payload).eq('id',EID));}
   else{({error,data:data2}=await sb.from(tb).insert(payload).select().single());}
-  // Se concluido não existe na tabela agenda, tenta sem ele
-  if(error&&tb==='agenda'&&payload.hasOwnProperty('concluido')){
+  // Fallback específico: se o erro for exclusivamente sobre a coluna "concluido" (sem mencionar "concluida"),
+  // tenta sem ela. Demais casos de coluna ausente são tratados pelo while loop abaixo.
+  if(error&&tb==='agenda'&&error.message&&error.message.includes('concluido')&&!error.message.includes('concluida')&&payload.hasOwnProperty('concluido')){
     delete payload.concluido;
     if(EID){({error}=await sb.from(tb).update(payload).eq('id',EID));}
     else{({error,data:data2}=await sb.from(tb).insert(payload).select().single());}
