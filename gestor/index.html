@@ -1812,7 +1812,7 @@ function oiChange(i,f,v){if(OI[i])OI[i][f]=parseFloat(v)||0;atualizarSubtotal(i)
 let _orcamentosCache=[];
 function _renderOrcamentosTabela(ors,q){
   const hj=new Date();
-  const t=q?ors.filter(o=>{const s=_normOS((o.numero||'')+(o.clientes?.nome||'')+(o.status||''));return s.includes(_normOS(q));}):ors;
+  const t=q?ors.filter(o=>{const s=_normOS((o.numero||'')+(o.clientes?.nome||'')+(o.obras?.nome||'')+(o.status||''));return s.includes(_normOS(q));}):ors;
   const tb=document.getElementById('orcamentos-tbody');
   if(!tb)return;
   tb.innerHTML=t.map(o=>{
@@ -1824,6 +1824,7 @@ function _renderOrcamentosTabela(ors,q){
     const fu=o.status==='Enviado'?([7,15,30].includes(diasEnv)?`<span class="bd bw"><i class="ti ti-phone" style="font-size:11px"></i> D+${diasEnv}</span>`:`<span class="mu sm">${diasEnv}d sem resp.</span>`):'—';
     return`<tr>
       <td class="w6">${o.numero||'—'}</td><td>${o.clientes?.nome||'—'}</td>
+      <td class="mu sm">${o.obras?.nome||'—'}${o.obras?.municipio?` <span style="color:#999">· ${o.obras.municipio}</span>`:''}</td>
       <td class="w6">${fmt(o.valor_total)}</td>
       <td class="mu sm">${o.status==='Enviado'?diasEnv+'d':'—'}</td>
       <td>${fd(o.validade)}</td>
@@ -1835,11 +1836,18 @@ function _renderOrcamentosTabela(ors,q){
         <button class="btn bxs bdr" onclick="excluirReg('orcamentos','${o.id}','${o.numero}')"><i class="ti ti-trash"></i></button>
       </td>
     </tr>`;
-  }).join('')||(q?`<tr><td colspan="8" style="text-align:center;color:#888;padding:2rem">Nenhum orçamento encontrado para "<strong>${q}</strong>"</td></tr>`:nd(8));
+  }).join('')||(q?`<tr><td colspan="9" style="text-align:center;color:#888;padding:2rem">Nenhum orçamento encontrado para "<strong>${q}</strong>"</td></tr>`:nd(9));
 }
 async function rOrcamentos(){
   const{data}=await sb.from('orcamentos').select('*,clientes(nome)').order('created_at',{ascending:false});
   _orcamentosCache=data||[];
+  // Mapear obras separadamente (evita depender de FK no PostgREST)
+  const obraIds=[...new Set((_orcamentosCache||[]).map(o=>o.obra_id).filter(Boolean))];
+  if(obraIds.length){
+    const{data:obrasData}=await sb.from('obras').select('id,nome,municipio').in('id',obraIds);
+    const obraMap={};(obrasData||[]).forEach(ob=>{obraMap[ob.id]=ob;});
+    _orcamentosCache.forEach(o=>{o.obras=o.obra_id?obraMap[o.obra_id]||null:null;});
+  }
   const ors=_orcamentosCache;
   document.getElementById('ct').innerHTML=`
   <div class="g3 mb1" style="grid-template-columns:repeat(5,1fr)">
@@ -1850,7 +1858,7 @@ async function rOrcamentos(){
     <div class="mc"><div class="ml">Cancelados</div><div class="mv" style="color:#A32D2D">${ors.filter(o=>o.status==='Recusado').length}</div></div>
   </div>
   <div class="card"><div class="tw"><table>
-    <thead><tr><th>Número</th><th>Cliente</th><th>Valor Total</th><th>Enviado há</th><th>Validade</th><th>Status</th><th>Follow-up</th><th></th></tr></thead>
+    <thead><tr><th>Número</th><th>Cliente</th><th>Obra</th><th>Valor Total</th><th>Enviado há</th><th>Validade</th><th>Status</th><th>Follow-up</th><th></th></tr></thead>
     <tbody id="orcamentos-tbody"></tbody>
   </table></div></div>`;
   _renderOrcamentosTabela(ors,'');
@@ -5355,9 +5363,25 @@ async function salvarRecOS(osId){
 
 // ─── rOS — exibir botão "Abrir OS" e suprimir botão "Nova OS" ──
 let _osCache=[];
+let _osFiltros={status:'',cliente:''};
+const _OS_STATUS_LISTA=['Agendada','Logística / Preparação','Em campo','Em andamento',
+  'Processamento','Desenho','Revisão Técnica','Análise Jurídica','Pendência Documental',
+  'Pronto para Protocolo','Protocolada',
+  'Encaminhada para Medição','Medição Realizada','NF Gerada','Recebido',
+  'Pronto para Enviar ao Cliente','Documentos Enviados ao Cliente',
+  'Concluída','Cancelada'];
 function _normOS(s){return(s||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
 function _renderOSTabela(ors,q){
-  const t=q?ors.filter(o=>{const s=_normOS((o.clientes?.nome||'')+(o.numero||'')+(o.tipo||'')+(o.responsavel||'')+(o.obras?.nome||''));return s.includes(_normOS(q));}):ors;
+  let base=ors;
+  if(_osFiltros.status){
+    if(_osFiltros.status==='__abertas'){base=base.filter(o=>o.status!=='Concluída'&&o.status!=='Cancelada'&&o.status!=='Recebido');}
+    else if(_osFiltros.status==='__finalizadas'){base=base.filter(o=>o.status==='Concluída'||o.status==='Recebido');}
+    else{base=base.filter(o=>(o.status||'')===_osFiltros.status);}
+  }
+  if(_osFiltros.cliente)base=base.filter(o=>(o.clientes?.nome||'')===_osFiltros.cliente);
+  const t=q?base.filter(o=>{const s=_normOS((o.clientes?.nome||'')+(o.numero||'')+(o.tipo||'')+(o.responsavel||'')+(o.obras?.nome||''));return s.includes(_normOS(q));}):base;
+  const _cnt=document.getElementById('os-filtro-contador');
+  if(_cnt)_cnt.textContent='Exibindo '+t.length+' de '+ors.length+' OS';
   const tbody=t.map(o=>'<tr>'
     +'<td class="w6"><strong>'+o.numero+'</strong></td>'
     +'<td class="mu sm">'+o.tipo+'</td>'
@@ -5396,13 +5420,51 @@ pageMap.ordens=async function rOSFixed(){
     +'<div class="mc"><div class="ml">Finalizadas</div><div class="mv" style="color:#27500A">'+ors.filter(o=>o.status==='Concluída'||o.status==='Recebido').length+'</div></div>'
     +'<div class="mc"><div class="ml">Em Medição/NF</div><div class="mv" style="color:#854F0B">'+ors.filter(o=>['Encaminhada para Medição','Medição Realizada','NF Gerada'].includes(o.status)).length+'</div></div>'
     +'</div>'
+    +_osFiltroBarHTML(ors)
     +'<div class="card"><div class="tw"><table>'
     +'<thead><tr><th>Número</th><th>Tipo</th><th>Cliente</th><th>Obra</th><th>Data</th><th>Status</th><th>Valor</th><th></th></tr></thead>'
     +'<tbody id="os-tbody"></tbody></table></div></div>';
-  _renderOSTabela(ors,'');
+  _renderOSTabela(ors,(document.getElementById('si')?.value||'').trim());
   const si=document.getElementById('si');
   si.oninput=function(){if(CP==='ordens')_renderOSTabela(_osCache,this.value.trim());};
 };
+
+// ─── Barra de filtros da página de OS ──────────────────────
+function _osFiltroBarHTML(ors){
+  // Status presentes nos dados, ordenados pela lista canônica
+  const statusPresentes=_OS_STATUS_LISTA.filter(s=>ors.some(o=>(o.status||'')===s));
+  const statusOpts=statusPresentes.map(s=>'<option value="'+s+'"'+(_osFiltros.status===s?' selected':'')+'>'+s+'</option>').join('');
+  // Clientes únicos presentes nos dados
+  const clientes=[...new Set(ors.map(o=>o.clientes?.nome).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  const cliOpts=clientes.map(c=>'<option value="'+c.replace(/"/g,'&quot;')+'"'+(_osFiltros.cliente===c?' selected':'')+'>'+c+'</option>').join('');
+  return '<div class="card mb1" style="padding:.75rem 1rem">'
+    +'<div class="fx g12" style="flex-wrap:wrap;align-items:flex-end">'
+    +'<div class="fg" style="margin:0;min-width:200px;flex:1"><label class="fl">Status</label>'
+    +'<select class="fc" id="os-f-status" onchange="_setFiltroOS()">'
+    +'<option value="">Todos os status</option>'
+    +'<option value="__abertas"'+(_osFiltros.status==='__abertas'?' selected':'')+'>— Em aberto —</option>'
+    +'<option value="__finalizadas"'+(_osFiltros.status==='__finalizadas'?' selected':'')+'>— Finalizadas —</option>'
+    +statusOpts+'</select></div>'
+    +'<div class="fg" style="margin:0;min-width:200px;flex:1"><label class="fl">Cliente</label>'
+    +'<select class="fc" id="os-f-cliente" onchange="_setFiltroOS()">'
+    +'<option value="">Todos os clientes</option>'+cliOpts+'</select></div>'
+    +'<button class="btn bsm" onclick="_limparFiltrosOS()" title="Limpar filtros"><i class="ti ti-filter-off"></i> Limpar</button>'
+    +'</div>'
+    +'<div class="mu sm" id="os-filtro-contador" style="margin-top:.5rem"></div>'
+    +'</div>';
+}
+function _setFiltroOS(){
+  _osFiltros.status=document.getElementById('os-f-status')?.value||'';
+  _osFiltros.cliente=document.getElementById('os-f-cliente')?.value||'';
+  _renderOSTabela(_osCache,(document.getElementById('si')?.value||'').trim());
+}
+function _limparFiltrosOS(){
+  _osFiltros={status:'',cliente:''};
+  const fs=document.getElementById('os-f-status');if(fs)fs.value='';
+  const fc=document.getElementById('os-f-cliente');if(fc)fc.value='';
+  const si=document.getElementById('si');if(si)si.value='';
+  _renderOSTabela(_osCache,'');
+}
 
 // ─── SQL adicional necessário ─────────────────────────────────
 // ALTER TABLE orcamentos ADD COLUMN IF NOT EXISTS responsaveis jsonb DEFAULT '[]';
