@@ -55,9 +55,18 @@
 
 <section class="artigo">
   <div class="container">
+    <div class="blog-filtros">
+      <button class="filtro-btn ativo" data-f="todos">Todos</button>
+      <button class="filtro-btn" data-f="geo">Georreferenciamento</button>
+      <button class="filtro-btn" data-f="topo">Topografia &amp; Obras</button>
+      <button class="filtro-btn" data-f="reg">Regularização Fundiária</button>
+      <button class="filtro-btn" data-f="amb">Meio Ambiente</button>
+      <button class="filtro-btn" data-f="drone">Drones &amp; Agricultura</button>
+      <button class="filtro-btn" data-f="doc">Documentação Rural</button>
+    </div>
     <div class="blog-grid">
 
-      <article class="blog-card">
+      <article class="blog-card" data-cat="geo">
         <img src="img/marco-geodesico.jpg" alt="Georreferenciamento de imóvel rural com GNSS RTK" class="blog-card-img" />
         <div class="blog-card-body">
           <span class="blog-tag">Georreferenciamento</span>
@@ -67,7 +76,7 @@
         </div>
       </article>
 
-      <article class="blog-card">
+      <article class="blog-card" data-cat="amb">
         <img src="img/aereo-1.jpg" alt="Mapa de propriedade rural para o Cadastro Ambiental Rural" class="blog-card-img" />
         <div class="blog-card-body">
           <span class="blog-tag">Meio Ambiente</span>
@@ -77,7 +86,7 @@
         </div>
       </article>
 
-      <article class="blog-card">
+      <article class="blog-card" data-cat="doc">
         <img src="img/campo-por-do-sol.jpg" alt="Documentação de imóvel rural ITR e CCIR" class="blog-card-img" />
         <div class="blog-card-body">
           <span class="blog-tag">Documentação</span>
@@ -87,7 +96,7 @@
         </div>
       </article>
 
-      <article class="blog-card">
+      <article class="blog-card" data-cat="topo">
         <img src="img/trena-campo.jpg" alt="Estação RTK para orçamento de topografia" class="blog-card-img" />
         <div class="blog-card-body">
           <span class="blog-tag">Topografia</span>
@@ -97,7 +106,7 @@
         </div>
       </article>
 
-      <article class="blog-card">
+      <article class="blog-card" data-cat="reg">
         <img src="img/cerca-divisa.jpg" alt="Medição de divisa para usucapião" class="blog-card-img" />
         <div class="blog-card-body">
           <span class="blog-tag">Regularização</span>
@@ -107,7 +116,7 @@
         </div>
       </article>
 
-      <article class="blog-card">
+      <article class="blog-card" data-cat="topo">
         <img src="img/tripe-campo.jpg" alt="Planta com curvas de nível de levantamento planialtimétrico" class="blog-card-img" />
         <div class="blog-card-body">
           <span class="blog-tag">Topografia</span>
@@ -117,7 +126,7 @@
         </div>
       </article>
 
-      <article class="blog-card">
+      <article class="blog-card" data-cat="drone">
         <img src="img/aereo-2.jpg" alt="Drone agrícola em mapeamento NDVI" class="blog-card-img" />
         <div class="blog-card-body">
           <span class="blog-tag">Agricultura de Precisão</span>
@@ -127,7 +136,7 @@
         </div>
       </article>
 
-      <article class="blog-card">
+      <article class="blog-card" data-cat="geo">
         <img src="img/campo-gnss.jpg" alt="Georreferenciamento por hectare em Mato Grosso do Sul" class="blog-card-img" />
         <div class="blog-card-body">
           <span class="blog-tag">Georreferenciamento</span>
@@ -137,7 +146,7 @@
         </div>
       </article>
 
-      <article class="blog-card">
+      <article class="blog-card" data-cat="topo">
         <img src="img/estacao-rtk.jpg" alt="Topografia para loteamento e demarcação de lotes em MS" class="blog-card-img" />
         <div class="blog-card-body">
           <span class="blog-tag">Loteamento</span>
@@ -147,7 +156,7 @@
         </div>
       </article>
 
-      <article class="blog-card">
+      <article class="blog-card" data-cat="doc">
         <img src="img/equipe-campo.jpg" alt="Empresa de topografia e georreferenciamento em MS" class="blog-card-img" />
         <div class="blog-card-body">
           <span class="blog-tag">Empresa</span>
@@ -157,7 +166,7 @@
         </div>
       </article>
 
-      <article class="blog-card">
+      <article class="blog-card" data-cat="drone">
         <img src="img/drone-controle.jpg" alt="Agricultura de precisão em MS com drone" class="blog-card-img" />
         <div class="blog-card-body">
           <span class="blog-tag">Agricultura de Precisão</span>
@@ -167,7 +176,7 @@
         </div>
       </article>
 
-      <article class="blog-card">
+      <article class="blog-card" data-cat="reg">
         <img src="img/tecnico-rtk.jpg" alt="Remembramento e desmembramento de imóveis em MS" class="blog-card-img" />
         <div class="blog-card-body">
           <span class="blog-tag">Regularização</span>
@@ -177,7 +186,7 @@
         </div>
       </article>
 
-      <article class="blog-card">
+      <article class="blog-card" data-cat="drone">
         <img src="img/ortomosaico.jpg" alt="Aerofotogrametria com drone em MS" class="blog-card-img" />
         <div class="blog-card-body">
           <span class="blog-tag">Drones</span>
@@ -187,7 +196,7 @@
         </div>
       </article>
 
-      <article class="blog-card">
+      <article class="blog-card" data-cat="geo">
         <img src="img/hero-drone.jpg" alt="Georreferenciamento urbano e SIG-RI em MS" class="blog-card-img" />
         <div class="blog-card-body">
           <span class="blog-tag">Georreferenciamento</span>
@@ -197,7 +206,7 @@
         </div>
       </article>
 
-      <article class="blog-card">
+      <article class="blog-card" data-cat="topo">
         <img src="img/terraplenagem.jpg" alt="Projeto de terraplenagem e cálculo de volume em MS" class="blog-card-img" />
         <div class="blog-card-body">
           <span class="blog-tag">Obras</span>
@@ -207,7 +216,7 @@
         </div>
       </article>
 
-      <article class="blog-card">
+      <article class="blog-card" data-cat="amb">
         <img src="img/mata-vegetacao.jpg" alt="Supressão vegetal e DOF em MS" class="blog-card-img" />
         <div class="blog-card-body">
           <span class="blog-tag">Meio Ambiente</span>
@@ -217,7 +226,7 @@
         </div>
       </article>
 
-      <article class="blog-card">
+      <article class="blog-card" data-cat="reg">
         <img src="img/tecnico-gnss.jpg" alt="Retificação de área e correção de matrícula em MS" class="blog-card-img" />
         <div class="blog-card-body">
           <span class="blog-tag">Regularização</span>
