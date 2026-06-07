@@ -35,7 +35,9 @@
       "mcp__Claude_in_Chrome__list_connected_browsers",
       "mcp__Claude_in_Chrome__browser_batch",
       "mcp__Claude_in_Chrome__computer",
-      "Bash(py)"
+      "Bash(py)",
+      "WebFetch(domain:www.gov.br)",
+      "WebFetch(domain:www.semadesc.ms.gov.br)"
     ]
   }
 }
