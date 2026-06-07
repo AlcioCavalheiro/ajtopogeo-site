@@ -3678,8 +3678,7 @@ async function saveRecord(){
   // Pagamento marcado como Pago: concluir itens de agenda relacionados
   if(tb==='pagamentos'&&payload.status==='Pago'){
     const tituloAg='Pagar: '+(payload.descricao||'');
-    try{await sb.from('agenda').update({concluido:true,concluida:true}).eq('titulo',tituloAg).eq('concluido',false);}catch(e){}
-    try{await sb.from('agenda').update({concluido:true,concluida:true}).eq('titulo',tituloAg).eq('concluida',false);}catch(e){}
+    try{await sb.from('agenda').update({concluido:true,concluida:true}).eq('titulo',tituloAg).or('concluido.is.null,concluido.eq.false');}catch(e){}
   }
   if(CM==='orcamentos'&&payload.numero){await sincPipelineOrçamento(payload,EID);if(EID)await sincOrcamentoParaOS(EID);}
   // Agenda: criar compromisso de pagamento ao lançar como Pendente
