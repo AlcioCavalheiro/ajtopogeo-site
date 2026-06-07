@@ -3687,7 +3687,8 @@ async function saveRecord(){
       const novo={...payload};
       delete novo.id;delete novo.created_at;delete novo.updated_at;
       novo.vencimento=_addMeses(payload.vencimento||new Date().toISOString().split('T')[0],i);
-      if(payload.data_pagamento)novo.data_pagamento=_addMeses(payload.data_pagamento,i);
+      novo.status='Pendente';
+      novo.data_pagamento=null;
       if(useMarker)novo.recorrencia_id=recId;
       let{error:e2}=await sb.from('pagamentos').insert(novo);
       // remove colunas inexistentes (ex: recorrencia_id) e tenta de novo
@@ -4674,6 +4675,18 @@ async function gerarPDFAgenda(){
 async function excluirReg(tabela,id,desc){
   const descLabel=(desc&&desc!=='null'&&desc!=='undefined')?desc:'este registro';
   if(!confirm('Excluir "'+descLabel+'"?\n\nEsta ação não pode ser desfeita.'))return;
+  if(tabela==='pagamentos'){
+    const{data:pag}=await sb.from('pagamentos').select('recorrencia_id').eq('id',id).single();
+    if(pag?.recorrencia_id){
+      const excluirTodos=confirm('Este lançamento faz parte de um grupo de parcelas/recorrência.\n\nOK = Excluir TODOS os lançamentos do grupo\nCancelar = Excluir somente este');
+      if(excluirTodos){
+        const{error:eAll}=await sb.from('pagamentos').delete().eq('recorrencia_id',pag.recorrencia_id);
+        if(eAll){toast('Erro: '+eAll.message,true);return;}
+        toast('Todos os lançamentos do grupo excluídos!');
+        closeModal();closeModal2();renderPage();return;
+      }
+    }
+  }
   if(tabela==='clientes'){
     await Promise.all([sb.from('ordens').update({cliente_id:null}).eq('cliente_id',id),sb.from('orcamentos').update({cliente_id:null}).eq('cliente_id',id),sb.from('contratos').update({cliente_id:null}).eq('cliente_id',id),sb.from('recebimentos').update({cliente_id:null}).eq('cliente_id',id),sb.from('notas_fiscais').update({cliente_id:null}).eq('cliente_id',id),sb.from('projetos').update({cliente_id:null}).eq('cliente_id',id)]);
   }
