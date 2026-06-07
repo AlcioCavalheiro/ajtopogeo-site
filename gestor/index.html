@@ -3677,8 +3677,14 @@ async function saveRecord(){
   if(CM==='pagamentos'&&recId&&_uploadFiles['pag'])await salvarComUpload('pagamentos',recId,'pag');
   // Pagamento marcado como Pago: concluir itens de agenda relacionados
   if(tb==='pagamentos'&&payload.status==='Pago'){
-    const tituloAg='Pagar: '+(payload.descricao||'');
-    try{await sb.from('agenda').update({concluido:true,concluida:true}).eq('titulo',tituloAg).or('concluido.is.null,concluido.eq.false');}catch(e){}
+    let _descPag=(payload.descricao||'').trim();
+    // Se descricao não veio no payload (só mudou status), busca do banco
+    if(!_descPag&&EID){const{data:_pg}=await sb.from('pagamentos').select('descricao').eq('id',EID).single();_descPag=(_pg?.descricao||'').trim();}
+    if(_descPag){
+      const tituloAg='Pagar: '+_descPag;
+      // Atualiza sem filtro de status (idempotente, mais confiável)
+      await sb.from('agenda').update({concluido:true,concluida:true}).eq('titulo',tituloAg);
+    }
   }
   if(CM==='orcamentos'&&payload.numero){await sincPipelineOrçamento(payload,EID);if(EID)await sincOrcamentoParaOS(EID);}
   // Agenda: criar compromisso de pagamento ao lançar como Pendente
