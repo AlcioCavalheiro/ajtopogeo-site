@@ -3177,14 +3177,28 @@ function kbCard(p){
 
 async function rPendencias(){
   const hj=new Date().toISOString().split('T')[0];
-  const[{data:todos},{data:agendaAtrasada}]=await Promise.all([
+  const[{data:todos},{data:agendaAtrasada},{data:pagAtrasados}]=await Promise.all([
     sb.from('projetos').select('id,nome,etapa,pendencias,clientes(nome)'),
     sb.from('agenda').select('*').lt('data',hj).or('concluido.eq.false,concluido.is.null').order('data'),
+    sb.from('pagamentos').select('*').lt('vencimento',hj).eq('status','Pendente').order('vencimento'),
   ]);
   const ps=(todos||[]).filter(p=>(p.pendencias||[]).some(d=>!d.ok));
   const agAtrasada=(agendaAtrasada||[]).filter(a=>!(a.concluido||a.concluida));
-  if(!ps.length&&!agAtrasada.length){document.getElementById('ct').innerHTML='<div class="card" style="text-align:center;padding:2rem"><i class="ti ti-check" style="font-size:40px;color:#3B6D11;display:block;margin-bottom:.5rem"></i><div class="w6">Nenhuma pendência!</div></div>';return;}
+  const pagsAt=pagAtrasados||[];
+  if(!ps.length&&!agAtrasada.length&&!pagsAt.length){document.getElementById('ct').innerHTML='<div class="card" style="text-align:center;padding:2rem"><i class="ti ti-check" style="font-size:40px;color:#3B6D11;display:block;margin-bottom:.5rem"></i><div class="w6">Nenhuma pendência!</div></div>';return;}
   let html='';
+  // ── Pagamentos em atraso ──────────────────────────────────
+  if(pagsAt.length){
+    const totalAt=pagsAt.reduce((s,p)=>s+Number(p.valor||0)+Number(p.juros||0),0);
+    html+='<div class="card mb1" style="border-left:4px solid #854F0B"><div class="fxb mb1"><div class="st" style="margin:0;color:#854F0B"><i class="ti ti-cash-off" style="color:#854F0B"></i>Pagamentos em atraso <span style="background:#854F0B;color:#fff;border-radius:99px;font-size:11px;font-weight:700;padding:2px 8px;margin-left:4px">'+pagsAt.length+'</span></div><div class="fx g8"><span style="font-size:13px;font-weight:700;color:#854F0B">Total: '+fmt(totalAt)+'</span><button class="btn bsm" onclick="nav(\'pagamentos\')" style="color:#854F0B;border-color:#c8843a">Ver pagamentos</button></div></div>';
+    html+=pagsAt.map(p=>{
+      const dias=Math.round((new Date(hj)-new Date(p.vencimento))/(1000*60*60*24));
+      const total=Number(p.valor||0)+Number(p.juros||0);
+      return'<div class="fxb" style="padding:8px 0;border-bottom:1px solid #EDD9BE"><div><div class="w5">'+( p.descricao||'—')+'<span class="bd" style="background:#FFF0C2;color:#854F0B;font-size:10px;margin-left:6px">'+dias+' dia'+(dias>1?'s':'')+' em atraso</span></div><div class="mu sm">'+(p.categoria||'')+(p.os_manual?' · '+p.os_manual:'')+'</div></div><div class="fx g8" style="flex-shrink:0"><span class="w6" style="color:#854F0B">'+fmt(total)+'</span><button class="btn bsm" onclick="editRecord(\'pagamentos\',\''+p.id+'\')" style="border-color:#c8843a"><i class="ti ti-edit"></i> Pagar</button></div></div>';
+    }).join('');
+    html+='</div>';
+  }
+  // ── Compromissos atrasados ────────────────────────────────
   if(agAtrasada.length){
     html+='<div class="card mb1" style="border-left:4px solid #E24B4A"><div class="st mb1"><i class="ti ti-calendar-exclamation" style="color:#E24B4A"></i>Compromissos atrasados</div>';
     html+=agAtrasada.map(a=>'<div class="fxb" style="padding:8px 0;border-bottom:1px solid var(--bor)"><div><div class="w5">'+a.titulo+'</div><div class="mu sm">'+fd(a.data)+(a.hora?' · '+a.hora:'')+(a.descricao?' — '+a.descricao:'')+'</div></div><div class="fx g8">'+(a.os_id?'<button class="btn bxs" onclick="nav(\'ordens\');setTimeout(()=>abrirOS(\''+a.os_id+'\'),400)"><i class="ti ti-clipboard-list"></i> OS</button>':'')+'<button class="btn bxs" style="background:#EAF3DE;color:#27500A;border:1px solid #b5d98a" onclick="concluirAgenda(\''+a.id+'\')"><i class="ti ti-check"></i> Concluir</button><button class="btn bxs" onclick="editAgenda(\''+a.id+'\')"><i class="ti ti-edit"></i> Editar</button></div></div>').join('');
