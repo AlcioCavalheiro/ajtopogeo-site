@@ -5002,11 +5002,15 @@ async function gerarPDFMedicao(){
 async function checkPendencias(){
   try{
     const hj=new Date().toISOString().split('T')[0];
-    const r1=await sb.from('agenda').select('*').lt('data',hj);
-    const r2=await sb.from('projetos').select('id,pendencias');
+    const[r1,r2,r3]=await Promise.all([
+      sb.from('agenda').select('id,concluido,concluida').lt('data',hj),
+      sb.from('projetos').select('id,pendencias'),
+      sb.from('pagamentos').select('id').lt('vencimento',hj).eq('status','Pendente'),
+    ]);
     const agCount=(r1.data||[]).filter(a=>!a.concluido&&!a.concluida).length;
     const projCount=(r2.data||[]).filter(p=>(p.pendencias||[]).some(d=>!d.ok)).length;
-    const total=agCount+projCount;
+    const pagCount=(r3.data||[]).length;
+    const total=agCount+projCount+pagCount;
     const b=document.getElementById('bnp');
     const ni=document.getElementById('nav-pendencias');
     if(b){b.textContent=total;b.style.display=total>0?'inline':'none';}
