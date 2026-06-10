@@ -2642,10 +2642,85 @@ async function rDRE(){
   const tPPrev=pagsPrev.reduce((s,p)=>s+Number(p.valor),0);
   const tI=imps.reduce((s,i)=>s+Number(i.valor),0);
   const tC=custs.reduce((s,c)=>s+Number(c.valor_total),0);
-  const cosPessoal=tC+pags.filter(p=>p.status==='Pago'&&['Pessoal','Pró-labore','Salário','INSS Folha','FGTS Folha','IRRF'].includes(p.categoria)).reduce((s,p)=>s+Number(p.valor),0);
-  const cosOp=pags.filter(p=>p.status==='Pago'&&!['Pessoal','Pró-labore','Salário','INSS Folha','FGTS Folha','IRRF'].includes(p.categoria)).reduce((s,p)=>s+Number(p.valor),0);
-  const lu=tR-tP-tI-tC;
-  const mg=tR>0?Math.round(lu/tR*100):0;
+  // ── Categorização contábil das despesas ──────────────────
+  const GRP_PESSOAL=['Pessoal','Pró-labore','Salário','INSS Folha','FGTS Folha','IRRF'];
+  const GRP_OPER=['Combustível','Alimentação','Equipamentos'];
+  const pagosMes=pags.filter(p=>p.status==='Pago');
+  const somaCat=arr=>arr.reduce((s,p)=>s+Number(p.valor),0);
+  const pagPessoal=somaCat(pagosMes.filter(p=>GRP_PESSOAL.includes(p.categoria)));
+  const pagOper=somaCat(pagosMes.filter(p=>GRP_OPER.includes(p.categoria)));
+  const pagImposto=somaCat(pagosMes.filter(p=>p.categoria==='Impostos'));
+  const pagAdm=somaCat(pagosMes.filter(p=>!GRP_PESSOAL.includes(p.categoria)&&!GRP_OPER.includes(p.categoria)&&p.categoria!=='Impostos'));
+
+  // ── Estrutura DRE (cascata) do mês selecionado ───────────
+  const receitaBruta=tR;
+  const impostosTot=tI+pagImposto;            // ISS/NF (tabela impostos) + categoria Impostos
+  const receitaLiq=receitaBruta-impostosTot;
+  const custoPessoal=tC+pagPessoal;           // equipe de campo (custos_os) + folha/pró-labore
+  const custoOper=pagOper;                    // combustível, alimentação, equipamentos
+  const lucroBruto=receitaLiq-custoPessoal-custoOper;
+  const despAdm=pagAdm;                        // infraestrutura, software, outros
+  const resultadoLiq=lucroBruto-despAdm;
+  const mgBruta=receitaBruta>0?Math.round(lucroBruto/receitaBruta*100):0;
+  const mgLiq=receitaBruta>0?Math.round(resultadoLiq/receitaBruta*100):0;
+
+  // ── Grupos de custo p/ pizza (mês) ───────────────────────
+  const grupos=[
+    {nome:'Pessoal & Equipe',val:custoPessoal,cor:'#854F0B'},
+    {nome:'Operacional',val:custoOper,cor:'#1a6fc4'},
+    {nome:'Administrativo',val:despAdm,cor:'#3C3489'},
+    {nome:'Impostos',val:impostosTot,cor:'#A32D2D'},
+  ].filter(g=>g.val>0);
+  const grupoTot=grupos.reduce((s,g)=>s+g.val,0);
+
+  // ── Detalhamento por categoria (mês) ─────────────────────
+  const detalhe={};
+  pagosMes.forEach(pg=>{const c=pg.categoria||'Outros';detalhe[c]=(detalhe[c]||0)+Number(pg.valor);});
+  if(tC>0)detalhe['Equipe de campo (OS)']=(detalhe['Equipe de campo (OS)']||0)+tC;
+  if(tI>0)detalhe['Impostos s/ NF (ISS)']=(detalhe['Impostos s/ NF (ISS)']||0)+tI;
+  const detEntries=Object.entries(detalhe).sort((a,b)=>b[1]-a[1]);
+  const custoTotalMes=detEntries.reduce((s,e)=>s+e[1],0);
+  const catCores=['#1a6fc4','#E24B4A','#854F0B','#27500A','#3C3489','#185FA5','#A32D2D','#666','#0d4fa0','#633806'];
+
+  // ── Evolução mês a mês do ano selecionado ────────────────
+  const meses12=[];
+  for(let mi=1;mi<=12;mi++){
+    const d1=`${ano}-${String(mi).padStart(2,'0')}-01`;
+    const d2=new Date(Number(ano),mi,0).toISOString().split('T')[0];
+    const f=(d,fb)=>{const v=d||fb||'';return v>=d1&&v<=d2;};
+    const r=(re.data||[]).filter(x=>x.status==='Recebido'&&f(x.data_recebimento,x.created_at?.slice(0,10))).reduce((s,x)=>s+Number(x.valor),0);
+    const pAll=(pa.data||[]).filter(x=>x.status==='Pago'&&f(x.data_pagamento,x.created_at?.slice(0,10)));
+    const pPess=somaCat(pAll.filter(x=>GRP_PESSOAL.includes(x.categoria)));
+    const pOper=somaCat(pAll.filter(x=>GRP_OPER.includes(x.categoria)));
+    const pImp=somaCat(pAll.filter(x=>x.categoria==='Impostos'));
+    const pAdm=somaCat(pAll.filter(x=>!GRP_PESSOAL.includes(x.categoria)&&!GRP_OPER.includes(x.categoria)&&x.categoria!=='Impostos'));
+    const ii=(im.data||[]).filter(x=>f(x.data,x.created_at?.slice(0,10))).reduce((s,x)=>s+Number(x.valor),0);
+    const cc=(cu.data||[]).filter(x=>f(x.data,x.created_at?.slice(0,10))).reduce((s,x)=>s+Number(x.valor_total),0);
+    const imposto=ii+pImp, pessoal=cc+pPess;
+    const custoTot=imposto+pessoal+pOper+pAdm;
+    meses12.push({mi,lbl:new Date(Number(ano),mi-1,1).toLocaleDateString('pt-BR',{month:'short'}).replace('.',''),receita:r,imposto,pessoal,oper:pOper,adm:pAdm,custoTot,resultado:r-custoTot});
+  }
+  const anoTot=meses12.reduce((a,m)=>({receita:a.receita+m.receita,imposto:a.imposto+m.imposto,pessoal:a.pessoal+m.pessoal,oper:a.oper+m.oper,adm:a.adm+m.adm,custoTot:a.custoTot+m.custoTot,resultado:a.resultado+m.resultado}),{receita:0,imposto:0,pessoal:0,oper:0,adm:0,custoTot:0,resultado:0});
+  const mesesMov=meses12.filter(m=>m.receita>0||m.custoTot>0);
+
+  // Gráfico de barras agrupadas (12 meses): receita × custo + resultado
+  const maxM=Math.max(1,...meses12.map(m=>Math.max(m.receita,m.custoTot)));
+  const chBase=150,chBW=16,chGap=4,chSlot=58;
+  const kfmt=v=>{const a=Math.abs(v);return a>=1000?(v/1000).toFixed(a>=10000?0:1).replace('.0','')+'k':v.toFixed(0);};
+  const barsMensais=meses12.map((m,i)=>{
+    const x=14+i*chSlot;
+    const hr=Math.round(m.receita/maxM*chBase);
+    const hc=Math.round(m.custoTot/maxM*chBase);
+    const isCur=(`${ano}-${String(m.mi).padStart(2,'0')}`)===mesVal;
+    const pad=String(m.mi).padStart(2,'0');
+    return `<g style="cursor:pointer" onclick="_dreMes='${ano}-${pad}';rDRE()">
+      ${isCur?`<rect x="${x-4}" y="2" width="${chBW*2+chGap+8}" height="${chBase+30}" rx="6" fill="#1a6fc4" opacity="0.08"/>`:''}
+      <rect x="${x}" y="${chBase-hr}" width="${chBW}" height="${hr}" rx="3" fill="#1a6fc4"/>
+      <rect x="${x+chBW+chGap}" y="${chBase-hc}" width="${chBW}" height="${hc}" rx="3" fill="#E24B4A"/>
+      <text x="${x+chBW}" y="${chBase+13}" text-anchor="middle" font-size="10" fill="${isCur?'#0d4fa0':'#888'}" font-weight="${isCur?'700':'400'}">${m.lbl}</text>
+      <text x="${x+chBW}" y="${chBase+25}" text-anchor="middle" font-size="9" fill="${m.resultado>=0?'#27500A':'#A32D2D'}" font-weight="600">${(m.receita||m.custoTot)?(m.resultado>0?'+':'')+kfmt(m.resultado):'—'}</text>
+    </g>`;
+  }).join('');
 
   // Balanço por OS: usa TODOS os lançamentos vinculados à OS (sem filtro de data)
   const recsAll=reAll.data||[];const pagsAll=paAll.data||[];const impsAll=imAll.data||[];const custsAll=cuAll.data||[];
@@ -2658,28 +2733,26 @@ async function rDRE(){
     return{...o,r,p,i,c:ce,lu:luOS,mg:r>0?Math.round(luOS/r*100):null};
   }).filter(o=>o.r>0||o.p>0||o.c>0);
 
-  // Categorias
-  const catGlobal={};
-  pags.filter(p=>p.status==='Pago').forEach(pg=>{const cat=pg.categoria||'Outros';catGlobal[cat]=(catGlobal[cat]||0)+Number(pg.valor);});
-  const catEntries=Object.entries(catGlobal).sort((a,b)=>b[1]-a[1]);
-  const catCores=['#1a6fc4','#E24B4A','#854F0B','#27500A','#3C3489','#185FA5','#A32D2D','#666','#0d4fa0','#633806'];
-
-  // Gráfico barras SVG — receita vs custos vs resultado
-  const barMax=Math.max(tR,tP+tI+tC,1);
-  const bH=120,bW=180;
-  const bar=(val,cor,label)=>{const h=Math.round(Math.abs(val)/barMax*bH);const y=val>=0?bH-h:bH;return`<g><rect x="0" y="${y}" width="${bW}" height="${h}" rx="4" fill="${cor}"/><text x="${bW/2}" y="${bH+14}" text-anchor="middle" font-size="11" fill="#666">${label}</text><text x="${bW/2}" y="${y-4}" text-anchor="middle" font-size="10" fill="${cor}" font-weight="600">${fmt(val)}</text></g>`;};
-
-  // Gráfico pizza SVG — custos por categoria
-  const pieTotal=catEntries.reduce((s,e)=>s+e[1],0);
-  let pieAngle=0;
-  const pieSlices=catEntries.slice(0,6).map((e,i)=>{
-    const pct=e[1]/pieTotal;const ang=pct*2*Math.PI;
+  // Pizza de grupos de custo (mês)
+  let pieAngle=-Math.PI/2;
+  const pieSlices=grupos.map((g,i)=>{
+    const pct=g.val/grupoTot;const ang=pct*2*Math.PI;
+    if(pct>=0.999){return`<circle cx="80" cy="80" r="70" fill="${g.cor}"/>`;}
     const x1=Math.cos(pieAngle)*70+80,y1=Math.sin(pieAngle)*70+80;
     pieAngle+=ang;
     const x2=Math.cos(pieAngle)*70+80,y2=Math.sin(pieAngle)*70+80;
     const large=pct>0.5?1:0;
-    return`<path d="M80,80 L${x1.toFixed(1)},${y1.toFixed(1)} A70,70 0 ${large},1 ${x2.toFixed(1)},${y2.toFixed(1)} Z" fill="${catCores[i]}" stroke="#fff" stroke-width="2"/>`;
+    return`<path d="M80,80 L${x1.toFixed(1)},${y1.toFixed(1)} A70,70 0 ${large},1 ${x2.toFixed(1)},${y2.toFixed(1)} Z" fill="${g.cor}" stroke="#fff" stroke-width="2"/>`;
   }).join('');
+
+  // Helper de linha da cascata DRE
+  const casRow=(lbl,val,opt={})=>{
+    const{bold,big,neg,hl,margem}=opt;
+    const cor=neg?'#A32D2D':(big?(val>=0?'#27500A':'#A32D2D'):(bold?'#0d4fa0':(val>=0?'#333':'#A32D2D')));
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:${big?'12px 14px':'8px 14px'};${hl?`background:${val>=0?'#EAF3DE':'#FCEBEB'};border-radius:8px;margin:5px 0;`:'border-bottom:1px solid var(--bor);'}">`
+      +`<span style="font-size:${big?'14px':'13px'};font-weight:${(bold||big)?'700':'400'};color:${big?(val>=0?'#27500A':'#A32D2D'):(neg?'#777':'#333')}">${lbl}${margem!==undefined?` <span style="font-weight:400;color:#888;font-size:11px">· ${margem}% margem</span>`:''}</span>`
+      +`<span style="font-size:${big?'16px':'13px'};font-weight:${(bold||big)?'700':'500'};color:${cor}">${neg?'('+fmt(Math.abs(val))+')':fmt(val)}</span></div>`;
+  };
 
   document.getElementById('ct').innerHTML=`
   <div class="fxb mb1">
@@ -2690,35 +2763,57 @@ async function rDRE(){
     </div>
   </div>
 
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:1rem">
-    <div class="mc"><div class="ml">Receita realizada</div><div class="mv" style="color:#0d4fa0">${fmt(tR)}</div></div>
-    <div class="mc"><div class="ml">Custo com Pessoal</div><div class="mv" style="color:#854F0B">${fmt(cosPessoal)}</div></div>
-    <div class="mc"><div class="ml">Custo operacional</div><div class="mv" style="color:#854F0B">${fmt(cosOp)}</div></div>
-    <div class="mc"><div class="ml">Impostos</div><div class="mv" style="color:#A32D2D">${fmt(tI)}</div></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:1rem">
+    <div class="mc"><div class="ml">Receita bruta</div><div class="mv" style="color:#0d4fa0">${fmt(receitaBruta)}</div><div class="ms">no mês</div></div>
+    <div class="mc"><div class="ml">Receita líquida</div><div class="mv" style="color:#185FA5">${fmt(receitaLiq)}</div><div class="ms">após impostos</div></div>
+    <div class="mc"><div class="ml">Lucro bruto</div><div class="mv" style="color:${lucroBruto>=0?'#27500A':'#A32D2D'}">${fmt(lucroBruto)}</div><div class="ms">${mgBruta}% margem</div></div>
     ${tPPrev>0?`<div class="mc" style="background:#FFF8E6;border:1.5px dashed #EF9F27"><div class="ml" style="color:#854F0B">⏳ Previsão despesa</div><div class="mv" style="color:#854F0B">${fmt(tPPrev)}</div><div class="ms" style="color:#633806">${pagsPrev.length} pendente${pagsPrev.length>1?'s':''}</div></div>`:''}
-    <div class="mc" style="background:${lu>=0?'#EAF3DE':'#FCEBEB'}"><div class="ml">Resultado</div><div class="mv" style="color:${lu>=0?'#27500A':'#A32D2D'}">${fmt(lu)}</div><div class="ms">${mg}% margem</div></div>
+    <div class="mc" style="background:${resultadoLiq>=0?'#EAF3DE':'#FCEBEB'}"><div class="ml">Resultado líquido</div><div class="mv" style="color:${resultadoLiq>=0?'#27500A':'#A32D2D'}">${fmt(resultadoLiq)}</div><div class="ms">${mgLiq}% margem</div></div>
   </div>
 
   <div class="g2 mb1">
     <div class="card">
-      <div class="st mb1"><i class="ti ti-chart-bar" style="color:var(--brand)"></i>Receita × Custos × Resultado</div>
-      <svg width="100%" viewBox="0 0 600 160" style="overflow:visible">
-        <g transform="translate(20,20)">${bar(tR,'#1a6fc4','Receita')}</g>
-        <g transform="translate(220,20)">${bar(tP+tI+tC,'#E24B4A','Total Custos')}</g>
-        <g transform="translate(420,20)">${bar(lu,lu>=0?'#27500A':'#E24B4A','Resultado')}</g>
-        <line x1="20" y1="140" x2="580" y2="140" stroke="#ddd" stroke-width="1"/>
-      </svg>
+      <div class="st mb1"><i class="ti ti-report-money" style="color:var(--brand)"></i>Demonstrativo de Resultado</div>
+      ${casRow('Receita Bruta de Serviços',receitaBruta,{bold:true})}
+      ${casRow('(−) Impostos sobre serviços',-impostosTot,{neg:true})}
+      ${casRow('= Receita Líquida',receitaLiq,{bold:true})}
+      ${casRow('(−) Custos com Pessoal & Equipe',-custoPessoal,{neg:true})}
+      ${casRow('(−) Custos Operacionais',-custoOper,{neg:true})}
+      ${casRow('= Lucro Bruto',lucroBruto,{bold:true,hl:true,margem:mgBruta})}
+      ${casRow('(−) Despesas Administrativas',-despAdm,{neg:true})}
+      ${casRow('= Resultado Líquido',resultadoLiq,{big:true,hl:true,margem:mgLiq})}
     </div>
     <div class="card">
-      <div class="st mb1"><i class="ti ti-chart-pie" style="color:var(--brand)"></i>Custos por categoria</div>
-      ${pieTotal>0?`<div class="fx g12" style="align-items:center;flex-wrap:wrap">
+      <div class="st mb1"><i class="ti ti-chart-pie" style="color:var(--brand)"></i>Composição dos custos</div>
+      ${grupoTot>0?`<div class="fx g12" style="align-items:center;flex-wrap:wrap">
         <svg width="160" height="160" viewBox="0 0 160 160">${pieSlices}</svg>
-        <div style="flex:1;min-width:120px">${catEntries.slice(0,6).map((e,i)=>`<div class="fx g8 mb5" style="font-size:12px"><div style="width:10px;height:10px;border-radius:2px;background:${catCores[i]};flex-shrink:0;margin-top:2px"></div><div><div>${e[0]}</div><div class="mu">${fmt(e[1])} (${pieTotal>0?Math.round(e[1]/pieTotal*100):0}%)</div></div></div>`).join('')}</div>
+        <div style="flex:1;min-width:140px">${grupos.map(g=>`<div class="fx g8 mb5" style="font-size:12px;align-items:flex-start"><div style="width:10px;height:10px;border-radius:2px;background:${g.cor};flex-shrink:0;margin-top:3px"></div><div><div class="w5">${g.nome}</div><div class="mu">${fmt(g.val)} · ${Math.round(g.val/grupoTot*100)}%</div></div></div>`).join('')}<div class="fxb mt1" style="border-top:1px solid var(--bor);padding-top:6px;font-size:12px"><span class="mu">Total custos+impostos</span><span class="w7" style="color:#854F0B">${fmt(grupoTot)}</span></div></div>
       </div>`:'<div class="mu sm">Sem custos no período</div>'}
     </div>
   </div>
 
-  ${porOS.length?`<div class="card mb1"><div class="st mb1"><i class="ti ti-list" style="color:var(--brand)"></i>Resultado por OS no mês</div>
+  <div class="card mb1">
+    <div class="fxb mb1"><div class="st" style="margin:0"><i class="ti ti-chart-histogram" style="color:var(--brand)"></i>Evolução mensal — ${ano}</div>
+      <div class="fx g12" style="font-size:11px;color:#666"><span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#1a6fc4;vertical-align:middle"></span> Receita</span><span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#E24B4A;vertical-align:middle"></span> Custos</span></div>
+    </div>
+    <div style="overflow-x:auto"><svg width="100%" viewBox="0 0 720 185" style="min-width:680px">
+      <line x1="10" y1="150" x2="710" y2="150" stroke="#ddd" stroke-width="1"/>
+      ${barsMensais}
+    </svg></div>
+    <div class="mu sm" style="text-align:center;margin-top:4px">Clique em um mês para abrir o detalhamento. Valor abaixo = resultado do mês.</div>
+  </div>
+
+  ${mesesMov.length?`<div class="card mb1"><div class="st mb1"><i class="ti ti-table" style="color:var(--brand)"></i>Resultado mês a mês (categorizado) — ${ano}</div>
+  <div class="tw"><table>
+    <thead><tr><th>Mês</th><th>Receita</th><th>Impostos</th><th>Pessoal & Equipe</th><th>Operacional</th><th>Administrativo</th><th>Resultado</th><th>Margem</th></tr></thead>
+    <tbody>${mesesMov.map(m=>{const mgm=m.receita>0?Math.round(m.resultado/m.receita*100):null;const pad=String(m.mi).padStart(2,'0');const isCur=(`${ano}-${pad}`)===mesVal;
+      return`<tr style="cursor:pointer;${isCur?'background:#E8F0FB':''}" onclick="_dreMes='${ano}-${pad}';rDRE()"><td class="w6" style="text-transform:capitalize">${m.lbl}</td><td style="color:#0d4fa0">${m.receita?fmt(m.receita):'—'}</td><td class="mu sm">${m.imposto?fmt(m.imposto):'—'}</td><td class="mu sm">${m.pessoal?fmt(m.pessoal):'—'}</td><td class="mu sm">${m.oper?fmt(m.oper):'—'}</td><td class="mu sm">${m.adm?fmt(m.adm):'—'}</td><td class="w6" style="color:${m.resultado>=0?'#27500A':'#A32D2D'}">${fmt(m.resultado)}</td><td style="${mgm===null?'':mgm<0?'color:#A32D2D;font-weight:600':mgm<15?'color:#854F0B;font-weight:600':'color:#27500A;font-weight:600'}">${mgm!==null?mgm+'%':'—'}</td></tr>`;
+    }).join('')}
+    <tr style="border-top:2px solid var(--bor);font-weight:700;background:#fafaf7"><td>Total ${ano}</td><td style="color:#0d4fa0">${fmt(anoTot.receita)}</td><td>${fmt(anoTot.imposto)}</td><td>${fmt(anoTot.pessoal)}</td><td>${fmt(anoTot.oper)}</td><td>${fmt(anoTot.adm)}</td><td style="color:${anoTot.resultado>=0?'#27500A':'#A32D2D'}">${fmt(anoTot.resultado)}</td><td>${anoTot.receita>0?Math.round(anoTot.resultado/anoTot.receita*100)+'%':'—'}</td></tr>
+    </tbody>
+  </table></div></div>`:''}
+
+  ${porOS.length?`<div class="card mb1"><div class="st mb1"><i class="ti ti-list" style="color:var(--brand)"></i>Resultado por OS (acumulado)</div>
   <div class="tw"><table>
     <thead><tr><th>OS</th><th>Tipo</th><th>Cliente</th><th>Receita</th><th>Custos</th><th>Resultado</th><th>Margem</th></tr></thead>
     <tbody>${porOS.map(o=>{
@@ -2728,9 +2823,9 @@ async function rDRE(){
     }).join('')}</tbody>
   </table></div></div>`:''}
 
-  ${catEntries.length?`<div class="card"><div class="st mb1"><i class="ti ti-table" style="color:var(--brand)"></i>Detalhamento de custos</div>
-  <div class="tw"><table><thead><tr><th>Categoria</th><th>Total pago</th><th>% do total</th></tr></thead>
-  <tbody>${catEntries.map(e=>`<tr><td>${e[0]}</td><td style="color:#854F0B">${fmt(e[1])}</td><td class="mu sm">${tP>0?Math.round(e[1]/tP*100)+'%':'—'}</td></tr>`).join('')}</tbody></table></div></div>`:''}`;
+  ${detEntries.length?`<div class="card"><div class="st mb1"><i class="ti ti-receipt-2" style="color:var(--brand)"></i>Detalhamento por categoria — <span style="text-transform:capitalize">${mesLabel}</span></div>
+  <div class="tw"><table><thead><tr><th>Categoria</th><th>Valor</th><th>% do total</th></tr></thead>
+  <tbody>${detEntries.map(e=>`<tr><td>${e[0]}</td><td style="color:#854F0B">${fmt(e[1])}</td><td class="mu sm">${custoTotalMes>0?Math.round(e[1]/custoTotalMes*100)+'%':'—'}</td></tr>`).join('')}</tbody></table></div></div>`:''}`;
 }
 
 async function gerarPDFDRE(){
@@ -2747,32 +2842,67 @@ async function gerarPDFDRE(){
     sb.from('impostos').select('valor,data,created_at'),
     sb.from('custos_os').select('valor_total,data,created_at'),
   ]);
+  const GRP_PESSOAL=['Pessoal','Pró-labore','Salário','INSS Folha','FGTS Folha','IRRF'];
+  const GRP_OPER=['Combustível','Alimentação','Equipamentos'];
+  const somaCat=arr=>arr.reduce((s,p)=>s+Number(p.valor),0);
   const recs=(re.data||[]).filter(r=>inMes2(r.data_recebimento,r.created_at?.slice(0,10)));
   const pags=(pa.data||[]).filter(p=>inMes2(p.data_pagamento,p.created_at?.slice(0,10)));
   const imps=(im.data||[]).filter(i=>inMes2(i.data,i.created_at?.slice(0,10)));
   const custs=(cu.data||[]).filter(c=>inMes2(c.data,c.created_at?.slice(0,10)));
   const tR=recs.filter(r=>r.status==='Recebido').reduce((s,r)=>s+Number(r.valor),0);
-  const tP=pags.filter(p=>p.status==='Pago').reduce((s,p)=>s+Number(p.valor),0);
   const tI=imps.reduce((s,i)=>s+Number(i.valor),0);
   const tC=custs.reduce((s,c)=>s+Number(c.valor_total),0);
-  const cosPessoal=tC+pags.filter(p=>p.status==='Pago'&&['Pessoal','Pró-labore','Salário','INSS Folha','FGTS Folha','IRRF'].includes(p.categoria)).reduce((s,p)=>s+Number(p.valor),0);
-  const cosOp=tP-cosPessoal+tC;
-  const lu=tR-tP-tI-tC;
-  const mg=tR>0?Math.round(lu/tR*100):0;
-  const catGlobal={};
-  pags.filter(p=>p.status==='Pago').forEach(pg=>{const cat=pg.categoria||'Outros';catGlobal[cat]=(catGlobal[cat]||0)+Number(pg.valor);});
-  const catEntries=Object.entries(catGlobal).sort((a,b)=>b[1]-a[1]);
+  const pagosMes=pags.filter(p=>p.status==='Pago');
+  const pagPessoal=somaCat(pagosMes.filter(p=>GRP_PESSOAL.includes(p.categoria)));
+  const pagOper=somaCat(pagosMes.filter(p=>GRP_OPER.includes(p.categoria)));
+  const pagImposto=somaCat(pagosMes.filter(p=>p.categoria==='Impostos'));
+  const pagAdm=somaCat(pagosMes.filter(p=>!GRP_PESSOAL.includes(p.categoria)&&!GRP_OPER.includes(p.categoria)&&p.categoria!=='Impostos'));
+  const receitaBruta=tR;
+  const impostosTot=tI+pagImposto;
+  const receitaLiq=receitaBruta-impostosTot;
+  const custoPessoal=tC+pagPessoal;
+  const custoOper=pagOper;
+  const lucroBruto=receitaLiq-custoPessoal-custoOper;
+  const despAdm=pagAdm;
+  const resultadoLiq=lucroBruto-despAdm;
+  const mgBruta=receitaBruta>0?Math.round(lucroBruto/receitaBruta*100):0;
+  const mgLiq=receitaBruta>0?Math.round(resultadoLiq/receitaBruta*100):0;
+  // Detalhe por categoria
+  const detalhe={};
+  pagosMes.forEach(pg=>{const c=pg.categoria||'Outros';detalhe[c]=(detalhe[c]||0)+Number(pg.valor);});
+  if(tC>0)detalhe['Equipe de campo (OS)']=(detalhe['Equipe de campo (OS)']||0)+tC;
+  if(tI>0)detalhe['Impostos s/ NF (ISS)']=(detalhe['Impostos s/ NF (ISS)']||0)+tI;
+  const detEntries=Object.entries(detalhe).sort((a,b)=>b[1]-a[1]);
+  // Evolução mensal do ano
+  const meses12=[];
+  for(let mi=1;mi<=12;mi++){
+    const d1=`${ano}-${String(mi).padStart(2,'0')}-01`;
+    const d2=new Date(Number(ano),mi,0).toISOString().split('T')[0];
+    const f=(d,fb)=>{const v=d||fb||'';return v>=d1&&v<=d2;};
+    const r=(re.data||[]).filter(x=>x.status==='Recebido'&&f(x.data_recebimento,x.created_at?.slice(0,10))).reduce((s,x)=>s+Number(x.valor),0);
+    const pAll=(pa.data||[]).filter(x=>x.status==='Pago'&&f(x.data_pagamento,x.created_at?.slice(0,10)));
+    const pPess=somaCat(pAll.filter(x=>GRP_PESSOAL.includes(x.categoria)));
+    const pOper=somaCat(pAll.filter(x=>GRP_OPER.includes(x.categoria)));
+    const pImp=somaCat(pAll.filter(x=>x.categoria==='Impostos'));
+    const pAdm=somaCat(pAll.filter(x=>!GRP_PESSOAL.includes(x.categoria)&&!GRP_OPER.includes(x.categoria)&&x.categoria!=='Impostos'));
+    const ii=(im.data||[]).filter(x=>f(x.data,x.created_at?.slice(0,10))).reduce((s,x)=>s+Number(x.valor),0);
+    const cc=(cu.data||[]).filter(x=>f(x.data,x.created_at?.slice(0,10))).reduce((s,x)=>s+Number(x.valor_total),0);
+    const imposto=ii+pImp,pessoal=cc+pPess,custoTot=ii+pImp+cc+pPess+pOper+pAdm;
+    meses12.push({mi,lbl:new Date(Number(ano),mi-1,1).toLocaleDateString('pt-BR',{month:'short'}).replace('.','').toUpperCase(),receita:r,imposto,pessoal,oper:pOper,adm:pAdm,resultado:r-custoTot});
+  }
+  const mesesMov=meses12.filter(m=>m.receita>0||(m.imposto+m.pessoal+m.oper+m.adm)>0);
+  const anoTot=meses12.reduce((a,m)=>({receita:a.receita+m.receita,imposto:a.imposto+m.imposto,pessoal:a.pessoal+m.pessoal,oper:a.oper+m.oper,adm:a.adm+m.adm,resultado:a.resultado+m.resultado}),{receita:0,imposto:0,pessoal:0,oper:0,adm:0,resultado:0});
 
   const doc=novoPDF();const W=210;let y=0;
   const checkPage=(n=15)=>{if(y+n>285){doc.addPage();y=15;}};
+  const hexRGB=h=>{const x=h.replace('#','');return[parseInt(x.slice(0,2),16),parseInt(x.slice(2,4),16),parseInt(x.slice(4,6),16)];};
   const secTitle=(txt,cor=[13,79,160])=>{checkPage(12);doc.setFillColor(...cor);doc.rect(10,y,W-20,7,'F');doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(255,255,255);doc.text(txt,14,y+5);y+=11;};
-  const row=(label,valor,bold=false,corVal='#1a1a1a')=>{
+  const row=(label,valor,bold=false,corVal='#1a1a1a',neg=false)=>{
     checkPage(7);
-    doc.setFont('helvetica',bold?'bold':'normal');doc.setFontSize(9);doc.setTextColor(50,50,50);doc.text(label,14,y);
-    doc.setFont('helvetica',bold?'bold':'normal');doc.setTextColor(bold?13:60,bold?79:60,bold?160:60);
-    const hex=corVal.replace('#','');const r2=parseInt(hex.slice(0,2),16),g2=parseInt(hex.slice(2,4),16),b2=parseInt(hex.slice(4,6),16);
-    doc.setTextColor(r2,g2,b2);doc.text(fmt(valor),W-14,y,{align:'right'});y+=6;
-    doc.setDrawColor(220,220,220);doc.line(14,y-1,W-14,y-1);
+    doc.setFont('helvetica',bold?'bold':'normal');doc.setFontSize(9);doc.setTextColor(bold?20:70,bold?20:70,bold?20:70);doc.text(label,14,y);
+    const[r2,g2,b2]=hexRGB(corVal);doc.setTextColor(r2,g2,b2);
+    doc.text((neg?'(':'')+fmt(Math.abs(valor))+(neg?')':''),W-14,y,{align:'right'});y+=6;
+    doc.setDrawColor(225,225,225);doc.line(14,y-1.5,W-14,y-1.5);
   };
   // Cabeçalho
   doc.setFillColor(13,79,160);doc.rect(0,0,W,18,'F');
@@ -2784,20 +2914,63 @@ async function gerarPDFDRE(){
   doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(120,120,120);
   doc.text('Emitido em: '+new Date().toLocaleDateString('pt-BR')+' às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),W-14,y,{align:'right'});
   y+=8;
-  secTitle('RESULTADO DO PERÍODO');
-  row('Receita Realizada',tR,true,'#0d4fa0');
-  row('(-) Custo com Pessoal',-cosPessoal,false,'#854F0B');
-  row('(-) Custo Operacional',-cosOp,false,'#854F0B');
-  row('(-) Impostos',-tI,false,'#A32D2D');
+  // ── Cascata DRE ──
+  secTitle('DEMONSTRATIVO DE RESULTADO DO MÊS');
+  row('Receita Bruta de Serviços',receitaBruta,true,'#0d4fa0');
+  row('(-) Impostos sobre serviços',impostosTot,false,'#A32D2D',true);
+  row('= Receita Líquida',receitaLiq,true,'#185FA5');
+  row('(-) Custos com Pessoal & Equipe',custoPessoal,false,'#854F0B',true);
+  row('(-) Custos Operacionais',custoOper,false,'#854F0B',true);
+  y+=1;
+  doc.setFillColor(232,240,251);doc.rect(10,y-1,W-20,8,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(9.5);doc.setTextColor(13,79,160);
+  doc.text('= LUCRO BRUTO',14,y+5);doc.text(fmt(lucroBruto),W-14,y+5,{align:'right'});
+  doc.setFontSize(8);doc.setTextColor(90,90,90);doc.text('Margem: '+mgBruta+'%',W/2,y+5,{align:'center'});
+  y+=12;
+  row('(-) Despesas Administrativas',despAdm,false,'#854F0B',true);
   y+=2;
-  doc.setFillColor(lu>=0?39:162,lu>=0?80:45,lu>=0?10:45);doc.rect(10,y-1,W-20,8,'F');
-  doc.setFont('helvetica','bold');doc.setFontSize(9.5);doc.setTextColor(255,255,255);
-  doc.text('RESULTADO LÍQUIDO',14,y+5);doc.text(fmt(lu),W-14,y+5,{align:'right'});
-  doc.setFontSize(8);doc.text('Margem: '+mg+'%',W/2,y+5,{align:'center'});
-  y+=14;
-  if(catEntries.length){
-    secTitle('CUSTOS POR CATEGORIA');
-    catEntries.forEach(e=>{row(e[0],e[1],false,'#854F0B');});
+  const[lr,lg,lb]=resultadoLiq>=0?[39,80,10]:[162,45,45];
+  doc.setFillColor(lr,lg,lb);doc.rect(10,y-1,W-20,9,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(255,255,255);
+  doc.text('= RESULTADO LÍQUIDO',14,y+5.5);doc.text(fmt(resultadoLiq),W-14,y+5.5,{align:'right'});
+  doc.setFontSize(8);doc.text('Margem: '+mgLiq+'%',W/2,y+5.5,{align:'center'});
+  y+=15;
+  // ── Evolução mensal ──
+  if(mesesMov.length){
+    secTitle('EVOLUÇÃO MENSAL — '+ano);
+    const cols=[{t:'Mês',x:14,a:'left'},{t:'Receita',x:55,a:'right'},{t:'Impostos',x:85,a:'right'},{t:'Pessoal',x:115,a:'right'},{t:'Operac.',x:143,a:'right'},{t:'Admin.',x:168,a:'right'},{t:'Resultado',x:W-14,a:'right'}];
+    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(100,100,100);
+    cols.forEach(c=>doc.text(c.t,c.x,y,{align:c.a}));y+=2;doc.setDrawColor(180,180,180);doc.line(14,y,W-14,y);y+=4;
+    doc.setFont('helvetica','normal');doc.setFontSize(8);
+    mesesMov.forEach(m=>{
+      checkPage(6);
+      doc.setTextColor(40,40,40);doc.text(m.lbl,14,y);
+      doc.setTextColor(13,79,160);doc.text(fmt(m.receita),55,y,{align:'right'});
+      doc.setTextColor(110,110,110);
+      doc.text(m.imposto?fmt(m.imposto):'-',85,y,{align:'right'});
+      doc.text(m.pessoal?fmt(m.pessoal):'-',115,y,{align:'right'});
+      doc.text(m.oper?fmt(m.oper):'-',143,y,{align:'right'});
+      doc.text(m.adm?fmt(m.adm):'-',168,y,{align:'right'});
+      const[rr,rg,rb]=m.resultado>=0?[39,80,10]:[162,45,45];doc.setTextColor(rr,rg,rb);
+      doc.text(fmt(m.resultado),W-14,y,{align:'right'});
+      y+=5;doc.setDrawColor(230,230,230);doc.line(14,y-1.5,W-14,y-1.5);
+    });
+    checkPage(7);doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(20,20,20);
+    doc.text('TOTAL '+ano,14,y);
+    doc.setTextColor(13,79,160);doc.text(fmt(anoTot.receita),55,y,{align:'right'});
+    doc.setTextColor(60,60,60);
+    doc.text(fmt(anoTot.imposto),85,y,{align:'right'});
+    doc.text(fmt(anoTot.pessoal),115,y,{align:'right'});
+    doc.text(fmt(anoTot.oper),143,y,{align:'right'});
+    doc.text(fmt(anoTot.adm),168,y,{align:'right'});
+    const[ar,ag,ab]=anoTot.resultado>=0?[39,80,10]:[162,45,45];doc.setTextColor(ar,ag,ab);
+    doc.text(fmt(anoTot.resultado),W-14,y,{align:'right'});
+    y+=10;
+  }
+  // ── Detalhamento por categoria ──
+  if(detEntries.length){
+    secTitle('DETALHAMENTO POR CATEGORIA — '+mesLabel.toUpperCase());
+    detEntries.forEach(e=>{row(e[0],e[1],false,'#854F0B');});
   }
   doc.save('DRE_'+mesVal+'.pdf');
 }
