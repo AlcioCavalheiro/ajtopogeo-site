@@ -125,7 +125,7 @@ select.fc{cursor:pointer}
 .cdn2{font-size:12px;font-weight:600;color:var(--mu);margin-bottom:3px}
 .cd.today .cdn2{color:var(--bd)}
 .ce{font-size:10px;background:var(--bl);color:var(--bd);border-radius:3px;padding:2px 4px;margin-bottom:2px;white-space:normal;word-break:break-word;line-height:1.3;font-weight:500}
-.ce.eo{background:#FAEEDA;color:#854F0B}.ce.eb{background:#E6F1FB;color:#185FA5}.ce.er{background:#FCEBEB;color:#A32D2D}.ce.ep{background:#FFF3CD;color:#7D4E00;border-left:2px solid #EF9F27}
+.ce.eo{background:#FAEEDA;color:#854F0B}.ce.eb{background:#E6F1FB;color:#185FA5}.ce.er{background:#FCEBEB;color:#A32D2D}.ce.ep{background:#FFF3CD;color:#7D4E00;border-left:2px solid #EF9F27}.ce.eg{background:#EAF3DE;color:#27500A;border-left:2px solid #3B6D11}.ce.ex{background:#EEE9FB;color:#5B3FA0;border-left:2px solid #7C5CD6}
 .oh{display:grid;grid-template-columns:1fr 80px 120px 110px 36px;gap:8px;padding:6px 0;border-bottom:2px solid var(--bor);margin-bottom:4px}
 .oh span{font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.04em}
 .oi{display:grid;grid-template-columns:1fr 80px 120px 110px 36px;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--bor)}
@@ -1036,16 +1036,27 @@ async function rDash(){
     <div id="da"></div>
   </div>`;
   const hoje=new Date().toISOString().split('T')[0];
-  const[{data:agRaw},{data:agAtrasRaw}]=await Promise.all([
+  const[{data:agRaw},{data:agAtrasRaw},{data:rotsDash}]=await Promise.all([
     sb.from('agenda').select('*').gte('data',hoje).order('data'),
     sb.from('agenda').select('*').lt('data',hoje).or('concluido.eq.false,concluido.is.null').order('data'),
+    sb.from('rotinas').select('*').not('proxima_data','is',null).order('proxima_data'),
   ]);
-  // Remove tarefas concluídas (cobre as duas colunas) e limita a 5
-  const ag=(agRaw||[]).filter(a=>!(a.concluido||a.concluida)).slice(0,5);
-  // Bloco de atrasados
+  // Rotinas como eventos virtuais (mesma lógica da Agenda)
+  const rotEvtsDash=(rotsDash||[]).map(r=>{
+    const feita=!!r.concluida_hoje&&r.proxima_data>hoje;
+    return{_isRotina:true,_rotId:r.id,titulo:'🔁 '+r.nome,tipo:'Rotina',data:r.proxima_data,hora:'',
+      descricao:(r.frequencia||'')+(r.responsavel?' · '+r.responsavel:''),concluido:feita,concluida:feita};
+  });
+  // Remove concluídos, mescla rotinas futuras, ordena e limita a 5
+  const ag=[...(agRaw||[]),...rotEvtsDash.filter(r=>r.data>=hoje)]
+    .filter(a=>!(a.concluido||a.concluida))
+    .sort((a,b)=>(a.data||'').localeCompare(b.data||'')).slice(0,5);
+  // Bloco de atrasados (agenda + rotinas vencidas)
   const elAt=document.getElementById('da-atras');
   if(elAt){
-    const atrs=(agAtrasRaw||[]).filter(a=>!(a.concluido||a.concluida));
+    const atrs=[...(agAtrasRaw||[]),...rotEvtsDash.filter(r=>r.data<hoje)]
+      .filter(a=>!(a.concluido||a.concluida))
+      .sort((a,b)=>(a.data||'').localeCompare(b.data||''));
     if(atrs.length){
       elAt.style.display='block';
       elAt.innerHTML=`<div class="card mb1 mt1" style="border-left:4px solid #E24B4A">
@@ -1055,7 +1066,7 @@ async function rDash(){
         </div>
         ${atrs.map(a=>`<div class="fxb" style="padding:8px 0;border-bottom:1px solid #fcd5d5">
           <div style="flex:1"><div class="w5">${a.titulo}</div><div class="mu sm">${fd(a.data)}${a.os_numero?' · OS: '+a.os_numero:''}</div></div>
-          <div class="fx g8"><button class="btn bxs" style="background:#EAF3DE;color:#27500A;border:1px solid #b5d98a;padding:3px 10px;font-size:12px" onclick="concluirAgenda('${a.id}')"><i class="ti ti-check"></i> Concluir</button><span class="bd br">Atrasado</span></div>
+          <div class="fx g8"><button class="btn bxs" style="background:#EAF3DE;color:#27500A;border:1px solid #b5d98a;padding:3px 10px;font-size:12px" onclick="${a._isRotina?`concluirRotina('${a._rotId}',true)`:`concluirAgenda('${a.id}')`}"><i class="ti ti-check"></i> Concluir</button><span class="bd br">Atrasado</span></div>
         </div>`).join('')}
       </div>`;
     } else {
@@ -1064,7 +1075,7 @@ async function rDash(){
   }
   const el=document.getElementById('da');
   if(!ag||!ag.length){el.innerHTML='<div class="mu sm">Nenhum compromisso próximo</div>';return;}
-  el.innerHTML=ag.map(a=>`<div class="fx g12" style="padding:8px 0;border-bottom:1px solid var(--bor)"><div style="min-width:80px"><div class="w6 sm">${fd(a.data)}</div><div class="mu" style="font-size:11px">${a.hora||''}</div></div><div style="flex:1"><div class="w5">${a.titulo}</div><div class="mu sm">${a.descricao||''}</div></div><span class="bd ${a.tipo==='OS'?'bi':a.tipo==='Prazo'?'bw':'bn'}">${a.tipo||'Geral'}</span></div>`).join('');
+  el.innerHTML=ag.map(a=>`<div class="fx g12" style="padding:8px 0;border-bottom:1px solid var(--bor)"><div style="min-width:80px"><div class="w6 sm">${fd(a.data)}</div><div class="mu" style="font-size:11px">${a.hora||''}</div></div><div style="flex:1"><div class="w5">${a.titulo}</div><div class="mu sm">${a.descricao||''}</div></div><span class="bd ${a._isRotina?'bn':a.tipo==='OS'?'bi':a.tipo==='Prazo'?'bw':'bn'}">${a.tipo||'Geral'}</span></div>`).join('');
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1074,9 +1085,10 @@ async function rAgenda(){
   const now=new Date();
   if(!CY){CY=now.getFullYear();CM2=now.getMonth();}
   // Busca eventos da agenda E pagamentos pendentes com vencimento
-  const [{data:ev},{data:pags}]=await Promise.all([
+  const [{data:ev},{data:pags},{data:rots}]=await Promise.all([
     sb.from('agenda').select('*').order('data'),
     sb.from('pagamentos').select('id,descricao,valor,vencimento,os_manual,categoria').eq('status','Pendente').not('vencimento','is',null).order('vencimento'),
+    sb.from('rotinas').select('*').not('proxima_data','is',null).order('proxima_data'),
   ]);
   const evts=ev||[];
   // Converte pagamentos pendentes em eventos virtuais para o calendário
@@ -1087,7 +1099,19 @@ async function rAgenda(){
     descricao:'Vencimento: '+fmt(p.valor)+(p.os_manual?' — '+p.os_manual:'')+(p.categoria?' ('+p.categoria+')':''),
     os_numero:p.os_manual||'', concluido:false, concluida:false,
   }));
-  const todos=[...evts,...pagEvts];
+  // Converte rotinas recorrentes em eventos virtuais (na próxima execução)
+  const _hjAg=new Date().toISOString().split('T')[0];
+  const rotEvts=(rots||[]).map(r=>{
+    const feita=!!r.concluida_hoje&&r.proxima_data>_hjAg;
+    return{
+      _isRotina:true, id:'rot_'+r.id, _rotId:r.id,
+      titulo:'🔁 '+r.nome,
+      tipo:'Rotina', data:r.proxima_data,
+      descricao:(r.frequencia||'')+(r.responsavel?' · '+r.responsavel:'')+(r.descricao?' — '+r.descricao:''),
+      responsavel:r.responsavel||'', os_numero:'', concluido:feita, concluida:feita,
+    };
+  });
+  const todos=[...evts,...pagEvts,...rotEvts];
   document.getElementById('ct').innerHTML=`
   <div style="display:grid;grid-template-columns:2fr 1fr;gap:1rem;align-items:start">
     <div>
@@ -1105,13 +1129,17 @@ async function rAgenda(){
         return lista.map(a=>{
           const atrasado=a.data&&a.data<hj;
           const isPag=a._isPagamento;
-          const bordColor=isPag?'#EF9F27':atrasado?'#E24B4A':'';
-          const bgColor=isPag?'#FFFBF0':atrasado?'#fff8f8':'';
-          const tipoBd=isPag?'bw':a.tipo==='OS'?'bi':a.tipo==='Prazo'?'bw':'bn';
+          const isRot=a._isRotina;
+          const bordColor=isPag?'#EF9F27':isRot?'#7C5CD6':atrasado?'#E24B4A':'';
+          const bgColor=isPag?'#FFFBF0':isRot?'#F7F5FE':atrasado?'#fff8f8':'';
+          const tipoBd=isPag?'bw':a.tipo==='OS'?'bi':a.tipo==='Prazo'?'bw':a.tipo==='Recebimento'?'bs':a.tipo==='Rotina'?'bn':'bn';
           const statusBd=atrasado?'br':'bn';
           const statusTx=atrasado?'Atrasado':'Pendente';
           const acoes=isPag
             ?`<button class="btn bxs" style="background:#FFF8E7;color:#633806" onclick="nav('pagamentos')"><i class="ti ti-credit-card"></i> Ver pagamentos</button>`
+            :isRot
+            ?`<button class="btn bxs" style="background:#EAF3DE;color:#27500A;border:1px solid #b5d98a" onclick="concluirRotina('${a._rotId}',true)"><i class="ti ti-check"></i> Concluir</button>
+              <button class="btn bxs" style="background:#EEE9FB;color:#5B3FA0" onclick="nav('rotinas')"><i class="ti ti-rotate"></i> Ver rotinas</button>`
             :`<button class="btn bxs" style="background:#EAF3DE;color:#27500A;border:1px solid #b5d98a" onclick="concluirAgenda('${a.id}')"><i class="ti ti-check"></i> Concluir</button>
               <button class="btn bxs" onclick="editAgenda('${a.id}')"><i class="ti ti-edit"></i> Editar</button>
               <button class="btn bxs bdr" onclick="excluirReg('agenda','${a.id}','${a.titulo}')"><i class="ti ti-trash"></i> Excluir</button>`;
@@ -1141,10 +1169,10 @@ function buildCal(evts){
     const ds2=`${CY}-${String(CM2+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const it=hj.getDate()===d&&hj.getMonth()===CM2&&hj.getFullYear()===CY;
     const de=evts.filter(e=>e.data===ds2);
-    const ec={OS:'',Prazo:'eo',Reunião:'eb',Prazo_doc:'er'};
+    const ec={OS:'',Prazo:'eo',Reunião:'eb',Prazo_doc:'er',Recebimento:'eg',Rotina:'ex'};
     h+=`<div class="cd${it?' today':''}" onclick="addAgDay('${ds2}')"><div class="cdn2">${d}</div>${de.map(e=>{
-      const cls=e._isPagamento?'ce ep':('ce '+(ec[e.tipo]||''));
-      const onclick=e._isPagamento?`event.stopPropagation();nav('pagamentos')`:`event.stopPropagation();viewAgenda('${e.id}')`;
+      const cls=e._isPagamento?'ce ep':e._isRotina?'ce ex':('ce '+(ec[e.tipo]||''));
+      const onclick=e._isPagamento?`event.stopPropagation();nav('pagamentos')`:e._isRotina?`event.stopPropagation();nav('rotinas')`:`event.stopPropagation();viewAgenda('${e.id}')`;
       return`<div class="${cls}" title="${e.titulo}" onclick="${onclick}">${e.titulo}</div>`;
     }).join('')}</div>`;
   }
@@ -1201,7 +1229,7 @@ async function buildAgForm(data,dd){
   document.getElementById('mb').innerHTML=`
     <div class="fg"><label class="fl">Título *</label><input class="fc" id="f-titulo" value="${data?.titulo||''}"></div>
     <div class="g2"><div class="fg"><label class="fl">Data *</label><input class="fc" type="date" id="f-data" value="${data?.data||dd||''}"></div><div class="fg"><label class="fl">Hora</label><input class="fc" type="time" id="f-hora" value="${data?.hora||''}"></div></div>
-    <div class="g2"><div class="fg"><label class="fl">Tipo</label><select class="fc" id="f-tipo"><option>Geral</option><option>OS</option><option>Prazo</option><option>Reunião</option><option>Prazo_doc</option></select></div><div class="fg"><label class="fl">OS vinculada</label><select class="fc" id="f-os_numero"><option value="">— Nenhuma —</option>${osOpts}</select></div></div>
+    <div class="g2"><div class="fg"><label class="fl">Tipo</label><select class="fc" id="f-tipo"><option>Geral</option><option>OS</option><option>Prazo</option><option>Reunião</option><option>Prazo_doc</option><option>Recebimento</option></select></div><div class="fg"><label class="fl">OS vinculada</label><select class="fc" id="f-os_numero"><option value="">— Nenhuma —</option>${osOpts}</select></div></div>
     <div class="fg"><label class="fl">Responsável</label><select class="fc" id="f-responsavel"><option value="">— Selecione —</option>${funcOpts}</select></div>
     <div class="fg"><label class="fl">Descrição</label><textarea class="fc" id="f-descricao">${data?.descricao||''}</textarea></div>
     <div class="fg"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="f-concluido" ${data?.concluido?'checked':''} style="width:16px;height:16px;accent-color:var(--brand)"> <span class="fl" style="margin:0">Marcar como concluído</span></label></div>`;
@@ -2224,7 +2252,13 @@ function _renderPagTabela(pa,q){
   const t=q?pa.filter(p=>{const s=_normOS((p.descricao||'')+(p.categoria||'')+(p.os_manual||'')+(p.status||''));return s.includes(_normOS(q));}):pa;
   const tb=document.getElementById('pag-tbody');if(!tb)return;
   if(!t.length){tb.innerHTML=q?`<tr><td colspan="8" style="text-align:center;color:#888;padding:2rem">Nenhum pagamento encontrado para "<strong>${q}</strong>"</td></tr>`:nd(8);return;}
-  const sorted=[...t].sort((a,b)=>(b.vencimento||'').localeCompare(a.vencimento||''));
+  const sorted=[...t].sort((a,b)=>{
+    const va=a.vencimento||'';const vb=b.vencimento||'';
+    if(!va&&!vb)return (b.created_at||'').localeCompare(a.created_at||'');
+    if(!va)return -1; // sem vencimento vai pro topo
+    if(!vb)return 1;
+    return vb.localeCompare(va);
+  });
   let html='';let lastMes=null;
   sorted.forEach(p=>{
     const mes=(p.vencimento||'').slice(0,7);
@@ -2357,12 +2391,36 @@ async function updMedicao(id,status){
     : status==='Recebido' ? 'Recebido'
     : null;
   if(statusOS){
-    const{data:m}=await sb.from('medicoes').select('os_ids').eq('id',id).single();
+    const{data:m}=await sb.from('medicoes').select('os_ids,os_dados,valor,numero,descricao').eq('id',id).single();
     if(m?.os_ids?.length) await sb.from('ordens').update({status:statusOS}).in('id',m.os_ids);
+    if(status==='Recebido') await _criarRecebimentosMedicao(m);
   }
   toast('Status atualizado!');
   if(status==='Gerar NF')toast('Lembre-se de emitir a NF em Notas Fiscais!');
   rMedicao();
+}
+
+async function _criarRecebimentosMedicao(m){
+  if(!m) return;
+  const osDados=m.os_dados||[];
+  const hoje=new Date().toISOString().split('T')[0];
+  const desc='Medição Nº '+(m.numero||'—')+' — '+(m.descricao||'');
+  if(osDados.length){
+    const osIds=osDados.map(o=>o.id);
+    const{data:ex}=await sb.from('recebimentos').select('os_id').in('os_id',osIds).eq('status','Recebido').ilike('descricao','Medição Nº '+(m.numero||'—')+'%');
+    const jaRec=new Set((ex||[]).map(r=>r.os_id));
+    for(const o of osDados){
+      if(jaRec.has(o.id)||!Number(o.valor)) continue;
+      await sb.from('recebimentos').insert({descricao:desc,valor:Number(o.valor),data_recebimento:hoje,vencimento:hoje,status:'Recebido',os_id:o.id});
+    }
+  } else if(Number(m.valor)){
+    const osId=(m.os_ids||[])[0]||null;
+    if(osId){
+      const{data:ex}=await sb.from('recebimentos').select('id').eq('os_id',osId).eq('status','Recebido').ilike('descricao','Medição Nº '+(m.numero||'—')+'%').limit(1);
+      if(ex?.length) return;
+    }
+    await sb.from('recebimentos').insert({descricao:desc,valor:Number(m.valor),data_recebimento:hoje,vencimento:hoje,status:'Recebido',os_id:osId});
+  }
 }
 
 async function editarMedicao(id){
@@ -2451,24 +2509,32 @@ async function emAdicionarOS(osId, medId){
 async function salvarEdicaoMedicao(id){
   const desc=document.getElementById('em-desc')?.value?.trim();
   if(!desc){toast('Informe a descrição!',true);return;}
+  const novoStatus=document.getElementById('em-status')?.value||'Fechar Medição';
+  // Busca status anterior para saber se está transitando para Recebido
+  const{data:mAtual}=await sb.from('medicoes').select('status,os_ids,os_dados,valor').eq('id',id).single();
   const payload={
     descricao:desc,
     numero:document.getElementById('em-num')?.value||'01',
     periodo:document.getElementById('em-periodo')?.value||'',
-    status:document.getElementById('em-status')?.value||'Fechar Medição',
+    status:novoStatus,
     obs:document.getElementById('em-obs')?.value||'',
   };
   const{error}=await sb.from('medicoes').update(payload).eq('id',id);
   if(error){toast('Erro ao salvar: '+error.message,true);return;}
+  if(novoStatus==='Recebido'&&mAtual?.status!=='Recebido'){
+    await _criarRecebimentosMedicao({...mAtual,descricao:desc,numero:payload.numero});
+  }
   toast('Medição atualizada!');closeModal();rMedicao();
 }
 async function rMedicao(){
-  const[{data:todasOS,error:errOS},{data:meds},{data:clisM},{data:obrasM}]=await Promise.all([
+  const[{data:todasOS,error:errOS},{data:meds},{data:clisM},{data:obrasM},{data:nfs}]=await Promise.all([
     sb.from('ordens').select('*').order('numero'),
     sb.from('medicoes').select('*').order('created_at',{ascending:false}),
     sb.from('clientes').select('id,nome'),
     sb.from('obras').select('id,nome,municipio'),
+    sb.from('notas_fiscais').select('os_id').not('os_id','is',null),
   ]);
+  const nfOsIds=new Set((nfs||[]).map(n=>n.os_id));
   const cliById={};(clisM||[]).forEach(c=>cliById[c.id]=c.nome);
   const obraById={};(obrasM||[]).forEach(ob=>obraById[ob.id]={nome:ob.nome,municipio:ob.municipio});
   if(errOS) console.error('rMedicao - erro ao buscar OS:',errOS);
@@ -2512,7 +2578,12 @@ async function rMedicao(){
     </div>
     <div class="tw"><table>
       <thead><tr><th>Descrição</th><th>Cliente</th><th>OS incluídas</th><th>Valor total</th><th>Status</th><th>Obs</th><th></th></tr></thead>
-      <tbody>${ms.map(m=>`<tr>
+      <tbody>${ms.map(m=>{
+        const temNF=(m.os_ids||[]).some(id=>nfOsIds.has(id));
+        const nfStyle=temNF?'background:#E6F1FB;color:#0d4fa0;border-color:#bcd9f5':'background:#FFF8E7;color:#854F0B;border-color:#EED';
+        const nfTitle=temNF?'NF já lançada nesta medição':'Lançar Nota Fiscal desta medição';
+        const nfIcon=temNF?'ti-receipt-2':'ti-receipt';
+        return`<tr>
         <td class="w5">${m.descricao||'—'}</td>
         <td class="mu sm">${m.cliente_nome||(m.os_dados||[])[0]?.cliente_nome||'—'}</td>
         <td class="mu sm">${(m.os_dados||[]).map(o=>o.numero).join(', ')||m.os_id||'—'}</td>
@@ -2523,10 +2594,11 @@ async function rMedicao(){
         <td class="mu sm">${m.obs||'—'}</td>
         <td class="fx g8">
           <button class="btn bxs" style="background:#E6F1FB;color:#0d4fa0" onclick="editarMedicao('${m.id}')" title="Editar medição"><i class="ti ti-pencil"></i></button>
-          <button class="btn bxs" style="background:#FFF8E7;color:#854F0B;border-color:#EED" onclick="abrirAddNFMedicao('${m.id}')" title="Lançar Nota Fiscal desta medição"><i class="ti ti-receipt"></i></button>
+          <button class="btn bxs" style="background:#EAF3DE;color:#27500A;border-color:#b5d98a" onclick="agendarRecebimentoMedicao('${m.id}')" title="Agendar recebimento na agenda"><i class="ti ti-calendar-dollar"></i></button>
+          <button class="btn bxs" style="${nfStyle}" onclick="abrirAddNFMedicao('${m.id}')" title="${nfTitle}"><i class="ti ${nfIcon}"></i></button>
           <button class="btn bxs bdr" onclick="excluirReg('medicoes','${m.id}','${(m.descricao||'').replace(/'/g,'')}')" title="Excluir (OS volta à lista de aptas)"><i class="ti ti-trash"></i></button>
         </td>
-      </tr>`).join('')||nd(7)}</tbody>
+      </tr>`;}).join('')||nd(7)}</tbody>
     </table></div>
   </div>
   ${aptas.length?`
@@ -3107,17 +3179,20 @@ async function concluirRotina(id,val){
     base.setDate(base.getDate()+freq);proxima=base.toISOString().split('T')[0];
   }
   await sb.from('rotinas').update({concluida_hoje:val,proxima_data:proxima||r.proxima_data,ultima_execucao:val?new Date().toISOString().split('T')[0]:r.ultima_execucao}).eq('id',id);
-  toast(val?'Rotina concluída! Próxima data atualizada.':'Marcada como pendente.');rRotinas();
+  toast(val?'Rotina concluída! Próxima data atualizada.':'Marcada como pendente.');
+  renderPage();checkPendencias();
 }
-function openNovaRotina(){
+async function openNovaRotina(){
   CM='rotinas';EID=null;
   document.getElementById('mt').textContent='Nova Rotina';
+  const{data:funcs}=await sb.from('funcionarios').select('id,nome').eq('ativo',true).order('nome');
+  const fOpts=(funcs||[]).map(f=>'<option value="'+(f.nome||'').replace(/"/g,'&quot;')+'">'+(f.nome||'')+'</option>').join('');
   document.getElementById('mb').innerHTML=`
     <div class="fg"><label class="fl">Nome *</label><input class="fc" id="f-nome" placeholder="Conferir protocolos no INCRA..."></div>
     <div class="fg"><label class="fl">Descrição</label><textarea class="fc" id="f-descricao" rows="2"></textarea></div>
     <div class="g2">
       <div class="fg"><label class="fl">Frequência</label><select class="fc" id="f-frequencia"><option>Diária</option><option>Semanal</option><option>Quinzenal</option><option selected>Mensal</option><option>Trimestral</option><option>Anual</option></select></div>
-      <div class="fg"><label class="fl">Responsável</label><input class="fc" id="f-responsavel"></div>
+      <div class="fg"><label class="fl">Responsável</label><select class="fc" id="f-responsavel"><option value="">— Selecione —</option>${fOpts}</select></div>
     </div>
     <div class="fg"><label class="fl">Próxima execução</label><input class="fc" type="date" id="f-proxima_data"></div>`;
   document.getElementById('ov').classList.add('open');
@@ -3418,16 +3493,28 @@ function kbCard(p){
 
 async function rPendencias(){
   const hj=new Date().toISOString().split('T')[0];
-  const[{data:todos},{data:agendaAtrasada},{data:pagAtrasados}]=await Promise.all([
+  const[{data:todos},{data:agendaAtrasada},{data:pagAtrasados},{data:rotinasTodas}]=await Promise.all([
     sb.from('projetos').select('id,nome,etapa,pendencias,clientes(nome)'),
     sb.from('agenda').select('*').lt('data',hj).or('concluido.eq.false,concluido.is.null').order('data'),
     sb.from('pagamentos').select('*').lt('vencimento',hj).eq('status','Pendente').order('vencimento'),
+    sb.from('rotinas').select('*').lt('proxima_data',hj).order('proxima_data'),
   ]);
   const ps=(todos||[]).filter(p=>(p.pendencias||[]).some(d=>!d.ok));
   const agAtrasada=(agendaAtrasada||[]).filter(a=>!(a.concluido||a.concluida));
   const pagsAt=pagAtrasados||[];
-  if(!ps.length&&!agAtrasada.length&&!pagsAt.length){document.getElementById('ct').innerHTML='<div class="card" style="text-align:center;padding:2rem"><i class="ti ti-check" style="font-size:40px;color:#3B6D11;display:block;margin-bottom:.5rem"></i><div class="w6">Nenhuma pendência!</div></div>';return;}
+  // Rotinas atrasadas: próxima execução já venceu (a flag concluida_hoje só vale p/ ciclo futuro)
+  const rotsAt=(rotinasTodas||[]).filter(r=>r.proxima_data&&r.proxima_data<hj);
+  if(!ps.length&&!agAtrasada.length&&!pagsAt.length&&!rotsAt.length){document.getElementById('ct').innerHTML='<div class="card" style="text-align:center;padding:2rem"><i class="ti ti-check" style="font-size:40px;color:#3B6D11;display:block;margin-bottom:.5rem"></i><div class="w6">Nenhuma pendência!</div></div>';return;}
   let html='';
+  // ── Rotinas atrasadas ─────────────────────────────────────
+  if(rotsAt.length){
+    html+='<div class="card mb1" style="border-left:4px solid #7C5CD6"><div class="st mb1"><i class="ti ti-rotate" style="color:#7C5CD6"></i>Rotinas atrasadas <span style="background:#7C5CD6;color:#fff;border-radius:99px;font-size:11px;font-weight:700;padding:2px 8px;margin-left:4px">'+rotsAt.length+'</span></div>';
+    html+=rotsAt.map(r=>{
+      const dias=Math.round((new Date(hj)-new Date(r.proxima_data))/(864e5));
+      return'<div class="fxb" style="padding:8px 0;border-bottom:1px solid var(--bor)"><div><div class="w5">'+(r.nome||'—')+'<span class="bd" style="background:#EEE9FB;color:#5B3FA0;font-size:10px;margin-left:6px">'+dias+' dia'+(dias>1?'s':'')+' em atraso</span></div><div class="mu sm">'+(r.frequencia||'')+(r.responsavel?' · '+r.responsavel:'')+'</div></div><div class="fx g8" style="flex-shrink:0"><button class="btn bxs" style="background:#EAF3DE;color:#27500A;border:1px solid #b5d98a" onclick="concluirRotina(\''+r.id+'\',true)"><i class="ti ti-check"></i> Concluir</button><button class="btn bxs" onclick="nav(\'rotinas\')"><i class="ti ti-external-link"></i> Ver</button></div></div>';
+    }).join('');
+    html+='</div>';
+  }
   // ── Pagamentos em atraso ──────────────────────────────────
   if(pagsAt.length){
     const totalAt=pagsAt.reduce((s,p)=>s+Number(p.valor||0)+Number(p.juros||0),0);
@@ -3749,7 +3836,7 @@ function closeModal2(){document.getElementById('ov2').classList.remove('open');}
 async function openModal(){
   if(!CP)return;
   if(CP==='agenda'){buildAgForm(null);return;}
-  if(CP==='rotinas'){openNovaRotina();return;}
+  if(CP==='rotinas'){await openNovaRotina();return;}
   if(CP==='folha'){openFolhaModal();return;}
   if(CP==='ordens'){
     toast('OS são criadas automaticamente ao aprovar um orçamento. Vá em Orçamentos, abra um orçamento aprovado e clique em "Criar OS".');
@@ -3877,6 +3964,7 @@ async function saveRecord(){
     const pgObs=document.getElementById('pg-obs')?.value||null;
     if(pgForma||pgParc||pgObs) payload.pagamento={forma:pgForma,parcelas:pgParc?Number(pgParc):null,obs:pgObs};
   }
+  if(CM==='pagamentos'&&payload.status==='Pendente'&&!payload.vencimento){toast('Informe a data de vencimento para pagamentos pendentes!',true);return;}
   if(CM==='servicos'&&payload.docs_str){payload.documentos=payload.docs_str.split(',').map(s=>s.trim()).filter(Boolean);delete payload.docs_str;}
   if(CM==='custos_os'){const qt=parseFloat(document.getElementById('f-quantidade')?.value)||1;const vu=parseFloat(document.getElementById('f-valor_unit')?.value)||0;payload.valor_total=Math.round(qt*vu*100)/100;}
   delete payload.id;delete payload.created_at;delete payload.updated_at;
@@ -5243,15 +5331,17 @@ async function gerarPDFMedicao(){
 async function checkPendencias(){
   try{
     const hj=new Date().toISOString().split('T')[0];
-    const[r1,r2,r3]=await Promise.all([
+    const[r1,r2,r3,r4]=await Promise.all([
       sb.from('agenda').select('id,concluido,concluida').lt('data',hj),
       sb.from('projetos').select('id,pendencias'),
       sb.from('pagamentos').select('id').lt('vencimento',hj).eq('status','Pendente'),
+      sb.from('rotinas').select('id,proxima_data').lt('proxima_data',hj),
     ]);
     const agCount=(r1.data||[]).filter(a=>!a.concluido&&!a.concluida).length;
     const projCount=(r2.data||[]).filter(p=>(p.pendencias||[]).some(d=>!d.ok)).length;
     const pagCount=(r3.data||[]).length;
-    const total=agCount+projCount+pagCount;
+    const rotCount=(r4.data||[]).filter(r=>r.proxima_data&&r.proxima_data<hj).length;
+    const total=agCount+projCount+pagCount+rotCount;
     const b=document.getElementById('bnp');
     const ni=document.getElementById('nav-pendencias');
     if(b){b.textContent=total;b.style.display=total>0?'inline':'none';}
@@ -5686,6 +5776,51 @@ async function salvarNFMedicao(medId){
   rMedicao();
 }
 
+async function agendarRecebimentoMedicao(medId){
+  const{data:m}=await sb.from('medicoes').select('descricao,valor,os_ids,os_dados,cliente_nome').eq('id',medId).single();
+  if(!m){toast('Medição não encontrada!',true);return;}
+  const cli=m.cliente_nome||(m.os_dados||[])[0]?.cliente_nome||'';
+  const osNums=(m.os_dados||[]).map(o=>o.numero).join(', ')||'—';
+  const prev=new Date();prev.setDate(prev.getDate()+30);
+  const prevStr=prev.toISOString().split('T')[0];
+  CM='agenda';EID=null;
+  document.getElementById('mt').textContent='Agendar Recebimento';
+  document.getElementById('mb').innerHTML=
+    '<div style="background:#EAF3DE;border:1px solid #b5d98a;border-radius:8px;padding:.6rem .9rem;font-size:12px;color:#27500A;margin-bottom:1rem">'
+    +'<i class="ti ti-calendar-dollar"></i> Medição: <strong>'+(m.descricao||'—')+'</strong>'+(cli?' · '+cli:'')+' · OS: '+osNums
+    +'</div>'
+    +'<div class="g2"><div class="fg"><label class="fl">Data prevista *</label><input class="fc" type="date" id="ag-data" value="'+prevStr+'"></div>'
+    +'<div class="fg"><label class="fl">Valor previsto (R$)</label><input class="fc" type="number" step="0.01" id="ag-valor" value="'+(m.valor||'')+'"></div></div>'
+    +'<div class="fg"><label class="fl">Observação</label><input class="fc" id="ag-obs" placeholder="Opcional"></div>';
+  document.getElementById('mf').innerHTML=
+    '<button class="btn" onclick="closeModal()">Cancelar</button>'
+    +'<button class="btn bp2" onclick="salvarAgendaRecebimento(\''+medId+'\')"><i class="ti ti-device-floppy"></i> Agendar</button>';
+  document.getElementById('ov').classList.add('open');
+}
+
+async function salvarAgendaRecebimento(medId){
+  const data=document.getElementById('ag-data')?.value||null;
+  const valor=parseFloat(document.getElementById('ag-valor')?.value)||0;
+  const obs=document.getElementById('ag-obs')?.value||'';
+  if(!data){toast('Informe a data prevista!',true);return;}
+  const{data:m}=await sb.from('medicoes').select('descricao,os_ids,os_dados,cliente_nome').eq('id',medId).single();
+  if(!m){toast('Medição não encontrada!',true);return;}
+  const cli=m.cliente_nome||(m.os_dados||[])[0]?.cliente_nome||'';
+  const osNums=(m.os_dados||[]).map(o=>o.numero).join(', ');
+  const desc='Previsão de recebimento'+(valor?' — '+fmt(valor):'')+(cli?' · '+cli:'')+(obs?' · '+obs:'');
+  const{error}=await sb.from('agenda').insert({
+    titulo:'💰 Receber: '+(m.descricao||'Medição'),
+    tipo:'Recebimento', data,
+    os_numero:osNums||null,
+    os_id:(m.os_ids||[])[0]||null,
+    descricao:desc,
+    concluido:false, concluida:false,
+  });
+  if(error){toast('Erro ao agendar: '+error.message,true);return;}
+  toast('Recebimento agendado para '+fd(data)+'!');
+  closeModal();rMedicao();
+}
+
 function syncOsManual(sel){
   const opt=sel.options[sel.selectedIndex];
   const num=opt&&opt.value?(opt.text.split(' — ')[0].trim()):'';
@@ -5862,7 +5997,37 @@ function _limparFiltrosOS(){
 // ALTER TABLE ordens ADD COLUMN IF NOT EXISTS obra_id uuid REFERENCES obras(id);
 // ALTER TABLE ordens ADD COLUMN IF NOT EXISTS responsaveis jsonb DEFAULT '[]';
 
-
+// ─── INSERÇÃO EM LOTE: Pró-labore Previsão Jul–Dez 2026 ──────
+// Chame uma vez pelo console: inserirPrevisaoProlabore2026H2()
+window.inserirPrevisaoProlabore2026H2 = async function() {
+  const socios = ['Alcio', 'Josiani', 'Talmom'];
+  const meses = [
+    { ref: 'Julho/2026',    venc: '2026-07-31' },
+    { ref: 'Agosto/2026',   venc: '2026-08-31' },
+    { ref: 'Setembro/2026', venc: '2026-09-30' },
+    { ref: 'Outubro/2026',  venc: '2026-10-31' },
+    { ref: 'Novembro/2026', venc: '2026-11-30' },
+    { ref: 'Dezembro/2026', venc: '2026-12-31' },
+  ];
+  const registros = [];
+  for (const s of socios) {
+    for (const m of meses) {
+      registros.push({
+        descricao:   `Pró-labore ${s} ${m.ref}`,
+        categoria:   'Pró-labore',
+        valor:       4000,
+        periodo_ref: m.ref,
+        vencimento:  m.venc,
+        status:      'Pendente',
+        tipo_custo:  'Operacional',
+      });
+    }
+  }
+  const { error } = await sb.from('pagamentos').insert(registros);
+  if (error) { alert('Erro: ' + error.message); return; }
+  alert(`✔ ${registros.length} lançamentos inseridos com sucesso!`);
+  if (typeof rFolha === 'function') rFolha();
+};
 
 </script>
 <script>
