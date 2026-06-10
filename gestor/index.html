@@ -2456,6 +2456,7 @@ async function rMedicao(){
         <td class="mu sm">${m.obs||'—'}</td>
         <td class="fx g8">
           <button class="btn bxs" style="background:#E6F1FB;color:#0d4fa0" onclick="editarMedicao('${m.id}')" title="Editar medição"><i class="ti ti-pencil"></i></button>
+          <button class="btn bxs" style="background:#FFF8E7;color:#854F0B;border-color:#EED" onclick="abrirAddNFMedicao('${m.id}')" title="Lançar Nota Fiscal desta medição"><i class="ti ti-receipt"></i></button>
           <button class="btn bxs bdr" onclick="excluirReg('medicoes','${m.id}','${(m.descricao||'').replace(/'/g,'')}')" title="Excluir (OS volta à lista de aptas)"><i class="ti ti-trash"></i></button>
         </td>
       </tr>`).join('')||nd(7)}</tbody>
@@ -3961,7 +3962,7 @@ async function gerarPDFOrcamento(idDireto){
     doc.setFillColor(...TEAL);doc.rect(0,287,W,10,'F');
     doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...WHITE);
     doc.text(EMPRESA.nome+' · CNPJ: '+EMPRESA.cnpj,W/2,292,{align:'center'});
-    doc.text('www.ajtopogeo.com.br | (67) 99348-0660 | (67) 99822-8594',W/2,296,{align:'center'});
+    doc.text('www.ajtopogeo.com.br | (67) 99137-9210',W/2,296,{align:'center'});
   }
   // ── Página de Proposta ──────────────────────────────────────────────────────
   addHeader('PROPOSTA TÉCNICA E COMERCIAL');
@@ -4363,7 +4364,7 @@ async function gerarPDFContrato(idDireto){
     doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(110,110,110);
     doc.text(CIDADE_ASS+' - MS',W/2,287,{align:'center'});
     doc.text('www.ajtopogeo.com.br · CNPJ: '+C_CNPJ,W/2,290.5,{align:'center'});
-    doc.text('Fone: (67) 9 99822-8594 · Email: ajtopogeo@gmail.com',W/2,294,{align:'center'});
+    doc.text('Fone: (67) 99137-9210 · Email: ajtopogeo@gmail.com',W/2,294,{align:'center'});
   }
   function topoLogo(){
     try{doc.addImage(LOGO_B64,'PNG',W/2-9,6,18,16);}catch(e){}
@@ -5362,6 +5363,87 @@ async function salvarNFOS(osId, osNumero){
   toast('NF '+numero+' salva com sucesso!');
   fecharModalRec();
   loadOSFin(osId);
+}
+
+async function abrirAddNFMedicao(medId){
+  _uploadFiles={};
+  const{data:m}=await sb.from('medicoes').select('descricao,valor,os_ids,os_dados').eq('id',medId).single();
+  if(!m){toast('Medição não encontrada!',true);return;}
+  let clienteId=null;
+  if(m.os_ids?.length){
+    const{data:os}=await sb.from('ordens').select('cliente_id').eq('id',m.os_ids[0]).single();
+    clienteId=os?.cliente_id||null;
+  }
+  const today=new Date().toISOString().split('T')[0];
+  const osNums=(m.os_dados||[]).map(o=>o.numero).join(', ')||'—';
+  document.getElementById('mt').textContent='Lançar NF — '+(m.descricao||'Medição');
+  CM='notas_fiscais';EID=null;
+  document.getElementById('mb').innerHTML=
+    '<div style="background:#FFF8E7;border:1px solid #EED;border-radius:8px;padding:.6rem .9rem;font-size:12px;color:#633806;margin-bottom:1rem">'
+    +'<i class="ti ti-info-circle"></i> OS incluídas nesta medição: <strong>'+osNums+'</strong>'
+    +((m.os_ids||[]).length>1?' — A NF será registrada no histórico de cada OS.':'')
+    +'</div>'
+    +'<div class="fg"><label class="fl">PDF da NF</label>'
+    +'<div id="nf-upload-area" class="upload-area" onclick="document.getElementById(\'nf-file-input\').click()" ondragover="this.classList.add(\'drag-over\');event.preventDefault()" ondragleave="this.classList.remove(\'drag-over\')" ondrop="handleFileDrop(event,\'nf\')">'
+    +'<i class="ti ti-file-upload"></i><p>Clique ou arraste o PDF da NF aqui</p></div>'
+    +'<div id="nf-file-preview" style="display:none"></div>'
+    +'<input type="file" id="nf-file-input" accept=".pdf" style="display:none" onchange="handleFileSelect(this,\'nf\')">'
+    +'<input type="hidden" id="f-arquivo_url" value=""></div>'
+    +'<div class="g2"><div class="fg"><label class="fl">Número NF *</label><input class="fc" id="f-numero" placeholder="Ex: 240"></div>'
+    +'<div class="fg"><label class="fl">Data emissão</label><input class="fc" type="date" id="f-data_emissao" value="'+today+'"></div></div>'
+    +'<div class="g2"><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor" value="'+(m.valor||'')+'" oninput="calcISS()"></div>'
+    +'<div class="fg"><label class="fl">Alíq. ISS (%)</label><input class="fc" type="number" step="0.01" id="f-aliquota_iss" value="5" oninput="calcISS()"></div></div>'
+    +'<div class="g2"><div class="fg"><label class="fl">Valor ISS (R$)</label><input class="fc" type="number" step="0.01" id="f-valor_iss" readonly style="background:#f4f4f0"></div>'
+    +'<div class="fg"><label class="fl">Status NF</label><select class="fc" id="f-status"><option>Pendente</option><option selected>Emitida</option></select></div></div>'
+    +'<input type="hidden" id="f-cliente_id" value="'+(clienteId||'')+'">';
+  document.getElementById('mf').innerHTML=
+    '<button class="btn" onclick="closeModal()">Cancelar</button>'
+    +'<button class="btn bp2" onclick="salvarNFMedicao(\''+medId+'\')"><i class="ti ti-device-floppy"></i> Salvar NF</button>';
+  document.getElementById('ov').classList.add('open');
+  setTimeout(calcISS,100);
+}
+
+async function salvarNFMedicao(medId){
+  const numero=(document.getElementById('f-numero')?.value||'').trim();
+  const valor=parseFloat(document.getElementById('f-valor')?.value)||0;
+  const aliquota=parseFloat(document.getElementById('f-aliquota_iss')?.value)||5;
+  const valor_iss=parseFloat(document.getElementById('f-valor_iss')?.value)||0;
+  const data_emissao=document.getElementById('f-data_emissao')?.value||null;
+  const status=document.getElementById('f-status')?.value||'Emitida';
+  const cliente_id=document.getElementById('f-cliente_id')?.value||null;
+  if(!numero){toast('Informe o número da NF!',true);return;}
+  if(!valor){toast('Informe o valor!',true);return;}
+  const{data:m}=await sb.from('medicoes').select('os_ids,os_dados,descricao').eq('id',medId).single();
+  if(!m){toast('Medição não encontrada!',true);return;}
+  const osIds=m.os_ids||[];
+  const os_id_principal=osIds.length>0?osIds[0]:null;
+  const{error,data:nfData}=await sb.from('notas_fiscais').insert({
+    numero,valor,aliquota_iss:aliquota,valor_iss,
+    data_emissao,status,os_id:os_id_principal,
+    cliente_id:cliente_id||null,
+  }).select().single();
+  if(error){toast('Erro ao salvar NF: '+error.message,true);return;}
+  if(_uploadFiles['nf']&&nfData?.id){
+    toast('Salvando PDF...');
+    await salvarComUpload('notas_fiscais',nfData.id,'nf');
+  }
+  if(osIds.length>0){
+    const agora=new Date();
+    const andItem={
+      txt:'NF '+numero+' emitida em '+(data_emissao||agora.toLocaleDateString('pt-BR'))+' — R$ '+valor.toLocaleString('pt-BR',{minimumFractionDigits:2})+' · Medição: '+(m.descricao||''),
+      data:agora.toLocaleDateString('pt-BR'),
+      hora:agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
+      user:CU?.email?.split('@')[0]||'sistema'
+    };
+    for(const osId of osIds){
+      const{data:os}=await sb.from('ordens').select('andamento').eq('id',osId).single();
+      const lista=[...(os?.andamento||[]),andItem];
+      await sb.from('ordens').update({andamento:lista}).eq('id',osId);
+    }
+  }
+  toast('NF '+numero+' salva e registrada em '+osIds.length+' OS!');
+  closeModal();
+  rMedicao();
 }
 
 function syncOsManual(sel){
