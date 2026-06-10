@@ -869,7 +869,7 @@ async function rDash(){
     sb.from('contratos').select('valor,status'),
     sb.from('ordens').select('status,numero,tipo,data,orcamento_valor'),
     sb.from('recebimentos').select('valor,status'),
-    sb.from('pagamentos').select('valor,status'),
+    sb.from('pagamentos').select('valor,status,categoria'),
     sb.from('impostos').select('valor'),
     sb.from('custos_os').select('valor_total'),
     sb.from('orcamentos').select('id,valor_total').eq('status','Aprovado'),
@@ -884,6 +884,29 @@ async function rDash(){
   const tI=im.reduce((s,i)=>s+Number(i.valor),0);
   const tC=cu.reduce((s,c)=>s+Number(c.valor_total||0),0);
   const lu=tR-tP-tI-tC;
+  // ── Resumo DRE categorizado (acumulado) ──────────────────
+  const GRP_PESSOAL=['Pessoal','Pró-labore','Salário','INSS Folha','FGTS Folha','IRRF'];
+  const GRP_OPER=['Combustível','Alimentação','Equipamentos'];
+  const pagosD=pa.filter(p=>p.status==='Pago');
+  const somaD=a=>a.reduce((s,p)=>s+Number(p.valor),0);
+  const pagPessoal=somaD(pagosD.filter(p=>GRP_PESSOAL.includes(p.categoria)));
+  const pagOper=somaD(pagosD.filter(p=>GRP_OPER.includes(p.categoria)));
+  const pagImposto=somaD(pagosD.filter(p=>p.categoria==='Impostos'));
+  const pagAdm=somaD(pagosD.filter(p=>!GRP_PESSOAL.includes(p.categoria)&&!GRP_OPER.includes(p.categoria)&&p.categoria!=='Impostos'));
+  const impostosTot=tI+pagImposto;
+  const receitaLiq=tR-impostosTot;
+  const custoPessoal=tC+pagPessoal;
+  const custoOper=pagOper;
+  const lucroBruto=receitaLiq-custoPessoal-custoOper;
+  const despAdm=pagAdm;
+  const resultadoLiq=lucroBruto-despAdm;
+  const mgBruta=tR>0?Math.round(lucroBruto/tR*100):0;
+  const mgLiq=tR>0?Math.round(resultadoLiq/tR*100):0;
+  const gruposDre=[{n:'Pessoal & Equipe',v:custoPessoal,c:'#854F0B'},{n:'Operacional',v:custoOper,c:'#1a6fc4'},{n:'Administrativo',v:despAdm,c:'#3C3489'},{n:'Impostos',v:impostosTot,c:'#A32D2D'}].filter(g=>g.v>0);
+  const gMaxDre=Math.max(1,...gruposDre.map(g=>g.v));
+  const totDre=gruposDre.reduce((s,x)=>s+x.v,0)||1;
+  const dcRow=(lbl,val,o={})=>{const{b,big,neg,hl,mg}=o;const cor=neg?'#A32D2D':(big?(val>=0?'#27500A':'#A32D2D'):(b?'#0d4fa0':'#333'));
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:${big?'9px 12px':'6px 12px'};${hl?`background:${val>=0?'#EAF3DE':'#FCEBEB'};border-radius:8px;margin:3px 0;`:'border-bottom:1px solid var(--bor);'}"><span style="font-size:${big?'13px':'12px'};font-weight:${(b||big)?'700':'400'};color:${neg?'#777':(big?cor:'#333')}">${lbl}${mg!==undefined?` <span style="color:#999;font-weight:400;font-size:10px">· ${mg}%</span>`:''}</span><span style="font-size:${big?'14px':'12px'};font-weight:${(b||big)?'700':'500'};color:${cor}">${neg?'('+fmt(Math.abs(val))+')':fmt(val)}</span></div>`;};
   // A receber com suporte a recebimento parcial:
   // Para cada orçamento Aprovado, soma quanto já foi recebido via OS vinculadas,
   // e o pendente é max(0, valor_total - já_recebido)
@@ -944,11 +967,41 @@ async function rDash(){
   </div>
   <!-- FIM BLOCO PRODUÇÃO -->
   <div class="g4 mb1">
-    <div class="mc"><div class="ml">Receita realizada</div><div class="mv" style="color:var(--bd)">${fmt(tR)}</div><div class="ms">Confirmada</div></div>
+    <div class="mc"><div class="ml">Receita bruta</div><div class="mv" style="color:var(--bd)">${fmt(tR)}</div><div class="ms">Realizada</div></div>
     <div class="mc"><div class="ml">A Receber</div><div class="mv" style="color:#BA7517">${fmt(aR)}</div><div class="ms">${aRcount} pendentes</div></div>
-    <div class="mc"><div class="ml">Despesas + Impostos</div><div class="mv" style="color:#A32D2D">${fmt(tP+tI+tC)}</div><div class="ms">Inclui pessoal/campo</div></div>
-    <div class="${lu<0?'ln2':'lc2'}"><div class="ml">Resultado líquido</div><div class="mv" style="color:${lu>=0?'#0d4fa0':'#A32D2D'}">${fmt(lu)}</div><div class="ms">${lu>=0?'Lucro':'Prejuízo'}</div></div>
+    <div class="mc"><div class="ml">Despesas + Impostos</div><div class="mv" style="color:#A32D2D">${fmt(tP+tI+tC)}</div><div class="ms">Pessoal, campo e adm.</div></div>
+    <div class="${lu<0?'ln2':'lc2'}"><div class="ml">Resultado líquido</div><div class="mv" style="color:${lu>=0?'#0d4fa0':'#A32D2D'}">${fmt(lu)}</div><div class="ms">${lu>=0?'Lucro':'Prejuízo'} · ${mgLiq}% margem</div></div>
   </div>
+
+  <!-- RESUMO DO DRE -->
+  <div class="card mb1">
+    <div class="fxb mb1">
+      <div class="st" style="margin:0"><i class="ti ti-report-money" style="color:var(--brand)"></i>Resumo do DRE <span class="mu sm" style="font-weight:400">· acumulado</span></div>
+      <button class="btn bsm" onclick="nav('dre')"><i class="ti ti-chart-bar"></i> DRE completo</button>
+    </div>
+    <div class="g2">
+      <div>
+        ${dcRow('Receita Bruta de Serviços',tR,{b:true})}
+        ${dcRow('(−) Impostos sobre serviços',-impostosTot,{neg:true})}
+        ${dcRow('= Receita Líquida',receitaLiq,{b:true})}
+        ${dcRow('(−) Custos com Pessoal & Equipe',-custoPessoal,{neg:true})}
+        ${dcRow('(−) Custos Operacionais',-custoOper,{neg:true})}
+        ${dcRow('= Lucro Bruto',lucroBruto,{b:true,hl:true,mg:mgBruta})}
+        ${dcRow('(−) Despesas Administrativas',-despAdm,{neg:true})}
+        ${dcRow('= Resultado Líquido',resultadoLiq,{big:true,hl:true,mg:mgLiq})}
+      </div>
+      <div>
+        <div class="w6 sm" style="margin-bottom:10px;color:var(--mu)">Composição dos custos + impostos</div>
+        ${gruposDre.length?gruposDre.map(g=>`<div style="margin-bottom:10px"><div class="fxb" style="font-size:12px;margin-bottom:3px"><span>${g.n}</span><span class="w6" style="color:${g.c}">${fmt(g.v)} <span class="mu" style="font-weight:400">· ${Math.round(g.v/totDre*100)}%</span></span></div><div style="height:8px;background:#f0f0eb;border-radius:99px;overflow:hidden"><div style="width:${Math.round(g.v/gMaxDre*100)}%;height:100%;background:${g.c};border-radius:99px"></div></div></div>`).join(''):'<div class="mu sm">Sem custos lançados.</div>'}
+        <div style="margin-top:14px;background:${resultadoLiq>=0?'#EAF3DE':'#FCEBEB'};border-radius:10px;padding:12px;text-align:center">
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:#666">Resultado líquido acumulado</div>
+          <div style="font-size:26px;font-weight:700;color:${resultadoLiq>=0?'#27500A':'#A32D2D'};margin-top:2px">${fmt(resultadoLiq)}</div>
+          <div class="mu sm">${mgLiq}% de margem sobre a receita</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- FIM RESUMO DO DRE -->
   <div class="g2">
     <div class="card">
       <div class="st"><i class="ti ti-clipboard-list" style="color:var(--brand)"></i>Ordens ativas</div>
