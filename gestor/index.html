@@ -868,10 +868,10 @@ async function rDash(){
   const[ctrs,ors,recs,pags,imps,custosDash,orcasAprov,osDeOrcas,recsOS]=await Promise.all([
     sb.from('contratos').select('valor,status'),
     sb.from('ordens').select('status,numero,tipo,data,orcamento_valor'),
-    sb.from('recebimentos').select('valor,status'),
-    sb.from('pagamentos').select('valor,status,categoria'),
-    sb.from('impostos').select('valor'),
-    sb.from('custos_os').select('valor_total'),
+    sb.from('recebimentos').select('valor,status,data_recebimento,created_at'),
+    sb.from('pagamentos').select('valor,status,categoria,data_pagamento,vencimento,created_at'),
+    sb.from('impostos').select('valor,data,created_at'),
+    sb.from('custos_os').select('valor_total,data,created_at'),
     sb.from('orcamentos').select('id,valor_total').eq('status','Aprovado'),
     // OS vinculadas a orçamentos aprovados (para cruzar com recebimentos)
     sb.from('ordens').select('id,orcamento_id').not('orcamento_id','is',null),
@@ -879,15 +879,28 @@ async function rDash(){
     sb.from('recebimentos').select('os_id,valor').eq('status','Recebido').not('os_id','is',null),
   ]);
   const co=ctrs.data||[],or=ors.data||[],re=recs.data||[],pa=pags.data||[],im=imps.data||[],cu=custosDash.data||[];
-  const tR=re.filter(r=>r.status==='Recebido').reduce((s,r)=>s+Number(r.valor),0);
-  const tP=pa.filter(p=>p.status==='Pago').reduce((s,p)=>s+Number(p.valor),0);
-  const tI=im.reduce((s,i)=>s+Number(i.valor),0);
-  const tC=cu.reduce((s,c)=>s+Number(c.valor_total||0),0);
+  // ── Filtro: mês corrente (DRE do dashboard) ──────────────
+  const _hojeD=new Date();
+  const mesIniD=_hojeD.toISOString().slice(0,7)+'-01';
+  const mesFimD=new Date(_hojeD.getFullYear(),_hojeD.getMonth()+1,0).toISOString().split('T')[0];
+  const mesLabelD=_hojeD.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+  const noMesD=(d,fb)=>{const v=d||fb||'';return v>=mesIniD&&v<=mesFimD;};
+  const reM=re.filter(r=>noMesD(r.data_recebimento,r.created_at?.slice(0,10)));
+  const paM=pa.filter(p=>noMesD(p.data_pagamento,p.created_at?.slice(0,10)));
+  const imM=im.filter(i=>noMesD(i.data,i.created_at?.slice(0,10)));
+  const cuM=cu.filter(c=>noMesD(c.data,c.created_at?.slice(0,10)));
+  const tR=reM.filter(r=>r.status==='Recebido').reduce((s,r)=>s+Number(r.valor),0);
+  const tP=paM.filter(p=>p.status==='Pago').reduce((s,p)=>s+Number(p.valor),0);
+  const tI=imM.reduce((s,i)=>s+Number(i.valor),0);
+  const tC=cuM.reduce((s,c)=>s+Number(c.valor_total||0),0);
   const lu=tR-tP-tI-tC;
-  // ── Resumo DRE categorizado (acumulado) ──────────────────
+  // Pendentes de pagamento (acumulado, independe do mês)
+  const aPagList=pa.filter(p=>p.status==='Pendente');
+  const aPag=aPagList.reduce((s,p)=>s+Number(p.valor),0);
+  // ── Resumo DRE categorizado (mês corrente) ───────────────
   const GRP_PESSOAL=['Pessoal','Pró-labore','Salário','INSS Folha','FGTS Folha','IRRF'];
   const GRP_OPER=['Combustível','Alimentação','Equipamentos'];
-  const pagosD=pa.filter(p=>p.status==='Pago');
+  const pagosD=paM.filter(p=>p.status==='Pago');
   const somaD=a=>a.reduce((s,p)=>s+Number(p.valor),0);
   const pagPessoal=somaD(pagosD.filter(p=>GRP_PESSOAL.includes(p.categoria)));
   const pagOper=somaD(pagosD.filter(p=>GRP_OPER.includes(p.categoria)));
@@ -966,17 +979,18 @@ async function rDash(){
     </div>
   </div>
   <!-- FIM BLOCO PRODUÇÃO -->
-  <div class="g4 mb1">
-    <div class="mc"><div class="ml">Receita bruta</div><div class="mv" style="color:var(--bd)">${fmt(tR)}</div><div class="ms">Realizada</div></div>
-    <div class="mc"><div class="ml">A Receber</div><div class="mv" style="color:#BA7517">${fmt(aR)}</div><div class="ms">${aRcount} pendentes</div></div>
-    <div class="mc"><div class="ml">Despesas + Impostos</div><div class="mv" style="color:#A32D2D">${fmt(tP+tI+tC)}</div><div class="ms">Pessoal, campo e adm.</div></div>
-    <div class="${lu<0?'ln2':'lc2'}"><div class="ml">Resultado líquido</div><div class="mv" style="color:${lu>=0?'#0d4fa0':'#A32D2D'}">${fmt(lu)}</div><div class="ms">${lu>=0?'Lucro':'Prejuízo'} · ${mgLiq}% margem</div></div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:1rem">
+    <div class="mc"><div class="ml">Receita do mês</div><div class="mv" style="color:var(--bd)">${fmt(tR)}</div><div class="ms" style="text-transform:capitalize">${mesLabelD}</div></div>
+    <div class="mc"><div class="ml">Despesas + Impostos</div><div class="mv" style="color:#A32D2D">${fmt(tP+tI+tC)}</div><div class="ms">No mês · pessoal, campo e adm.</div></div>
+    <div class="${lu<0?'ln2':'lc2'}"><div class="ml">Resultado do mês</div><div class="mv" style="color:${lu>=0?'#0d4fa0':'#A32D2D'}">${fmt(lu)}</div><div class="ms">${lu>=0?'Lucro':'Prejuízo'} · ${mgLiq}% margem</div></div>
+    <div class="mc" style="border-left:3px solid #BA7517;border-radius:0 10px 10px 0;cursor:pointer" onclick="nav('recebimentos')"><div class="ml">A Receber</div><div class="mv" style="color:#BA7517">${fmt(aR)}</div><div class="ms">${aRcount} pendente${aRcount===1?'':'s'} · acumulado</div></div>
+    <div class="mc" style="border-left:3px solid #A32D2D;border-radius:0 10px 10px 0;cursor:pointer" onclick="nav('pagamentos')"><div class="ml">A Pagar</div><div class="mv" style="color:#A32D2D">${fmt(aPag)}</div><div class="ms">${aPagList.length} pendente${aPagList.length===1?'':'s'} · acumulado</div></div>
   </div>
 
   <!-- RESUMO DO DRE -->
   <div class="card mb1">
     <div class="fxb mb1">
-      <div class="st" style="margin:0"><i class="ti ti-report-money" style="color:var(--brand)"></i>Resumo do DRE <span class="mu sm" style="font-weight:400">· acumulado</span></div>
+      <div class="st" style="margin:0"><i class="ti ti-report-money" style="color:var(--brand)"></i>Resumo do DRE <span class="mu sm" style="font-weight:400;text-transform:capitalize">· ${mesLabelD}</span></div>
       <button class="btn bsm" onclick="nav('dre')"><i class="ti ti-chart-bar"></i> DRE completo</button>
     </div>
     <div class="g2">
@@ -994,7 +1008,7 @@ async function rDash(){
         <div class="w6 sm" style="margin-bottom:10px;color:var(--mu)">Composição dos custos + impostos</div>
         ${gruposDre.length?gruposDre.map(g=>`<div style="margin-bottom:10px"><div class="fxb" style="font-size:12px;margin-bottom:3px"><span>${g.n}</span><span class="w6" style="color:${g.c}">${fmt(g.v)} <span class="mu" style="font-weight:400">· ${Math.round(g.v/totDre*100)}%</span></span></div><div style="height:8px;background:#f0f0eb;border-radius:99px;overflow:hidden"><div style="width:${Math.round(g.v/gMaxDre*100)}%;height:100%;background:${g.c};border-radius:99px"></div></div></div>`).join(''):'<div class="mu sm">Sem custos lançados.</div>'}
         <div style="margin-top:14px;background:${resultadoLiq>=0?'#EAF3DE':'#FCEBEB'};border-radius:10px;padding:12px;text-align:center">
-          <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:#666">Resultado líquido acumulado</div>
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;color:#666">Resultado líquido do mês</div>
           <div style="font-size:26px;font-weight:700;color:${resultadoLiq>=0?'#27500A':'#A32D2D'};margin-top:2px">${fmt(resultadoLiq)}</div>
           <div class="mu sm">${mgLiq}% de margem sobre a receita</div>
         </div>
