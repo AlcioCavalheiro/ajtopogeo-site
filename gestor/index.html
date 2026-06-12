@@ -4268,6 +4268,10 @@ async function gerarPDFOrcamento(idDireto){
   if(!id){toast('Selecione um orçamento!',true);return;}
   const{data:o}=await sb.from('orcamentos').select('*,clientes(*)').eq('id',id).single();
   if(!o){toast('Orçamento não encontrado!',true);return;}
+  // Obra (busca separada para não depender de FK no PostgREST)
+  let _obra=null;
+  if(o.obra_id){const{data:ob}=await sb.from('obras').select('nome,municipio').eq('id',o.obra_id).single();_obra=ob||null;}
+  const _obraTxt=_obra?(_obra.nome+(_obra.municipio?' — '+_obra.municipio:'')):'';
   toast('Gerando PDF...');
   // Cores identidade visual AJ TopoGeo
   const TEAL=[42,191,191],DARK_TEAL=[25,150,150],NAVY=[30,40,70],WHITE=[255,255,255],LIGHT_TEAL=[225,247,247];
@@ -4297,17 +4301,27 @@ async function gerarPDFOrcamento(idDireto){
   addFooter();
   let y=27;
   // Box cliente
-  doc.setFillColor(...LIGHT_TEAL);doc.roundedRect(10,y,W-20,o.clientes?.cpfcnpj?20:13,2,2,'F');
+  const _hasDoc=!!o.clientes?.cpfcnpj, _hasObra=!!_obraTxt;
+  const _boxH=18+(_hasDoc?7:0)+(_hasObra?7:0);
+  doc.setFillColor(...LIGHT_TEAL);doc.roundedRect(10,y,W-20,_boxH,2,2,'F');
   doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(...NAVY);
   doc.text('CLIENTE',14,y+7);
   doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(...NAVY);
   doc.text(o.clientes?.nome||'—',42,y+7);
-  if(o.clientes?.cpfcnpj){
+  let _yl=y+15;
+  if(_hasDoc){
     doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(80,80,80);
-    doc.text('CPF/CNPJ: '+(o.clientes.cpfcnpj||''),14,y+15);
-    if(o.clientes?.telefone) doc.text('Fone: '+o.clientes.telefone,W/2,y+15);
+    doc.text('CPF/CNPJ: '+(o.clientes.cpfcnpj||''),14,_yl);
+    if(o.clientes?.telefone) doc.text('Fone: '+o.clientes.telefone,W/2,_yl);
+    _yl+=7;
   }
-  y+=(o.clientes?.cpfcnpj?25:18);
+  if(_hasObra){
+    doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...NAVY);
+    doc.text('OBRA:',14,_yl);
+    doc.setFont('helvetica','normal');doc.setTextColor(80,80,80);
+    doc.text(doc.splitTextToSize(_obraTxt,160)[0],27,_yl);
+  }
+  y+=_boxH+5;
   // Barra número/validade/data
   doc.setFillColor(...TEAL);doc.rect(10,y,W-20,8,'F');
   doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...WHITE);
@@ -4386,7 +4400,7 @@ async function gerarPDFOrcamento(idDireto){
   // Box responsável técnico — fundo branco com contorno
   doc.setDrawColor(...DARK_TEAL);doc.setLineWidth(0.4);doc.rect(W-92,y,78,32,'S');
   const sigB64=localStorage.getItem('assinatura_tecnico_b64');
-  if(sigB64){try{doc.addImage(sigB64,'PNG',W-88,y+2,70,18);}catch(e){}}
+  if(sigB64){try{doc.addImage(sigB64,sigB64.indexOf('image/png')>=0?'PNG':'JPEG',W-88,y+2,70,18);}catch(e){console.warn('Assinatura orçamento:',e);}}
   doc.line(W-88,y+26,W-18,y+26);
   doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...NAVY);
   doc.text('RESPONSÁVEL TÉCNICO',W-54,y+30,{align:'center'});
@@ -5314,6 +5328,8 @@ async function gerarPDFMedicao(){
   if(y+30>PAGE_LIMIT) newPage(true);
   doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(26,26,24);
   doc.text(municipio+', '+(dataMed?new Date(dataMed+'T12:00').toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'}):''),W/2,y,{align:'center'});y+=18;
+  const sigMedB64=localStorage.getItem('assinatura_tecnico_b64');
+  if(sigMedB64){try{doc.addImage(sigMedB64,sigMedB64.indexOf('image/png')>=0?'PNG':'JPEG',30,y-16,70,16);}catch(e){console.warn('Assinatura medição:',e);}}
   doc.setDrawColor(13,79,160);doc.line(20,y,110,y);doc.line(W-110,y,W-20,y);y+=6;
   doc.setFont('helvetica','bold');doc.setFontSize(8.5);
   doc.text(EMPRESA.resp,65,y,{align:'center'});doc.text('CONTRATANTE',W-65,y,{align:'center'});y+=5;
