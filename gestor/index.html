@@ -327,6 +327,7 @@ select.fc{cursor:pointer}
       <div class="ni" onclick="nav('medicao')"><i class="ti ti-checkup-list"></i>Medições</div>
       <div class="ni" onclick="nav('nfe')"><i class="ti ti-receipt"></i>Notas Fiscais</div>
       <div class="ni" onclick="nav('dre')"><i class="ti ti-chart-bar"></i>DRE / Resultado</div>
+      <div class="ni" onclick="nav('passivo')"><i class="ti ti-scale"></i>Passivo / Obrigações</div>
       <div class="ng">Empresa</div>
       <div class="ni" onclick="nav('rotinas')"><i class="ti ti-rotate"></i>Rotinas Recorrentes</div>
       <div class="ni" onclick="nav('administrativo')"><i class="ti ti-building"></i>Administrativo</div>
@@ -473,12 +474,13 @@ const PCFG={
   contratos:{t:'Novo Contrato',tb:'contratos',h:function(o){return '<div class="g2"><div class="fg"><label class="fl">Número</label><input class="fc" id="f-numero" placeholder="Gerando automaticamente..." style="background:#f0f7ff;font-weight:600;color:#0d4fa0" readonly></div><div class="fg"><label class="fl">Orçamento de origem</label><select class="fc" id="f-orcamento_id" onchange="preencherContratoDoOrca(this.value)"><option value="">— Selecione um orçamento aprovado —</option>'+(o.orcOpts||'')+'</select></div></div><div class="mu sm" style="margin:-4px 0 8px;color:#0d4fa0"><i class="ti ti-info-circle"></i> Selecione um orçamento para preencher cliente, objeto e valor automaticamente.</div><div class="fg"><label class="fl">Cliente *</label><select class="fc" id="f-cliente_id"><option value="">Selecione...</option>'+o.cOpts+'</select></div><div class="fg"><label class="fl">Descrição / Objeto *</label><textarea class="fc" id="f-descricao" rows="3" placeholder="Um serviço por linha — cada linha vira uma cláusula no contrato."></textarea></div><div class="g2"><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor"></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option>Em andamento</option><option>Concluído</option><option>Cancelado</option></select></div></div><div class="g2"><div class="fg"><label class="fl">Data início</label><input class="fc" type="date" id="f-data_inicio"></div><div class="fg"><label class="fl">Prazo</label><input class="fc" type="date" id="f-prazo"></div></div><div class="fg"><label class="fl">Observações</label><textarea class="fc" id="f-obs" rows="2"></textarea></div>';}},
   ordens:{t:'Ordens de Serviço'},
   recebimentos:{t:'Novo Recebimento',a:'Novo Recebimento',tb:'recebimentos',h:function(o){return '<div class="fg"><label class="fl">Descrição *</label><input class="fc" id="f-descricao" placeholder="Ex: Pagamento OS-001..."></div><div class="fg"><label class="fl">Cliente</label><select class="fc" id="f-cliente_id"><option value="">Selecione...</option>'+o.cOpts+'</select></div><div class="g2"><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor"></div><div class="fg"><label class="fl">Forma de pgto</label><select class="fc" id="f-forma"><option>PIX</option><option>Transferência</option><option>Boleto</option><option>Cheque</option><option>Dinheiro</option><option>Cartão</option></select></div></div><div class="g2"><div class="fg"><label class="fl">Vencimento</label><input class="fc" type="date" id="f-vencimento"></div><div class="fg"><label class="fl">Data recebimento</label><input class="fc" type="date" id="f-data_recebimento"></div></div><div class="fg"><label class="fl">OS Vinculada</label><select class="fc" id="f-os_id" onchange="syncOsManual(this)"><option value="">Sem OS</option>'+o.oOpts+'</select><input type="hidden" id="f-os_manual"></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option>Pendente</option><option>Recebido</option></select></div>';}},
-  pagamentos:{t:'Novo Pagamento',tb:'pagamentos',h:function(o){return '<div class="fg"><label class="fl">Descrição *</label><input class="fc" id="f-descricao" placeholder="Ex: Gasolina OS-001..."></div><div class="g2"><div class="fg"><label class="fl">Categoria</label><select class="fc" id="f-categoria"><option>Combustível</option><option>Alimentação</option><option>Pessoal</option><option>Pró-labore</option><option>Salário</option><option>INSS Folha</option><option>FGTS Folha</option><option>IRRF</option><option>Infraestrutura</option><option>Equipamentos</option><option>Software</option><option>Impostos</option><option>Outros</option></select></div><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor"></div></div><div class="g2"><div class="fg"><label class="fl">Vencimento</label><input class="fc" type="date" id="f-vencimento" oninput="calcTotalPag()"></div><div class="fg"><label class="fl">Data pagamento</label><input class="fc" type="date" id="f-data_pagamento" oninput="calcTotalPag()"></div></div><div class="fg" style="background:#FFF8E7;border-radius:8px;padding:.6rem .9rem"><div style="font-size:11px;color:#854F0B;margin-bottom:.4rem"><i class="ti ti-alert-triangle" style="font-size:11px"></i> Juros / Multa por atraso <span id="pag-atraso-label" style="font-weight:600"></span></div><div class="g2"><div class="fg"><label class="fl">Juros / Multa (R$)</label><input class="fc" type="number" step="0.01" id="f-juros" placeholder="0,00" oninput="calcTotalPag()"></div><div class="fg"><label class="fl">Total efetivo (R$)</label><input id="calc-total-pag" class="fc" type="number" step="0.01" readonly style="background:#f4f4f0" placeholder="—"></div></div></div><div class="fg"><label class="fl">OS Vinculada</label><select class="fc" id="f-os_id" onchange="syncOsManual(this)"><option value="">Sem OS</option>'+o.oOpts+'</select><input type="hidden" id="f-os_manual"></div><div class="g2"><div class="fg"><label class="fl">Tipo de custo</label><select class="fc" id="f-tipo_custo"><option>OS</option><option>Operacional</option><option>Administrativo</option></select></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option>Pendente</option><option>Pago</option></select></div></div><div class="fg"><label class="fl">Competência</label><input class="fc" id="f-periodo_ref" placeholder="Maio/2026"></div><div class="fg"><label class="fl">Boleto / Comprovante (PDF)</label><div id="pag-upload-area" class="upload-area" onclick="document.getElementById(\'pag-file-input\').click()" ondragover="this.classList.add(\'drag-over\');event.preventDefault()" ondragleave="this.classList.remove(\'drag-over\')" ondrop="handleFileDrop(event,\'pag\')"><i class="ti ti-file-invoice"></i><p>Clique ou arraste o PDF do boleto aqui</p></div><div id="pag-file-preview" style="display:none"></div><input type="file" id="pag-file-input" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="handleFileSelect(this,\'pag\')"><input type="hidden" id="f-arquivo_url" value=""></div><div class="fg" style="margin-top:.5rem;border-top:1px dashed var(--bor);padding-top:.75rem"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="pgrec-on" style="width:16px;height:16px;accent-color:var(--brand)" onchange="document.getElementById(\'pgrec-box\').style.display=this.checked?\'block\':\'none\'"> <span class="fl" style="margin:0"><i class="ti ti-repeat" style="color:#0D4FA0"></i> Pagamento recorrente (mensal)</span></label></div><div id="pgrec-box" style="display:none;background:#F4F8FF;border-radius:8px;padding:.75rem;margin-top:.25rem"><div class="g2"><div class="fg"><label class="fl">Repetir</label><select class="fc" id="pgrec-modo" onchange="document.getElementById(\'pgrec-qtd-wrap\').style.display=this.value===\'n\'?\'block\':\'none\'"><option value="n">Número definido de vezes</option><option value="inf">Contínuo (gera 24 meses)</option></select></div><div class="fg" id="pgrec-qtd-wrap"><label class="fl">Qtd de meses</label><input class="fc" type="number" min="2" max="120" id="pgrec-qtd" value="12"></div></div><div class="mu sm">Será criado um lançamento por mês (avançando o vencimento). Cada um pode ser editado ou excluído depois.</div></div>';}},
+  pagamentos:{t:'Novo Pagamento',tb:'pagamentos',h:function(o){return '<div class="fg"><label class="fl">Descrição *</label><input class="fc" id="f-descricao" placeholder="Ex: Gasolina OS-001..."></div><div class="g2"><div class="fg"><label class="fl">Categoria</label><select class="fc" id="f-categoria"><option>Combustível</option><option>Alimentação</option><option>Pessoal</option><option>Pró-labore</option><option>Salário</option><option>INSS Folha</option><option>FGTS Folha</option><option>IRRF</option><option>Infraestrutura</option><option>Equipamentos</option><option>Software</option><option>Financiamento</option><option>Parcelamento Tributário</option><option>Impostos</option><option>Outros</option></select></div><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor"></div></div><div class="g2"><div class="fg"><label class="fl">Vencimento</label><input class="fc" type="date" id="f-vencimento" oninput="calcTotalPag()"></div><div class="fg"><label class="fl">Data pagamento</label><input class="fc" type="date" id="f-data_pagamento" oninput="calcTotalPag()"></div></div><div class="fg" style="background:#FFF8E7;border-radius:8px;padding:.6rem .9rem"><div style="font-size:11px;color:#854F0B;margin-bottom:.4rem"><i class="ti ti-alert-triangle" style="font-size:11px"></i> Juros / Multa por atraso <span id="pag-atraso-label" style="font-weight:600"></span></div><div class="g2"><div class="fg"><label class="fl">Juros / Multa (R$)</label><input class="fc" type="number" step="0.01" id="f-juros" placeholder="0,00" oninput="calcTotalPag()"></div><div class="fg"><label class="fl">Total efetivo (R$)</label><input id="calc-total-pag" class="fc" type="number" step="0.01" readonly style="background:#f4f4f0" placeholder="—"></div></div></div><div class="fg"><label class="fl">OS Vinculada</label><select class="fc" id="f-os_id" onchange="syncOsManual(this)"><option value="">Sem OS</option>'+o.oOpts+'</select><input type="hidden" id="f-os_manual"></div><div class="g2"><div class="fg"><label class="fl">Tipo de custo</label><select class="fc" id="f-tipo_custo"><option>OS</option><option>Operacional</option><option>Administrativo</option></select></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option>Pendente</option><option>Pago</option></select></div></div><div class="fg"><label class="fl">Competência</label><input class="fc" id="f-periodo_ref" placeholder="Maio/2026"></div><div class="fg"><label class="fl">Boleto / Comprovante (PDF)</label><div id="pag-upload-area" class="upload-area" onclick="document.getElementById(\'pag-file-input\').click()" ondragover="this.classList.add(\'drag-over\');event.preventDefault()" ondragleave="this.classList.remove(\'drag-over\')" ondrop="handleFileDrop(event,\'pag\')"><i class="ti ti-file-invoice"></i><p>Clique ou arraste o PDF do boleto aqui</p></div><div id="pag-file-preview" style="display:none"></div><input type="file" id="pag-file-input" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="handleFileSelect(this,\'pag\')"><input type="hidden" id="f-arquivo_url" value=""></div><div class="fg" style="margin-top:.5rem;border-top:1px dashed var(--bor);padding-top:.75rem"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="pgrec-on" style="width:16px;height:16px;accent-color:var(--brand)" onchange="document.getElementById(\'pgrec-box\').style.display=this.checked?\'block\':\'none\'"> <span class="fl" style="margin:0"><i class="ti ti-repeat" style="color:#0D4FA0"></i> Pagamento recorrente (mensal)</span></label></div><div id="pgrec-box" style="display:none;background:#F4F8FF;border-radius:8px;padding:.75rem;margin-top:.25rem"><div class="g2"><div class="fg"><label class="fl">Repetir</label><select class="fc" id="pgrec-modo" onchange="document.getElementById(\'pgrec-qtd-wrap\').style.display=this.value===\'n\'?\'block\':\'none\'"><option value="n">Número definido de vezes</option><option value="inf">Contínuo (gera 24 meses)</option></select></div><div class="fg" id="pgrec-qtd-wrap"><label class="fl">Qtd de meses</label><input class="fc" type="number" min="2" max="120" id="pgrec-qtd" value="12"></div></div><div class="mu sm">Será criado um lançamento por mês (avançando o vencimento). Cada um pode ser editado ou excluído depois.</div></div>';}},
   custos_os:{t:'Lançar Custo de Equipe',tb:'custos_os',h:function(o){return '<div class="fg"><label class="fl">Funcionário</label><select class="fc" id="f-func_id" onchange="autoVlrCusto()"><option value="">Selecione...</option>'+o.fOpts+'</select></div><div class="g2"><div class="fg"><label class="fl">Tipo de custo</label><select class="fc" id="f-tipo_custo" onchange="autoVlrCusto()"><option>Hora</option><option>Diária</option><option>Empreitada</option></select></div><div class="fg"><label class="fl">Quantidade</label><input class="fc" type="number" id="f-quantidade" value="1" step="0.5" oninput="autoCalcCusto()"></div></div><div class="g2"><div class="fg"><label class="fl">Valor unitário (R$)</label><input class="fc" type="number" step="0.01" id="f-valor_unit" oninput="autoCalcCusto()"></div><div class="fg"><label class="fl">Total (R$)</label><input class="fc" type="number" id="f-valor_total" readonly style="background:#f4f4f0"></div></div><div class="g2"><div class="fg"><label class="fl">OS vinculada</label><select class="fc" id="f-os_id"><option value="">Sem OS</option>'+o.oOpts+'</select></div><div class="fg"><label class="fl">Data</label><input class="fc" type="date" id="f-data"></div></div><div class="fg"><label class="fl">Observação</label><input class="fc" id="f-obs"></div>';}},
   impostos:{t:'Registrar Imposto',tb:'impostos',h:function(o){return '<div class="g2"><div class="fg"><label class="fl">Tipo *</label><select class="fc" id="f-tipo"><option>Simples Nacional (DAS)</option><option>INSS</option><option>IRPJ/CSLL</option><option>FGTS</option><option>ISS</option><option>IRRF</option><option>Outro</option></select></div><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor"></div></div><div class="fg"><label class="fl">Descrição</label><input class="fc" id="f-descricao" placeholder="Ex: DAS Simples Nacional Maio/2026"></div><div class="fg"><label class="fl">OS Vinculada</label><select class="fc" id="f-os_id"><option value="">Sem OS — distribuir entre todas do mês</option>'+o.oOpts+'</select></div><div class="g2"><div class="fg"><label class="fl">Data pagamento</label><input class="fc" type="date" id="f-data"></div><div class="fg"><label class="fl">Período ref.</label><input class="fc" id="f-periodo_ref" placeholder="Maio/2026"></div></div><div class="fg"><label class="fl">PDF do comprovante</label><div id="imp-upload-area" class="upload-area" onclick="document.getElementById(\'imp-file-input\').click()"><i class="ti ti-file-upload"></i><p>Clique ou arraste o PDF aqui</p></div><div id="imp-file-preview" style="display:none"></div><input type="file" id="imp-file-input" accept=".pdf" style="display:none" onchange="handleFileSelect(this,\'imp\')"><input type="hidden" id="f-arquivo_url" value=""></div>';}},
   medicao:{t:'Nova Medição',tb:'medicoes',h:function(o){return '<div class="fg"><label class="fl">Descrição *</label><input class="fc" id="f-descricao" placeholder="Ex: Medição 01 — Jardim Monaco Maio/2026"></div><div class="g2"><div class="fg"><label class="fl">Cliente</label><select class="fc" id="f-cliente_id"><option value="">Selecione...</option>'+o.cOpts+'</select></div><div class="fg"><label class="fl">OS Vinculada</label><select class="fc" id="f-os_id"><option value="">Sem OS</option>'+o.oOpts+'</select></div></div><div class="g2"><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor"></div><div class="fg"><label class="fl">% Executado</label><input class="fc" type="number" min="0" max="100" id="f-perc_executado" placeholder="0-100"></div></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option>Fechar Medição</option><option>Gerar NF</option><option>Falta Pagamento</option><option>Recebido</option></select></div><div class="fg"><label class="fl">Observações</label><textarea class="fc" id="f-obs" rows="2"></textarea></div>';}},
   nfe:{t:'Nova Nota Fiscal',tb:'notas_fiscais',h:function(o){return '<div class="g2"><div class="fg"><label class="fl">Número NF *</label><input class="fc" id="f-numero" placeholder="Ex: 240"></div><div class="fg"><label class="fl">Cliente</label><select class="fc" id="f-cliente_id"><option value="">Selecione...</option>'+o.cOpts+'</select></div></div><div class="g2"><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor" oninput="calcISS()"></div><div class="fg"><label class="fl">Alíq. ISS (%)</label><input class="fc" type="number" step="0.01" id="f-aliquota_iss" value="5" oninput="calcISS()"></div></div><div class="g2"><div class="fg"><label class="fl">Valor ISS (R$)</label><input class="fc" type="number" step="0.01" id="f-valor_iss" readonly style="background:#f4f4f0"></div><div class="fg"><label class="fl">OS Vinculada</label><select class="fc" id="f-os_id"><option value="">Sem OS</option>'+o.oOpts+'</select></div></div><div class="g2"><div class="fg"><label class="fl">Data emissão</label><input class="fc" type="date" id="f-data_emissao"></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option>Pendente</option><option>Emitida</option><option>Cancelada</option></select></div></div><div class="fg"><label class="fl">PDF da NF</label><div id="nf-upload-area" class="upload-area" onclick="document.getElementById(\'nf-file-input\').click()"><i class="ti ti-file-upload"></i><p>Clique ou arraste o PDF da NF aqui</p></div><div id="nf-file-preview" style="display:none"></div><input type="file" id="nf-file-input" accept=".pdf" style="display:none" onchange="handleFileSelect(this,\'nf\')"><input type="hidden" id="f-arquivo_url" value=""></div>';}},
   dre:{t:'DRE / Resultado',a:null},
+  passivo:{t:'Passivo / Obrigações',a:null},
   folha:{t:'Folha / Pró-labore',a:'Lançar Pró-labore'},
   pipeline:{t:'Pipeline de Projetos',a:null},
   pendencias:{t:'Pendências',a:null},
@@ -3810,6 +3812,216 @@ async function togglePagamentoComissao(cid, isPago) {
   toast(isPago ? 'Comissão marcada como prevista' : 'Comissão marcada como paga!'); renderPage();
 }
 
+// ─── PASSIVO / OBRIGAÇÕES ─────────────────────────────────────
+async function rPassivo(){
+  const{data:pend}=await sb.from('pagamentos').select('*').eq('status','Pendente').order('vencimento',{ascending:true});
+  const pa=pend||[];
+
+  const CAT_FISCAL_TRAB=['Impostos','INSS Folha','FGTS Folha','IRRF','Pró-labore','Salário','Pessoal'];
+  const CAT_FINANC=['Financiamento','Empréstimo'];
+  const CAT_PARCELA=['Parcelamento Tributário'];
+  const kwFinanc=p=>CAT_FINANC.includes(p.categoria)||/financiamento|empr[eé]stimo|drone|ve[íi]culo/i.test(p.descricao||'');
+  const kwParcela=p=>CAT_PARCELA.includes(p.categoria)||/sispar|siefpar|parcelamento/i.test(p.descricao||'');
+  const kwFiscal=p=>CAT_FISCAL_TRAB.includes(p.categoria);
+
+  const financ=pa.filter(p=>kwFinanc(p)&&!kwParcela(p));
+  const parcela=pa.filter(p=>kwParcela(p));
+  const fiscal=pa.filter(p=>!kwFinanc(p)&&!kwParcela(p)&&kwFiscal(p));
+  const fornec=pa.filter(p=>!kwFinanc(p)&&!kwParcela(p)&&!kwFiscal(p));
+
+  const soma=arr=>arr.reduce((s,p)=>s+Number(p.valor||0),0);
+  const tPass=soma(pa);
+
+  const hoje=new Date();const em12=new Date(hoje);em12.setFullYear(em12.getFullYear()+1);
+  const financCP=financ.filter(p=>!p.vencimento||new Date(p.vencimento)<=em12);
+  const financLP=financ.filter(p=>p.vencimento&&new Date(p.vencimento)>em12);
+
+  const mkRows=(arr,showCat)=>arr.map(p=>`<tr>
+    <td>${p.descricao||'—'}${p.os_manual?`<span class="mu sm" style="margin-left:4px">${p.os_manual}</span>`:''}</td>
+    ${showCat?`<td><span class="bd bn">${p.categoria||'—'}</span></td>`:''}
+    <td style="color:#854F0B;font-weight:600">${fmt(p.valor)}</td>
+    <td>${fd(p.vencimento)||'—'}</td>
+    <td>${p.periodo_ref||'—'}</td>
+  </tr>`).join('');
+
+  const mkTable=(arr,showCat)=>`<div class="tw"><table>
+    <thead><tr><th>Descrição</th>${showCat?'<th>Categoria</th>':''}<th>Valor</th><th>Vencimento</th><th>Competência</th></tr></thead>
+    <tbody>${mkRows(arr,showCat)}</tbody>
+  </table></div>`;
+
+  const secHead=(title,icon,color,tot,note)=>`
+    <div class="fxb mb1">
+      <div class="st" style="margin:0"><i class="ti ${icon}" style="color:${color}"></i> ${title}</div>
+      <div style="font-size:17px;font-weight:700;color:${color}">${fmt(tot)}</div>
+    </div>
+    ${note?`<div class="mu sm" style="margin-bottom:.5rem;font-size:11px"><i class="ti ti-info-circle"></i> ${note}</div>`:''}`;
+
+  const vazio=`<div class="mu sm" style="padding:.5rem 0">—</div>`;
+
+  document.getElementById('ct').innerHTML=`
+  <div class="fxb mb1">
+    <div></div>
+    <button class="btn bp2 bsm" onclick="gerarPDFPassivo()"><i class="ti ti-file-download"></i> PDF</button>
+  </div>
+  <div class="fw g12 mb1">
+    <div class="mc"><div class="ml">Total Passivo</div><div class="mv" style="color:#A32D2D">${fmt(tPass)}</div><div class="ms">Todas as obrigações pendentes</div></div>
+    <div class="mc"><div class="ml">Fornecedores</div><div class="mv">${fmt(soma(fornec))}</div></div>
+    <div class="mc"><div class="ml">Financiamentos</div><div class="mv">${fmt(soma(financ))}</div></div>
+    <div class="mc"><div class="ml">Parcelamentos</div><div class="mv">${fmt(soma(parcela))}</div></div>
+    <div class="mc"><div class="ml">Fiscal / Trabalhista</div><div class="mv">${fmt(soma(fiscal))}</div></div>
+  </div>
+
+  <div class="card mb1">
+    ${secHead('Fornecedores a Pagar','ti-building-store','#3C3489',soma(fornec),'')}
+    ${fornec.length?mkTable(fornec,true):vazio}
+  </div>
+
+  <div class="card mb1">
+    ${secHead('Empréstimos e Financiamentos','ti-bank','#1a6fc4',soma(financ),'')}
+    ${financ.length?`
+      ${financCP.length?`<div class="w6 sm" style="color:#1a6fc4;margin-bottom:.35rem">Curto prazo (≤ 12 meses) — ${fmt(soma(financCP))}</div>${mkTable(financCP,false)}`:''}
+      ${financLP.length?`<div class="w6 sm" style="color:#3C3489;margin:.75rem 0 .35rem">Longo prazo (> 12 meses) — ${fmt(soma(financLP))}</div>${mkTable(financLP,false)}`:''}
+    `:vazio}
+  </div>
+
+  <div class="card mb1">
+    ${secHead('Parcelamentos Tributários — SISPAR / SIEFPAR','ti-calendar-due','#854F0B',soma(parcela),'Saldo total do parcelamento — todas as parcelas pendentes, incluindo as vincendas.')}
+    ${parcela.length?mkTable(parcela,false):vazio}
+  </div>
+
+  <div class="card mb1">
+    ${secHead('Obrigações Fiscais e Trabalhistas','ti-receipt-tax','#A32D2D',soma(fiscal),'ISS municipal, FGTS, INSS, Pró-labore e demais encargos pendentes de pagamento.')}
+    ${fiscal.length?mkTable(fiscal,true):vazio}
+  </div>`;
+}
+
+async function gerarPDFPassivo(){
+  toast('Gerando PDF do Passivo...');
+  const{data:pend}=await sb.from('pagamentos').select('*').eq('status','Pendente').order('vencimento',{ascending:true});
+  const pa=pend||[];
+  const CAT_FISCAL_TRAB=['Impostos','INSS Folha','FGTS Folha','IRRF','Pró-labore','Salário','Pessoal'];
+  const CAT_FINANC=['Financiamento','Empréstimo'];
+  const CAT_PARCELA=['Parcelamento Tributário'];
+  const kwFinanc=p=>CAT_FINANC.includes(p.categoria)||/financiamento|empr[eé]stimo|drone|ve[íi]culo/i.test(p.descricao||'');
+  const kwParcela=p=>CAT_PARCELA.includes(p.categoria)||/sispar|siefpar|parcelamento/i.test(p.descricao||'');
+  const kwFiscal=p=>CAT_FISCAL_TRAB.includes(p.categoria);
+  const financ=pa.filter(p=>kwFinanc(p)&&!kwParcela(p));
+  const parcela=pa.filter(p=>kwParcela(p));
+  const fiscal=pa.filter(p=>!kwFinanc(p)&&!kwParcela(p)&&kwFiscal(p));
+  const fornec=pa.filter(p=>!kwFinanc(p)&&!kwParcela(p)&&!kwFiscal(p));
+  const soma=arr=>arr.reduce((s,p)=>s+Number(p.valor||0),0);
+  const hoje=new Date();const em12=new Date(hoje);em12.setFullYear(em12.getFullYear()+1);
+  const financCP=financ.filter(p=>!p.vencimento||new Date(p.vencimento)<=em12);
+  const financLP=financ.filter(p=>p.vencimento&&new Date(p.vencimento)>em12);
+
+  const doc=novoPDF();const W=210;let y=0;
+  const checkPage=(n=15)=>{if(y+n>285){doc.addPage();y=15;}};
+  const hexRGB=h=>{const x=h.replace('#','');return[parseInt(x.slice(0,2),16),parseInt(x.slice(2,4),16),parseInt(x.slice(4,6),16)];};
+
+  const secTitle=(txt,rgb=[13,79,160])=>{
+    checkPage(12);doc.setFillColor(...rgb);doc.rect(10,y,W-20,7,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(255,255,255);
+    doc.text(txt,14,y+5);y+=11;
+  };
+  const subTitle=(txt,rgb=[60,52,137])=>{
+    checkPage(9);doc.setFont('helvetica','bold');doc.setFontSize(8);
+    doc.setTextColor(...rgb);doc.text(txt,14,y);y+=7;
+  };
+  const tableEmpty=()=>{
+    checkPage(7);doc.setFont('helvetica','italic');doc.setFontSize(8);
+    doc.setTextColor(150,150,150);doc.text('—',14,y);y+=8;
+  };
+  const tableTotal=(arr)=>{
+    checkPage(8);doc.setFillColor(244,244,240);doc.rect(10,y-1,W-20,7,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(30,30,30);
+    doc.text('Total',14,y+4);
+    doc.setTextColor(133,79,11);doc.text(fmt(soma(arr)),W-14,y+4,{align:'right'});
+    y+=11;
+  };
+  const tableRows4=(arr)=>{
+    if(!arr.length){tableEmpty();return;}
+    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(100,100,100);
+    doc.text('Descrição',14,y);doc.text('Categoria',92,y);doc.text('Valor',155,y,{align:'right'});doc.text('Vencimento',W-14,y,{align:'right'});
+    y+=2;doc.setDrawColor(200,200,200);doc.line(14,y,W-14,y);y+=4;
+    doc.setFont('helvetica','normal');doc.setFontSize(8);
+    arr.forEach(p=>{
+      checkPage(6);
+      const desc=(p.descricao||'—').substring(0,44)+(( p.descricao||'').length>44?'…':'');
+      const cat=(p.categoria||'—').substring(0,20);
+      doc.setTextColor(30,30,30);doc.text(desc,14,y);
+      doc.setTextColor(80,80,80);doc.text(cat,92,y);
+      const[r,g,b]=hexRGB('#854F0B');doc.setTextColor(r,g,b);doc.text(fmt(p.valor),155,y,{align:'right'});
+      doc.setTextColor(60,60,60);doc.text(fd(p.vencimento)||'—',W-14,y,{align:'right'});
+      y+=5;doc.setDrawColor(230,230,230);doc.line(14,y-1,W-14,y-1);
+    });
+    tableTotal(arr);
+  };
+  const tableRows3=(arr)=>{
+    if(!arr.length){tableEmpty();return;}
+    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(100,100,100);
+    doc.text('Descrição',14,y);doc.text('Valor',155,y,{align:'right'});doc.text('Vencimento',W-14,y,{align:'right'});
+    y+=2;doc.setDrawColor(200,200,200);doc.line(14,y,W-14,y);y+=4;
+    doc.setFont('helvetica','normal');doc.setFontSize(8);
+    arr.forEach(p=>{
+      checkPage(6);
+      const desc=(p.descricao||'—').substring(0,70)+((p.descricao||'').length>70?'…':'');
+      doc.setTextColor(30,30,30);doc.text(desc,14,y);
+      const[r,g,b]=hexRGB('#854F0B');doc.setTextColor(r,g,b);doc.text(fmt(p.valor),155,y,{align:'right'});
+      doc.setTextColor(60,60,60);doc.text(fd(p.vencimento)||'—',W-14,y,{align:'right'});
+      y+=5;doc.setDrawColor(230,230,230);doc.line(14,y-1,W-14,y-1);
+    });
+    tableTotal(arr);
+  };
+
+  // ── Cabeçalho ──────────────────────────────────────────────
+  doc.setFillColor(13,79,160);doc.rect(0,0,W,18,'F');
+  try{doc.addImage(LOGO_B64,'PNG',3,1,16,16);}catch(e){}
+  doc.setFont('helvetica','bold');doc.setFontSize(11);doc.setTextColor(255,255,255);
+  doc.text(EMPRESA.nome,W/2,8,{align:'center'});
+  doc.setFontSize(9);doc.text('BALANÇO DO PASSIVO — OBRIGAÇÕES PENDENTES',W/2,14,{align:'center'});
+  y=24;
+  doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(120,120,120);
+  doc.text('Emitido em: '+new Date().toLocaleDateString('pt-BR')+' às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),W-14,y,{align:'right'});
+  y+=9;
+
+  // ── Resumo ──
+  secTitle('RESUMO DO PASSIVO');
+  [['Fornecedores a Pagar',soma(fornec),'#3C3489'],['Empréstimos e Financiamentos',soma(financ),'#1a6fc4'],['Parcelamentos Tributários (SISPAR / SIEFPAR)',soma(parcela),'#854F0B'],['Obrigações Fiscais e Trabalhistas',soma(fiscal),'#A32D2D']].forEach(([label,val,cor])=>{
+    checkPage(7);doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(50,50,50);
+    doc.text(label,14,y);const[r,g,b]=hexRGB(cor);doc.setTextColor(r,g,b);doc.text(fmt(val),W-14,y,{align:'right'});
+    y+=6;doc.setDrawColor(225,225,225);doc.line(14,y-1.5,W-14,y-1.5);
+  });
+  checkPage(11);doc.setFillColor(162,45,45);doc.rect(10,y,W-20,9,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(255,255,255);
+  doc.text('TOTAL DO PASSIVO',14,y+6);doc.text(fmt(soma(pa)),W-14,y+6,{align:'right'});
+  y+=16;
+
+  // ── 1. Fornecedores ──
+  secTitle('1. FORNECEDORES A PAGAR',[60,52,137]);
+  tableRows4(fornec);
+
+  // ── 2. Financiamentos ──
+  secTitle('2. EMPRÉSTIMOS E FINANCIAMENTOS',[26,111,196]);
+  if(financ.length){
+    if(financCP.length){subTitle('Curto prazo (≤ 12 meses) — '+fmt(soma(financCP)),[26,111,196]);tableRows3(financCP);}
+    if(financLP.length){subTitle('Longo prazo (> 12 meses) — '+fmt(soma(financLP)),[60,52,137]);tableRows3(financLP);}
+  } else tableEmpty();
+
+  // ── 3. Parcelamentos ──
+  secTitle('3. PARCELAMENTOS TRIBUTÁRIOS — SISPAR / SIEFPAR',[133,79,11]);
+  if(parcela.length){
+    checkPage(8);doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(100,100,100);
+    doc.text('Saldo total — inclui todas as parcelas pendentes, vincendas e em atraso.',14,y);y+=8;
+    tableRows3(parcela);
+  } else tableEmpty();
+
+  // ── 4. Obrigações fiscais ──
+  secTitle('4. OBRIGAÇÕES FISCAIS E TRABALHISTAS',[163,45,45]);
+  tableRows4(fiscal);
+
+  doc.save('Passivo_'+new Date().toISOString().slice(0,10)+'.pdf');
+}
+
 // ═══════════════════════════════════════════════════════════
 // MAPA DE ROTAS + MODAL + SAVE
 // ═══════════════════════════════════════════════════════════
@@ -3818,7 +4030,7 @@ Object.assign(pageMap, {
   pendencias:rPendencias, ordens:rOS,
   clientes:rClientes, servicos:rServicos, orcamentos:rOrcamentos, contratos:rContratos,
   recebimentos:rRec, pagamentos:rPag,
-  impostos:rImpostos, medicao:rMedicao, nfe:rNFe, folha:rFolha, dre:rDRE,
+  impostos:rImpostos, medicao:rMedicao, nfe:rNFe, folha:rFolha, dre:rDRE, passivo:rPassivo,
   rotinas:rRotinas, administrativo:rAdm, funcionarios:rFunc,
   relatorios:rRelatorios, config:rConfig,
 });
