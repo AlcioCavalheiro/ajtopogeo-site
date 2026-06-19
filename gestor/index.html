@@ -4596,29 +4596,29 @@ async function gerarPDFOrcamento(idDireto){
     const ls=doc.splitTextToSize('Obs: '+o.obs,182);doc.text(ls,14,y);y+=ls.length*5+6;
   }
   // ── Seção assinatura ─────────────────────────────────────────────────────────
-  if(y>240){addFooter();doc.addPage();addHeader('ACEITE E ASSINATURA');addFooter();y=30;}
-  else{y=Math.max(y+10,210);}
+  if(y>225){addFooter();doc.addPage();addHeader('ACEITE E ASSINATURA');addFooter();y=30;}
+  else{y=Math.max(y+6,200);}
   const dataExec=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
   doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...NAVY);
   doc.text('Campo Grande — MS, '+dataExec,W/2,y,{align:'center'});
-  y+=18;
+  y+=10;
   // Box contratante — fundo branco com contorno
-  doc.setDrawColor(...DARK_TEAL);doc.setLineWidth(0.4);doc.rect(14,y,78,32,'S');
-  doc.line(18,y+26,88,y+26);
+  doc.setDrawColor(...DARK_TEAL);doc.setLineWidth(0.4);doc.rect(14,y,78,30,'S');
+  doc.line(18,y+20,88,y+20);
   doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...NAVY);
-  doc.text('CONTRATANTE',54,y+30,{align:'center'});
+  doc.text('CONTRATANTE',54,y+24,{align:'center'});
   doc.setFont('helvetica','normal');doc.setFontSize(7.5);
-  doc.text((o.clientes?.nome||'').slice(0,35),54,y+35,{align:'center'});
+  doc.text((o.clientes?.nome||'').slice(0,35),54,y+28,{align:'center'});
   // Box responsável técnico — fundo branco com contorno
-  doc.setDrawColor(...DARK_TEAL);doc.setLineWidth(0.4);doc.rect(W-92,y,78,32,'S');
+  doc.setDrawColor(...DARK_TEAL);doc.setLineWidth(0.4);doc.rect(W-92,y,78,30,'S');
   const sigB64=localStorage.getItem('assinatura_tecnico_b64');
-  if(sigB64){try{doc.addImage(sigB64,sigB64.indexOf('image/png')>=0?'PNG':'JPEG',W-88,y+2,70,18);}catch(e){console.warn('Assinatura orçamento:',e);}}
-  doc.line(W-88,y+26,W-18,y+26);
+  if(sigB64){try{doc.addImage(sigB64,sigB64.indexOf('image/png')>=0?'PNG':'JPEG',W-88,y+1,70,16);}catch(e){console.warn('Assinatura orçamento:',e);}}
+  doc.line(W-88,y+20,W-18,y+20);
   doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(...NAVY);
-  doc.text('RESPONSÁVEL TÉCNICO',W-54,y+30,{align:'center'});
+  doc.text('RESPONSÁVEL TÉCNICO',W-54,y+24,{align:'center'});
   doc.setFont('helvetica','normal');doc.setFontSize(7.5);
   const respNome=(Array.isArray(o.responsaveis)&&o.responsaveis.length?o.responsaveis[0].nome:o.responsavel)||'';
-  doc.text(respNome.slice(0,35),W-54,y+35,{align:'center'});
+  doc.text(respNome.slice(0,35),W-54,y+28,{align:'center'});
   addFooter();
   // ── Mesclar CAPA + Conteúdo + FINAL com pdf-lib ──────────────────────────────
   const contentBytes=doc.output('arraybuffer');
