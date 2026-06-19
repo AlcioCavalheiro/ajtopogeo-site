@@ -4596,7 +4596,7 @@ async function gerarPDFOrcamento(idDireto){
     const ls=doc.splitTextToSize('Obs: '+o.obs,182);doc.text(ls,14,y);y+=ls.length*5+6;
   }
   // ── Seção assinatura ─────────────────────────────────────────────────────────
-  if(y>225){addFooter();doc.addPage();addHeader('ACEITE E ASSINATURA');addFooter();y=30;}
+  if(y>237){addFooter();doc.addPage();addHeader('ACEITE E ASSINATURA');addFooter();y=30;}
   else{y=Math.max(y+6,200);}
   const dataExec=new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'long',year:'numeric'});
   doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...NAVY);
