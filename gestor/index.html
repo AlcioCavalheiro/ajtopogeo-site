@@ -6344,13 +6344,13 @@ function vizConteudoHtml(){
 }
 function vizListaVizinhosHtml(){
   const rows=_vizVizinhos.map(function(v,i){
-    return '<div class="card mb1" style="padding:.75rem"><div class="fxb"><div><strong>'+v.nomeImovel+'</strong><div class="mu sm">Mat. '+(v.matricula||'—')+' · '+(v.comarca||'—')+' · '+(v.pessoas||[]).length+' pessoa(s)</div></div>'
+    return '<div class="card mb1" style="padding:.75rem"><div class="fxb"><div><strong>'+v.nomeImovel+'</strong><div class="mu sm">Mat. '+(v.matricula||'—')+' · '+(v.comarca||'—')+' · CNS '+(v.cns||'—')+' · '+(v.pessoas||[]).length+' pessoa(s)</div></div>'
       +'<div class="fx g8"><button class="btn bsm" onclick="vizEditarVizinhos('+i+')"><i class="ti ti-users"></i> Pessoas</button><button class="btn bsm" onclick="vizEditarDadosVizinho('+i+')"><i class="ti ti-edit"></i></button><button class="btn bxs bdr" onclick="vizRemoverVizinho('+i+')"><i class="ti ti-trash"></i></button></div></div></div>';
   }).join('')||'<div class="mu sm mb1">Nenhum vizinho cadastrado ainda.</div>';
   return rows+'<button class="btn bp2 bsm" onclick="vizAdicionarVizinho()"><i class="ti ti-plus"></i> Adicionar vizinho</button>';
 }
 function vizAdicionarVizinho(){
-  _vizVizinhos.push({id:'v'+Date.now(),nomeImovel:'Novo Vizinho',matricula:'',comarca:'',codigoIncra:'',pessoas:[]});
+  _vizVizinhos.push({id:'v'+Date.now(),nomeImovel:'Novo Vizinho',matricula:'',comarca:'',codigoIncra:'',cns:'',pessoas:[]});
   vizEditarDadosVizinho(_vizVizinhos.length-1);
 }
 function vizRemoverVizinho(i){
@@ -6365,8 +6365,9 @@ function vizEditarDadosVizinho(i){
   document.getElementById('viz-conteudo').innerHTML=
     '<div class="g2 mb1"><div class="fg"><label class="fl">Nome do imóvel</label><input class="fc" id="vz-nome" value="'+(v.nomeImovel||'')+'"></div>'
     +'<div class="fg"><label class="fl">Matrícula</label><input class="fc" id="vz-mat" value="'+(v.matricula||'')+'"></div></div>'
-    +'<div class="g2 mb1"><div class="fg"><label class="fl">Comarca</label><input class="fc" id="vz-comarca" value="'+(v.comarca||'')+'"></div>'
-    +'<div class="fg"><label class="fl">Código INCRA</label><input class="fc" id="vz-incra" value="'+(v.codigoIncra||'')+'"></div></div>'
+    +'<div class="g3 mb1"><div class="fg"><label class="fl">Comarca</label><input class="fc" id="vz-comarca" value="'+(v.comarca||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Código INCRA</label><input class="fc" id="vz-incra" value="'+(v.codigoIncra||'')+'"></div>'
+    +'<div class="fg"><label class="fl">CNS (cartório)</label><input class="fc" id="vz-cns" value="'+(v.cns||'')+'"></div></div>'
     +'<button class="btn bp2 bsm" onclick="vizSalvarDadosVizinho('+i+')"><i class="ti ti-check"></i> Confirmar</button>'
     +' <button class="btn bsm" onclick="vizVoltarVizinhos()">Cancelar</button>';
 }
@@ -6375,6 +6376,7 @@ function vizSalvarDadosVizinho(i){
   _vizVizinhos[i].matricula=document.getElementById('vz-mat').value;
   _vizVizinhos[i].comarca=document.getElementById('vz-comarca').value;
   _vizVizinhos[i].codigoIncra=document.getElementById('vz-incra').value;
+  _vizVizinhos[i].cns=document.getElementById('vz-cns').value;
   vizVoltarVizinhos();
 }
 function vizGetPessoasArray(ctx,vizIdx){
@@ -7379,6 +7381,8 @@ async function anuenciaGerarDocx(){
 
 // ── 9. CAD Simples — selecionar e nomear pontos de um desenho ──
 var _cadGeoJSON=null,_cadPontos=[],_cadSelecionado=null,_cadView={cx:0,cy:0,w:100,h:100},_cadDragInicio=null,_cadDragMoveu=false;
+var _cadOrigin={x:0,y:0};
+function cadWorldToLocal(x,y){return {x:x-_cadOrigin.x,y:-(y-_cadOrigin.y)};}
 function geoCadHtml(){
   return '<div class="card mb1">'
     +'<div class="st mb1"><i class="ti ti-axis-x" style="color:var(--brand)"></i>CAD Simples — Selecionar e Nomear Pontos</div>'
@@ -7453,20 +7457,21 @@ function cadExtrairPontos(gj){
   return dedup;
 }
 function cadAjustarView(){
-  const xs=_cadPontos.map(function(p){return p.x;}),ys=_cadPontos.map(function(p){return -p.y;});
+  const xs=_cadPontos.map(function(p){return p.x;}),ys=_cadPontos.map(function(p){return p.y;});
   const minX=Math.min.apply(null,xs),maxX=Math.max.apply(null,xs);
   const minY=Math.min.apply(null,ys),maxY=Math.max.apply(null,ys);
   const w=(maxX-minX)||10,h=(maxY-minY)||10;
   const pad=Math.max(w,h)*0.1||1;
-  _cadView.cx=(minX+maxX)/2;
-  _cadView.cy=(minY+maxY)/2;
+  _cadOrigin={x:(minX+maxX)/2,y:(minY+maxY)/2};
+  _cadView.cx=0;
+  _cadView.cy=0;
   _cadView.w=w+pad*2;
   _cadView.h=h+pad*2;
 }
 function cadGeometriaSvg(g){
   if(!g) return '';
   const sw=Math.max(_cadView.w,_cadView.h)*0.0015;
-  function pts(coords){return coords.map(function(c){return c[0]+','+(-c[1]);}).join(' ');}
+  function pts(coords){return coords.map(function(c){const l=cadWorldToLocal(c[0],c[1]);return l.x+','+l.y;}).join(' ');}
   if(g.type==='LineString') return '<polyline points="'+pts(g.coordinates)+'" fill="none" stroke="#888" stroke-width="'+sw+'"/>';
   if(g.type==='MultiLineString') return g.coordinates.map(function(l){return cadGeometriaSvg({type:'LineString',coordinates:l});}).join('');
   if(g.type==='Polygon') return g.coordinates.map(function(r){return '<polygon points="'+pts(r)+'" fill="#0D4FA01a" stroke="#888" stroke-width="'+sw+'"/>';}).join('');
@@ -7482,8 +7487,9 @@ function cadRenderSvg(){
   const r=Math.max(_cadView.w,_cadView.h)*0.006;
   const pontosSvg=_cadPontos.map(function(p,i){
     const sel=i===_cadSelecionado;
-    return '<circle cx="'+p.x+'" cy="'+(-p.y)+'" r="'+r+'" class="cad-pt" data-i="'+i+'" fill="'+(sel?'#E24B4A':(p.nome?'#27500A':'#0D4FA0'))+'" stroke="#fff" stroke-width="'+(r*0.2)+'"/>'
-      +(p.nome?'<text x="'+(p.x+r*1.6)+'" y="'+(-p.y)+'" font-size="'+(r*2.2)+'" fill="#222" style="pointer-events:none;user-select:none">'+xmlEscapeGeo(p.nome)+'</text>':'');
+    const loc=cadWorldToLocal(p.x,p.y);
+    return '<circle cx="'+loc.x+'" cy="'+loc.y+'" r="'+r+'" class="cad-pt" data-i="'+i+'" fill="'+(sel?'#E24B4A':(p.nome?'#27500A':'#0D4FA0'))+'" stroke="#fff" stroke-width="'+(r*0.2)+'"/>'
+      +(p.nome?'<text x="'+(loc.x+r*1.6)+'" y="'+loc.y+'" font-size="'+(r*2.2)+'" fill="#222" style="pointer-events:none;user-select:none">'+xmlEscapeGeo(p.nome)+'</text>':'');
   }).join('');
   svg.innerHTML=geomSvg+pontosSvg;
 }
@@ -7569,7 +7575,8 @@ function cadRemoverNome(i){
 }
 function cadFocarPonto(i){
   cadSelecionarPonto(i);
-  _cadView.cx=_cadPontos[i].x;_cadView.cy=-_cadPontos[i].y;
+  const loc=cadWorldToLocal(_cadPontos[i].x,_cadPontos[i].y);
+  _cadView.cx=loc.x;_cadView.cy=loc.y;
   cadRenderSvg();
 }
 function cadExportarTxt(){
@@ -7589,6 +7596,9 @@ function cadExportarDxf(){
 // ── 9b. CAD Avançado — múltiplas camadas, régua, edição de coordenadas e snap ──
 var _cadAvGeoJSON=null,_cadAvPontos=[],_cadAvNextId=1,_cadAvCamadas=[],_cadAvSelecionado=null;
 var _cadAvView={cx:0,cy:0,w:100,h:100},_cadAvDragInicio=null,_cadAvDragMoveu=false,_cadAvDragPontoId=null;
+var _cadAvOrigin={x:0,y:0};
+function cadAvWorldToLocal(x,y){return {x:x-_cadAvOrigin.x,y:-(y-_cadAvOrigin.y)};}
+function cadAvLocalToWorld(x,y){return {x:x+_cadAvOrigin.x,y:_cadAvOrigin.y-y};}
 var _cadAvModo='select',_cadAvMedicaoPontos=[],_cadAvSnapAtivo=true,_cadAvSnapTolPx=12;
 const CADAV_PALETA=['#0D4FA0','#27500A','#A32D2D','#854F0B','#5B3A8E','#0E7C7B','#B5482A','#2D5F8A','#6B6B0F','#7A2E5C'];
 function geoCadAvHtml(){
@@ -7675,7 +7685,7 @@ function cadAvImportarGeoJSON(gj){
 }
 function cadAvExtrairPontos(gj){
   const pts=[];
-  function add(c,layerId){pts.push({id:_cadAvNextId++,x:c[0],y:c[1],z:c[2]||0,nome:'',layerId:layerId||'_default'});}
+  function add(c,layerId){pts.push({id:_cadAvNextId++,x:c[0],y:c[1],z:c[2]||0,nome:'',layerId:layerId||'_default',sigmaE:0,sigmaN:0,sigmaZ:0});}
   (gj.features||[]).forEach(function(f){
     const g=f.geometry;if(!g)return;
     const layerId=(f.properties&&f.properties.layer)||'_default';
@@ -7752,13 +7762,14 @@ function cadAvRenderCamadas(){
   }).join('');
 }
 function cadAvAjustarView(){
-  const xs=_cadAvPontos.map(function(p){return p.x;}),ys=_cadAvPontos.map(function(p){return -p.y;});
+  const xs=_cadAvPontos.map(function(p){return p.x;}),ys=_cadAvPontos.map(function(p){return p.y;});
   const minX=Math.min.apply(null,xs),maxX=Math.max.apply(null,xs);
   const minY=Math.min.apply(null,ys),maxY=Math.max.apply(null,ys);
   const w=(maxX-minX)||10,h=(maxY-minY)||10;
   const pad=Math.max(w,h)*0.1||1;
-  _cadAvView.cx=(minX+maxX)/2;
-  _cadAvView.cy=(minY+maxY)/2;
+  _cadAvOrigin={x:(minX+maxX)/2,y:(minY+maxY)/2};
+  _cadAvView.cx=0;
+  _cadAvView.cy=0;
   _cadAvView.w=w+pad*2;
   _cadAvView.h=h+pad*2;
 }
@@ -7773,7 +7784,7 @@ function cadAvGeometriaSvg(f){
   if(camada&&!camada.visivel) return '';
   const cor=cadAvCamadaCor(layerId);
   const sw=Math.max(_cadAvView.w,_cadAvView.h)*0.0015;
-  function pts(coords){return coords.map(function(c){return c[0]+','+(-c[1]);}).join(' ');}
+  function pts(coords){return coords.map(function(c){const l=cadAvWorldToLocal(c[0],c[1]);return l.x+','+l.y;}).join(' ');}
   if(g.type==='LineString') return '<polyline points="'+pts(g.coordinates)+'" fill="none" stroke="'+cor+'" stroke-width="'+sw+'"/>';
   if(g.type==='MultiLineString') return g.coordinates.map(function(l){return cadAvGeometriaSvg({properties:f.properties,geometry:{type:'LineString',coordinates:l}});}).join('');
   if(g.type==='Polygon') return g.coordinates.map(function(r){return '<polygon points="'+pts(r)+'" fill="'+cor+'1a" stroke="'+cor+'" stroke-width="'+sw+'"/>';}).join('');
@@ -7792,17 +7803,19 @@ function cadAvRenderSvg(){
     if(camada&&!camada.visivel) return '';
     const sel=p.id===_cadAvSelecionado;
     const cor=sel?'#E24B4A':cadAvCamadaCor(p.layerId);
-    return '<circle cx="'+p.x+'" cy="'+(-p.y)+'" r="'+r+'" class="cadav-pt" data-id="'+p.id+'" fill="'+cor+'" stroke="#fff" stroke-width="'+(r*0.2)+'"/>'
-      +(p.nome?'<text x="'+(p.x+r*1.6)+'" y="'+(-p.y)+'" font-size="'+(r*2.2)+'" fill="#222" style="pointer-events:none;user-select:none">'+xmlEscapeGeo(p.nome)+'</text>':'');
+    const loc=cadAvWorldToLocal(p.x,p.y);
+    return '<circle cx="'+loc.x+'" cy="'+loc.y+'" r="'+r+'" class="cadav-pt" data-id="'+p.id+'" fill="'+cor+'" stroke="#fff" stroke-width="'+(r*0.2)+'"/>'
+      +(p.nome?'<text x="'+(loc.x+r*1.6)+'" y="'+loc.y+'" font-size="'+(r*2.2)+'" fill="#222" style="pointer-events:none;user-select:none">'+xmlEscapeGeo(p.nome)+'</text>':'');
   }).join('');
   let medicaoSvg='';
   if(_cadAvModo==='medir'&&_cadAvMedicaoPontos.length){
-    medicaoSvg+=_cadAvMedicaoPontos.map(function(p){return '<circle cx="'+p.x+'" cy="'+(-p.y)+'" r="'+(r*0.8)+'" fill="#854F0B"/>';}).join('');
+    medicaoSvg+=_cadAvMedicaoPontos.map(function(p){const l=cadAvWorldToLocal(p.x,p.y);return '<circle cx="'+l.x+'" cy="'+l.y+'" r="'+(r*0.8)+'" fill="#854F0B"/>';}).join('');
     if(_cadAvMedicaoPontos.length===2){
       const a=_cadAvMedicaoPontos[0],b=_cadAvMedicaoPontos[1];
       const dist=cadAvDistancia(a,b);
-      medicaoSvg+='<line x1="'+a.x+'" y1="'+(-a.y)+'" x2="'+b.x+'" y2="'+(-b.y)+'" stroke="#854F0B" stroke-width="'+(r*0.4)+'" stroke-dasharray="'+(r*0.6)+','+(r*0.4)+'"/>';
-      medicaoSvg+='<text x="'+((a.x+b.x)/2)+'" y="'+(-(a.y+b.y)/2)+'" font-size="'+(r*2.4)+'" fill="#854F0B" style="pointer-events:none;user-select:none">'+dist.toFixed(3)+' m</text>';
+      const la=cadAvWorldToLocal(a.x,a.y),lb=cadAvWorldToLocal(b.x,b.y);
+      medicaoSvg+='<line x1="'+la.x+'" y1="'+la.y+'" x2="'+lb.x+'" y2="'+lb.y+'" stroke="#854F0B" stroke-width="'+(r*0.4)+'" stroke-dasharray="'+(r*0.6)+','+(r*0.4)+'"/>';
+      medicaoSvg+='<text x="'+((la.x+lb.x)/2)+'" y="'+((la.y+lb.y)/2)+'" font-size="'+(r*2.4)+'" fill="#854F0B" style="pointer-events:none;user-select:none">'+dist.toFixed(3)+' m</text>';
     }
   }
   svg.innerHTML=geomSvg+pontosSvg+medicaoSvg;
@@ -7828,19 +7841,20 @@ function cadAvBuscarSnap(svgPt){
   const tol=cadAvSnapTolSvg();
   if(!tol) return null;
   let melhor=null,melhorD=tol;
-  function checar(x,y){
-    const d=Math.hypot(x-svgPt.x,y-svgPt.y);
-    if(d<melhorD){melhorD=d;melhor={x:x,y:y};}
+  function checar(worldX,worldY){
+    const loc=cadAvWorldToLocal(worldX,worldY);
+    const d=Math.hypot(loc.x-svgPt.x,loc.y-svgPt.y);
+    if(d<melhorD){melhorD=d;melhor={x:worldX,y:worldY};}
   }
   (_cadAvGeoJSON&&_cadAvGeoJSON.features||[]).forEach(function(f){
     const g=f.geometry;if(!g) return;
-    function each(coords){coords.forEach(function(c){checar(c[0],-c[1]);});}
+    function each(coords){coords.forEach(function(c){checar(c[0],c[1]);});}
     if(g.type==='LineString'||g.type==='MultiPoint') each(g.coordinates);
     else if(g.type==='MultiLineString') g.coordinates.forEach(each);
     else if(g.type==='Polygon') g.coordinates.forEach(each);
     else if(g.type==='MultiPolygon') g.coordinates.forEach(function(poly){poly.forEach(each);});
   });
-  _cadAvPontos.forEach(function(p){checar(p.x,-p.y);});
+  _cadAvPontos.forEach(function(p){checar(p.x,p.y);});
   return melhor;
 }
 function cadAvHitTestPonto(svgPt){
@@ -7849,7 +7863,8 @@ function cadAvHitTestPonto(svgPt){
   _cadAvPontos.forEach(function(p){
     const camada=_cadAvCamadas.find(function(c){return c.id===p.layerId;});
     if(camada&&!camada.visivel) return;
-    const d=Math.hypot(p.x-svgPt.x,-p.y-svgPt.y);
+    const loc=cadAvWorldToLocal(p.x,p.y);
+    const d=Math.hypot(loc.x-svgPt.x,loc.y-svgPt.y);
     if(d<melhorD){melhorD=d;melhor=p;}
   });
   return melhor;
@@ -7884,9 +7899,8 @@ function cadAvPointerMove(evt){
     if(_cadAvDragPontoId!=null){
       const pt=_cadAvPontos.find(function(p2){return p2.id===_cadAvDragPontoId;});
       if(pt){
-        let alvo={x:p.x,y:-p.y};
         const snap=cadAvBuscarSnap(p);
-        if(snap) alvo={x:snap.x,y:-snap.y};
+        const alvo=snap||cadAvLocalToWorld(p.x,p.y);
         pt.x=alvo.x;pt.y=alvo.y;
         cadAvRenderSvg();
         if(_cadAvSelecionado===pt.id) cadAvAtualizarPainel();
@@ -7914,19 +7928,17 @@ function cadAvSvgClick(evt){
   const p=cadAvScreenToSvg(evt);
   if(_cadAvModo==='medir'){
     if(_cadAvMedicaoPontos.length>=2) _cadAvMedicaoPontos=[];
-    let pt={x:p.x,y:-p.y};
     const snap=cadAvBuscarSnap(p);
-    if(snap) pt={x:snap.x,y:-snap.y};
+    const pt=snap||cadAvLocalToWorld(p.x,p.y);
     _cadAvMedicaoPontos.push(pt);
     cadAvRenderSvg();
     cadAvRenderMedicaoInfo();
     return;
   }
   if(_cadAvModo==='criar-ponto'){
-    let pt={x:p.x,y:-p.y};
     const snap=cadAvBuscarSnap(p);
-    if(snap) pt={x:snap.x,y:-snap.y};
-    const novo={id:_cadAvNextId++,x:pt.x,y:pt.y,z:0,nome:'',layerId:'_default'};
+    const pt=snap||cadAvLocalToWorld(p.x,p.y);
+    const novo={id:_cadAvNextId++,x:pt.x,y:pt.y,z:0,nome:'',layerId:'_default',sigmaE:0,sigmaN:0,sigmaZ:0};
     _cadAvPontos.push(novo);
     if(!_cadAvCamadas.some(function(c){return c.id==='_default';})) _cadAvCamadas.push({id:'_default',nome:'Sem camada',cor:CADAV_PALETA[0],visivel:true,origem:'auto'});
     cadAvSelecionarPonto(novo.id);
@@ -7968,6 +7980,11 @@ function cadAvAtualizarPainel(){
     +'<div class="fg"><label class="fl">N (Y)</label><input class="fc" id="cadav-y-input" type="number" step="any" value="'+p.y+'"></div>'
     +'<div class="fg"><label class="fl">Z</label><input class="fc" id="cadav-z-input" type="number" step="any" value="'+(p.z||0)+'"></div>'
     +'</div>'
+    +'<div class="g3 mb1">'
+    +'<div class="fg"><label class="fl">σ E</label><input class="fc" id="cadav-sigmae-input" type="number" step="any" value="'+(p.sigmaE||0)+'"></div>'
+    +'<div class="fg"><label class="fl">σ N</label><input class="fc" id="cadav-sigman-input" type="number" step="any" value="'+(p.sigmaN||0)+'"></div>'
+    +'<div class="fg"><label class="fl">σ Z</label><input class="fc" id="cadav-sigmaz-input" type="number" step="any" value="'+(p.sigmaZ||0)+'"></div>'
+    +'</div>'
     +'<div class="fg mb1"><label class="fl">Camada</label><select class="fc" id="cadav-camada-select">'
     +_cadAvCamadas.map(function(c){return '<option value="'+c.id+'"'+(c.id===p.layerId?' selected':'')+'>'+xmlEscapeGeo(c.nome)+'</option>';}).join('')
     +'</select></div>'
@@ -7983,6 +8000,9 @@ function cadAvAplicarEdicaoPonto(){
   const z=parseFloat(document.getElementById('cadav-z-input').value);
   if(isNaN(x)||isNaN(y)){toast('Coordenadas inválidas.',true);return;}
   p.x=x;p.y=y;p.z=isNaN(z)?0:z;
+  p.sigmaE=parseFloat(document.getElementById('cadav-sigmae-input').value)||0;
+  p.sigmaN=parseFloat(document.getElementById('cadav-sigman-input').value)||0;
+  p.sigmaZ=parseFloat(document.getElementById('cadav-sigmaz-input').value)||0;
   p.nome=document.getElementById('cadav-nome-input').value;
   p.layerId=document.getElementById('cadav-camada-select').value;
   cadAvRenderCamadas();
@@ -8005,7 +8025,7 @@ function cadAvExportarDxf(){
 
 // ── 9c. Memorial INCRA — preenchimento da Planilha SIGEF (.ods) oficial ──
 var _sigefClientes=[],_sigefObras=[],_sigefModeloZip=null,_sigefXmlDoc=null,_sigefArquivoNome='memorial';
-var _sigefVertices=[],_sigefPontosOrigem=[];
+var _sigefVertices=[],_sigefPontosOrigem=[],_sigefVizinhos=[];
 const SIGEF_METODOS_POSICIONAMENTO=[
   {grupo:'GNSS', itens:[
     {cod:'PG1',nome:'Relativo estático',tipos:['M','P']},
@@ -8091,6 +8111,11 @@ function geoSigefHtml(){
     +'<div class="fg"><label class="fl">&nbsp;</label><button class="btn bsm" onclick="sigefCarregarDoCadAvancado()"><i class="ti ti-arrow-back-up"></i> Usar pontos da CAD Avançado</button></div>'
     +'</div>'
     +'<div id="sigef-info" class="mu sm mb1" style="display:none"></div>'
+    +'<div class="g2 mb1">'
+    +'<div class="fg"><label class="fl">Importar sigmas (.txt: NOME;σE;σN;σZ)</label><input class="fc" type="file" id="sigef-sigmas-file" accept=".txt,.csv" onchange="sigefImportarSigmasTxt(this)"></div>'
+    +'<div class="fg"><label class="fl">Delimitador</label><select class="fc" id="sigef-sigmas-delim"><option value=",">Vírgula (,)</option><option value=";" selected>Ponto e vírgula (;)</option><option value="tab">Tabulação</option><option value="space">Espaço</option></select></div>'
+    +'</div>'
+    +'<div id="sigef-sigmas-info" class="mu sm mb1" style="display:none"></div>'
     +'<div class="st mb1" style="font-size:13px">Vértices do perímetro</div>'
     +'<div id="sigef-vertices" class="mb1"></div>'
     +'<button class="btn bxs mb1" onclick="sigefAdicionarVertice()"><i class="ti ti-plus"></i> Adicionar vértice manual</button>'
@@ -8111,6 +8136,7 @@ async function sigefInit(){
 async function sigefClienteChange(){
   const cid=document.getElementById('sigef-cliente').value;
   const selObra=document.getElementById('sigef-obra');
+  _sigefVizinhos=[];
   if(!cid){selObra.innerHTML='<option value="">Selecione o cliente primeiro</option>';return;}
   selObra.innerHTML='<option value="">Carregando...</option>';
   const {data}=await sb.from('obras').select('*').eq('cliente_id',cid).order('nome');
@@ -8132,6 +8158,8 @@ function sigefObraChange(){
   document.getElementById('sigef-matricula').value=obra.ccir||'';
   const loc=parseMunicipio(obra.municipio);
   document.getElementById('sigef-municipios').value=loc.mun?(loc.mun+(loc.uf?('-'+loc.uf):'')):'';
+  _sigefVizinhos=obra.vizinhos||[];
+  sigefRenderVertices();
 }
 async function sigefCarregarModelo(input){
   const file=input.files[0];if(!file)return;
@@ -8158,12 +8186,44 @@ async function sigefCarregarModelo(input){
 function sigefCarregarDoCadAvancado(){
   if(!_cadAvPontos.length){toast('Importe ou crie pontos na aba CAD Avançado primeiro.',true);return;}
   _sigefPontosOrigem=JSON.parse(JSON.stringify(_cadAvPontos));
-  _sigefVertices=_sigefPontosOrigem.map(function(p){return sigefNovoVertice(p.nome||('V'+p.id),p.x,p.y,p.z);});
+  _sigefVertices=_sigefPontosOrigem.map(function(p){return sigefNovoVertice(p.nome||('V'+p.id),p.x,p.y,p.z,p.sigmaE,p.sigmaN,p.sigmaZ);});
   sigefRenderVertices();
   toast(_sigefVertices.length+' vértice(s) carregados da CAD Avançado.');
 }
-function sigefNovoVertice(nome,long,lat,h){
-  return {nome:nome||'',long:long||0,sigmaLong:0,lat:lat||0,sigmaLat:0,h:h||0,sigmaH:0,
+function sigefImportarSigmasTxt(input){
+  const file=input.files[0];if(!file)return;
+  const info=document.getElementById('sigef-sigmas-info');
+  info.style.display='block';
+  if(!_sigefVertices.length){info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Monte a lista de vértices antes de importar os sigmas.</span>';input.value='';return;}
+  const delimSel=document.getElementById('sigef-sigmas-delim').value;
+  const splitFn=function(line){
+    if(delimSel==='tab') return line.split('\t');
+    if(delimSel==='space') return line.split(/\s+/);
+    return line.split(delimSel);
+  };
+  file.text().then(function(t){
+    const linhas=t.split(/\r?\n/).map(function(l){return l.trim();}).filter(Boolean);
+    let aplicados=0;const naoEncontrados=[];
+    linhas.forEach(function(l){
+      const cols=splitFn(l).map(function(c){return c.trim();});
+      const nome=cols[0];
+      const sigmaE=parseFloat(String(cols[1]||'').replace(',','.'))||0;
+      const sigmaN=parseFloat(String(cols[2]||'').replace(',','.'))||0;
+      const sigmaZ=parseFloat(String(cols[3]||'').replace(',','.'))||0;
+      if(!nome) return;
+      const v=_sigefVertices.find(function(v){return v.nome===nome;});
+      if(v){v.sigmaLong=sigmaE;v.sigmaLat=sigmaN;v.sigmaH=sigmaZ;aplicados++;}
+      else naoEncontrados.push(nome);
+    });
+    sigefRenderVertices();
+    let msg='<span style="color:#27500A"><i class="ti ti-check"></i> '+aplicados+' sigma(s) aplicado(s).</span>';
+    if(naoEncontrados.length) msg+='<br><span style="color:#854F0B"><i class="ti ti-alert-triangle"></i> Não encontrados na lista de vértices: '+naoEncontrados.map(xmlEscapeGeo).join(', ')+'</span>';
+    info.innerHTML=msg;
+    input.value='';
+  });
+}
+function sigefNovoVertice(nome,long,lat,h,sigmaLong,sigmaLat,sigmaH){
+  return {nome:nome||'',long:long||0,sigmaLong:sigmaLong||0,lat:lat||0,sigmaLat:sigmaLat||0,h:h||0,sigmaH:sigmaH||0,
     tipoVertice:'M',metodoPosicionamento:'PG6',tipoLimite:'LA1',confronta:false,cns:'',matricula:'',descritivo:''};
 }
 function sigefAdicionarVertice(){
@@ -8210,6 +8270,15 @@ function sigefAtualizarVertice(i,campo,valor){
     sigefRenderVertices();
   }
 }
+function sigefAplicarConfrontante(i,vizIdx){
+  if(!_sigefVertices[i]||vizIdx==='') return;
+  const viz=_sigefVizinhos[parseInt(vizIdx,10)];
+  if(!viz) return;
+  _sigefVertices[i].cns=viz.cns||'';
+  _sigefVertices[i].matricula=viz.matricula||'';
+  _sigefVertices[i].descritivo=viz.nomeImovel||'';
+  sigefRenderVertices();
+}
 function sigefMetodoOptsHtml(tipoVertice,selecionado){
   let html='';
   SIGEF_METODOS_POSICIONAMENTO.forEach(function(grupo){
@@ -8251,9 +8320,13 @@ function sigefRenderVertices(){
         +'<td><select class="fc" style="min-width:170px" onchange="sigefAtualizarVertice('+i+',\'metodoPosicionamento\',this.value)">'+sigefMetodoOptsHtml(v.tipoVertice,v.metodoPosicionamento)+'</select></td>'
         +'<td><select class="fc" style="min-width:170px" onchange="sigefAtualizarVertice('+i+',\'tipoLimite\',this.value)">'+sigefTipoLimiteOptsHtml(v.tipoLimite)+'</select></td>'
         +'<td style="text-align:center"><input type="checkbox" '+(v.confronta?'checked':'')+' onchange="sigefAtualizarVertice('+i+',\'confronta\',this.checked)"></td>'
-        +'<td><input class="fc" style="width:80px" value="'+xmlEscapeGeo(v.cns)+'" onchange="sigefAtualizarVertice('+i+',\'cns\',this.value)" '+(v.confronta?'':'disabled')+'></td>'
-        +'<td><input class="fc" style="width:80px" value="'+xmlEscapeGeo(v.matricula)+'" onchange="sigefAtualizarVertice('+i+',\'matricula\',this.value)" '+(v.confronta?'':'disabled')+'></td>'
-        +'<td><input class="fc" style="width:140px" value="'+xmlEscapeGeo(v.descritivo)+'" onchange="sigefAtualizarVertice('+i+',\'descritivo\',this.value)"></td>'
+        +(v.confronta&&_sigefVizinhos.length?'<td colspan="3"><select class="fc" style="width:100%;margin-bottom:4px" onchange="sigefAplicarConfrontante('+i+',this.value)"><option value="">Buscar confrontante cadastrado na obra...</option>'+_sigefVizinhos.map(function(viz,vi){return '<option value="'+vi+'">'+xmlEscapeGeo(viz.nomeImovel||'')+(viz.matricula?' — Mat. '+xmlEscapeGeo(viz.matricula):'')+'</option>';}).join('')+'</select>'
+            +'<div class="g3"><input class="fc" style="width:80px" placeholder="CNS" value="'+xmlEscapeGeo(v.cns)+'" onchange="sigefAtualizarVertice('+i+',\'cns\',this.value)">'
+            +'<input class="fc" style="width:80px" placeholder="Matrícula" value="'+xmlEscapeGeo(v.matricula)+'" onchange="sigefAtualizarVertice('+i+',\'matricula\',this.value)">'
+            +'<input class="fc" style="width:140px" placeholder="Nome da área" value="'+xmlEscapeGeo(v.descritivo)+'" onchange="sigefAtualizarVertice('+i+',\'descritivo\',this.value)"></div></td>'
+          :'<td><input class="fc" style="width:80px" value="'+xmlEscapeGeo(v.cns)+'" onchange="sigefAtualizarVertice('+i+',\'cns\',this.value)" '+(v.confronta?'':'disabled')+'></td>'
+            +'<td><input class="fc" style="width:80px" value="'+xmlEscapeGeo(v.matricula)+'" onchange="sigefAtualizarVertice('+i+',\'matricula\',this.value)" '+(v.confronta?'':'disabled')+'></td>'
+            +'<td><input class="fc" style="width:140px" value="'+xmlEscapeGeo(v.descritivo)+'" onchange="sigefAtualizarVertice('+i+',\'descritivo\',this.value)"></td>')
         +'<td><button class="btn bxs" onclick="sigefMoverVertice('+i+',-1)"><i class="ti ti-arrow-up"></i></button> <button class="btn bxs" onclick="sigefMoverVertice('+i+',1)"><i class="ti ti-arrow-down"></i></button> <button class="btn bxs bdr" onclick="sigefRemoverVertice('+i+')"><i class="ti ti-x"></i></button></td>'
         +'</tr>';
     }).join('')
