@@ -7460,21 +7460,27 @@ async function cadArquivoSelecionado(input){
 }
 function cadExtrairPontos(gj){
   const pts=[];
-  function add(c){pts.push({x:c[0],y:c[1],z:c[2]||0,nome:''});}
+  // prioridade alta (2) = entidade POINT, cuja cota é individual e confiável;
+  // prioridade baixa (1) = vértice de LINE/POLYLINE/POLYGON, que no DXF (LWPOLYLINE)
+  // costuma compartilhar uma única elevação para a entidade toda, podendo não
+  // refletir a cota real de cada vértice.
+  function add(c,prio){pts.push({x:c[0],y:c[1],z:c[2]||0,nome:'',_prio:prio});}
   (gj.features||[]).forEach(function(f){
     const g=f.geometry;if(!g)return;
-    if(g.type==='Point') add(g.coordinates);
-    else if(g.type==='MultiPoint') g.coordinates.forEach(add);
-    else if(g.type==='LineString') g.coordinates.forEach(add);
-    else if(g.type==='MultiLineString') g.coordinates.forEach(function(l){l.forEach(add);});
-    else if(g.type==='Polygon') g.coordinates.forEach(function(r){r.forEach(add);});
-    else if(g.type==='MultiPolygon') g.coordinates.forEach(function(poly){poly.forEach(function(r){r.forEach(add);});});
+    if(g.type==='Point') add(g.coordinates,2);
+    else if(g.type==='MultiPoint') g.coordinates.forEach(function(c){add(c,2);});
+    else if(g.type==='LineString') g.coordinates.forEach(function(c){add(c,1);});
+    else if(g.type==='MultiLineString') g.coordinates.forEach(function(l){l.forEach(function(c){add(c,1);});});
+    else if(g.type==='Polygon') g.coordinates.forEach(function(r){r.forEach(function(c){add(c,1);});});
+    else if(g.type==='MultiPolygon') g.coordinates.forEach(function(poly){poly.forEach(function(r){r.forEach(function(c){add(c,1);});});});
   });
   const dedup=[];
   pts.forEach(function(p){
     const dup=dedup.find(function(q){return Math.abs(q.x-p.x)<1e-6&&Math.abs(q.y-p.y)<1e-6;});
     if(!dup) dedup.push(p);
+    else if(p._prio>dup._prio) dup.z=p.z,dup._prio=p._prio;
   });
+  dedup.forEach(function(p){delete p._prio;});
   return dedup;
 }
 function cadAjustarView(){
@@ -7710,22 +7716,26 @@ function cadAvImportarGeoJSON(gj){
 }
 function cadAvExtrairPontos(gj){
   const pts=[];
-  function add(c,layerId){pts.push({id:_cadAvNextId++,x:c[0],y:c[1],z:c[2]||0,nome:'',layerId:layerId||'_default',sigmaE:0,sigmaN:0,sigmaZ:0});}
+  // ver cadExtrairPontos: prioridade alta (2) = entidade POINT (cota individual confiável);
+  // prioridade baixa (1) = vértice de LINE/POLYLINE/POLYGON (cota da entidade toda no DXF).
+  function add(c,layerId,prio){pts.push({id:_cadAvNextId++,x:c[0],y:c[1],z:c[2]||0,nome:'',layerId:layerId||'_default',sigmaE:0,sigmaN:0,sigmaZ:0,_prio:prio});}
   (gj.features||[]).forEach(function(f){
     const g=f.geometry;if(!g)return;
     const layerId=(f.properties&&f.properties.layer)||'_default';
-    if(g.type==='Point') add(g.coordinates,layerId);
-    else if(g.type==='MultiPoint') g.coordinates.forEach(function(c){add(c,layerId);});
-    else if(g.type==='LineString') g.coordinates.forEach(function(c){add(c,layerId);});
-    else if(g.type==='MultiLineString') g.coordinates.forEach(function(l){l.forEach(function(c){add(c,layerId);});});
-    else if(g.type==='Polygon') g.coordinates.forEach(function(r){r.forEach(function(c){add(c,layerId);});});
-    else if(g.type==='MultiPolygon') g.coordinates.forEach(function(poly){poly.forEach(function(r){r.forEach(function(c){add(c,layerId);});});});
+    if(g.type==='Point') add(g.coordinates,layerId,2);
+    else if(g.type==='MultiPoint') g.coordinates.forEach(function(c){add(c,layerId,2);});
+    else if(g.type==='LineString') g.coordinates.forEach(function(c){add(c,layerId,1);});
+    else if(g.type==='MultiLineString') g.coordinates.forEach(function(l){l.forEach(function(c){add(c,layerId,1);});});
+    else if(g.type==='Polygon') g.coordinates.forEach(function(r){r.forEach(function(c){add(c,layerId,1);});});
+    else if(g.type==='MultiPolygon') g.coordinates.forEach(function(poly){poly.forEach(function(r){r.forEach(function(c){add(c,layerId,1);});});});
   });
   const dedup=[];
   pts.forEach(function(p){
     const dup=dedup.find(function(q){return Math.abs(q.x-p.x)<1e-6&&Math.abs(q.y-p.y)<1e-6;});
     if(!dup) dedup.push(p);
+    else if(p._prio>dup._prio) dup.z=p.z,dup._prio=p._prio;
   });
+  dedup.forEach(function(p){delete p._prio;});
   return dedup;
 }
 function cadAvDerivarCamadas(gj){
