@@ -7648,7 +7648,8 @@ async function gerarArquivoPontos(){
       blob=new Blob([geojsonToDxf(gj)],{type:'application/dxf'});
       filename=(fechar?'perimetro':'pontos')+'.dxf';
     } else if(destino==='shp'){
-      blob=await shpwrite.zip(gj,{outputType:'blob'});
+      const gjWgs=reprojectGeoJSON(gj,projDef(datum,zona,hemisS),projDef('WGS84',null,false));
+      blob=await shpwrite.zip(gjWgs,{outputType:'blob'});
       filename=(fechar?'perimetro':'pontos')+'.zip';
     }
     downloadBlobGeo(blob,filename);
@@ -7940,8 +7941,12 @@ async function carGerarShape(){
       if(!larg) throw new Error('Informe a largura do curso d’água.');
       props.LARGURA=larg;
     }
+    const datum=document.getElementById('car-datum').value;
+    const zona=parseInt(document.getElementById('car-zona').value,10);
+    const hemisS=document.getElementById('car-hemis').value==='S';
     const gj={type:'FeatureCollection',features:[{type:'Feature',properties:props,geometry:_carGeoJSON.geometry}]};
-    const blob=await shpwrite.zip(gj,{outputType:'blob'});
+    const gjWgs=reprojectGeoJSON(gj,projDef(datum,zona,hemisS),projDef('WGS84',null,false));
+    const blob=await shpwrite.zip(gjWgs,{outputType:'blob'});
     downloadBlobGeo(blob,'CAR_classe_'+classe+'.zip');
     toast('Shapefile gerado com sucesso!');
   }catch(e){
