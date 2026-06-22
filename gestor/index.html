@@ -7400,7 +7400,7 @@ async function anuenciaGerarDocx(){
 }
 
 // ── 9. CAD Simples — selecionar e nomear pontos de um desenho ──
-var _cadGeoJSON=null,_cadPontos=[],_cadSelecionado=null,_cadView={cx:0,cy:0,w:100,h:100},_cadDragInicio=null,_cadDragMoveu=false;
+var _cadGeoJSON=null,_cadPontos=[],_cadSelecionado=null,_cadView={cx:0,cy:0,w:100,h:100},_cadDragInicio=null,_cadDragMoveu=false,_cadOrdemContador=0;
 var _cadOrigin={x:0,y:0};
 function cadWorldToLocal(x,y){return {x:x-_cadOrigin.x,y:-(y-_cadOrigin.y)};}
 function geoCadHtml(){
@@ -7448,6 +7448,7 @@ async function cadArquivoSelecionado(input){
     _cadPontos=cadExtrairPontos(gj);
     if(!_cadPontos.length) throw new Error('Nenhum ponto encontrado no arquivo.');
     _cadSelecionado=null;
+    _cadOrdemContador=0;
     cadAjustarView();
     cadRenderSvg();
     cadAtualizarPainel();
@@ -7571,24 +7572,28 @@ function cadAtualizarPainel(){
 }
 function cadConfirmarNome(){
   if(_cadSelecionado===null) return;
-  _cadPontos[_cadSelecionado].nome=document.getElementById('cad-nome-input').value;
+  const p=_cadPontos[_cadSelecionado];
+  if(!p.nome) p.ordemNome=++_cadOrdemContador;
+  p.nome=document.getElementById('cad-nome-input').value;
   cadRenderSvg();
   cadAtualizarLista();
 }
 function cadAtualizarLista(){
   const el=document.getElementById('cad-lista');
   if(!el) return;
-  const temNomeados=_cadPontos.some(function(p){return p.nome;});
-  if(!temNomeados){el.innerHTML='<div class="mu sm">Nenhum ponto nomeado ainda.</div>';return;}
+  const nomeados=_cadPontos.map(function(p,i){return {p:p,i:i};}).filter(function(o){return o.p.nome;});
+  if(!nomeados.length){el.innerHTML='<div class="mu sm">Nenhum ponto nomeado ainda.</div>';return;}
+  nomeados.sort(function(a,b){return (a.p.ordemNome||0)-(b.p.ordemNome||0);});
   el.innerHTML='<div class="tw"><table><thead><tr><th>Nome</th><th>E</th><th>N</th><th>Z</th><th></th></tr></thead><tbody>'
-    +_cadPontos.map(function(p,i){
-      if(!p.nome) return '';
+    +nomeados.map(function(o){
+      const p=o.p,i=o.i;
       return '<tr><td>'+xmlEscapeGeo(p.nome)+'</td><td>'+p.x.toFixed(3)+'</td><td>'+p.y.toFixed(3)+'</td><td>'+(p.z||0).toFixed(3)+'</td><td><button class="btn bxs" onclick="cadFocarPonto('+i+')"><i class="ti ti-focus-2"></i></button> <button class="btn bxs bdr" onclick="cadRemoverNome('+i+')"><i class="ti ti-x"></i></button></td></tr>';
     }).join('')
     +'</tbody></table></div>';
 }
 function cadRemoverNome(i){
   _cadPontos[i].nome='';
+  _cadPontos[i].ordemNome=0;
   if(_cadSelecionado===i) cadAtualizarPainel();
   cadRenderSvg();
   cadAtualizarLista();
