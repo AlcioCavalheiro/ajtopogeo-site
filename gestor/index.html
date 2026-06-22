@@ -6637,6 +6637,26 @@ function reprojectGeoJSON(gj,srcDef,dstDef){
   }
   return {type:'FeatureCollection',features:(gj.features||[]).map(function(f){return {type:'Feature',properties:f.properties,geometry:reprojGeom(f.geometry)};})};
 }
+function mergeLinhasParaShp(gj){
+  // A biblioteca shp-write (@mapbox/shp-write) funde todas as feições de linha em UM único
+  // registro .shp multi-parte, mas mantém uma linha no .dbf por feição original — com 2+ linhas
+  // separadas isso gera .shp e .dbf com contagens de registro diferentes e o QGIS não desenha as linhas.
+  // Solução: consolidar todas as LineString/MultiLineString em uma única feição MultiLineString.
+  const linhas=[],outras=[];
+  (gj.features||[]).forEach(function(f){
+    const g=f.geometry;
+    if(g&&(g.type==='LineString'||g.type==='MultiLineString')) linhas.push(f);
+    else outras.push(f);
+  });
+  if(linhas.length<=1) return gj;
+  const partes=[];
+  linhas.forEach(function(f){
+    if(f.geometry.type==='LineString') partes.push(f.geometry.coordinates);
+    else f.geometry.coordinates.forEach(function(c){partes.push(c);});
+  });
+  const mesclada={type:'Feature',properties:linhas[0].properties||{},geometry:{type:'MultiLineString',coordinates:partes}};
+  return {type:'FeatureCollection',features:outras.concat([mesclada])};
+}
 function validarCoordsWgs84(gj){
   let valido=true;
   function checarCoord(c){if(!isFinite(c[0])||!isFinite(c[1])||Math.abs(c[0])>180||Math.abs(c[1])>90) valido=false;}
@@ -6779,7 +6799,7 @@ async function converterArquivo(){
       filename=_convFileName+'.dxf';
     } else if(destino==='shp'){
       validarCoordsWgs84(gj);
-      blob=await shpwrite.zip(gj,{outputType:'blob'});
+      blob=await shpwrite.zip(mergeLinhasParaShp(gj),{outputType:'blob'});
       filename=_convFileName+'.zip';
     }
     downloadBlobGeo(blob,filename);
@@ -8602,7 +8622,7 @@ async function gerarArquivoPontos(){
     } else if(destino==='shp'){
       const gjWgs=reprojectGeoJSON(gj,projDef(datum,zona,hemisS),projDef('WGS84',null,false));
       validarCoordsWgs84(gjWgs);
-      blob=await shpwrite.zip(gjWgs,{outputType:'blob'});
+      blob=await shpwrite.zip(mergeLinhasParaShp(gjWgs),{outputType:'blob'});
       filename=(fechar?'perimetro':'pontos')+'.zip';
     }
     downloadBlobGeo(blob,filename);
@@ -8900,7 +8920,7 @@ async function carGerarShape(){
     const gj={type:'FeatureCollection',features:[{type:'Feature',properties:props,geometry:_carGeoJSON.geometry}]};
     const gjWgs=reprojectGeoJSON(gj,projDef(datum,zona,hemisS),projDef('WGS84',null,false));
     validarCoordsWgs84(gjWgs);
-    const blob=await shpwrite.zip(gjWgs,{outputType:'blob'});
+    const blob=await shpwrite.zip(mergeLinhasParaShp(gjWgs),{outputType:'blob'});
     downloadBlobGeo(blob,'CAR_classe_'+classe+'.zip');
     toast('Shapefile gerado com sucesso!');
   }catch(e){
