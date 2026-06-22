@@ -6561,17 +6561,18 @@ function decToDMS(dec,isLat){
 function dxfToGeoJSON(dxf){
   const features=[];
   (dxf.entities||[]).forEach(function(en){
+    const layer=en.layer||'0';
     if(en.type==='POINT'&&en.position){
-      features.push({type:'Feature',properties:{},geometry:{type:'Point',coordinates:[en.position.x,en.position.y,en.position.z||0]}});
+      features.push({type:'Feature',properties:{layer:layer},geometry:{type:'Point',coordinates:[en.position.x,en.position.y,en.position.z||0]}});
     } else if((en.type==='LWPOLYLINE'||en.type==='POLYLINE'||en.type==='LINE')&&en.vertices&&en.vertices.length){
       const coords=en.vertices.map(function(v){return [v.x,v.y,v.z||0];});
       const closed=!!(en.shape||en.closed||(en.flags&&(en.flags&1)));
       if(closed&&coords.length>2){
         const first=coords[0],last=coords[coords.length-1];
         if(first[0]!==last[0]||first[1]!==last[1]) coords.push(first);
-        features.push({type:'Feature',properties:{},geometry:{type:'Polygon',coordinates:[coords]}});
+        features.push({type:'Feature',properties:{layer:layer},geometry:{type:'Polygon',coordinates:[coords]}});
       } else {
-        features.push({type:'Feature',properties:{},geometry:{type:'LineString',coordinates:coords}});
+        features.push({type:'Feature',properties:{layer:layer},geometry:{type:'LineString',coordinates:coords}});
       }
     }
   });
@@ -6657,7 +6658,9 @@ const GEO_TABS=[
   {k:'carshp',ic:'ti-leaf',lb:'Shape para CAR'},
   {k:'incra',ic:'ti-file-upload',lb:'Importar Memorial INCRA'},
   {k:'anuencia',ic:'ti-signature',lb:'Anuência de Limites'},
-  {k:'cad',ic:'ti-axis-x',lb:'CAD Simples'}
+  {k:'cad',ic:'ti-axis-x',lb:'CAD Simples'},
+  {k:'cadav',ic:'ti-stack-2',lb:'CAD Avançado'},
+  {k:'sigef',ic:'ti-table',lb:'Planilha SIGEF (.ods)'}
 ];
 function rGeoFerramentasFixed(){
   const el=document.getElementById('ct');if(!el)return;
@@ -6672,10 +6675,13 @@ function rGeoFerramentasFixed(){
     +'<div id="geo-carshp" style="display:none">'+geoCarShpHtml()+'</div>'
     +'<div id="geo-incra" style="display:none">'+geoIncraHtml()+'</div>'
     +'<div id="geo-anuencia" style="display:none">'+geoAnuenciaHtml()+'</div>'
-    +'<div id="geo-cad" style="display:none">'+geoCadHtml()+'</div>';
+    +'<div id="geo-cad" style="display:none">'+geoCadHtml()+'</div>'
+    +'<div id="geo-cadav" style="display:none">'+geoCadAvHtml()+'</div>'
+    +'<div id="geo-sigef" style="display:none">'+geoSigefHtml()+'</div>';
   coordUpdateUI();
   memorialInit();
   anuenciaInit();
+  sigefInit();
 }
 pageMap.geoferramentas=rGeoFerramentasFixed;
 function geoTab(tab){
@@ -7578,6 +7584,865 @@ function cadExportarDxf(){
   const gj={type:'FeatureCollection',features:nomeados.map(function(p){return {type:'Feature',properties:{name:p.nome},geometry:{type:'Point',coordinates:[p.x,p.y,p.z||0]}};})};
   const blob=new Blob([geojsonToDxf(gj)],{type:'application/dxf'});
   downloadBlobGeo(blob,'pontos_nomeados.dxf');
+}
+
+// ── 9b. CAD Avançado — múltiplas camadas, régua, edição de coordenadas e snap ──
+var _cadAvGeoJSON=null,_cadAvPontos=[],_cadAvNextId=1,_cadAvCamadas=[],_cadAvSelecionado=null;
+var _cadAvView={cx:0,cy:0,w:100,h:100},_cadAvDragInicio=null,_cadAvDragMoveu=false,_cadAvDragPontoId=null;
+var _cadAvModo='select',_cadAvMedicaoPontos=[],_cadAvSnapAtivo=true,_cadAvSnapTolPx=12;
+const CADAV_PALETA=['#0D4FA0','#27500A','#A32D2D','#854F0B','#5B3A8E','#0E7C7B','#B5482A','#2D5F8A','#6B6B0F','#7A2E5C'];
+function geoCadAvHtml(){
+  return '<div class="card mb1">'
+    +'<div class="st mb1"><i class="ti ti-stack-2" style="color:var(--brand)"></i>CAD Avançado — Camadas, Régua e Edição de Coordenadas</div>'
+    +'<div class="mu sm mb1">Importe um DXF, KML ou Shapefile (.zip), ou reaproveite os pontos já carregados na CAD Simples. Camadas do DXF são detectadas automaticamente; você também pode criar camadas manuais.</div>'
+    +'<div class="g2 mb1">'
+    +'<div class="fg"><label class="fl">Arquivo (.dxf, .kml ou .zip)</label><input class="fc" type="file" id="cadav-file" accept=".dxf,.kml,.zip" onchange="cadAvArquivoSelecionado(this)"></div>'
+    +'<div class="fg"><label class="fl">&nbsp;</label><button class="btn bsm" onclick="cadAvCarregarDoCadSimples()"><i class="ti ti-arrow-back-up"></i> Usar pontos da CAD Simples</button></div>'
+    +'</div>'
+    +'<div id="cadav-info" class="mu sm mb1" style="display:none"></div>'
+    +'<div class="mb1" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">'
+    +'<button class="btn bsm bp2" id="cadav-modo-select" onclick="cadAvSetModo(\'select\')"><i class="ti ti-pointer"></i> Selecionar</button>'
+    +'<button class="btn bsm" id="cadav-modo-medir" onclick="cadAvSetModo(\'medir\')"><i class="ti ti-ruler-2"></i> Régua</button>'
+    +'<button class="btn bsm" id="cadav-modo-criar" onclick="cadAvSetModo(\'criar-ponto\')"><i class="ti ti-circle-plus"></i> Criar ponto</button>'
+    +'<label style="display:flex;align-items:center;gap:6px;margin-left:.5rem;cursor:pointer"><input type="checkbox" id="cadav-snap" checked onchange="_cadAvSnapAtivo=this.checked"> <span class="mu sm">Snap em vértices</span></label>'
+    +'<label style="display:flex;align-items:center;gap:6px"><span class="mu sm">Tolerância (px)</span><input class="fc" style="width:60px" type="number" id="cadav-snap-tol" value="12" onchange="_cadAvSnapTolPx=parseFloat(this.value)||12"></label>'
+    +'</div>'
+    +'<div style="display:flex;gap:1rem;flex-wrap:wrap">'
+    +'<div style="flex:2;min-width:320px;border:1px solid var(--bor);border-radius:8px;overflow:hidden;background:#fafaf7">'
+    +'<svg id="cadav-svg" viewBox="0 0 100 100" style="width:100%;height:480px;display:block;cursor:crosshair;touch-action:none" onpointerdown="cadAvPointerDown(event)" onpointermove="cadAvPointerMove(event)" onpointerup="cadAvPointerUp(event)" onpointerleave="cadAvPointerUp(event)" onwheel="cadAvWheel(event)" onclick="cadAvSvgClick(event)"></svg>'
+    +'</div>'
+    +'<div style="flex:1;min-width:260px">'
+    +'<div class="st mb1" style="font-size:13px">Camadas</div>'
+    +'<div id="cadav-camadas" class="mb1"><div class="mu sm">Nenhuma camada ainda.</div></div>'
+    +'<button class="btn bxs mb1" onclick="cadAvCriarCamada()"><i class="ti ti-plus"></i> Nova camada</button>'
+    +'<div class="card mb1" id="cadav-painel" style="background:#F4F8FF"><div class="mu sm">Clique em um ponto no desenho para selecioná-lo.</div></div>'
+    +'<div id="cadav-medicao-info" class="card mb1" style="display:none;background:#FFF8E6"></div>'
+    +'<button class="btn bsm mb1" onclick="cadAvExportarTxt()"><i class="ti ti-file-text"></i> Exportar TXT</button> '
+    +'<button class="btn bsm mb1" onclick="cadAvExportarDxf()"><i class="ti ti-file-export"></i> Exportar DXF</button>'
+    +'</div>'
+    +'</div>'
+    +'</div>';
+}
+async function cadAvArquivoSelecionado(input){
+  const file=input.files[0];if(!file)return;
+  const info=document.getElementById('cadav-info');
+  info.style.display='block';info.innerHTML='Lendo arquivo...';
+  try{
+    const ext=file.name.toLowerCase().split('.').pop();
+    let gj;
+    if(ext==='dxf'){
+      const text=await file.text();
+      const parser=new DxfParser();
+      gj=dxfToGeoJSON(parser.parse(text));
+    } else if(ext==='kml'){
+      const text=await file.text();
+      gj=toGeoJSON.kml(new DOMParser().parseFromString(text,'text/xml'));
+    } else if(ext==='zip'){
+      const buf=await file.arrayBuffer();
+      gj=await shp(buf);
+      if(Array.isArray(gj)) gj=gj[0];
+    } else {
+      throw new Error('Formato não suportado. Use .dxf, .kml ou .zip (shapefile).');
+    }
+    cadAvImportarGeoJSON(gj);
+    info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> '+_cadAvPontos.length+' ponto(s) encontrados em '+_cadAvCamadas.length+' camada(s).</span>';
+  }catch(e){
+    info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Erro: '+e.message+'</span>';
+  }
+}
+function cadAvCarregarDoCadSimples(){
+  if(!_cadGeoJSON||!_cadPontos.length){toast('Importe um arquivo na aba CAD Simples primeiro.',true);return;}
+  const info=document.getElementById('cadav-info');
+  info.style.display='block';
+  try{
+    const gj=JSON.parse(JSON.stringify(_cadGeoJSON));
+    cadAvImportarGeoJSON(gj);
+    info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> '+_cadAvPontos.length+' ponto(s) carregados da CAD Simples.</span>';
+  }catch(e){
+    info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Erro: '+e.message+'</span>';
+  }
+}
+function cadAvImportarGeoJSON(gj){
+  _cadAvGeoJSON=gj;
+  cadAvDerivarCamadas(gj);
+  _cadAvPontos=cadAvExtrairPontos(gj);
+  if(!_cadAvPontos.length) throw new Error('Nenhum ponto encontrado no arquivo.');
+  _cadAvSelecionado=null;
+  cadAvAjustarView();
+  cadAvRenderCamadas();
+  cadAvRenderSvg();
+  cadAvAtualizarPainel();
+}
+function cadAvExtrairPontos(gj){
+  const pts=[];
+  function add(c,layerId){pts.push({id:_cadAvNextId++,x:c[0],y:c[1],z:c[2]||0,nome:'',layerId:layerId||'_default'});}
+  (gj.features||[]).forEach(function(f){
+    const g=f.geometry;if(!g)return;
+    const layerId=(f.properties&&f.properties.layer)||'_default';
+    if(g.type==='Point') add(g.coordinates,layerId);
+    else if(g.type==='MultiPoint') g.coordinates.forEach(function(c){add(c,layerId);});
+    else if(g.type==='LineString') g.coordinates.forEach(function(c){add(c,layerId);});
+    else if(g.type==='MultiLineString') g.coordinates.forEach(function(l){l.forEach(function(c){add(c,layerId);});});
+    else if(g.type==='Polygon') g.coordinates.forEach(function(r){r.forEach(function(c){add(c,layerId);});});
+    else if(g.type==='MultiPolygon') g.coordinates.forEach(function(poly){poly.forEach(function(r){r.forEach(function(c){add(c,layerId);});});});
+  });
+  const dedup=[];
+  pts.forEach(function(p){
+    const dup=dedup.find(function(q){return Math.abs(q.x-p.x)<1e-6&&Math.abs(q.y-p.y)<1e-6;});
+    if(!dup) dedup.push(p);
+  });
+  return dedup;
+}
+function cadAvDerivarCamadas(gj){
+  const vistos={};
+  const novas=[];
+  (gj.features||[]).forEach(function(f){
+    const lid=(f.properties&&f.properties.layer)||'_default';
+    if(!vistos[lid]){
+      vistos[lid]=true;
+      const existente=_cadAvCamadas.find(function(c){return c.id===lid;});
+      novas.push(existente||{id:lid,nome:(lid==='_default'?'Sem camada':lid),cor:CADAV_PALETA[novas.length%CADAV_PALETA.length],visivel:true,origem:'auto'});
+    }
+  });
+  const manuais=_cadAvCamadas.filter(function(c){return c.origem==='manual'&&!novas.some(function(n){return n.id===c.id;});});
+  _cadAvCamadas=novas.concat(manuais);
+}
+function cadAvCriarCamada(){
+  const nome=prompt('Nome da nova camada:');
+  if(!nome||!nome.trim()) return;
+  const id='manual_'+Date.now();
+  _cadAvCamadas.push({id:id,nome:nome.trim(),cor:CADAV_PALETA[_cadAvCamadas.length%CADAV_PALETA.length],visivel:true,origem:'manual'});
+  cadAvRenderCamadas();
+}
+function cadAvRenomearCamada(id,nome){
+  const c=_cadAvCamadas.find(function(c){return c.id===id;});
+  if(c) c.nome=nome;
+}
+function cadAvRemoverCamada(id){
+  _cadAvPontos.forEach(function(p){if(p.layerId===id) p.layerId='_default';});
+  _cadAvCamadas=_cadAvCamadas.filter(function(c){return c.id!==id;});
+  cadAvRenderCamadas();
+  cadAvRenderSvg();
+}
+function cadAvToggleVisibilidade(id){
+  const c=_cadAvCamadas.find(function(c){return c.id===id;});
+  if(c){c.visivel=!c.visivel;cadAvRenderSvg();}
+}
+function cadAvSetCor(id,cor){
+  const c=_cadAvCamadas.find(function(c){return c.id===id;});
+  if(c){c.cor=cor;cadAvRenderSvg();}
+}
+function cadAvAtribuirCamada(pontoId,camadaId){
+  const p=_cadAvPontos.find(function(p){return p.id===pontoId;});
+  if(p){p.layerId=camadaId;cadAvRenderSvg();cadAvAtualizarPainel();}
+}
+function cadAvRenderCamadas(){
+  const el=document.getElementById('cadav-camadas');
+  if(!el) return;
+  if(!_cadAvCamadas.length){el.innerHTML='<div class="mu sm">Nenhuma camada ainda.</div>';return;}
+  el.innerHTML=_cadAvCamadas.map(function(c){
+    const n=_cadAvPontos.filter(function(p){return p.layerId===c.id;}).length;
+    return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">'
+      +'<input type="checkbox" '+(c.visivel?'checked':'')+' onchange="cadAvToggleVisibilidade(\''+c.id+'\')">'
+      +'<input type="color" value="'+c.cor+'" style="width:24px;height:24px;padding:0;border:none" onchange="cadAvSetCor(\''+c.id+'\',this.value)">'
+      +'<input class="fc" style="flex:1;padding:2px 6px;font-size:12px" value="'+xmlEscapeGeo(c.nome)+'" onchange="cadAvRenomearCamada(\''+c.id+'\',this.value)">'
+      +'<span class="mu sm">'+n+'</span>'
+      +(c.origem==='manual'?'<button class="btn bxs bdr" onclick="cadAvRemoverCamada(\''+c.id+'\')"><i class="ti ti-x"></i></button>':'')
+      +'</div>';
+  }).join('');
+}
+function cadAvAjustarView(){
+  const xs=_cadAvPontos.map(function(p){return p.x;}),ys=_cadAvPontos.map(function(p){return -p.y;});
+  const minX=Math.min.apply(null,xs),maxX=Math.max.apply(null,xs);
+  const minY=Math.min.apply(null,ys),maxY=Math.max.apply(null,ys);
+  const w=(maxX-minX)||10,h=(maxY-minY)||10;
+  const pad=Math.max(w,h)*0.1||1;
+  _cadAvView.cx=(minX+maxX)/2;
+  _cadAvView.cy=(minY+maxY)/2;
+  _cadAvView.w=w+pad*2;
+  _cadAvView.h=h+pad*2;
+}
+function cadAvCamadaCor(layerId){
+  const c=_cadAvCamadas.find(function(c){return c.id===layerId;});
+  return c?c.cor:'#888';
+}
+function cadAvGeometriaSvg(f){
+  const g=f.geometry;if(!g) return '';
+  const layerId=(f.properties&&f.properties.layer)||'_default';
+  const camada=_cadAvCamadas.find(function(c){return c.id===layerId;});
+  if(camada&&!camada.visivel) return '';
+  const cor=cadAvCamadaCor(layerId);
+  const sw=Math.max(_cadAvView.w,_cadAvView.h)*0.0015;
+  function pts(coords){return coords.map(function(c){return c[0]+','+(-c[1]);}).join(' ');}
+  if(g.type==='LineString') return '<polyline points="'+pts(g.coordinates)+'" fill="none" stroke="'+cor+'" stroke-width="'+sw+'"/>';
+  if(g.type==='MultiLineString') return g.coordinates.map(function(l){return cadAvGeometriaSvg({properties:f.properties,geometry:{type:'LineString',coordinates:l}});}).join('');
+  if(g.type==='Polygon') return g.coordinates.map(function(r){return '<polygon points="'+pts(r)+'" fill="'+cor+'1a" stroke="'+cor+'" stroke-width="'+sw+'"/>';}).join('');
+  if(g.type==='MultiPolygon') return g.coordinates.map(function(poly){return cadAvGeometriaSvg({properties:f.properties,geometry:{type:'Polygon',coordinates:poly}});}).join('');
+  return '';
+}
+function cadAvRenderSvg(){
+  const svg=document.getElementById('cadav-svg');
+  if(!svg) return;
+  svg.setAttribute('viewBox',(_cadAvView.cx-_cadAvView.w/2)+' '+(_cadAvView.cy-_cadAvView.h/2)+' '+_cadAvView.w+' '+_cadAvView.h);
+  let geomSvg='';
+  (_cadAvGeoJSON&&_cadAvGeoJSON.features||[]).forEach(function(f){geomSvg+=cadAvGeometriaSvg(f);});
+  const r=Math.max(_cadAvView.w,_cadAvView.h)*0.006;
+  const pontosSvg=_cadAvPontos.map(function(p){
+    const camada=_cadAvCamadas.find(function(c){return c.id===p.layerId;});
+    if(camada&&!camada.visivel) return '';
+    const sel=p.id===_cadAvSelecionado;
+    const cor=sel?'#E24B4A':cadAvCamadaCor(p.layerId);
+    return '<circle cx="'+p.x+'" cy="'+(-p.y)+'" r="'+r+'" class="cadav-pt" data-id="'+p.id+'" fill="'+cor+'" stroke="#fff" stroke-width="'+(r*0.2)+'"/>'
+      +(p.nome?'<text x="'+(p.x+r*1.6)+'" y="'+(-p.y)+'" font-size="'+(r*2.2)+'" fill="#222" style="pointer-events:none;user-select:none">'+xmlEscapeGeo(p.nome)+'</text>':'');
+  }).join('');
+  let medicaoSvg='';
+  if(_cadAvModo==='medir'&&_cadAvMedicaoPontos.length){
+    medicaoSvg+=_cadAvMedicaoPontos.map(function(p){return '<circle cx="'+p.x+'" cy="'+(-p.y)+'" r="'+(r*0.8)+'" fill="#854F0B"/>';}).join('');
+    if(_cadAvMedicaoPontos.length===2){
+      const a=_cadAvMedicaoPontos[0],b=_cadAvMedicaoPontos[1];
+      const dist=cadAvDistancia(a,b);
+      medicaoSvg+='<line x1="'+a.x+'" y1="'+(-a.y)+'" x2="'+b.x+'" y2="'+(-b.y)+'" stroke="#854F0B" stroke-width="'+(r*0.4)+'" stroke-dasharray="'+(r*0.6)+','+(r*0.4)+'"/>';
+      medicaoSvg+='<text x="'+((a.x+b.x)/2)+'" y="'+(-(a.y+b.y)/2)+'" font-size="'+(r*2.4)+'" fill="#854F0B" style="pointer-events:none;user-select:none">'+dist.toFixed(3)+' m</text>';
+    }
+  }
+  svg.innerHTML=geomSvg+pontosSvg+medicaoSvg;
+}
+function cadAvScreenToSvg(evt){
+  const svg=document.getElementById('cadav-svg');
+  const pt=svg.createSVGPoint();
+  pt.x=evt.clientX;pt.y=evt.clientY;
+  const ctm=svg.getScreenCTM();
+  if(!ctm) return {x:0,y:0};
+  const p=pt.matrixTransform(ctm.inverse());
+  return {x:p.x,y:p.y};
+}
+function cadAvSnapTolSvg(){
+  const svg=document.getElementById('cadav-svg');
+  if(!svg) return 0;
+  const rect=svg.getBoundingClientRect();
+  if(!rect.width) return 0;
+  return (_cadAvSnapTolPx/rect.width)*_cadAvView.w;
+}
+function cadAvBuscarSnap(svgPt){
+  if(!_cadAvSnapAtivo) return null;
+  const tol=cadAvSnapTolSvg();
+  if(!tol) return null;
+  let melhor=null,melhorD=tol;
+  function checar(x,y){
+    const d=Math.hypot(x-svgPt.x,y-svgPt.y);
+    if(d<melhorD){melhorD=d;melhor={x:x,y:y};}
+  }
+  (_cadAvGeoJSON&&_cadAvGeoJSON.features||[]).forEach(function(f){
+    const g=f.geometry;if(!g) return;
+    function each(coords){coords.forEach(function(c){checar(c[0],-c[1]);});}
+    if(g.type==='LineString'||g.type==='MultiPoint') each(g.coordinates);
+    else if(g.type==='MultiLineString') g.coordinates.forEach(each);
+    else if(g.type==='Polygon') g.coordinates.forEach(each);
+    else if(g.type==='MultiPolygon') g.coordinates.forEach(function(poly){poly.forEach(each);});
+  });
+  _cadAvPontos.forEach(function(p){checar(p.x,-p.y);});
+  return melhor;
+}
+function cadAvHitTestPonto(svgPt){
+  const r=Math.max(_cadAvView.w,_cadAvView.h)*0.006*2.5;
+  let melhor=null,melhorD=r;
+  _cadAvPontos.forEach(function(p){
+    const camada=_cadAvCamadas.find(function(c){return c.id===p.layerId;});
+    if(camada&&!camada.visivel) return;
+    const d=Math.hypot(p.x-svgPt.x,-p.y-svgPt.y);
+    if(d<melhorD){melhorD=d;melhor=p;}
+  });
+  return melhor;
+}
+function cadAvSetModo(modo){
+  _cadAvModo=modo;
+  _cadAvMedicaoPontos=[];
+  const map={select:'cadav-modo-select',medir:'cadav-modo-medir','criar-ponto':'cadav-modo-criar'};
+  Object.keys(map).forEach(function(m){
+    const btn=document.getElementById(map[m]);
+    if(btn) btn.classList.toggle('bp2',m===modo);
+  });
+  const info=document.getElementById('cadav-medicao-info');
+  if(info) info.style.display='none';
+  cadAvRenderSvg();
+}
+function cadAvPointerDown(evt){
+  _cadAvDragInicio=cadAvScreenToSvg(evt);
+  _cadAvDragMoveu=false;
+  _cadAvDragPontoId=null;
+  if(_cadAvModo==='select'){
+    const hit=cadAvHitTestPonto(_cadAvDragInicio);
+    if(hit) _cadAvDragPontoId=hit.id;
+  }
+}
+function cadAvPointerMove(evt){
+  if(!_cadAvDragInicio) return;
+  const p=cadAvScreenToSvg(evt);
+  const dx=p.x-_cadAvDragInicio.x,dy=p.y-_cadAvDragInicio.y;
+  if(Math.abs(dx)>0.002*_cadAvView.w||Math.abs(dy)>0.002*_cadAvView.h) _cadAvDragMoveu=true;
+  if(_cadAvDragMoveu){
+    if(_cadAvDragPontoId!=null){
+      const pt=_cadAvPontos.find(function(p2){return p2.id===_cadAvDragPontoId;});
+      if(pt){
+        let alvo={x:p.x,y:-p.y};
+        const snap=cadAvBuscarSnap(p);
+        if(snap) alvo={x:snap.x,y:-snap.y};
+        pt.x=alvo.x;pt.y=alvo.y;
+        cadAvRenderSvg();
+        if(_cadAvSelecionado===pt.id) cadAvAtualizarPainel();
+      }
+    } else {
+      _cadAvView.cx-=dx;_cadAvView.cy-=dy;
+      cadAvRenderSvg();
+    }
+    _cadAvDragInicio=cadAvScreenToSvg(evt);
+  }
+}
+function cadAvPointerUp(evt){_cadAvDragInicio=null;_cadAvDragPontoId=null;}
+function cadAvWheel(evt){
+  if(!_cadAvGeoJSON&&!_cadAvPontos.length) return;
+  evt.preventDefault();
+  const p=cadAvScreenToSvg(evt);
+  const fator=evt.deltaY>0?1.1:0.9;
+  _cadAvView.w*=fator;_cadAvView.h*=fator;
+  _cadAvView.cx=p.x+(_cadAvView.cx-p.x)*fator;
+  _cadAvView.cy=p.y+(_cadAvView.cy-p.y)*fator;
+  cadAvRenderSvg();
+}
+function cadAvSvgClick(evt){
+  if(_cadAvDragMoveu){_cadAvDragMoveu=false;return;}
+  const p=cadAvScreenToSvg(evt);
+  if(_cadAvModo==='medir'){
+    if(_cadAvMedicaoPontos.length>=2) _cadAvMedicaoPontos=[];
+    let pt={x:p.x,y:-p.y};
+    const snap=cadAvBuscarSnap(p);
+    if(snap) pt={x:snap.x,y:-snap.y};
+    _cadAvMedicaoPontos.push(pt);
+    cadAvRenderSvg();
+    cadAvRenderMedicaoInfo();
+    return;
+  }
+  if(_cadAvModo==='criar-ponto'){
+    let pt={x:p.x,y:-p.y};
+    const snap=cadAvBuscarSnap(p);
+    if(snap) pt={x:snap.x,y:-snap.y};
+    const novo={id:_cadAvNextId++,x:pt.x,y:pt.y,z:0,nome:'',layerId:'_default'};
+    _cadAvPontos.push(novo);
+    if(!_cadAvCamadas.some(function(c){return c.id==='_default';})) _cadAvCamadas.push({id:'_default',nome:'Sem camada',cor:CADAV_PALETA[0],visivel:true,origem:'auto'});
+    cadAvSelecionarPonto(novo.id);
+    cadAvRenderCamadas();
+    cadAvRenderSvg();
+    return;
+  }
+  const target=evt.target;
+  if(target.classList&&target.classList.contains('cadav-pt')) cadAvSelecionarPonto(parseInt(target.dataset.id,10));
+  else cadAvSelecionarPonto(null);
+}
+function cadAvDistancia(p1,p2){return Math.hypot(p2.x-p1.x,p2.y-p1.y);}
+function cadAvRenderMedicaoInfo(){
+  const el=document.getElementById('cadav-medicao-info');
+  if(!el) return;
+  if(_cadAvMedicaoPontos.length<2){
+    el.style.display='block';
+    el.innerHTML='<div class="mu sm">Clique em um segundo ponto para medir a distância.</div>';
+    return;
+  }
+  const dist=cadAvDistancia(_cadAvMedicaoPontos[0],_cadAvMedicaoPontos[1]);
+  el.style.display='block';
+  el.innerHTML='<div class="st" style="font-size:13px">Distância medida</div><div class="mu">'+dist.toFixed(3)+' m</div><button class="btn bxs" style="margin-top:6px" onclick="_cadAvMedicaoPontos=[];cadAvRenderSvg();cadAvRenderMedicaoInfo();"><i class="ti ti-x"></i> Limpar</button>';
+}
+function cadAvSelecionarPonto(id){
+  _cadAvSelecionado=id;
+  cadAvRenderSvg();
+  cadAvAtualizarPainel();
+}
+function cadAvAtualizarPainel(){
+  const el=document.getElementById('cadav-painel');
+  if(!el) return;
+  if(_cadAvSelecionado===null){el.innerHTML='<div class="mu sm">Clique em um ponto no desenho para selecioná-lo.</div>';return;}
+  const p=_cadAvPontos.find(function(p){return p.id===_cadAvSelecionado;});
+  if(!p){el.innerHTML='<div class="mu sm">Ponto não encontrado.</div>';return;}
+  el.innerHTML='<div class="fg mb1"><label class="fl">Nome do ponto</label><input class="fc" id="cadav-nome-input" value="'+xmlEscapeGeo(p.nome||'')+'"></div>'
+    +'<div class="g3 mb1">'
+    +'<div class="fg"><label class="fl">E (X)</label><input class="fc" id="cadav-x-input" type="number" step="any" value="'+p.x+'"></div>'
+    +'<div class="fg"><label class="fl">N (Y)</label><input class="fc" id="cadav-y-input" type="number" step="any" value="'+p.y+'"></div>'
+    +'<div class="fg"><label class="fl">Z</label><input class="fc" id="cadav-z-input" type="number" step="any" value="'+(p.z||0)+'"></div>'
+    +'</div>'
+    +'<div class="fg mb1"><label class="fl">Camada</label><select class="fc" id="cadav-camada-select">'
+    +_cadAvCamadas.map(function(c){return '<option value="'+c.id+'"'+(c.id===p.layerId?' selected':'')+'>'+xmlEscapeGeo(c.nome)+'</option>';}).join('')
+    +'</select></div>'
+    +'<button class="btn bp2 bsm" onclick="cadAvAplicarEdicaoPonto()"><i class="ti ti-check"></i> Aplicar</button>';
+  setTimeout(function(){const inp=document.getElementById('cadav-nome-input');if(inp){inp.focus();inp.select();}},0);
+}
+function cadAvAplicarEdicaoPonto(){
+  if(_cadAvSelecionado===null) return;
+  const p=_cadAvPontos.find(function(p){return p.id===_cadAvSelecionado;});
+  if(!p) return;
+  const x=parseFloat(document.getElementById('cadav-x-input').value);
+  const y=parseFloat(document.getElementById('cadav-y-input').value);
+  const z=parseFloat(document.getElementById('cadav-z-input').value);
+  if(isNaN(x)||isNaN(y)){toast('Coordenadas inválidas.',true);return;}
+  p.x=x;p.y=y;p.z=isNaN(z)?0:z;
+  p.nome=document.getElementById('cadav-nome-input').value;
+  p.layerId=document.getElementById('cadav-camada-select').value;
+  cadAvRenderCamadas();
+  cadAvRenderSvg();
+  toast('Ponto atualizado.');
+}
+function cadAvExportarTxt(){
+  const nomeados=_cadAvPontos.filter(function(p){return p.nome;});
+  if(!nomeados.length){toast('Nomeie ao menos um ponto antes de exportar.',true);return;}
+  const linhas=nomeados.map(function(p){return [p.nome,p.x.toFixed(3),p.y.toFixed(3),(p.z||0).toFixed(3)].join(';');});
+  downloadText(linhas.join('\r\n'),'pontos_cad_avancado.txt');
+}
+function cadAvExportarDxf(){
+  const nomeados=_cadAvPontos.filter(function(p){return p.nome;});
+  if(!nomeados.length){toast('Nomeie ao menos um ponto antes de exportar.',true);return;}
+  const gj={type:'FeatureCollection',features:nomeados.map(function(p){return {type:'Feature',properties:{name:p.nome},geometry:{type:'Point',coordinates:[p.x,p.y,p.z||0]}};})};
+  const blob=new Blob([geojsonToDxf(gj)],{type:'application/dxf'});
+  downloadBlobGeo(blob,'pontos_cad_avancado.dxf');
+}
+
+// ── 9c. Memorial INCRA — preenchimento da Planilha SIGEF (.ods) oficial ──
+var _sigefClientes=[],_sigefObras=[],_sigefModeloZip=null,_sigefXmlDoc=null,_sigefArquivoNome='memorial';
+var _sigefVertices=[],_sigefPontosOrigem=[];
+const SIGEF_METODOS_POSICIONAMENTO=[
+  {grupo:'GNSS', itens:[
+    {cod:'PG1',nome:'Relativo estático',tipos:['M','P']},
+    {cod:'PG2',nome:'Relativo estático-rápido',tipos:['M','P']},
+    {cod:'PG3',nome:'Relativo semicinemático',tipos:['M','P']},
+    {cod:'PG4',nome:'Relativo cinemático',tipos:['P']},
+    {cod:'PG5',nome:'Relativo a partir do código C/A',tipos:['P']},
+    {cod:'PG6',nome:'RTK convencional',tipos:['M','P']},
+    {cod:'PG7',nome:'RTK em rede',tipos:['M','P']},
+    {cod:'PG8',nome:'Differential GPS (DGPS)',tipos:['P']},
+    {cod:'PG9',nome:'Posicionamento por Ponto Preciso',tipos:['M','P']}]},
+  {grupo:'Topografia clássica', itens:[
+    {cod:'PT1',nome:'Poligonação',tipos:['M','P']},
+    {cod:'PT2',nome:'Triangulação',tipos:['M','P']},
+    {cod:'PT3',nome:'Trilateração',tipos:['M','P']},
+    {cod:'PT4',nome:'Triangulateração',tipos:['M','P']},
+    {cod:'PT5',nome:'Irradiação',tipos:['M','P']},
+    {cod:'PT6',nome:'Interseção linear',tipos:['M','P','V']},
+    {cod:'PT7',nome:'Interseção angular',tipos:['M','P','V']},
+    {cod:'PT8',nome:'Alinhamento',tipos:['M','P']}]},
+  {grupo:'Geometria analítica', itens:[
+    {cod:'PA1',nome:'Paralela',tipos:['V']},
+    {cod:'PA2',nome:'Interseção de Retas',tipos:['V']}]},
+  {grupo:'Sensoriamento remoto', itens:[
+    {cod:'PS1',nome:'Aerofotogrametria',tipos:['V']},
+    {cod:'PS2',nome:'Radar aerotransportado',tipos:['V']},
+    {cod:'PS3',nome:'Laser scanner aerotransportado',tipos:['V']},
+    {cod:'PS4',nome:'Sensores orbitais',tipos:['V']}]}
+];
+const SIGEF_TIPOS_LIMITE=[
+  {grupo:'Artificial', itens:[
+    {cod:'LA1',nome:'Cerca'},{cod:'LA2',nome:'Muro'},{cod:'LA3',nome:'Estrada'},
+    {cod:'LA4',nome:'Vala'},{cod:'LA5',nome:'Canal'},{cod:'LA6',nome:'Linha ideal'},
+    {cod:'LA7',nome:'Limite artificial não tipificado'}]},
+  {grupo:'Natural', itens:[
+    {cod:'LN1',nome:"Corpo d'água ou curso d'água"},{cod:'LN2',nome:'Linha de cumeada'},
+    {cod:'LN3',nome:'Grota'},{cod:'LN4',nome:'Crista de encosta'},{cod:'LN5',nome:'Pé de encosta'},
+    {cod:'LN6',nome:'Limite natural não tipificado'}]}
+];
+const SIGEF_TIPOS_VERTICE=[{cod:'M',nome:'Marco'},{cod:'P',nome:'Ponto'},{cod:'V',nome:'Virtual'}];
+const SIGEF_ID_LINHAS={natureza_servico:1,tipo_pessoa:4,nome:5,cpf_cnpj:6,denominacao:9,
+  situacao:10,natureza_area:11,codigo_imovel:12,codigo_cartorio:13,matricula:14,municipios:16};
+const SIGEF_ID_COL_VALOR=1;
+const SIGEF_PERIM_HEADER_LINHAS={denominacao:2,parcela_numero:3,lado:4};
+const SIGEF_PERIM_TABELA_PRIMEIRA_LINHA_DADOS=11;
+function geoSigefHtml(){
+  return '<div class="card mb1">'
+    +'<div class="st mb1"><i class="ti ti-table" style="color:var(--brand)"></i>Memorial INCRA — Planilha SIGEF (.ods)</div>'
+    +'<div class="mu sm mb1">Selecione cliente/obra para preencher os dados do imóvel, envie a planilha .ods oficial do INCRA como modelo, monte a lista de vértices do perímetro (reaproveitando pontos da CAD Avançado, se quiser) e gere o arquivo .ods preenchido — as demais abas e a formatação do modelo são preservadas integralmente.</div>'
+    +'<div class="g2 mb1">'
+    +'<div class="fg"><label class="fl">Cliente</label><select class="fc" id="sigef-cliente" onchange="sigefClienteChange()"><option value="">Selecione...</option></select></div>'
+    +'<div class="fg"><label class="fl">Obra</label><select class="fc" id="sigef-obra" onchange="sigefObraChange()"><option value="">Selecione o cliente primeiro</option></select></div>'
+    +'</div>'
+    +'<div class="st mb1" style="font-size:13px">Identificação do imóvel/detentor</div>'
+    +'<div class="g3 mb1">'
+    +'<div class="fg"><label class="fl">Natureza do serviço</label><input class="fc" id="sigef-natureza_servico" value="Particular"></div>'
+    +'<div class="fg"><label class="fl">Tipo pessoa</label><select class="fc" id="sigef-tipo_pessoa"><option>Física</option><option>Jurídica</option></select></div>'
+    +'<div class="fg"><label class="fl">Nome do detentor</label><input class="fc" id="sigef-nome"></div>'
+    +'</div>'
+    +'<div class="g3 mb1">'
+    +'<div class="fg"><label class="fl">CPF/CNPJ</label><input class="fc" id="sigef-cpf_cnpj"></div>'
+    +'<div class="fg"><label class="fl">Denominação (imóvel)</label><input class="fc" id="sigef-denominacao"></div>'
+    +'<div class="fg"><label class="fl">Situação</label><input class="fc" id="sigef-situacao" value="Imóvel Registrado"></div>'
+    +'</div>'
+    +'<div class="g3 mb1">'
+    +'<div class="fg"><label class="fl">Natureza da área</label><input class="fc" id="sigef-natureza_area" value="Particular"></div>'
+    +'<div class="fg"><label class="fl">Código do imóvel (SNCR/INCRA)</label><input class="fc" id="sigef-codigo_imovel"></div>'
+    +'<div class="fg"><label class="fl">Código do cartório (CNS)</label><input class="fc" id="sigef-codigo_cartorio"></div>'
+    +'</div>'
+    +'<div class="g2 mb1">'
+    +'<div class="fg"><label class="fl">Matrícula</label><input class="fc" id="sigef-matricula"></div>'
+    +'<div class="fg"><label class="fl">Município(s)</label><input class="fc" id="sigef-municipios"></div>'
+    +'</div>'
+    +'<div class="st mb1" style="font-size:13px">Parcela / perímetro</div>'
+    +'<div class="g3 mb1">'
+    +'<div class="fg"><label class="fl">Denominação da parcela</label><input class="fc" id="sigef-perim-denominacao" value="PARTE 1"></div>'
+    +'<div class="fg"><label class="fl">Parcela número</label><input class="fc" id="sigef-perim-parcela_numero" value="001"></div>'
+    +'<div class="fg"><label class="fl">Lado</label><select class="fc" id="sigef-perim-lado"><option>Externo</option><option>Interno</option></select></div>'
+    +'</div>'
+    +'<div class="mu sm mb1" style="color:#854F0B"><i class="ti ti-alert-triangle"></i> "Sistema de referência", "Tipo de Coordenada", "Meridiano Central" e "Hemisfério" não são alterados — ficam exatamente como estão no .ods modelo enviado.</div>'
+    +'<div class="g2 mb1">'
+    +'<div class="fg"><label class="fl">Planilha .ods modelo (oficial INCRA)</label><input class="fc" type="file" id="sigef-file" accept=".ods" onchange="sigefCarregarModelo(this)"></div>'
+    +'<div class="fg"><label class="fl">&nbsp;</label><button class="btn bsm" onclick="sigefCarregarDoCadAvancado()"><i class="ti ti-arrow-back-up"></i> Usar pontos da CAD Avançado</button></div>'
+    +'</div>'
+    +'<div id="sigef-info" class="mu sm mb1" style="display:none"></div>'
+    +'<div class="st mb1" style="font-size:13px">Vértices do perímetro</div>'
+    +'<div id="sigef-vertices" class="mb1"></div>'
+    +'<button class="btn bxs mb1" onclick="sigefAdicionarVertice()"><i class="ti ti-plus"></i> Adicionar vértice manual</button>'
+    +'<div><button class="btn bp2" id="sigef-btn-gerar" onclick="sigefGerarOds()" disabled><i class="ti ti-file-download"></i> Gerar planilha preenchida (.ods)</button></div>'
+    +'</div>';
+}
+async function sigefInit(){
+  const sel=document.getElementById('sigef-cliente');
+  if(!sel||sel.dataset.loaded) return;
+  sel.dataset.loaded='1';
+  try{
+    const {data}=await sb.from('clientes').select('*').eq('ativo',true).order('nome');
+    _sigefClientes=data||[];
+    sel.innerHTML='<option value="">Selecione...</option>'+_sigefClientes.map(function(c){return '<option value="'+c.id+'">'+c.nome+'</option>';}).join('');
+  }catch(e){}
+  sigefRenderVertices();
+}
+async function sigefClienteChange(){
+  const cid=document.getElementById('sigef-cliente').value;
+  const selObra=document.getElementById('sigef-obra');
+  if(!cid){selObra.innerHTML='<option value="">Selecione o cliente primeiro</option>';return;}
+  selObra.innerHTML='<option value="">Carregando...</option>';
+  const {data}=await sb.from('obras').select('*').eq('cliente_id',cid).order('nome');
+  _sigefObras=data||[];
+  selObra.innerHTML='<option value="">Selecione...</option>'+_sigefObras.map(function(o){return '<option value="'+o.id+'">'+o.nome+'</option>';}).join('');
+  const cli=_sigefClientes.find(function(c){return String(c.id)===String(cid);});
+  if(cli){
+    document.getElementById('sigef-nome').value=cli.nome||'';
+    document.getElementById('sigef-cpf_cnpj').value=cli.cpfcnpj||'';
+    document.getElementById('sigef-tipo_pessoa').value=cli.tipo==='PJ'?'Jurídica':'Física';
+  }
+}
+function sigefObraChange(){
+  const oid=document.getElementById('sigef-obra').value;
+  const obra=_sigefObras.find(function(o){return String(o.id)===String(oid);});
+  if(!obra) return;
+  document.getElementById('sigef-denominacao').value=obra.nome||'';
+  document.getElementById('sigef-perim-denominacao').value=(obra.nome||'PARTE 1').toUpperCase();
+  document.getElementById('sigef-matricula').value=obra.ccir||'';
+  const loc=parseMunicipio(obra.municipio);
+  document.getElementById('sigef-municipios').value=loc.mun?(loc.mun+(loc.uf?('-'+loc.uf):'')):'';
+}
+async function sigefCarregarModelo(input){
+  const file=input.files[0];if(!file)return;
+  const info=document.getElementById('sigef-info');
+  info.style.display='block';info.innerHTML='Lendo planilha...';
+  try{
+    const buf=await file.arrayBuffer();
+    _sigefModeloZip=await JSZip.loadAsync(buf);
+    const contentFile=_sigefModeloZip.file('content.xml');
+    if(!contentFile) throw new Error('Arquivo não parece ser um .ods válido (content.xml não encontrado).');
+    const xmlStr=await contentFile.async('string');
+    const xmlDoc=new DOMParser().parseFromString(xmlStr,'application/xml');
+    if(xmlDoc.getElementsByTagName('parsererror').length) throw new Error('Não foi possível interpretar o XML da planilha — arquivo corrompido?');
+    if(!odsFindTable(xmlDoc,'identificacao')||!odsFindTable(xmlDoc,'perimetro_1')) throw new Error('A planilha não possui as abas "identificacao" e "perimetro_1" do modelo SIGEF.');
+    _sigefXmlDoc=xmlDoc;
+    _sigefArquivoNome=file.name.replace(/\.ods$/i,'');
+    info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> Modelo carregado: '+xmlEscapeGeo(file.name)+'</span>';
+    document.getElementById('sigef-btn-gerar').disabled=!_sigefVertices.length;
+  }catch(e){
+    info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Erro: '+e.message+'</span>';
+    _sigefModeloZip=null;_sigefXmlDoc=null;
+  }
+}
+function sigefCarregarDoCadAvancado(){
+  if(!_cadAvPontos.length){toast('Importe ou crie pontos na aba CAD Avançado primeiro.',true);return;}
+  _sigefPontosOrigem=JSON.parse(JSON.stringify(_cadAvPontos));
+  _sigefVertices=_sigefPontosOrigem.map(function(p){return sigefNovoVertice(p.nome||('V'+p.id),p.x,p.y,p.z);});
+  sigefRenderVertices();
+  toast(_sigefVertices.length+' vértice(s) carregados da CAD Avançado.');
+}
+function sigefNovoVertice(nome,long,lat,h){
+  return {nome:nome||'',long:long||0,sigmaLong:0,lat:lat||0,sigmaLat:0,h:h||0,sigmaH:0,
+    tipoVertice:'M',metodoPosicionamento:'PG6',tipoLimite:'LA1',confronta:false,cns:'',matricula:'',descritivo:''};
+}
+function sigefAdicionarVertice(){
+  _sigefVertices.push(sigefNovoVertice('V'+(_sigefVertices.length+1),0,0,0));
+  sigefRenderVertices();
+}
+function sigefRemoverVertice(i){
+  _sigefVertices.splice(i,1);
+  sigefRenderVertices();
+}
+function sigefMoverVertice(i,dir){
+  const j=i+dir;
+  if(j<0||j>=_sigefVertices.length) return;
+  const tmp=_sigefVertices[i];_sigefVertices[i]=_sigefVertices[j];_sigefVertices[j]=tmp;
+  sigefRenderVertices();
+}
+function sigefBuscarMetodo(cod){
+  for(let g=0;g<SIGEF_METODOS_POSICIONAMENTO.length;g++){
+    const m=SIGEF_METODOS_POSICIONAMENTO[g].itens.find(function(it){return it.cod===cod;});
+    if(m) return m;
+  }
+  return null;
+}
+function sigefMetodosParaTipo(tipoVertice){
+  const out=[];
+  SIGEF_METODOS_POSICIONAMENTO.forEach(function(grupo){
+    grupo.itens.forEach(function(it){if(it.tipos.indexOf(tipoVertice)>=0) out.push(it);});
+  });
+  return out;
+}
+function sigefAtualizarVertice(i,campo,valor){
+  if(!_sigefVertices[i]) return;
+  if(campo==='confronta') _sigefVertices[i][campo]=!!valor;
+  else if(['long','sigmaLong','lat','sigmaLat','h','sigmaH'].indexOf(campo)>=0) _sigefVertices[i][campo]=parseFloat(String(valor).replace(',','.'))||0;
+  else _sigefVertices[i][campo]=valor;
+  if(campo==='tipoVertice'){
+    const atual=sigefBuscarMetodo(_sigefVertices[i].metodoPosicionamento);
+    if(!atual||atual.tipos.indexOf(valor)<0){
+      const compat=sigefMetodosParaTipo(valor)[0];
+      if(compat) _sigefVertices[i].metodoPosicionamento=compat.cod;
+    }
+    sigefRenderVertices();
+  } else if(campo==='confronta'){
+    sigefRenderVertices();
+  }
+}
+function sigefMetodoOptsHtml(tipoVertice,selecionado){
+  let html='';
+  SIGEF_METODOS_POSICIONAMENTO.forEach(function(grupo){
+    const itens=grupo.itens.filter(function(it){return it.tipos.indexOf(tipoVertice)>=0;});
+    if(!itens.length) return;
+    html+='<optgroup label="'+xmlEscapeGeo(grupo.grupo)+'">'+itens.map(function(it){
+      return '<option value="'+it.cod+'"'+(it.cod===selecionado?' selected':'')+'>'+it.cod+' — '+xmlEscapeGeo(it.nome)+'</option>';
+    }).join('')+'</optgroup>';
+  });
+  return html;
+}
+function sigefTipoLimiteOptsHtml(selecionado){
+  let html='';
+  SIGEF_TIPOS_LIMITE.forEach(function(grupo){
+    html+='<optgroup label="'+xmlEscapeGeo(grupo.grupo)+'">'+grupo.itens.map(function(it){
+      return '<option value="'+it.cod+'"'+(it.cod===selecionado?' selected':'')+'>'+it.cod+' — '+xmlEscapeGeo(it.nome)+'</option>';
+    }).join('')+'</optgroup>';
+  });
+  return html;
+}
+function sigefRenderVertices(){
+  const el=document.getElementById('sigef-vertices');
+  if(!el) return;
+  if(!_sigefVertices.length){el.innerHTML='<div class="mu sm">Nenhum vértice ainda — use "Usar pontos da CAD Avançado" ou adicione manualmente.</div>';document.getElementById('sigef-btn-gerar').disabled=true;return;}
+  el.innerHTML='<div class="tw"><table><thead><tr>'
+    +'<th>Vértice</th><th>E/Long</th><th>σ Long</th><th>N/Lat</th><th>σ Lat</th><th>h</th><th>σ h</th>'
+    +'<th>Tipo Vért.</th><th>Método Posic.</th><th>Tipo Limite</th><th>Confronta?</th><th>CNS</th><th>Matrícula</th><th>Descritivo</th><th></th>'
+    +'</tr></thead><tbody>'
+    +_sigefVertices.map(function(v,i){
+      return '<tr>'
+        +'<td><input class="fc" style="width:90px" value="'+xmlEscapeGeo(v.nome)+'" onchange="sigefAtualizarVertice('+i+',\'nome\',this.value)"></td>'
+        +'<td><input class="fc" style="width:100px" type="number" step="any" value="'+v.long+'" onchange="sigefAtualizarVertice('+i+',\'long\',this.value)"></td>'
+        +'<td><input class="fc" style="width:60px" type="number" step="any" value="'+v.sigmaLong+'" onchange="sigefAtualizarVertice('+i+',\'sigmaLong\',this.value)"></td>'
+        +'<td><input class="fc" style="width:100px" type="number" step="any" value="'+v.lat+'" onchange="sigefAtualizarVertice('+i+',\'lat\',this.value)"></td>'
+        +'<td><input class="fc" style="width:60px" type="number" step="any" value="'+v.sigmaLat+'" onchange="sigefAtualizarVertice('+i+',\'sigmaLat\',this.value)"></td>'
+        +'<td><input class="fc" style="width:80px" type="number" step="any" value="'+v.h+'" onchange="sigefAtualizarVertice('+i+',\'h\',this.value)"></td>'
+        +'<td><input class="fc" style="width:60px" type="number" step="any" value="'+v.sigmaH+'" onchange="sigefAtualizarVertice('+i+',\'sigmaH\',this.value)"></td>'
+        +'<td><select class="fc" onchange="sigefAtualizarVertice('+i+',\'tipoVertice\',this.value)">'+SIGEF_TIPOS_VERTICE.map(function(t){return '<option value="'+t.cod+'"'+(t.cod===v.tipoVertice?' selected':'')+'>'+t.cod+'</option>';}).join('')+'</select></td>'
+        +'<td><select class="fc" style="min-width:170px" onchange="sigefAtualizarVertice('+i+',\'metodoPosicionamento\',this.value)">'+sigefMetodoOptsHtml(v.tipoVertice,v.metodoPosicionamento)+'</select></td>'
+        +'<td><select class="fc" style="min-width:170px" onchange="sigefAtualizarVertice('+i+',\'tipoLimite\',this.value)">'+sigefTipoLimiteOptsHtml(v.tipoLimite)+'</select></td>'
+        +'<td style="text-align:center"><input type="checkbox" '+(v.confronta?'checked':'')+' onchange="sigefAtualizarVertice('+i+',\'confronta\',this.checked)"></td>'
+        +'<td><input class="fc" style="width:80px" value="'+xmlEscapeGeo(v.cns)+'" onchange="sigefAtualizarVertice('+i+',\'cns\',this.value)" '+(v.confronta?'':'disabled')+'></td>'
+        +'<td><input class="fc" style="width:80px" value="'+xmlEscapeGeo(v.matricula)+'" onchange="sigefAtualizarVertice('+i+',\'matricula\',this.value)" '+(v.confronta?'':'disabled')+'></td>'
+        +'<td><input class="fc" style="width:140px" value="'+xmlEscapeGeo(v.descritivo)+'" onchange="sigefAtualizarVertice('+i+',\'descritivo\',this.value)"></td>'
+        +'<td><button class="btn bxs" onclick="sigefMoverVertice('+i+',-1)"><i class="ti ti-arrow-up"></i></button> <button class="btn bxs" onclick="sigefMoverVertice('+i+',1)"><i class="ti ti-arrow-down"></i></button> <button class="btn bxs bdr" onclick="sigefRemoverVertice('+i+')"><i class="ti ti-x"></i></button></td>'
+        +'</tr>';
+    }).join('')
+    +'</tbody></table></div>';
+  document.getElementById('sigef-btn-gerar').disabled=!_sigefModeloZip;
+}
+
+// ── Utilitários genéricos para editar arquivos .ods (ODF) preservando layout ──
+function odsFindTable(xmlDoc,nome){
+  const tables=xmlDoc.getElementsByTagName('table:table');
+  for(let i=0;i<tables.length;i++){
+    if(tables[i].getAttribute('table:name')===nome) return tables[i];
+  }
+  return null;
+}
+function odsRepeated(el,attr){
+  const v=el.getAttribute(attr);
+  return v?parseInt(v,10):1;
+}
+function odsLerLinha(tableEl,idx){
+  const rows=tableEl.getElementsByTagName('table:table-row');
+  let acumulado=0;
+  for(let i=0;i<rows.length;i++){
+    const rep=odsRepeated(rows[i],'table:number-rows-repeated');
+    if(idx>=acumulado&&idx<acumulado+rep) return rows[i];
+    acumulado+=rep;
+  }
+  return null;
+}
+function odsIsolarLinha(tableEl,idx){
+  const rows=tableEl.getElementsByTagName('table:table-row');
+  let acumulado=0;
+  for(let i=0;i<rows.length;i++){
+    const row=rows[i];
+    const rep=odsRepeated(row,'table:number-rows-repeated');
+    if(idx>=acumulado&&idx<acumulado+rep){
+      if(rep===1) return row;
+      const antes=idx-acumulado,depois=rep-1-antes;
+      const isolada=row.cloneNode(true);
+      isolada.removeAttribute('table:number-rows-repeated');
+      if(antes>0){
+        const bloco=row.cloneNode(true);
+        bloco.setAttribute('table:number-rows-repeated',String(antes));
+        row.parentNode.insertBefore(bloco,row);
+      }
+      row.parentNode.insertBefore(isolada,row);
+      if(depois>0) row.setAttribute('table:number-rows-repeated',String(depois));
+      else row.parentNode.removeChild(row);
+      return isolada;
+    }
+    acumulado+=rep;
+  }
+  return null;
+}
+function odsIsolarCelula(rowEl,colIdx){
+  const cells=rowEl.getElementsByTagName('table:table-cell');
+  let acumulado=0;
+  for(let i=0;i<cells.length;i++){
+    const cell=cells[i];
+    const rep=odsRepeated(cell,'table:number-columns-repeated');
+    if(colIdx>=acumulado&&colIdx<acumulado+rep){
+      if(rep===1) return cell;
+      const antes=colIdx-acumulado,depois=rep-1-antes;
+      const isolada=cell.cloneNode(true);
+      isolada.removeAttribute('table:number-columns-repeated');
+      if(antes>0){
+        const bloco=cell.cloneNode(true);
+        bloco.setAttribute('table:number-columns-repeated',String(antes));
+        cell.parentNode.insertBefore(bloco,cell);
+      }
+      cell.parentNode.insertBefore(isolada,cell);
+      if(depois>0) cell.setAttribute('table:number-columns-repeated',String(depois));
+      else cell.parentNode.removeChild(cell);
+      return isolada;
+    }
+    acumulado+=rep;
+  }
+  return null;
+}
+function odsLerCelulaTexto(rowEl,colIdx){
+  const cells=rowEl.getElementsByTagName('table:table-cell');
+  let acumulado=0;
+  for(let i=0;i<cells.length;i++){
+    const cell=cells[i];
+    const rep=odsRepeated(cell,'table:number-columns-repeated');
+    if(colIdx>=acumulado&&colIdx<acumulado+rep){
+      const ps=cell.getElementsByTagName('text:p');
+      let txt='';
+      for(let j=0;j<ps.length;j++) txt+=ps[j].textContent;
+      return txt;
+    }
+    acumulado+=rep;
+  }
+  return '';
+}
+function odsSetCelulaTexto(rowEl,colIdx,texto){
+  const cell=odsIsolarCelula(rowEl,colIdx);
+  if(!cell) return;
+  const ps=cell.getElementsByTagName('text:p');
+  for(let i=ps.length-1;i>=0;i--) cell.removeChild(ps[i]);
+  const p=cell.ownerDocument.createElement('text:p');
+  p.textContent=texto==null?'':String(texto);
+  cell.appendChild(p);
+}
+function odsSerializar(xmlDoc){
+  const xml=new XMLSerializer().serializeToString(xmlDoc);
+  return /^\s*<\?xml/.test(xml)?xml:'<?xml version="1.0" encoding="UTF-8"?>'+xml;
+}
+function odsPreencherIdentificacao(xmlDoc,dados){
+  const tableEl=odsFindTable(xmlDoc,'identificacao');
+  if(!tableEl) throw new Error('Aba "identificacao" não encontrada no modelo.');
+  Object.keys(SIGEF_ID_LINHAS).forEach(function(chave){
+    const row=odsIsolarLinha(tableEl,SIGEF_ID_LINHAS[chave]);
+    if(row) odsSetCelulaTexto(row,SIGEF_ID_COL_VALOR,dados[chave]||'');
+  });
+}
+function odsPreencherPerimetro(xmlDoc,header,vertices){
+  const tableEl=odsFindTable(xmlDoc,'perimetro_1');
+  if(!tableEl) throw new Error('Aba "perimetro_1" não encontrada no modelo.');
+  Object.keys(SIGEF_PERIM_HEADER_LINHAS).forEach(function(chave){
+    const row=odsIsolarLinha(tableEl,SIGEF_PERIM_HEADER_LINHAS[chave]);
+    if(row) odsSetCelulaTexto(row,SIGEF_ID_COL_VALOR,header[chave]||'');
+  });
+  const primeira=SIGEF_PERIM_TABELA_PRIMEIRA_LINHA_DADOS;
+  let linhaModelo=odsLerLinha(tableEl,primeira);
+  if(!linhaModelo){
+    const rows=tableEl.getElementsByTagName('table:table-row');
+    linhaModelo=rows[rows.length-1]||null;
+  }
+  if(!linhaModelo) throw new Error('Não foi possível localizar uma linha-modelo na aba "perimetro_1".');
+  const linhaModeloClone=linhaModelo.cloneNode(true);
+  linhaModeloClone.removeAttribute('table:number-rows-repeated');
+  function fmtNum(n){return (n==null||isNaN(n))?'0,00':Number(n).toFixed(2).replace('.',',');}
+  function fmtCoord(n){return (n==null||isNaN(n))?'0,00':String(n).replace('.',',');}
+  for(let i=0;i<vertices.length;i++){
+    const v=vertices[i];
+    const idx=primeira+i;
+    let row=odsIsolarLinha(tableEl,idx);
+    if(!row){
+      row=linhaModeloClone.cloneNode(true);
+      const anterior=odsLerLinha(tableEl,idx-1);
+      if(anterior&&anterior.parentNode) anterior.parentNode.insertBefore(row,anterior.nextSibling);
+      else tableEl.appendChild(row);
+    }
+    const valores=[v.nome,fmtCoord(v.long),fmtNum(v.sigmaLong),fmtCoord(v.lat),fmtNum(v.sigmaLat),
+      fmtCoord(v.h),fmtNum(v.sigmaH),v.metodoPosicionamento,v.tipoLimite,
+      v.confronta?(v.cns||''):'',v.confronta?(v.matricula||''):'',v.descritivo||''];
+    valores.forEach(function(val,colIdx){odsSetCelulaTexto(row,colIdx,val);});
+  }
+  const idxExtra=primeira+vertices.length;
+  let extra=odsLerLinha(tableEl,idxExtra);
+  while(extra&&odsLerCelulaTexto(extra,0).trim()!==''){
+    const isolada=odsIsolarLinha(tableEl,idxExtra);
+    if(isolada&&isolada.parentNode) isolada.parentNode.removeChild(isolada);
+    extra=odsLerLinha(tableEl,idxExtra);
+  }
+}
+async function sigefGerarOds(){
+  if(!_sigefModeloZip||!_sigefXmlDoc){toast('Envie a planilha .ods modelo primeiro.',true);return;}
+  if(!_sigefVertices.length){toast('Adicione ao menos um vértice antes de gerar.',true);return;}
+  try{
+    const dados={
+      natureza_servico:document.getElementById('sigef-natureza_servico').value,
+      tipo_pessoa:document.getElementById('sigef-tipo_pessoa').value,
+      nome:document.getElementById('sigef-nome').value,
+      cpf_cnpj:document.getElementById('sigef-cpf_cnpj').value,
+      denominacao:document.getElementById('sigef-denominacao').value,
+      situacao:document.getElementById('sigef-situacao').value,
+      natureza_area:document.getElementById('sigef-natureza_area').value,
+      codigo_imovel:document.getElementById('sigef-codigo_imovel').value,
+      codigo_cartorio:document.getElementById('sigef-codigo_cartorio').value,
+      matricula:document.getElementById('sigef-matricula').value,
+      municipios:document.getElementById('sigef-municipios').value
+    };
+    const header={
+      denominacao:document.getElementById('sigef-perim-denominacao').value,
+      parcela_numero:document.getElementById('sigef-perim-parcela_numero').value,
+      lado:document.getElementById('sigef-perim-lado').value
+    };
+    odsPreencherIdentificacao(_sigefXmlDoc,dados);
+    odsPreencherPerimetro(_sigefXmlDoc,header,_sigefVertices);
+    const xmlFinal=odsSerializar(_sigefXmlDoc);
+    _sigefModeloZip.file('content.xml',xmlFinal);
+    const blob=await _sigefModeloZip.generateAsync({type:'blob'});
+    downloadBlobGeo(blob,(_sigefArquivoNome||'memorial')+'_preenchido.ods');
+    toast('Planilha gerada com sucesso!');
+  }catch(e){
+    toast('Erro ao gerar planilha: '+e.message,true);
+  }
 }
 
 // ── 4. Pontos → Arquivo (DXF/KML/SHP, opcionalmente como perímetro fechado) ──
