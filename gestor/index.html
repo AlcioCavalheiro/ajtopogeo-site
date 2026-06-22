@@ -8633,7 +8633,7 @@ async function gerarArquivoPontos(){
 }
 
 // ── 5. Memorial Descritivo ──
-var _memClientes=[],_memObras=[],_memVertices=[],_memTexto='';
+var _memClientes=[],_memObras=[],_memVertices=[],_memTexto='',_memAreaM2=0;
 function geoMemorialHtml(){
   return '<div class="card mb1">'
     +'<div class="st mb1"><i class="ti ti-file-description" style="color:var(--brand)"></i>Memorial Descritivo</div>'
@@ -8655,8 +8655,9 @@ function geoMemorialHtml(){
     +'<div class="fg"><label class="fl">Matrículas</label><input class="fc" id="mem-matriculas"></div>'
     +'<div class="fg"><label class="fl">Localização descritiva</label><input class="fc" id="mem-localizacao" placeholder="na rodovia MS-258, zona rural do município de..."></div>'
     +'</div>'
-    +'<div class="g3 mb1">'
-    +'<div class="fg"><label class="fl">Área (ha)</label><input class="fc" id="mem-area"></div>'
+    +'<div class="g4 mb1">'
+    +'<div class="fg"><label class="fl">Área</label><input class="fc" id="mem-area"></div>'
+    +'<div class="fg"><label class="fl">Unidade da área</label><select class="fc" id="mem-area-unid" onchange="memorialUnidadeAreaChange()"><option value="ha">ha</option><option value="m2">m²</option></select></div>'
     +'<div class="fg"><label class="fl">Perímetro (m)</label><input class="fc" id="mem-perimetro"></div>'
     +'<div class="fg"><label class="fl">Datum das coordenadas</label><select class="fc" id="mem-datum">'+datumOptsHtml('SIRGAS2000')+'</select></div>'
     +'</div>'
@@ -8664,7 +8665,9 @@ function geoMemorialHtml(){
     +'<div class="fg"><label class="fl">Arquivo TXT dos vértices (nome_do_marco,E,N,Z,Confrontante)</label><input class="fc" type="file" id="mem-file" accept=".txt,.csv" onchange="memorialArquivoLido(this)"></div>'
     +'<div class="fg"><label class="fl">Delimitador</label><select class="fc" id="mem-delim"><option value=",">Vírgula (,)</option><option value=";" selected>Ponto e vírgula (;)</option><option value="tab">Tabulação</option></select></div>'
     +'</div>'
-    +'<div class="mu sm mb1">O confrontante deve incluir o artigo (ex: "a Rodovia MS-258", "o Córrego Vertente Clara"), pois entra exatamente assim na frase "confrontando com ...".</div>'
+    +'<div class="mu sm mb1">Ou importe direto os pontos já nomeados na aba "CAD Simples" (a ordem dos pontos na CAD define a sequência do perímetro).</div>'
+    +'<button class="btn bsm mb1" onclick="memorialImportarCad()"><i class="ti ti-arrow-back-up"></i> Importar pontos da CAD Simples</button>'
+    +'<div class="mu sm mb1">O confrontante deve incluir o artigo (ex: "a Rodovia MS-258", "o Córrego Vertente Clara"), pois entra exatamente assim na frase "confrontando com ...". Após importar, preencha o confrontante e a cota Z de cada vértice na tabela abaixo. Azimutes e distâncias entre vértices são calculados automaticamente.</div>'
     +'<div id="mem-info" class="mu sm mb1" style="display:none"></div>'
     +'<button class="btn bsm mb1" onclick="memorialCalcular()"><i class="ti ti-calculator"></i> Calcular perímetro e área</button>'
     +'<div id="mem-preview" class="mb1"></div>'
@@ -8712,6 +8715,7 @@ function memorialObraChange(){
   document.getElementById('mem-uf').value=loc.uf||'';
   document.getElementById('mem-comarca').value=loc.mun||'';
   document.getElementById('mem-matriculas').value=obra.ccir||'';
+  document.getElementById('mem-area-unid').value='ha';
   document.getElementById('mem-area').value=obra.area_ha?String(obra.area_ha).replace('.',','):'';
 }
 function memorialArquivoLido(input){
@@ -8732,29 +8736,63 @@ function memorialCalcular(){
   try{
     const v=memorialLerVertices();
     if(v.length<3||v.some(function(p){return isNaN(p.e)||isNaN(p.n);})) throw new Error('São necessários ao menos 3 vértices com coordenadas válidas.');
-    _memVertices=v;
-    let perim=0;
-    for(let i=0;i<v.length;i++){
-      const a=v[i],b=v[(i+1)%v.length];
-      perim+=Math.hypot(b.e-a.e,b.n-a.n);
-    }
-    let area2=0;
-    for(let i=0;i<v.length;i++){
-      const a=v[i],b=v[(i+1)%v.length];
-      area2+=(a.e*b.n-b.e*a.n);
-    }
-    const areaHa=Math.abs(area2)/2/10000;
-    document.getElementById('mem-perimetro').value=perim.toFixed(2).replace('.',',');
-    document.getElementById('mem-area').value=areaHa.toFixed(4).replace('.',',');
-    document.getElementById('mem-preview').innerHTML='<div class="tw"><table><thead><tr><th>Nome</th><th>E</th><th>N</th><th>Z</th><th>Confrontante</th></tr></thead><tbody>'
-      +v.map(function(p){return '<tr><td>'+p.nome+'</td><td>'+p.e+'</td><td>'+p.n+'</td><td>'+p.z+'</td><td>'+p.confrontante+'</td></tr>';}).join('')
-      +'</tbody></table></div>';
-    document.getElementById('mem-btn-gerar').disabled=false;
+    memorialProcessarVertices(v);
     toast('Perímetro e área calculados.');
   }catch(e){
     toast('Erro: '+e.message,true);
   }
 }
+function memorialImportarCad(){
+  if(typeof _cadPontos==='undefined'||!_cadPontos.length){toast('Importe e nomeie os pontos na aba "CAD Simples" primeiro.',true);return;}
+  const nomeados=_cadPontos.filter(function(p){return p.nome;});
+  if(nomeados.length<3){toast('Nomeie ao menos 3 pontos na aba "CAD Simples" antes de importar.',true);return;}
+  const v=nomeados.map(function(p){return {nome:p.nome,e:p.x,n:p.y,z:p.z||0,confrontante:''};});
+  try{
+    memorialProcessarVertices(v);
+    toast(v.length+' ponto(s) importados da CAD Simples. Preencha os confrontantes e confira a cota Z na tabela abaixo.');
+  }catch(e){
+    toast('Erro: '+e.message,true);
+  }
+}
+function memorialProcessarVertices(v){
+  _memVertices=v;
+  let perim=0;
+  for(let i=0;i<v.length;i++){
+    const a=v[i],b=v[(i+1)%v.length];
+    perim+=Math.hypot(b.e-a.e,b.n-a.n);
+  }
+  let area2=0;
+  for(let i=0;i<v.length;i++){
+    const a=v[i],b=v[(i+1)%v.length];
+    area2+=(a.e*b.n-b.e*a.n);
+  }
+  _memAreaM2=Math.abs(area2)/2;
+  document.getElementById('mem-perimetro').value=perim.toFixed(2).replace('.',',');
+  memorialAtualizarAreaDisplay();
+  memorialRenderPreview();
+  document.getElementById('mem-btn-gerar').disabled=false;
+}
+function memorialAtualizarAreaDisplay(){
+  if(!_memAreaM2) return;
+  const unid=document.getElementById('mem-area-unid').value;
+  const val=unid==='ha'?_memAreaM2/10000:_memAreaM2;
+  document.getElementById('mem-area').value=val.toFixed(unid==='ha'?4:2).replace('.',',');
+}
+function memorialUnidadeAreaChange(){
+  memorialAtualizarAreaDisplay();
+}
+function memorialRenderPreview(){
+  const v=_memVertices;
+  document.getElementById('mem-preview').innerHTML='<div class="tw"><table><thead><tr><th>Nome</th><th>E</th><th>N</th><th>Z</th><th>Confrontante</th></tr></thead><tbody>'
+    +v.map(function(p,i){
+      return '<tr><td>'+xmlEscapeGeo(p.nome)+'</td><td class="mu sm">'+p.e+'</td><td class="mu sm">'+p.n+'</td>'
+        +'<td><input class="fc" style="width:90px" value="'+(p.z||0)+'" onchange="memorialAtualizarZ('+i+',this.value)"></td>'
+        +'<td><input class="fc" style="width:100%" value="'+xmlEscapeGeo(p.confrontante||'')+'" placeholder="ex: a Rodovia MS-258" onchange="memorialAtualizarConfrontante('+i+',this.value)"></td></tr>';
+    }).join('')
+    +'</tbody></table></div>';
+}
+function memorialAtualizarConfrontante(i,val){if(_memVertices[i])_memVertices[i].confrontante=val;}
+function memorialAtualizarZ(i,val){if(_memVertices[i])_memVertices[i].z=parseFloat((val||'').replace(',','.'))||0;}
 function xmlEscapeGeo(s){
   return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
@@ -8768,17 +8806,34 @@ function memorialDataExtenso(){
   const uf=document.getElementById('mem-uf').value||'';
   return local+' - '+uf+', '+d.getDate()+' de '+meses[d.getMonth()]+' de '+d.getFullYear()+'.';
 }
+function memorialAzimuteDist(a,b){
+  const dE=b.e-a.e,dN=b.n-a.n;
+  const dist=Math.hypot(dE,dN);
+  let deg=Math.atan2(dE,dN)*180/Math.PI;
+  deg=((deg%360)+360)%360;
+  let totalSec=Math.round(deg*3600);
+  let d=Math.floor(totalSec/3600);
+  let rem=totalSec%3600;
+  let m=Math.floor(rem/60);
+  let s=rem%60;
+  if(d>=360)d-=360;
+  const az=d+'°'+String(m).padStart(2,'0')+"'"+String(s).padStart(2,'0')+'"';
+  return {az:az,dist:dist.toFixed(2).replace('.',',')};
+}
 function memorialBuildPerimetroRunsXml(vertices){
   const boldRun=function(t){return '<w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:b/><w:bCs/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve">'+xmlEscapeGeo(t)+'</w:t></w:r>';};
   const normalRun=function(t){return '<w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve">'+xmlEscapeGeo(t)+'</w:t></w:r>';};
   let xml=normalRun('Inicia-se no vértice ');
   for(let i=0;i<vertices.length;i++){
     const v=vertices[i];
+    const next=vertices[(i+1)%vertices.length];
+    const seg=memorialAzimuteDist(v,next);
+    const coords=', definido pelas coordenadas '+(i===0?'UTM ':'')+'(E) = '+fmtCoordBR(v.e)+' m, (N) = '+fmtCoordBR(v.n)+' m e (Z) = '+fmtCoordBR(v.z)+' m';
     xml+=boldRun(v.nome);
     if(i<vertices.length-1){
-      xml+=normalRun(', definido pelas coordenadas '+(i===0?'UTM ':'')+'(E) = '+fmtCoordBR(v.e)+' m e (N) = '+fmtCoordBR(v.n)+' m, confrontando com '+v.confrontante+', até o vértice ');
+      xml+=normalRun(coords+', confrontando com '+v.confrontante+', com azimute de '+seg.az+' e distância de '+seg.dist+' m, até o vértice ');
     } else {
-      xml+=normalRun(', definido pelas coordenadas (E) = '+fmtCoordBR(v.e)+' m e (N) = '+fmtCoordBR(v.n)+' m, confrontando com '+v.confrontante+', até o vértice inicial ');
+      xml+=normalRun(coords+', confrontando com '+v.confrontante+', com azimute de '+seg.az+' e distância de '+seg.dist+' m, até o vértice inicial ');
       xml+=boldRun(vertices[0].nome);
       xml+=normalRun(', fechando-se, assim, o perímetro.');
     }
@@ -8796,7 +8851,7 @@ async function memorialGerarDocx(){
       UF:document.getElementById('mem-uf').value,
       MATRICULAS:document.getElementById('mem-matriculas').value,
       BAIRRO:document.getElementById('mem-bairro').value,
-      AREA_HA:document.getElementById('mem-area').value+' ha',
+      AREA_HA:document.getElementById('mem-area').value+' '+(document.getElementById('mem-area-unid').value==='ha'?'ha':'m²'),
       PERIMETRO_M:document.getElementById('mem-perimetro').value+' m',
       LOCALIZACAO_DESCRITIVA:document.getElementById('mem-localizacao').value,
       DATUM:(GEO_DATUMS[document.getElementById('mem-datum').value]||{}).label||'',
