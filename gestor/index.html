@@ -8749,7 +8749,7 @@ function memorialCalcular(){
 }
 function memorialImportarCad(){
   if(typeof _cadPontos==='undefined'||!_cadPontos.length){toast('Importe e nomeie os pontos na aba "CAD Simples" primeiro.',true);return;}
-  const nomeados=_cadPontos.filter(function(p){return p.nome;});
+  const nomeados=_cadPontos.filter(function(p){return p.nome;}).sort(function(a,b){return (a.ordemNome||0)-(b.ordemNome||0);});
   if(nomeados.length<3){toast('Nomeie ao menos 3 pontos na aba "CAD Simples" antes de importar.',true);return;}
   const v=nomeados.map(function(p){return {nome:p.nome,e:p.x,n:p.y,z:p.z||0,confrontante:''};});
   try{
