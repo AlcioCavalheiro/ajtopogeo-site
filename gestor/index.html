@@ -16,6 +16,7 @@
 <script src="https://cdn.jsdelivr.net/npm/shpjs@4.0.4/dist/shp.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script src="gestor-assets.js" defer></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -392,6 +393,7 @@ const EMPRESA = (function() {
   return emp;
 })();
 var pageMap = {};
+if(typeof pdfjsLib!=='undefined') pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
 
 // ─── SELETOR ESTADO + MUNICÍPIO ──────────────────────────────
 const UFS=['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
@@ -6287,9 +6289,185 @@ function _renderObrasTabela(ob,q){
       +'<td class="mu sm">'+(o.municipio||'—')+'</td>'
       +'<td>'+(o.clientes?.nome||'—')+'</td>'
       +'<td class="mu sm">'+(o.area_ha?o.area_ha+' ha':'—')+'</td>'
-      +'<td class="fx g8"><button class="btn bsm" onclick="editRecord(\'obras\',\''+o.id+'\')"><i class="ti ti-edit"></i></button><button class="btn bxs bdr" onclick="excluirReg(\'obras\',\''+o.id+'\',\''+o.nome+'\')"><i class="ti ti-trash"></i></button></td>'
+      +'<td class="fx g8"><button class="btn bsm" onclick="abrirVizinhosObra(\''+o.id+'\')" title="Vizinhos e proprietários"><i class="ti ti-users"></i></button><button class="btn bsm" onclick="editRecord(\'obras\',\''+o.id+'\')"><i class="ti ti-edit"></i></button><button class="btn bxs bdr" onclick="excluirReg(\'obras\',\''+o.id+'\',\''+o.nome+'\')"><i class="ti ti-trash"></i></button></td>'
       +'</tr>';
   }).join('')||(q?'<tr><td colspan="6" style="text-align:center;color:#888;padding:2rem">Nenhuma obra encontrada para "<strong>'+q+'</strong>"</td></tr>':nd(6));
+}
+
+// ── Vizinhos e Proprietários da Obra (qualificação para Anuência de Limites) ──
+var _vizObraId=null,_vizProprietarios=[],_vizVizinhos=[],_vizAbaAtiva='prop',_vizVizinhoEditando=null;
+function vizMostrarSqlSetup(){
+  document.getElementById('mt').textContent='Configuração necessária';
+  document.getElementById('mb').innerHTML='<div class="mu sm mb1">É necessário adicionar 2 colunas na tabela <strong>obras</strong>. Execute uma vez no SQL Editor do Supabase:</div><pre style="background:#f4f4f0;border-radius:8px;padding:1rem;font-size:12px;overflow-x:auto">ALTER TABLE obras ADD COLUMN IF NOT EXISTS proprietarios JSONB DEFAULT \'[]\'::jsonb;\nALTER TABLE obras ADD COLUMN IF NOT EXISTS vizinhos JSONB DEFAULT \'[]\'::jsonb;</pre>';
+  document.getElementById('mf').innerHTML='<button class="btn" onclick="closeModal()">Fechar</button>';
+  const ov=document.getElementById('ov');ov.style.zIndex='200';ov.classList.add('open');
+}
+async function abrirVizinhosObra(obraId){
+  const{data:obra,error}=await sb.from('obras').select('id,nome,proprietarios,vizinhos').eq('id',obraId).single();
+  if(error){
+    if(error.message&&error.message.toLowerCase().includes('column')){vizMostrarSqlSetup();return;}
+    toast('Erro ao carregar obra: '+error.message,true);return;
+  }
+  _vizObraId=obraId;
+  _vizProprietarios=obra.proprietarios||[];
+  _vizVizinhos=obra.vizinhos||[];
+  _vizAbaAtiva='prop';_vizVizinhoEditando=null;
+  document.getElementById('mt').textContent='Vizinhos e Proprietários — '+obra.nome;
+  document.getElementById('mb').innerHTML=vizModalHtml();
+  document.getElementById('mf').innerHTML='<button class="btn" onclick="closeModal()">Fechar</button><button class="btn bp2" onclick="vizSalvar()"><i class="ti ti-device-floppy"></i> Salvar</button>';
+  const ov=document.getElementById('ov');ov.style.zIndex='200';ov.classList.add('open');
+}
+function vizModalHtml(){
+  return '<div class="tabs" id="viz-tabs" style="margin-bottom:1rem">'
+    +'<div class="tab'+(_vizAbaAtiva==='prop'?' active':'')+'" onclick="vizMudarAba(\'prop\')" id="viz-tab-prop">Proprietário(s)</div>'
+    +'<div class="tab'+(_vizAbaAtiva==='viz'?' active':'')+'" onclick="vizMudarAba(\'viz\')" id="viz-tab-viz">Vizinhos</div>'
+    +'</div>'
+    +'<div id="viz-conteudo">'+vizConteudoHtml()+'</div>';
+}
+function vizMudarAba(aba){_vizAbaAtiva=aba;_vizVizinhoEditando=null;document.getElementById('mb').innerHTML=vizModalHtml();}
+function vizConteudoHtml(){
+  if(_vizAbaAtiva==='prop') return vizListaPessoasHtml(_vizProprietarios,'prop',null);
+  if(_vizVizinhoEditando!==null){
+    const v=_vizVizinhos[_vizVizinhoEditando];
+    return '<button class="btn bsm mb1" onclick="vizVoltarVizinhos()"><i class="ti ti-arrow-left"></i> Voltar para lista de vizinhos</button>'
+      +'<div class="mu sm mb1"><strong>'+v.nomeImovel+'</strong> — Mat. '+(v.matricula||'—')+'</div>'
+      +vizListaPessoasHtml(v.pessoas||[],'viz',_vizVizinhoEditando);
+  }
+  return vizListaVizinhosHtml();
+}
+function vizListaVizinhosHtml(){
+  const rows=_vizVizinhos.map(function(v,i){
+    return '<div class="card mb1" style="padding:.75rem"><div class="fxb"><div><strong>'+v.nomeImovel+'</strong><div class="mu sm">Mat. '+(v.matricula||'—')+' · '+(v.comarca||'—')+' · '+(v.pessoas||[]).length+' pessoa(s)</div></div>'
+      +'<div class="fx g8"><button class="btn bsm" onclick="vizEditarVizinhos('+i+')"><i class="ti ti-users"></i> Pessoas</button><button class="btn bsm" onclick="vizEditarDadosVizinho('+i+')"><i class="ti ti-edit"></i></button><button class="btn bxs bdr" onclick="vizRemoverVizinho('+i+')"><i class="ti ti-trash"></i></button></div></div></div>';
+  }).join('')||'<div class="mu sm mb1">Nenhum vizinho cadastrado ainda.</div>';
+  return rows+'<button class="btn bp2 bsm" onclick="vizAdicionarVizinho()"><i class="ti ti-plus"></i> Adicionar vizinho</button>';
+}
+function vizAdicionarVizinho(){
+  _vizVizinhos.push({id:'v'+Date.now(),nomeImovel:'Novo Vizinho',matricula:'',comarca:'',codigoIncra:'',pessoas:[]});
+  vizEditarDadosVizinho(_vizVizinhos.length-1);
+}
+function vizRemoverVizinho(i){
+  if(!confirm('Remover este vizinho?'))return;
+  _vizVizinhos.splice(i,1);
+  document.getElementById('viz-conteudo').innerHTML=vizConteudoHtml();
+}
+function vizEditarVizinhos(i){_vizVizinhoEditando=i;document.getElementById('viz-conteudo').innerHTML=vizConteudoHtml();}
+function vizVoltarVizinhos(){_vizVizinhoEditando=null;document.getElementById('viz-conteudo').innerHTML=vizConteudoHtml();}
+function vizEditarDadosVizinho(i){
+  const v=_vizVizinhos[i];
+  document.getElementById('viz-conteudo').innerHTML=
+    '<div class="g2 mb1"><div class="fg"><label class="fl">Nome do imóvel</label><input class="fc" id="vz-nome" value="'+(v.nomeImovel||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Matrícula</label><input class="fc" id="vz-mat" value="'+(v.matricula||'')+'"></div></div>'
+    +'<div class="g2 mb1"><div class="fg"><label class="fl">Comarca</label><input class="fc" id="vz-comarca" value="'+(v.comarca||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Código INCRA</label><input class="fc" id="vz-incra" value="'+(v.codigoIncra||'')+'"></div></div>'
+    +'<button class="btn bp2 bsm" onclick="vizSalvarDadosVizinho('+i+')"><i class="ti ti-check"></i> Confirmar</button>'
+    +' <button class="btn bsm" onclick="vizVoltarVizinhos()">Cancelar</button>';
+}
+function vizSalvarDadosVizinho(i){
+  _vizVizinhos[i].nomeImovel=document.getElementById('vz-nome').value;
+  _vizVizinhos[i].matricula=document.getElementById('vz-mat').value;
+  _vizVizinhos[i].comarca=document.getElementById('vz-comarca').value;
+  _vizVizinhos[i].codigoIncra=document.getElementById('vz-incra').value;
+  vizVoltarVizinhos();
+}
+function vizGetPessoasArray(ctx,vizIdx){
+  return ctx==='prop'?_vizProprietarios:_vizVizinhos[vizIdx].pessoas;
+}
+function vizListaPessoasHtml(lista,ctx,vizIdx){
+  const rows=lista.map(function(p,i){
+    return '<div class="card mb1" style="padding:.6rem .9rem"><div class="fxb"><div><strong>'+(p.nome||'(sem nome)')+'</strong><div class="mu sm">'+(p.profissao||'')+' · CPF '+(p.cpf||'—')+(p.percentual?' · '+p.percentual+'%':'')+'</div></div>'
+      +'<div class="fx g8"><button class="btn bsm" onclick="vizEditarPessoa(\''+ctx+'\','+(vizIdx===null?'null':vizIdx)+','+i+')"><i class="ti ti-edit"></i></button><button class="btn bxs bdr" onclick="vizRemoverPessoa(\''+ctx+'\','+(vizIdx===null?'null':vizIdx)+','+i+')"><i class="ti ti-trash"></i></button></div></div></div>';
+  }).join('')||'<div class="mu sm mb1">Nenhuma pessoa cadastrada ainda.</div>';
+  return rows+'<button class="btn bp2 bsm" onclick="vizAdicionarPessoa(\''+ctx+'\','+(vizIdx===null?'null':vizIdx)+')"><i class="ti ti-plus"></i> Adicionar pessoa</button>';
+}
+function vizPessoaVazia(){return {nome:'',nacionalidade:'brasileiro(a)',profissao:'',docTipo:'RG',docNumero:'',docOrgao:'',cpf:'',estadoCivil:'solteiro(a)',regimeBens:'',percentual:'',endereco:'',conjuge:null};}
+function vizAdicionarPessoa(ctx,vizIdx){
+  const arr=vizGetPessoasArray(ctx,vizIdx);
+  arr.push(vizPessoaVazia());
+  vizEditarPessoa(ctx,vizIdx,arr.length-1);
+}
+function vizEditarPessoa(ctx,vizIdx,i){
+  const arr=vizGetPessoasArray(ctx,vizIdx);
+  const p=arr[i];
+  document.getElementById('viz-conteudo').innerHTML=vizPessoaFormHtml(p)
+    +'<button class="btn bp2 bsm" onclick="vizSalvarPessoa(\''+ctx+'\','+(vizIdx===null?'null':vizIdx)+','+i+')"><i class="ti ti-check"></i> Confirmar</button>'
+    +' <button class="btn bsm" onclick="vizCancelarPessoa(\''+ctx+'\','+(vizIdx===null?'null':vizIdx)+')">Cancelar</button>';
+}
+function vizCancelarPessoa(ctx,vizIdx){
+  document.getElementById('viz-conteudo').innerHTML = ctx==='prop'? vizListaPessoasHtml(_vizProprietarios,'prop',null) : ('<button class="btn bsm mb1" onclick="vizVoltarVizinhos()"><i class="ti ti-arrow-left"></i> Voltar</button>'+vizListaPessoasHtml(_vizVizinhos[vizIdx].pessoas,'viz',vizIdx));
+}
+function vizRemoverPessoa(ctx,vizIdx,i){
+  if(!confirm('Remover esta pessoa?'))return;
+  vizGetPessoasArray(ctx,vizIdx).splice(i,1);
+  vizCancelarPessoa(ctx,vizIdx);
+}
+function vizPessoaFormHtml(p){
+  const temConj=!!p.conjuge;
+  const c=p.conjuge||{nome:'',nacionalidade:'brasileiro(a)',profissao:'',docNumero:'',docOrgao:'',cpf:''};
+  const estCivis=['solteiro(a)','casado(a)','divorciado(a)','viúvo(a)','separado(a) judicialmente'];
+  return '<div class="g3 mb1">'
+    +'<div class="fg"><label class="fl">Nome completo</label><input class="fc" id="vp-nome" value="'+(p.nome||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Nacionalidade</label><input class="fc" id="vp-nac" value="'+(p.nacionalidade||'brasileiro(a)')+'"></div>'
+    +'<div class="fg"><label class="fl">Profissão</label><input class="fc" id="vp-prof" value="'+(p.profissao||'')+'"></div>'
+    +'</div>'
+    +'<div class="g3 mb1">'
+    +'<div class="fg"><label class="fl">Tipo de doc.</label><select class="fc" id="vp-doctipo">'+['RG','CNH','CI'].map(function(t){return '<option'+(p.docTipo===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div>'
+    +'<div class="fg"><label class="fl">Nº do documento</label><input class="fc" id="vp-docnum" value="'+(p.docNumero||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Órgão emissor</label><input class="fc" id="vp-docorgao" value="'+(p.docOrgao||'')+'" placeholder="Ex: SSP/MS"></div>'
+    +'</div>'
+    +'<div class="g3 mb1">'
+    +'<div class="fg"><label class="fl">CPF</label><input class="fc" id="vp-cpf" value="'+(p.cpf||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Estado civil</label><select class="fc" id="vp-estcivil" onchange="document.getElementById(\'vp-conjuge-box\').style.display=(this.value===\'casado(a)\')?\'\':\'none\'">'+estCivis.map(function(t){return '<option'+(p.estadoCivil===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div>'
+    +'<div class="fg"><label class="fl">% de propriedade (opcional)</label><input class="fc" type="number" step="0.01" id="vp-perc" value="'+(p.percentual||'')+'"></div>'
+    +'</div>'
+    +'<div class="fg mb1"><label class="fl">Regime de bens (se casado)</label><input class="fc" id="vp-regime" value="'+(p.regimeBens||'')+'" placeholder="Ex: comunhão parcial de bens, após a vigência da Lei nº 6.515/77"></div>'
+    +'<label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:.75rem"><input type="checkbox" id="vp-temconj" '+(temConj?'checked':'')+' onchange="document.getElementById(\'vp-conjuge-box\').style.display=this.checked?\'\':\'none\'" style="width:16px;height:16px;accent-color:var(--brand)"> <span class="fl" style="margin:0">Possui cônjuge (qualificação conjunta)</span></label>'
+    +'<div id="vp-conjuge-box" class="card mb1" style="background:#F4F8FF;display:'+(temConj?'':'none')+'">'
+    +'<div class="g3 mb1">'
+    +'<div class="fg"><label class="fl">Nome do cônjuge</label><input class="fc" id="vp-c-nome" value="'+(c.nome||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Nacionalidade</label><input class="fc" id="vp-c-nac" value="'+(c.nacionalidade||'brasileiro(a)')+'"></div>'
+    +'<div class="fg"><label class="fl">Profissão</label><input class="fc" id="vp-c-prof" value="'+(c.profissao||'')+'"></div>'
+    +'</div>'
+    +'<div class="g3"><div class="fg"><label class="fl">Nº do documento</label><input class="fc" id="vp-c-docnum" value="'+(c.docNumero||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Órgão emissor</label><input class="fc" id="vp-c-docorgao" value="'+(c.docOrgao||'')+'"></div>'
+    +'<div class="fg"><label class="fl">CPF</label><input class="fc" id="vp-c-cpf" value="'+(c.cpf||'')+'"></div></div>'
+    +'</div>'
+    +'<div class="fg mb1"><label class="fl">Endereço completo</label><input class="fc" id="vp-endereco" value="'+(p.endereco||'')+'"></div>';
+}
+function vizSalvarPessoa(ctx,vizIdx,i){
+  const arr=vizGetPessoasArray(ctx,vizIdx);
+  const temConj=document.getElementById('vp-temconj').checked;
+  arr[i]={
+    nome:document.getElementById('vp-nome').value,
+    nacionalidade:document.getElementById('vp-nac').value,
+    profissao:document.getElementById('vp-prof').value,
+    docTipo:document.getElementById('vp-doctipo').value,
+    docNumero:document.getElementById('vp-docnum').value,
+    docOrgao:document.getElementById('vp-docorgao').value,
+    cpf:document.getElementById('vp-cpf').value,
+    estadoCivil:document.getElementById('vp-estcivil').value,
+    regimeBens:document.getElementById('vp-regime').value,
+    percentual:document.getElementById('vp-perc').value,
+    endereco:document.getElementById('vp-endereco').value,
+    conjuge:temConj?{
+      nome:document.getElementById('vp-c-nome').value,
+      nacionalidade:document.getElementById('vp-c-nac').value,
+      profissao:document.getElementById('vp-c-prof').value,
+      docNumero:document.getElementById('vp-c-docnum').value,
+      docOrgao:document.getElementById('vp-c-docorgao').value,
+      cpf:document.getElementById('vp-c-cpf').value
+    }:null
+  };
+  vizCancelarPessoa(ctx,vizIdx);
+}
+async function vizSalvar(){
+  const{error}=await sb.from('obras').update({proprietarios:_vizProprietarios,vizinhos:_vizVizinhos}).eq('id',_vizObraId);
+  if(error){
+    if(error.message&&error.message.toLowerCase().includes('column')){vizMostrarSqlSetup();return;}
+    toast('Erro ao salvar: '+error.message,true);return;
+  }
+  toast('Vizinhos e proprietários salvos!');
+  closeModal();
 }
 async function rObras(){
   const{data,error}=await sb.from('obras').select('*,clientes(nome)').order('nome');
@@ -6456,7 +6634,9 @@ const GEO_TABS=[
   {k:'pts',ic:'ti-list-numbers',lb:'Extrair Pontos DXF'},
   {k:'gerar',ic:'ti-vector-triangle',lb:'Pontos → Arquivo'},
   {k:'memorial',ic:'ti-file-description',lb:'Memorial Descritivo'},
-  {k:'carshp',ic:'ti-leaf',lb:'Shape para CAR'}
+  {k:'carshp',ic:'ti-leaf',lb:'Shape para CAR'},
+  {k:'incra',ic:'ti-file-upload',lb:'Importar Memorial INCRA'},
+  {k:'anuencia',ic:'ti-signature',lb:'Anuência de Limites'}
 ];
 function rGeoFerramentasFixed(){
   const el=document.getElementById('ct');if(!el)return;
@@ -6468,9 +6648,12 @@ function rGeoFerramentasFixed(){
     +'<div id="geo-pts" style="display:none">'+geoPtsHtml()+'</div>'
     +'<div id="geo-gerar" style="display:none">'+geoGerarHtml()+'</div>'
     +'<div id="geo-memorial" style="display:none">'+geoMemorialHtml()+'</div>'
-    +'<div id="geo-carshp" style="display:none">'+geoCarShpHtml()+'</div>';
+    +'<div id="geo-carshp" style="display:none">'+geoCarShpHtml()+'</div>'
+    +'<div id="geo-incra" style="display:none">'+geoIncraHtml()+'</div>'
+    +'<div id="geo-anuencia" style="display:none">'+geoAnuenciaHtml()+'</div>';
   coordUpdateUI();
   memorialInit();
+  anuenciaInit();
 }
 pageMap.geoferramentas=rGeoFerramentasFixed;
 function geoTab(tab){
@@ -6845,6 +7028,325 @@ function ptsGerarPreview(){
 function ptsBaixarTxt(){
   if(!_ptsLinhasGeradas.length){toast('Gere a pré-visualização primeiro.',true);return;}
   downloadText(_ptsLinhasGeradas.join('\r\n'),'pontos_extraidos.txt');
+}
+
+// ── 7. Importar Memorial INCRA (PDF) -> DXF ──
+var _incraHeader={},_incraVertices=[];
+function geoIncraHtml(){
+  return '<div class="card mb1">'
+    +'<div class="st mb1"><i class="ti ti-file-upload" style="color:var(--brand)"></i>Importar Memorial Descritivo do INCRA (PDF)</div>'
+    +'<div class="mu sm mb1">Funciona com o PDF gerado pelo SIGEF/INCRA (texto real, não escaneado). Os dados do cabeçalho e a tabela de vértices são extraídos automaticamente.</div>'
+    +'<div class="fg mb1"><label class="fl">Arquivo PDF do Memorial</label><input class="fc" type="file" id="incra-file" accept=".pdf" onchange="incraArquivoLido(this)"></div>'
+    +'<div id="incra-info" class="mu sm mb1" style="display:none"></div>'
+    +'<div id="incra-campos"></div>'
+    +'<div id="incra-tabela-wrap"></div>'
+    +'</div>';
+}
+async function incraArquivoLido(input){
+  const file=input.files[0];if(!file)return;
+  const info=document.getElementById('incra-info');
+  info.style.display='block';info.innerHTML='Lendo PDF...';
+  try{
+    const buf=await file.arrayBuffer();
+    const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+    let linhasTodas=[];
+    for(let p=1;p<=pdf.numPages;p++){
+      const page=await pdf.getPage(p);
+      const content=await page.getTextContent();
+      linhasTodas=linhasTodas.concat(incraAgruparLinhas(content.items));
+    }
+    const dados=incraParseLinhas(linhasTodas);
+    _incraHeader=dados.header;
+    _incraVertices=dados.vertices;
+    if(!_incraVertices.length) throw new Error('Nenhum vértice encontrado. Confira se o PDF é o Memorial Descritivo gerado pelo SIGEF.');
+    incraPreencherCampos();
+    incraRenderTabela();
+    info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> '+_incraVertices.length+' vértice(s) encontrado(s) no memorial.</span>';
+  }catch(e){
+    info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Erro ao ler PDF: '+e.message+'</span>';
+  }
+}
+function incraAgruparLinhas(items){
+  const grupos=[];
+  items.forEach(function(it){
+    const y=Math.round(it.transform[5]);
+    let g=grupos.find(function(gr){return Math.abs(gr.y-y)<=2;});
+    if(!g){g={y:y,itens:[]};grupos.push(g);}
+    g.itens.push(it);
+  });
+  grupos.sort(function(a,b){return b.y-a.y;});
+  return grupos.map(function(g){
+    return g.itens.sort(function(a,b){return a.transform[4]-b.transform[4];}).map(function(it){return it.str;}).join(' ').replace(/\s+/g,' ').trim();
+  }).filter(Boolean);
+}
+function incraParseLinhas(linhas){
+  const texto=linhas.join(' \n ');
+  const labels=['Denominação:','Proprietário(a):','Matrícula do imóvel:','Natureza da Área:','CPF:','Município/UF:','Código INCRA/SNCR:','Responsável Técnico(a):','Formação:','Código de credenciamento:','Conselho Profissional:','Sistema Geodésico de referência:','Documento de RT:','Área (Sistema Geodésico Local):','Coordenadas:','Perímetro (m):','Azimutes:','Cartório (CNS):','DESCRIÇÃO DA PARCELA'];
+  function campo(label){
+    const idx=texto.indexOf(label);
+    if(idx===-1) return '';
+    const start=idx+label.length;
+    let end=texto.length;
+    labels.forEach(function(l){
+      if(l===label) return;
+      const i=texto.indexOf(l,start);
+      if(i!==-1&&i<end) end=i;
+    });
+    return texto.slice(start,end).replace(/\n/g,' ').trim();
+  }
+  const header={
+    denominacao:campo('Denominação:'),
+    proprietario:campo('Proprietário(a):'),
+    matricula:campo('Matrícula do imóvel:'),
+    municipioUf:campo('Município/UF:'),
+    codigoIncra:campo('Código INCRA/SNCR:'),
+    tecnico:campo('Responsável Técnico(a):'),
+    credenciamento:campo('Código de credenciamento:'),
+    rt:campo('Documento de RT:'),
+    area:campo('Área (Sistema Geodésico Local):'),
+    perimetro:campo('Perímetro (m):')
+  };
+  const linhaRe=/^(\S+)\s+(-?\d+°\d+'[\d,]+")\s+(-?\d+°\d+'[\d,]+")\s+([\d,]+)\s+(\S+)\s+(\d+°\d+')\s+([\d,]+)\s+(.+)$/;
+  const vertices=[];
+  linhas.forEach(function(l){
+    const m=l.match(linhaRe);
+    if(!m) return;
+    vertices.push({
+      codigo:m[1],lon:m[2],lat:m[3],alt:m[4],vante:m[5],azimute:m[6],dist:m[7],confrontacao:m[8].trim(),
+      lonDec:parseDMS(m[2]),latDec:parseDMS(m[3]),altDec:parseFloat(m[4].replace(',','.'))||0,distDec:parseFloat(m[7].replace(',','.'))||0
+    });
+  });
+  return {header:header,vertices:vertices};
+}
+function incraPreencherCampos(){
+  const h=_incraHeader;
+  const lons=_incraVertices.map(function(v){return v.lonDec;});
+  const lonMed=lons.length?(lons.reduce(function(a,b){return a+b;},0)/lons.length):-54;
+  const zonaCalc=Math.floor((lonMed+180)/6)+1;
+  document.getElementById('incra-campos').innerHTML=
+    '<div class="g2 mb1"><div class="fg"><label class="fl">Denominação</label><input class="fc" id="incra-denominacao" value="'+(h.denominacao||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Proprietário(a)</label><input class="fc" id="incra-proprietario" value="'+(h.proprietario||'')+'"></div></div>'
+    +'<div class="g2 mb1"><div class="fg"><label class="fl">Matrícula</label><input class="fc" id="incra-matricula" value="'+(h.matricula||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Município/UF</label><input class="fc" id="incra-municipioUf" value="'+(h.municipioUf||'')+'"></div></div>'
+    +'<div class="g2 mb1"><div class="fg"><label class="fl">Código INCRA/SNCR</label><input class="fc" id="incra-codigoIncra" value="'+(h.codigoIncra||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Responsável Técnico(a)</label><input class="fc" id="incra-tecnico" value="'+(h.tecnico||'')+'"></div></div>'
+    +'<div class="g2 mb1"><div class="fg"><label class="fl">Código de credenciamento</label><input class="fc" id="incra-credenciamento" value="'+(h.credenciamento||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Documento de RT / ART'+(h.rt?'':' <span style="color:#A32D2D">(não veio no memorial — preencha)</span>')+'</label><input class="fc" id="incra-rt" value="'+(h.rt||'')+'"></div></div>'
+    +'<div class="g2 mb1"><div class="fg"><label class="fl">Área (ha)</label><input class="fc" id="incra-area" value="'+(h.area||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Perímetro (m)</label><input class="fc" id="incra-perimetro" value="'+(h.perimetro||'')+'"></div></div>'
+    +'<div class="g3 mb1"><div class="fg"><label class="fl">Datum</label><select class="fc" id="incra-datum">'+datumOptsHtml('SIRGAS2000')+'</select></div>'
+    +'<div class="fg"><label class="fl">Zona UTM</label><select class="fc" id="incra-zona">'+utmZoneOpts(zonaCalc)+'</select></div>'
+    +'<div class="fg"><label class="fl">Hemisfério</label><select class="fc" id="incra-hemis"><option value="S" selected>Sul</option><option value="N">Norte</option></select></div></div>'
+    +'<button class="btn bp2 bsm mb1" onclick="incraGerarDxf()"><i class="ti ti-download"></i> Gerar DXF (pontos + perímetro)</button>'
+    +' <button class="btn bsm mb1" onclick="incraIrParaAnuencia()"><i class="ti ti-signature"></i> Usar na Anuência de Limites</button>';
+}
+function incraRenderTabela(){
+  const rows=_incraVertices.map(function(v,i){
+    return '<tr><td><input type="checkbox" class="incra-chk" data-i="'+i+'" checked></td><td>'+v.codigo+'</td><td class="mu sm">'+v.lon+'</td><td class="mu sm">'+v.lat+'</td><td>'+v.alt+'</td><td>'+v.vante+'</td><td>'+v.azimute+'</td><td>'+v.dist+'</td><td class="mu sm">'+v.confrontacao+'</td></tr>';
+  }).join('');
+  document.getElementById('incra-tabela-wrap').innerHTML=
+    '<div class="fxb mb1"><div class="st" style="font-size:13px;margin:0">Marcos do memorial (selecione os que entram no DXF/anuência)</div>'
+    +'<div class="fx g8"><button class="btn bxs" onclick="incraMarcarTodos(true)">Marcar todos</button><button class="btn bxs" onclick="incraMarcarTodos(false)">Desmarcar todos</button></div></div>'
+    +'<div class="tw"><table><thead><tr><th></th><th>Código</th><th>Longitude</th><th>Latitude</th><th>Alt.</th><th>Vante</th><th>Azimute</th><th>Dist (m)</th><th>Confrontação</th></tr></thead><tbody id="incra-tbody">'+rows+'</tbody></table></div>';
+}
+function incraMarcarTodos(v){document.querySelectorAll('.incra-chk').forEach(function(c){c.checked=v;});}
+function incraSelecionados(){
+  const out=[];
+  document.querySelectorAll('.incra-chk').forEach(function(c){if(c.checked)out.push(_incraVertices[parseInt(c.dataset.i,10)]);});
+  return out;
+}
+function incraGerarDxf(){
+  const sel=incraSelecionados();
+  if(sel.length<3){toast('Selecione ao menos 3 marcos.',true);return;}
+  try{
+    const datum=document.getElementById('incra-datum').value;
+    const zona=parseInt(document.getElementById('incra-zona').value,10);
+    const hemisS=document.getElementById('incra-hemis').value==='S';
+    const srcDef=projDef(datum,null,false);
+    const dstDef=projDef(datum,zona,hemisS);
+    const pts=sel.map(function(v){
+      const p=proj4(srcDef,dstDef,[v.lonDec,v.latDec]);
+      return {nome:v.codigo,e:p[0],n:p[1],z:v.altDec||0};
+    });
+    const coordsPoly=pts.map(function(p){return [p.e,p.n,p.z];});
+    const first=coordsPoly[0],last=coordsPoly[coordsPoly.length-1];
+    if(first[0]!==last[0]||first[1]!==last[1]) coordsPoly.push(first);
+    const gj={type:'FeatureCollection',features:[{type:'Feature',properties:{name:'Perímetro'},geometry:{type:'Polygon',coordinates:[coordsPoly]}}].concat(pts.map(function(p){return {type:'Feature',properties:{name:p.nome},geometry:{type:'Point',coordinates:[p.e,p.n,p.z]}};}))};
+    const blob=new Blob([geojsonToDxf(gj)],{type:'application/dxf'});
+    downloadBlobGeo(blob,(_incraHeader.denominacao||'memorial').replace(/[^a-zA-Z0-9_-]+/g,'_')+'.dxf');
+    toast('DXF gerado com sucesso!');
+  }catch(e){
+    toast('Erro ao gerar DXF: '+e.message,true);
+  }
+}
+function incraIrParaAnuencia(){
+  _incraHeader.rt=document.getElementById('incra-rt').value;
+  _incraHeader.credenciamento=document.getElementById('incra-credenciamento').value;
+  _incraHeader.tecnico=document.getElementById('incra-tecnico').value;
+  _incraHeader.municipioUf=document.getElementById('incra-municipioUf').value;
+  geoTab('anuencia');
+  anuenciaCarregarDoMemorial();
+}
+
+// ── 8. Anuência de Limites ──
+var _anuObra=null,_anuVizinhoIdx=null;
+function geoAnuenciaHtml(){
+  return '<div class="card mb1">'
+    +'<div class="st mb1"><i class="ti ti-signature" style="color:var(--brand)"></i>Anuência de Limites</div>'
+    +'<div class="mu sm mb1">Use a aba "Importar Memorial INCRA" primeiro para trazer os marcos do memorial. Os vizinhos e proprietários vêm do cadastro da obra (botão "Vizinhos" na lista de Obras).</div>'
+    +'<div class="g2 mb1"><div class="fg"><label class="fl">Obra</label><select class="fc" id="anu-obra" onchange="anuenciaObraChange()"><option value="">Selecione...</option></select></div>'
+    +'<div class="fg"><label class="fl">Vizinho (Imóvel 2)</label><select class="fc" id="anu-vizinho" onchange="anuenciaVizinhoChange()"><option value="">Selecione a obra primeiro</option></select></div></div>'
+    +'<div id="anu-proprietarios" class="mb1"></div>'
+    +'<div id="anu-marcos-wrap" class="mb1"></div>'
+    +'<div class="g2 mb1"><div class="fg"><label class="fl">Nº ART / RT</label><input class="fc" id="anu-art" placeholder="Vem do memorial importado, ou digite"></div>'
+    +'<div class="fg"><label class="fl">Código de credenciamento</label><input class="fc" id="anu-credenciamento"></div></div>'
+    +'<div class="g2 mb1"><div class="fg"><label class="fl">Responsável técnico</label><input class="fc" id="anu-tecnico"></div>'
+    +'<div class="fg"><label class="fl">Local/UF (para a data)</label><input class="fc" id="anu-localuf" placeholder="Ex: Sidrolândia-MS"></div></div>'
+    +'<button class="btn bp2" id="anu-btn-gerar" onclick="anuenciaGerarDocx()" disabled><i class="ti ti-file-download"></i> Gerar Anuência (.docx)</button>'
+    +'</div>';
+}
+async function anuenciaInit(){
+  const sel=document.getElementById('anu-obra');
+  if(!sel||sel.dataset.loaded) return;
+  sel.dataset.loaded='1';
+  const{data}=await sb.from('obras').select('id,nome').order('nome');
+  sel.innerHTML='<option value="">Selecione...</option>'+(data||[]).map(function(o){return '<option value="'+o.id+'">'+o.nome+'</option>';}).join('');
+  anuenciaRenderMarcos();
+}
+async function anuenciaObraChange(){
+  const oid=document.getElementById('anu-obra').value;
+  _anuObra=null;_anuVizinhoIdx=null;
+  document.getElementById('anu-proprietarios').innerHTML='';
+  const selViz=document.getElementById('anu-vizinho');
+  if(!oid){selViz.innerHTML='<option value="">Selecione a obra primeiro</option>';anuenciaAtualizarBotao();return;}
+  const{data,error}=await sb.from('obras').select('id,nome,ccir,municipio,proprietarios,vizinhos').eq('id',oid).single();
+  if(error){toast('Erro ao carregar obra: '+error.message,true);return;}
+  _anuObra=data;
+  const vizinhos=data.vizinhos||[];
+  selViz.innerHTML='<option value="">Selecione...</option>'+vizinhos.map(function(v,i){return '<option value="'+i+'">'+v.nomeImovel+'</option>';}).join('');
+  anuenciaRenderProprietarios();
+  anuenciaAtualizarBotao();
+}
+function anuenciaRenderProprietarios(){
+  const lista=(_anuObra&&_anuObra.proprietarios)||[];
+  if(!lista.length){document.getElementById('anu-proprietarios').innerHTML='<div class="mu sm" style="color:#A32D2D">Esta obra não tem proprietários cadastrados. Use o botão "Vizinhos" na lista de Obras para cadastrar.</div>';return;}
+  document.getElementById('anu-proprietarios').innerHTML='<div class="fl mb1">Proprietário(s) que assinam (Imóvel 1)</div>'
+    +lista.map(function(p,i){return '<label style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><input type="checkbox" class="anu-prop-chk" data-i="'+i+'" checked> '+p.nome+'</label>';}).join('');
+}
+function anuenciaVizinhoChange(){
+  const idx=document.getElementById('anu-vizinho').value;
+  _anuVizinhoIdx=idx===''?null:parseInt(idx,10);
+  anuenciaAtualizarBotao();
+}
+function anuenciaCarregarDoMemorial(){
+  document.getElementById('anu-art').value=_incraHeader.rt||'';
+  document.getElementById('anu-credenciamento').value=_incraHeader.credenciamento||'';
+  document.getElementById('anu-tecnico').value=_incraHeader.tecnico||'';
+  const partes=(_incraHeader.municipioUf||'').split('-');
+  const mun=(partes[0]||'').trim(),uf=(partes[1]||'').trim();
+  document.getElementById('anu-localuf').value=mun&&uf?(mun+'-'+uf):'';
+  anuenciaRenderMarcos();
+  anuenciaAtualizarBotao();
+}
+function anuenciaRenderMarcos(){
+  if(!_incraVertices.length){document.getElementById('anu-marcos-wrap').innerHTML='<div class="mu sm">Nenhum marco importado ainda — use a aba "Importar Memorial INCRA".</div>';return;}
+  const rows=_incraVertices.map(function(v,i){
+    return '<tr><td><input type="checkbox" class="anu-marco-chk" data-i="'+i+'" checked></td><td>'+v.codigo+'</td><td>'+v.vante+'</td><td>'+v.azimute+'</td><td>'+v.dist+'</td></tr>';
+  }).join('');
+  document.getElementById('anu-marcos-wrap').innerHTML='<div class="fl mb1">Marcos a incluir na anuência (trecho de confrontação com o vizinho)</div>'
+    +'<div class="tw"><table><thead><tr><th></th><th>De</th><th>Para</th><th>Azimute</th><th>Dist(m)</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+function anuenciaAtualizarBotao(){
+  const ok=!!_anuObra&&_anuVizinhoIdx!==null&&_incraVertices.length>0;
+  const btn=document.getElementById('anu-btn-gerar');
+  if(btn) btn.disabled=!ok;
+}
+function anuenciaPessoaFrase(p,idx,total){
+  let s=idx===0?'Eu, ':(idx===total-1&&total>1?'e Eu, ':'Eu, ');
+  s+=p.nome+', '+(p.nacionalidade||'brasileiro(a)')+', '+(p.profissao||'')+', portador(a) da '+(p.docTipo==='CNH'?'CNH':p.docTipo==='CI'?'Carteira de Identidade':'Cédula de Identidade R.G.')+' n° '+(p.docNumero||'')+(p.docOrgao?' ('+p.docOrgao+')':'')+', inscrito(a) no CPF sob o n° '+(p.cpf||'')+', '+(p.estadoCivil||'solteiro(a)');
+  if(p.estadoCivil==='casado(a)'&&p.conjuge){
+    s+=(p.regimeBens?' pelo regime de '+p.regimeBens:'')+' com '+p.conjuge.nome+', '+(p.conjuge.nacionalidade||'brasileiro(a)')+', '+(p.conjuge.profissao||'')+', inscrito(a) no CPF sob o n° '+(p.conjuge.cpf||'')+' e portador(a) de documento de identidade n° '+(p.conjuge.docNumero||'')+(p.conjuge.docOrgao?', '+p.conjuge.docOrgao:'');
+  }
+  if(p.endereco) s+=', residente e domiciliado(a) em '+p.endereco;
+  return s;
+}
+function anuenciaMontarQualificacao(pessoas,nomeImovel,matricula,comarca,codigoIncra){
+  const corpo=pessoas.map(function(p,i){return anuenciaPessoaFrase(p,i,pessoas.length);}).join('; ');
+  const plural=pessoas.length>1;
+  return corpo+', '+(plural?'proprietários':'proprietário(a)')+' do imóvel denominado '+nomeImovel+', da matrícula n° '+(matricula||'—')+', da comarca de '+(comarca||'—')+(codigoIncra?', cadastrado no INCRA sob o código n° '+codigoIncra:'')+'.';
+}
+function anuenciaLinhaTabelaXml(de,para,az,dist,lon,lat,alt){
+  function tc(text,bold){
+    const rPr=bold?'<w:rPr><w:rFonts w:cs="Calibri"/><w:b/><w:bCs/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr>':'<w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr>';
+    const bd='<w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/><w:left w:val="single" w:sz="4" w:space="0" w:color="000000"/><w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/><w:right w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
+    return '<w:tc><w:tcPr><w:tcBorders>'+bd+'</w:tcBorders></w:tcPr><w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r>'+rPr+'<w:t xml:space="preserve">'+xmlEscapeGeo(text)+'</w:t></w:r></w:p></w:tc>';
+  }
+  return '<w:tr>'+tc(de,true)+tc(para,true)+tc(az,true)+tc(dist,true)+tc(lon,false)+tc(lat,false)+tc(alt,false)+'</w:tr>';
+}
+function anuenciaAssinaturaXml(pessoa,rotulo){
+  return '<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:i/><w:iCs/></w:rPr><w:t xml:space="preserve"> __________________________________</w:t></w:r></w:p>'
+    +'<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:b/><w:bCs/></w:rPr><w:t>'+xmlEscapeGeo(pessoa.nome)+'</w:t></w:r></w:p>'
+    +'<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:t>'+xmlEscapeGeo(rotulo)+'</w:t></w:r></w:p>'
+    +'<w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>';
+}
+function xmlRunsFromText(text){
+  return '<w:r><w:t xml:space="preserve">'+xmlEscapeGeo(text)+'</w:t></w:r>';
+}
+async function anuenciaGerarDocx(){
+  if(!_anuObra||_anuVizinhoIdx===null){toast('Selecione a obra e o vizinho.',true);return;}
+  const art=document.getElementById('anu-art').value;
+  if(!art){toast('Informe o número do RT/ART antes de gerar.',true);return;}
+  const propsSelecionados=[];
+  document.querySelectorAll('.anu-prop-chk').forEach(function(c){if(c.checked)propsSelecionados.push(_anuObra.proprietarios[parseInt(c.dataset.i,10)]);});
+  if(!propsSelecionados.length){toast('Selecione ao menos um proprietário.',true);return;}
+  const vizinho=_anuObra.vizinhos[_anuVizinhoIdx];
+  if(!vizinho.pessoas||!vizinho.pessoas.length){toast('Este vizinho não tem pessoas cadastradas.',true);return;}
+  const marcosSelecionados=[];
+  document.querySelectorAll('.anu-marco-chk').forEach(function(c){if(c.checked)marcosSelecionados.push(_incraVertices[parseInt(c.dataset.i,10)]);});
+  if(!marcosSelecionados.length){toast('Selecione ao menos um marco.',true);return;}
+  try{
+    const loc1=parseMunicipio(_anuObra.municipio);
+    const quali1Texto=anuenciaMontarQualificacao(propsSelecionados,_anuObra.nome,_anuObra.ccir,loc1.mun,_incraHeader.codigoIncra);
+    const quali2Texto=anuenciaMontarQualificacao(vizinho.pessoas,vizinho.nomeImovel,vizinho.matricula,vizinho.comarca,vizinho.codigoIncra);
+    const linhasXml=marcosSelecionados.map(function(v){return anuenciaLinhaTabelaXml(v.codigo,v.vante,v.azimute,v.dist,v.lon,v.lat,v.alt);}).join('');
+    const somaDist=marcosSelecionados.reduce(function(s,v){return s+(v.distDec||0);},0);
+    const assinaturas1Xml=propsSelecionados.map(function(p){return anuenciaAssinaturaXml(p,'(proprietário(a) Imóvel 1'+(p.percentual?' – '+p.percentual+'%':'')+')');}).join('');
+    const assinaturas2Xml=vizinho.pessoas.map(function(p){return anuenciaAssinaturaXml(p,'(proprietário(a) Imóvel 2'+(p.percentual?' – '+p.percentual+'%':'')+')');}).join('');
+    const zonaEl=document.getElementById('incra-zona'),hemisEl=document.getElementById('incra-hemis');
+    const zonaSgl=zonaEl?('SIRGAS 2000 Fuso '+zonaEl.value+(hemisEl.value==='S'?'S':'N')):'SIRGAS 2000';
+    const meses=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+    const d=new Date();
+    const vals={
+      ZONA_SGL:zonaSgl,
+      TOTAL_MARCOS:String(marcosSelecionados.length),
+      SOMA_DIST:somaDist.toFixed(2).replace('.',',')+' m',
+      TECNICO_NOME:document.getElementById('anu-tecnico').value,
+      CODIGO_CREDENCIAMENTO:document.getElementById('anu-credenciamento').value,
+      NUMERO_ART:art,
+      LOCAL_UF:document.getElementById('anu-localuf').value,
+      DATA_EXTENSO:d.getDate()+' de '+meses[d.getMonth()]+' de '+d.getFullYear()
+    };
+    const resp=await fetch('templates/anuencia_modelo.docx');
+    if(!resp.ok) throw new Error('Template não encontrado (templates/anuencia_modelo.docx).');
+    const buf=await resp.arrayBuffer();
+    const zip=await JSZip.loadAsync(buf);
+    let xml=await zip.file('word/document.xml').async('string');
+    Object.keys(vals).forEach(function(k){
+      const re=new RegExp('\\{\\{'+k+'\\}\\}','g');
+      xml=xml.replace(re,function(){return xmlEscapeGeo(vals[k]);});
+    });
+    xml=xml.replace('{{QUALIFICACAO_IMOVEL1_XML}}',function(){return xmlRunsFromText(quali1Texto);});
+    xml=xml.replace('{{QUALIFICACAO_IMOVEL2_XML}}',function(){return xmlRunsFromText(quali2Texto);});
+    xml=xml.replace('<!--LINHAS_TABELA_XML-->',function(){return linhasXml;});
+    xml=xml.replace('<!--ASSINATURAS_IMOVEL1_XML-->',function(){return assinaturas1Xml;});
+    xml=xml.replace('<!--ASSINATURAS_IMOVEL2_XML-->',function(){return assinaturas2Xml;});
+    zip.file('word/document.xml',xml);
+    const blob=await zip.generateAsync({type:'blob'});
+    downloadBlobGeo(blob,'Anuencia_'+(_anuObra.nome||'obra').replace(/[^a-zA-Z0-9_-]+/g,'_')+'.docx');
+    toast('Anuência gerada com sucesso!');
+  }catch(e){
+    toast('Erro ao gerar anuência: '+e.message,true);
+  }
 }
 
 // ── 4. Pontos → Arquivo (DXF/KML/SHP, opcionalmente como perímetro fechado) ──
