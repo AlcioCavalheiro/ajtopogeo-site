@@ -6634,6 +6634,19 @@ function reprojectGeoJSON(gj,srcDef,dstDef){
   }
   return {type:'FeatureCollection',features:(gj.features||[]).map(function(f){return {type:'Feature',properties:f.properties,geometry:reprojGeom(f.geometry)};})};
 }
+function validarCoordsWgs84(gj){
+  let valido=true;
+  function checarCoord(c){if(!isFinite(c[0])||!isFinite(c[1])||Math.abs(c[0])>180||Math.abs(c[1])>90) valido=false;}
+  function checarGeom(g){
+    if(!g) return;
+    if(g.type==='Point') checarCoord(g.coordinates);
+    else if(g.type==='MultiPoint'||g.type==='LineString') g.coordinates.forEach(checarCoord);
+    else if(g.type==='Polygon'||g.type==='MultiLineString') g.coordinates.forEach(function(r){r.forEach(checarCoord);});
+    else if(g.type==='MultiPolygon') g.coordinates.forEach(function(poly){poly.forEach(function(r){r.forEach(checarCoord);});});
+  }
+  (gj.features||[]).forEach(function(f){checarGeom(f.geometry);});
+  if(!valido) throw new Error('Coordenadas fora da faixa válida de latitude/longitude após a reprojeção — confira se o Datum, a Zona UTM e o Hemisfério selecionados correspondem ao arquivo de origem.');
+}
 
 const GEO_TABS=[
   {k:'conv',ic:'ti-file-export',lb:'Conversor de Arquivos'},
@@ -6757,6 +6770,7 @@ async function converterArquivo(){
       blob=new Blob([geojsonToDxf(gj)],{type:'application/dxf'});
       filename=_convFileName+'.dxf';
     } else if(destino==='shp'){
+      validarCoordsWgs84(gj);
       blob=await shpwrite.zip(gj,{outputType:'blob'});
       filename=_convFileName+'.zip';
     }
@@ -7649,6 +7663,7 @@ async function gerarArquivoPontos(){
       filename=(fechar?'perimetro':'pontos')+'.dxf';
     } else if(destino==='shp'){
       const gjWgs=reprojectGeoJSON(gj,projDef(datum,zona,hemisS),projDef('WGS84',null,false));
+      validarCoordsWgs84(gjWgs);
       blob=await shpwrite.zip(gjWgs,{outputType:'blob'});
       filename=(fechar?'perimetro':'pontos')+'.zip';
     }
@@ -7946,6 +7961,7 @@ async function carGerarShape(){
     const hemisS=document.getElementById('car-hemis').value==='S';
     const gj={type:'FeatureCollection',features:[{type:'Feature',properties:props,geometry:_carGeoJSON.geometry}]};
     const gjWgs=reprojectGeoJSON(gj,projDef(datum,zona,hemisS),projDef('WGS84',null,false));
+    validarCoordsWgs84(gjWgs);
     const blob=await shpwrite.zip(gjWgs,{outputType:'blob'});
     downloadBlobGeo(blob,'CAR_classe_'+classe+'.zip');
     toast('Shapefile gerado com sucesso!');
