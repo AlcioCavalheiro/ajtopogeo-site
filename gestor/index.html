@@ -10,6 +10,12 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/proj4@2.9.2/dist/proj4.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dxf-parser@1.1.2/dist/dxf-parser.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tmcw/togeojson@5.8.1/dist/togeojson.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/shpjs@4.0.4/dist/shp.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="gestor-assets.js" defer></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -328,6 +334,8 @@ select.fc{cursor:pointer}
       <div class="ni" onclick="nav('nfe')"><i class="ti ti-receipt"></i>Notas Fiscais</div>
       <div class="ni" onclick="nav('dre')"><i class="ti ti-chart-bar"></i>DRE / Resultado</div>
       <div class="ni" onclick="nav('passivo')"><i class="ti ti-scale"></i>Passivo / Obrigações</div>
+      <div class="ng">Ferramentas</div>
+      <div class="ni" onclick="nav('geoferramentas')"><i class="ti ti-map-2"></i>Ferramentas Geo</div>
       <div class="ng">Empresa</div>
       <div class="ni" onclick="nav('rotinas')"><i class="ti ti-rotate"></i>Rotinas Recorrentes</div>
       <div class="ni" onclick="nav('administrativo')"><i class="ti ti-building"></i>Administrativo</div>
@@ -479,6 +487,7 @@ const PCFG={
   impostos:{t:'Registrar Imposto',tb:'impostos',h:function(o){return '<div class="g2"><div class="fg"><label class="fl">Tipo *</label><select class="fc" id="f-tipo"><option>Simples Nacional (DAS)</option><option>INSS</option><option>IRPJ/CSLL</option><option>FGTS</option><option>ISS</option><option>IRRF</option><option>Outro</option></select></div><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor"></div></div><div class="fg"><label class="fl">Descrição</label><input class="fc" id="f-descricao" placeholder="Ex: DAS Simples Nacional Maio/2026"></div><div class="fg"><label class="fl">OS Vinculada</label><select class="fc" id="f-os_id"><option value="">Sem OS — distribuir entre todas do mês</option>'+o.oOpts+'</select></div><div class="g2"><div class="fg"><label class="fl">Data pagamento</label><input class="fc" type="date" id="f-data"></div><div class="fg"><label class="fl">Período ref.</label><input class="fc" id="f-periodo_ref" placeholder="Maio/2026"></div></div><div class="fg"><label class="fl">PDF do comprovante</label><div id="imp-upload-area" class="upload-area" onclick="document.getElementById(\'imp-file-input\').click()"><i class="ti ti-file-upload"></i><p>Clique ou arraste o PDF aqui</p></div><div id="imp-file-preview" style="display:none"></div><input type="file" id="imp-file-input" accept=".pdf" style="display:none" onchange="handleFileSelect(this,\'imp\')"><input type="hidden" id="f-arquivo_url" value=""></div>';}},
   medicao:{t:'Nova Medição',tb:'medicoes',h:function(o){return '<div class="fg"><label class="fl">Descrição *</label><input class="fc" id="f-descricao" placeholder="Ex: Medição 01 — Jardim Monaco Maio/2026"></div><div class="g2"><div class="fg"><label class="fl">Cliente</label><select class="fc" id="f-cliente_id"><option value="">Selecione...</option>'+o.cOpts+'</select></div><div class="fg"><label class="fl">OS Vinculada</label><select class="fc" id="f-os_id"><option value="">Sem OS</option>'+o.oOpts+'</select></div></div><div class="g2"><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor"></div><div class="fg"><label class="fl">% Executado</label><input class="fc" type="number" min="0" max="100" id="f-perc_executado" placeholder="0-100"></div></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option>Fechar Medição</option><option>Gerar NF</option><option>Falta Pagamento</option><option>Recebido</option></select></div><div class="fg"><label class="fl">Observações</label><textarea class="fc" id="f-obs" rows="2"></textarea></div>';}},
   nfe:{t:'Nova Nota Fiscal',tb:'notas_fiscais',h:function(o){return '<div class="g2"><div class="fg"><label class="fl">Número NF *</label><input class="fc" id="f-numero" placeholder="Ex: 240"></div><div class="fg"><label class="fl">Cliente</label><select class="fc" id="f-cliente_id"><option value="">Selecione...</option>'+o.cOpts+'</select></div></div><div class="g2"><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor" oninput="calcISS()"></div><div class="fg"><label class="fl">Alíq. ISS (%)</label><input class="fc" type="number" step="0.01" id="f-aliquota_iss" value="5" oninput="calcISS()"></div></div><div class="g2"><div class="fg"><label class="fl">Valor ISS (R$)</label><input class="fc" type="number" step="0.01" id="f-valor_iss" readonly style="background:#f4f4f0"></div><div class="fg"><label class="fl">OS Vinculada</label><select class="fc" id="f-os_id"><option value="">Sem OS</option>'+o.oOpts+'</select></div></div><div class="g2"><div class="fg"><label class="fl">Data emissão</label><input class="fc" type="date" id="f-data_emissao"></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option>Pendente</option><option>Emitida</option><option>Cancelada</option></select></div></div><div class="fg"><label class="fl">PDF da NF</label><div id="nf-upload-area" class="upload-area" onclick="document.getElementById(\'nf-file-input\').click()"><i class="ti ti-file-upload"></i><p>Clique ou arraste o PDF da NF aqui</p></div><div id="nf-file-preview" style="display:none"></div><input type="file" id="nf-file-input" accept=".pdf" style="display:none" onchange="handleFileSelect(this,\'nf\')"><input type="hidden" id="f-arquivo_url" value=""></div>';}},
+  geoferramentas:{t:'Ferramentas Geo',a:null},
   dre:{t:'DRE / Resultado',a:null},
   passivo:{t:'Passivo / Obrigações',a:null},
   folha:{t:'Folha / Pró-labore',a:'Lançar Pró-labore'},
@@ -536,7 +545,7 @@ function nav(page){
   document.getElementById('pt').textContent=cfg.t;
   const ba=document.getElementById('ba');
   if(cfg.a){ba.style.display='flex';document.getElementById('bal').textContent=cfg.a;}else ba.style.display='none';
-  const _semBusca=new Set(['dashboard','agenda','dre','medicao','pipeline','pendencias','relatorios','config']);
+  const _semBusca=new Set(['dashboard','agenda','dre','medicao','pipeline','pendencias','relatorios','config','geoferramentas']);
   const siWrap=document.querySelector('.sb2');
   const si=document.getElementById('si');
   si.value='';
@@ -6305,6 +6314,923 @@ async function rObras(){
   si.oninput=function(){if(CP==='obras')_renderObrasTabela(_obrasCache,this.value.trim());};
 }
 pageMap.obras=rObras;
+
+// ─── FERRAMENTAS GEO (conversor de arquivos, coordenadas e extração de pontos) ──
+const GEO_DATUMS={
+  WGS84:{label:'WGS84',ellps:'WGS84',towgs84:null},
+  SIRGAS2000:{label:'SIRGAS2000',ellps:'GRS80',towgs84:null},
+  SAD69:{label:'SAD69 (pós-1994, IBGE R.PR 01/05)',ellps:'aust_SA',towgs84:'-67.35,3.88,-38.22,0,0,0,0'},
+  CORREGO:{label:'Córrego Alegre',ellps:'intl',towgs84:'-205.57,168.77,-4.12,0,0,0,0'}
+};
+function projDef(datumKey,utmZone,hemisS){
+  const d=GEO_DATUMS[datumKey]||GEO_DATUMS.SIRGAS2000;
+  let s='+proj='+(utmZone?('utm +zone='+utmZone+(hemisS?' +south':'')):'longlat')+' +ellps='+d.ellps;
+  if(d.towgs84) s+=' +towgs84='+d.towgs84;
+  s+=' +units=m +no_defs';
+  return s;
+}
+function datumOptsHtml(defKey){
+  return Object.keys(GEO_DATUMS).map(function(k){return '<option value="'+k+'"'+(k===defKey?' selected':'')+'>'+GEO_DATUMS[k].label+'</option>';}).join('');
+}
+function utmZoneOpts(sel){
+  let o='';
+  for(let z=17;z<=25;z++){o+='<option value="'+z+'"'+(z===sel?' selected':'')+'>'+z+'</option>';}
+  return o;
+}
+function downloadBlobGeo(blob,filename){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download=filename;
+  document.body.appendChild(a);a.click();
+  setTimeout(function(){URL.revokeObjectURL(url);document.body.removeChild(a);},2000);
+}
+function downloadText(content,filename){
+  downloadBlobGeo(new Blob([content],{type:'text/plain;charset=utf-8'}),filename);
+}
+function parseDMS(str){
+  str=String(str||'').trim();
+  if(!str) return NaN;
+  let hemis=null;
+  const hm=str.match(/([NSEOW])\s*$/i);
+  if(hm){hemis=hm[1].toUpperCase();str=str.slice(0,hm.index).trim();}
+  str=str.replace(',','.');
+  const m=str.match(/(-?\d+(?:\.\d+)?)[°ºd\s]+(\d+(?:\.\d+)?)['m\s]+(\d+(?:\.\d+)?)/i);
+  let dec;
+  if(m){
+    const g=parseFloat(m[1]),mi=parseFloat(m[2]),se=parseFloat(m[3]);
+    dec=Math.abs(g)+mi/60+se/3600;
+    if(g<0) dec=-dec;
+  } else {
+    dec=parseFloat(str);
+  }
+  if(isNaN(dec)) return NaN;
+  if(hemis==='S'||hemis==='O'||hemis==='W') dec=-Math.abs(dec);
+  return dec;
+}
+function decToDMS(dec,isLat){
+  if(isNaN(dec)) return '';
+  const sign=dec<0?-1:1;dec=Math.abs(dec);
+  const g=Math.floor(dec);const mf=(dec-g)*60;const mi=Math.floor(mf);const se=(mf-mi)*60;
+  const hemi=isLat?(sign<0?'S':'N'):(sign<0?'W':'E');
+  return g+'°'+mi+"'"+se.toFixed(3)+'"'+hemi;
+}
+function dxfToGeoJSON(dxf){
+  const features=[];
+  (dxf.entities||[]).forEach(function(en){
+    if(en.type==='POINT'&&en.position){
+      features.push({type:'Feature',properties:{},geometry:{type:'Point',coordinates:[en.position.x,en.position.y,en.position.z||0]}});
+    } else if((en.type==='LWPOLYLINE'||en.type==='POLYLINE'||en.type==='LINE')&&en.vertices&&en.vertices.length){
+      const coords=en.vertices.map(function(v){return [v.x,v.y,v.z||0];});
+      const closed=!!(en.shape||en.closed||(en.flags&&(en.flags&1)));
+      if(closed&&coords.length>2){
+        const first=coords[0],last=coords[coords.length-1];
+        if(first[0]!==last[0]||first[1]!==last[1]) coords.push(first);
+        features.push({type:'Feature',properties:{},geometry:{type:'Polygon',coordinates:[coords]}});
+      } else {
+        features.push({type:'Feature',properties:{},geometry:{type:'LineString',coordinates:coords}});
+      }
+    }
+  });
+  return {type:'FeatureCollection',features:features};
+}
+function geojsonToKml(gj){
+  const placemarks=(gj.features||[]).map(function(f,i){
+    const g=f.geometry;if(!g) return '';
+    const nome=(f.properties&&(f.properties.name||f.properties.NOME||f.properties.Name))||('Feature '+(i+1));
+    let geomKml='';
+    if(g.type==='Point'){
+      geomKml='<Point><coordinates>'+g.coordinates.slice(0,3).join(',')+'</coordinates></Point>';
+    } else if(g.type==='LineString'){
+      geomKml='<LineString><coordinates>'+g.coordinates.map(function(c){return c.join(',');}).join(' ')+'</coordinates></LineString>';
+    } else if(g.type==='Polygon'){
+      const ring=g.coordinates[0].map(function(c){return c.join(',');}).join(' ');
+      geomKml='<Polygon><outerBoundaryIs><LinearRing><coordinates>'+ring+'</coordinates></LinearRing></outerBoundaryIs></Polygon>';
+    } else if(g.type==='MultiPoint'){
+      geomKml='<MultiGeometry>'+g.coordinates.map(function(c){return '<Point><coordinates>'+c.join(',')+'</coordinates></Point>';}).join('')+'</MultiGeometry>';
+    } else if(g.type==='MultiLineString'){
+      geomKml='<MultiGeometry>'+g.coordinates.map(function(part){return '<LineString><coordinates>'+part.map(function(c){return c.join(',');}).join(' ')+'</coordinates></LineString>';}).join('')+'</MultiGeometry>';
+    } else if(g.type==='MultiPolygon'){
+      geomKml='<MultiGeometry>'+g.coordinates.map(function(poly){return '<Polygon><outerBoundaryIs><LinearRing><coordinates>'+poly[0].map(function(c){return c.join(',');}).join(' ')+'</coordinates></LinearRing></outerBoundaryIs></Polygon>';}).join('')+'</MultiGeometry>';
+    }
+    if(!geomKml) return '';
+    return '<Placemark><name>'+nome+'</name>'+geomKml+'</Placemark>';
+  }).join('');
+  return '<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document>'+placemarks+'</Document></kml>';
+}
+function dxfEntityPoint(x,y,z){
+  return '0\nPOINT\n8\n0\n10\n'+x+'\n20\n'+y+'\n30\n'+(z||0)+'\n';
+}
+function dxfEntityPolyline(coords,closed){
+  let s='0\nPOLYLINE\n8\n0\n66\n1\n70\n'+(closed?1:0)+'\n';
+  coords.forEach(function(c){s+='0\nVERTEX\n8\n0\n10\n'+c[0]+'\n20\n'+c[1]+'\n30\n'+(c[2]||0)+'\n';});
+  s+='0\nSEQEND\n';
+  return s;
+}
+function geojsonToDxf(gj){
+  let entities='';
+  (gj.features||[]).forEach(function(f){
+    const g=f.geometry;if(!g) return;
+    if(g.type==='Point') entities+=dxfEntityPoint(g.coordinates[0],g.coordinates[1],g.coordinates[2]);
+    else if(g.type==='MultiPoint') g.coordinates.forEach(function(c){entities+=dxfEntityPoint(c[0],c[1],c[2]);});
+    else if(g.type==='LineString') entities+=dxfEntityPolyline(g.coordinates,false);
+    else if(g.type==='MultiLineString') g.coordinates.forEach(function(c){entities+=dxfEntityPolyline(c,false);});
+    else if(g.type==='Polygon') g.coordinates.forEach(function(ring){entities+=dxfEntityPolyline(ring,true);});
+    else if(g.type==='MultiPolygon') g.coordinates.forEach(function(poly){poly.forEach(function(ring){entities+=dxfEntityPolyline(ring,true);});});
+  });
+  return '0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n'+entities+'0\nENDSEC\n0\nEOF\n';
+}
+function reprojectGeoJSON(gj,srcDef,dstDef){
+  function reprojCoord(c){const p=proj4(srcDef,dstDef,[c[0],c[1]]);return c.length>2?[p[0],p[1],c[2]]:p;}
+  function reprojGeom(g){
+    if(g.type==='Point') return {type:g.type,coordinates:reprojCoord(g.coordinates)};
+    if(g.type==='MultiPoint'||g.type==='LineString') return {type:g.type,coordinates:g.coordinates.map(reprojCoord)};
+    if(g.type==='Polygon'||g.type==='MultiLineString') return {type:g.type,coordinates:g.coordinates.map(function(r){return r.map(reprojCoord);})};
+    if(g.type==='MultiPolygon') return {type:g.type,coordinates:g.coordinates.map(function(poly){return poly.map(function(r){return r.map(reprojCoord);});})};
+    return g;
+  }
+  return {type:'FeatureCollection',features:(gj.features||[]).map(function(f){return {type:'Feature',properties:f.properties,geometry:reprojGeom(f.geometry)};})};
+}
+
+const GEO_TABS=[
+  {k:'conv',ic:'ti-file-export',lb:'Conversor de Arquivos'},
+  {k:'coord',ic:'ti-map-pin',lb:'Conversor de Coordenadas'},
+  {k:'pts',ic:'ti-list-numbers',lb:'Extrair Pontos DXF'},
+  {k:'gerar',ic:'ti-vector-triangle',lb:'Pontos → Arquivo'},
+  {k:'memorial',ic:'ti-file-description',lb:'Memorial Descritivo'},
+  {k:'carshp',ic:'ti-leaf',lb:'Shape para CAR'}
+];
+function rGeoFerramentasFixed(){
+  const el=document.getElementById('ct');if(!el)return;
+  el.innerHTML='<div class="tabs" id="geo-tabs" style="margin-bottom:1rem">'
+    +GEO_TABS.map(function(t,i){return '<div class="tab'+(i===0?' active':'')+'" onclick="geoTab(\''+t.k+'\')" id="geo-tab-'+t.k+'"><i class="ti '+t.ic+'" style="font-size:13px"></i> '+t.lb+'</div>';}).join('')
+    +'</div>'
+    +'<div id="geo-conv">'+geoConvHtml()+'</div>'
+    +'<div id="geo-coord" style="display:none">'+geoCoordHtml()+'</div>'
+    +'<div id="geo-pts" style="display:none">'+geoPtsHtml()+'</div>'
+    +'<div id="geo-gerar" style="display:none">'+geoGerarHtml()+'</div>'
+    +'<div id="geo-memorial" style="display:none">'+geoMemorialHtml()+'</div>'
+    +'<div id="geo-carshp" style="display:none">'+geoCarShpHtml()+'</div>';
+  coordUpdateUI();
+  memorialInit();
+}
+pageMap.geoferramentas=rGeoFerramentasFixed;
+function geoTab(tab){
+  GEO_TABS.forEach(function(t){
+    document.getElementById('geo-'+t.k).style.display=t.k===tab?'':'none';
+    document.getElementById('geo-tab-'+t.k).classList.toggle('active',t.k===tab);
+  });
+}
+
+// ── 1. Conversor de Arquivos ──
+var _convGeoJSON=null,_convFileName='arquivo',_convInputExt='';
+function geoConvHtml(){
+  return '<div class="card mb1">'
+    +'<div class="st mb1"><i class="ti ti-file-export" style="color:var(--brand)"></i>Conversor KML / Shapefile / DXF</div>'
+    +'<div class="mu sm mb1" style="background:#FFF8E7;border-radius:8px;padding:.6rem .9rem;color:#854F0B"><i class="ti ti-alert-triangle"></i> DWG não é suportado diretamente (formato fechado da Autodesk). Use DXF — o AutoCAD abre normalmente.</div>'
+    +'<div class="fg mb1"><label class="fl">Arquivo de entrada (.kml, .zip de shapefile, .dxf)</label>'
+    +'<input class="fc" type="file" id="conv-file" accept=".kml,.zip,.dxf" onchange="convArquivoSelecionado(this)"></div>'
+    +'<div id="conv-info" class="mu sm mb1" style="display:none"></div>'
+    +'<div class="fg mb1"><label class="fl">Converter para</label><select class="fc" id="conv-destino" onchange="convToggleCRS()"><option value="kml">KML</option><option value="shp">Shapefile (.zip)</option><option value="dxf">DXF</option></select></div>'
+    +'<div class="mu sm mb1" id="conv-crs-hint" style="display:none;color:#185FA5">Arquivos DXF usam coordenadas projetadas (UTM), não graus. Informe o sistema de coordenadas do DXF para a conversão ficar correta:</div>'
+    +'<div class="g3 mb1" id="conv-crs" style="display:none">'
+    +'<div class="fg"><label class="fl">Datum</label><select class="fc" id="conv-datum">'+datumOptsHtml('SIRGAS2000')+'</select></div>'
+    +'<div class="fg"><label class="fl">Zona UTM</label><select class="fc" id="conv-zona">'+utmZoneOpts(21)+'</select></div>'
+    +'<div class="fg"><label class="fl">Hemisfério</label><select class="fc" id="conv-hemis"><option value="S" selected>Sul</option><option value="N">Norte</option></select></div>'
+    +'</div>'
+    +'<button class="btn bp2" id="conv-btn" onclick="converterArquivo()" disabled><i class="ti ti-transform"></i> Converter e baixar</button>'
+    +'</div>';
+}
+function convToggleCRS(){
+  const destino=document.getElementById('conv-destino').value;
+  const show=(_convInputExt==='dxf'||destino==='dxf');
+  document.getElementById('conv-crs').style.display=show?'':'none';
+  document.getElementById('conv-crs-hint').style.display=show?'':'none';
+}
+async function convArquivoSelecionado(input){
+  const file=input.files[0];
+  document.getElementById('conv-btn').disabled=true;
+  _convGeoJSON=null;_convInputExt='';
+  const info=document.getElementById('conv-info');
+  if(!file){info.style.display='none';convToggleCRS();return;}
+  _convFileName=file.name.replace(/\.[^.]+$/,'');
+  const ext=file.name.toLowerCase().split('.').pop();
+  _convInputExt=ext;
+  info.style.display='block';info.innerHTML='Lendo arquivo...';
+  try{
+    let gj;
+    if(ext==='kml'){
+      const text=await file.text();
+      const xml=new DOMParser().parseFromString(text,'text/xml');
+      gj=toGeoJSON.kml(xml);
+    } else if(ext==='zip'){
+      const buf=await file.arrayBuffer();
+      gj=await shp(buf);
+      if(Array.isArray(gj)) gj=gj[0];
+    } else if(ext==='dxf'){
+      const text=await file.text();
+      const parser=new DxfParser();
+      const dxf=parser.parse(text);
+      gj=dxfToGeoJSON(dxf);
+    } else {
+      throw new Error('Formato não suportado. Use .kml, .zip (shapefile) ou .dxf');
+    }
+    const nFeat=(gj.features||[]).length;
+    if(!nFeat) throw new Error('Nenhuma geometria encontrada no arquivo.');
+    _convGeoJSON=gj;
+    info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> '+nFeat+' geometria(s) lida(s) com sucesso.</span>';
+    document.getElementById('conv-btn').disabled=false;
+  }catch(e){
+    info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Erro ao ler arquivo: '+e.message+'</span>';
+  }
+  convToggleCRS();
+}
+function converterArquivo(){
+  if(!_convGeoJSON){toast('Selecione um arquivo válido primeiro.',true);return;}
+  const destino=document.getElementById('conv-destino').value;
+  let gj=_convGeoJSON;
+  try{
+    const datum=document.getElementById('conv-datum').value;
+    const zona=parseInt(document.getElementById('conv-zona').value,10);
+    const hemisS=document.getElementById('conv-hemis').value==='S';
+    if(_convInputExt==='dxf'&&destino!=='dxf'){
+      gj=reprojectGeoJSON(gj,projDef(datum,zona,hemisS),projDef('WGS84',null,false));
+    }
+    if(destino==='dxf'&&_convInputExt!=='dxf'){
+      gj=reprojectGeoJSON(gj,projDef('WGS84',null,false),projDef(datum,zona,hemisS));
+    }
+    let blob,filename;
+    if(destino==='kml'){
+      blob=new Blob([geojsonToKml(gj)],{type:'application/vnd.google-earth.kml+xml'});
+      filename=_convFileName+'.kml';
+    } else if(destino==='dxf'){
+      blob=new Blob([geojsonToDxf(gj)],{type:'application/dxf'});
+      filename=_convFileName+'.dxf';
+    } else if(destino==='shp'){
+      const buf=shpwrite.zip(gj);
+      blob=new Blob([buf],{type:'application/zip'});
+      filename=_convFileName+'.zip';
+    }
+    downloadBlobGeo(blob,filename);
+    toast('Arquivo convertido com sucesso!');
+  }catch(e){
+    toast('Erro na conversão: '+e.message,true);
+  }
+}
+
+// ── 2. Conversor de Coordenadas ──
+var _coordRows=[{nome:'P1',a:'',b:'',z:''}];
+var _coordRowsArquivo=[];
+var _coordArquivoTexto='';
+var _coordUltimoResultado=[];
+function geoCoordHtml(){
+  return '<div class="card mb1">'
+    +'<div class="st mb1"><i class="ti ti-map-pin" style="color:var(--brand)"></i>Conversor de Coordenadas</div>'
+    +'<div class="tabs" id="coord-subtabs" style="margin-bottom:1rem">'
+    +'<div class="tab active" onclick="coordModo(\'manual\')" id="coord-tab-manual"><i class="ti ti-keyboard" style="font-size:13px"></i> Entrada Manual</div>'
+    +'<div class="tab" onclick="coordModo(\'arquivo\')" id="coord-tab-arquivo"><i class="ti ti-file-upload" style="font-size:13px"></i> Arquivo TXT</div>'
+    +'</div>'
+    +coordConfigHtml()
+    +'<div id="coord-manual">'+coordManualHtml()+'</div>'
+    +'<div id="coord-arquivo" style="display:none">'+coordArquivoHtml()+'</div>'
+    +'</div>';
+}
+function coordConfigHtml(){
+  return '<div class="card mb1" style="background:#F4F8FF">'
+    +'<div class="g2 mb1">'
+    +'<div class="fg"><label class="fl">Formato de entrada</label><select class="fc" id="coord-fmt-in" onchange="coordUpdateUI()"><option value="dec">Decimal</option><option value="dms">GMS (Graus, Min, Seg)</option><option value="utm">UTM</option></select></div>'
+    +'<div class="fg"><label class="fl">Datum / sistema de origem</label><select class="fc" id="coord-datum-in">'+datumOptsHtml('SIRGAS2000')+'</select></div>'
+    +'</div>'
+    +'<div class="g2 mb1" id="coord-zona-in-wrap" style="display:none">'
+    +'<div class="fg"><label class="fl">Zona UTM origem</label><select class="fc" id="coord-zona-in">'+utmZoneOpts(21)+'</select></div>'
+    +'<div class="fg"><label class="fl">Hemisfério origem</label><select class="fc" id="coord-hemis-in"><option value="S" selected>Sul</option><option value="N">Norte</option></select></div>'
+    +'</div>'
+    +'<div class="g2 mb1">'
+    +'<div class="fg"><label class="fl">Formato de saída</label><select class="fc" id="coord-fmt-out" onchange="coordUpdateUI()"><option value="dec">Decimal</option><option value="dms">GMS</option><option value="utm" selected>UTM</option></select></div>'
+    +'<div class="fg"><label class="fl">Datum / sistema de destino</label><select class="fc" id="coord-datum-out">'+datumOptsHtml('SIRGAS2000')+'</select></div>'
+    +'</div>'
+    +'<div class="g2 mb1" id="coord-zona-out-wrap">'
+    +'<div class="fg"><label class="fl">Zona UTM destino</label><select class="fc" id="coord-zona-out">'+utmZoneOpts(21)+'</select></div>'
+    +'<div class="fg"><label class="fl">Hemisfério destino</label><select class="fc" id="coord-hemis-out"><option value="S" selected>Sul</option><option value="N">Norte</option></select></div>'
+    +'</div>'
+    +'<div class="mu sm" style="color:#854F0B"><i class="ti ti-info-circle"></i> A altitude/cota (Z), se informada, é apenas repassada — sem transformação de datum altimétrico.</div>'
+    +'</div>';
+}
+function coordUpdateUI(){
+  const fmtInEl=document.getElementById('coord-fmt-in'),fmtOutEl=document.getElementById('coord-fmt-out');
+  if(!fmtInEl) return;
+  const fmtIn=fmtInEl.value,fmtOut=fmtOutEl.value;
+  document.getElementById('coord-zona-in-wrap').style.display=fmtIn==='utm'?'':'none';
+  document.getElementById('coord-zona-out-wrap').style.display=fmtOut==='utm'?'':'none';
+  renderCoordRows();
+}
+function coordModo(modo){
+  document.getElementById('coord-manual').style.display=modo==='manual'?'':'none';
+  document.getElementById('coord-arquivo').style.display=modo==='arquivo'?'':'none';
+  document.getElementById('coord-tab-manual').classList.toggle('active',modo==='manual');
+  document.getElementById('coord-tab-arquivo').classList.toggle('active',modo==='arquivo');
+}
+function coordManualHtml(){
+  return '<div class="tw mb1"><table id="coord-manual-table"><thead><tr><th>Nome</th><th id="coord-th-a">Lat / N</th><th id="coord-th-b">Lon / E</th><th>Z (opcional)</th><th></th></tr></thead><tbody id="coord-manual-tbody">'+renderCoordRowsHtml()+'</tbody></table></div>'
+    +'<button class="btn bsm mb1" onclick="addCoordRow()"><i class="ti ti-plus"></i> Adicionar linha</button>'
+    +'<div><button class="btn bp2" onclick="converterCoordenadas(\'manual\')"><i class="ti ti-transform"></i> Converter</button></div>'
+    +'<div id="coord-resultado-manual" class="mt1"></div>';
+}
+function renderCoordRowsHtml(){
+  return _coordRows.map(function(r,i){
+    return '<tr>'
+      +'<td><input class="fc" value="'+(r.nome||'')+'" oninput="updateCoordRow('+i+',\'nome\',this.value)"></td>'
+      +'<td><input class="fc" value="'+(r.a||'')+'" oninput="updateCoordRow('+i+',\'a\',this.value)"></td>'
+      +'<td><input class="fc" value="'+(r.b||'')+'" oninput="updateCoordRow('+i+',\'b\',this.value)"></td>'
+      +'<td><input class="fc" value="'+(r.z||'')+'" oninput="updateCoordRow('+i+',\'z\',this.value)"></td>'
+      +'<td><button class="btn bxs bdr" onclick="removeCoordRow('+i+')"><i class="ti ti-trash"></i></button></td>'
+      +'</tr>';
+  }).join('');
+}
+function updateCoordRow(i,field,val){if(_coordRows[i])_coordRows[i][field]=val;}
+function addCoordRow(){_coordRows.push({nome:'P'+(_coordRows.length+1),a:'',b:'',z:''});renderCoordRows();}
+function removeCoordRow(i){_coordRows.splice(i,1);renderCoordRows();}
+function renderCoordRows(){
+  const tb=document.getElementById('coord-manual-tbody');if(tb)tb.innerHTML=renderCoordRowsHtml();
+  const thA=document.getElementById('coord-th-a'),thB=document.getElementById('coord-th-b');
+  const fmtIn=document.getElementById('coord-fmt-in')?document.getElementById('coord-fmt-in').value:'dec';
+  if(thA)thA.textContent=fmtIn==='utm'?'Norte (N)':'Latitude';
+  if(thB)thB.textContent=fmtIn==='utm'?'Leste (E)':'Longitude';
+}
+function coordArquivoHtml(){
+  return '<div class="g2 mb1">'
+    +'<div class="fg"><label class="fl">Arquivo TXT</label><input class="fc" type="file" id="coord-file" accept=".txt,.csv" onchange="coordArquivoLido(this)"></div>'
+    +'<div class="fg"><label class="fl">Delimitador</label><select class="fc" id="coord-delim"><option value=",">Vírgula (,)</option><option value=";" selected>Ponto e vírgula (;)</option><option value="tab">Tabulação</option><option value="space">Espaço</option></select></div>'
+    +'</div>'
+    +'<div class="fg mb1"><label class="fl">Ordem das colunas no arquivo (use NOME, COORD_A, COORD_B, Z separados por vírgula)</label>'
+    +'<input class="fc" id="coord-colorder" value="NOME,COORD_A,COORD_B,Z" placeholder="Ex: NOME,COORD_A,COORD_B,Z"></div>'
+    +'<div class="mu sm mb1">COORD_A = Latitude/Norte · COORD_B = Longitude/Leste (conforme o formato de entrada escolhido acima). Omita Z da lista se o arquivo não tiver cota.</div>'
+    +'<button class="btn bsm mb1" onclick="coordProcessarArquivo()"><i class="ti ti-table"></i> Carregar linhas</button>'
+    +'<div id="coord-preview-arquivo" class="mb1"></div>'
+    +'<div><button class="btn bp2" onclick="converterCoordenadas(\'arquivo\')"><i class="ti ti-transform"></i> Converter</button></div>'
+    +'<div id="coord-resultado-arquivo" class="mt1"></div>';
+}
+function coordArquivoLido(input){
+  const file=input.files[0];if(!file)return;
+  file.text().then(function(t){_coordArquivoTexto=t;toast('Arquivo lido. Clique em "Carregar linhas".');});
+}
+function coordProcessarArquivo(){
+  if(!_coordArquivoTexto){toast('Selecione um arquivo TXT primeiro.',true);return;}
+  const delimSel=document.getElementById('coord-delim').value;
+  const order=document.getElementById('coord-colorder').value.split(',').map(function(s){return s.trim().toUpperCase();}).filter(Boolean);
+  const splitFn=function(line){
+    if(delimSel==='tab') return line.split('\t');
+    if(delimSel==='space') return line.split(/\s+/);
+    return line.split(delimSel);
+  };
+  const linhas=_coordArquivoTexto.split(/\r?\n/).map(function(l){return l.trim();}).filter(Boolean);
+  _coordRowsArquivo=linhas.map(function(l){
+    const cols=splitFn(l).map(function(c){return c.trim();});
+    const rec={nome:'',a:'',b:'',z:''};
+    order.forEach(function(tok,idx){
+      const v=cols[idx]!==undefined?cols[idx]:'';
+      if(tok==='NOME')rec.nome=v;
+      else if(tok==='COORD_A')rec.a=v;
+      else if(tok==='COORD_B')rec.b=v;
+      else if(tok==='Z')rec.z=v;
+    });
+    return rec;
+  });
+  document.getElementById('coord-preview-arquivo').innerHTML='<div class="mu sm" style="color:#27500A"><i class="ti ti-check"></i> '+_coordRowsArquivo.length+' linha(s) carregada(s).</div>';
+}
+function coordGetConfig(){
+  return {
+    fmtIn:document.getElementById('coord-fmt-in').value,
+    datumIn:document.getElementById('coord-datum-in').value,
+    zonaIn:parseInt(document.getElementById('coord-zona-in').value,10),
+    hemisInS:document.getElementById('coord-hemis-in').value==='S',
+    fmtOut:document.getElementById('coord-fmt-out').value,
+    datumOut:document.getElementById('coord-datum-out').value,
+    zonaOut:parseInt(document.getElementById('coord-zona-out').value,10),
+    hemisOutS:document.getElementById('coord-hemis-out').value==='S'
+  };
+}
+function coordConverterRows(rows){
+  const cfg=coordGetConfig();
+  const srcDef=projDef(cfg.datumIn,cfg.fmtIn==='utm'?cfg.zonaIn:null,cfg.hemisInS);
+  const dstDef=projDef(cfg.datumOut,cfg.fmtOut==='utm'?cfg.zonaOut:null,cfg.hemisOutS);
+  return rows.map(function(r){
+    let lon,lat;
+    if(cfg.fmtIn==='utm'){lon=parseFloat(String(r.b).replace(',','.'));lat=parseFloat(String(r.a).replace(',','.'));}
+    else if(cfg.fmtIn==='dms'){lat=parseDMS(r.a);lon=parseDMS(r.b);}
+    else {lat=parseFloat(String(r.a).replace(',','.'));lon=parseFloat(String(r.b).replace(',','.'));}
+    if(isNaN(lon)||isNaN(lat)) return {nome:r.nome,erro:'Coordenada inválida'};
+    let p;
+    try{p=proj4(srcDef,dstDef,[lon,lat]);}catch(e){return {nome:r.nome,erro:'Erro: '+e.message};}
+    let outA,outB;
+    if(cfg.fmtOut==='utm'){outB=p[0].toFixed(3);outA=p[1].toFixed(3);}
+    else if(cfg.fmtOut==='dms'){outA=decToDMS(p[1],true);outB=decToDMS(p[0],false);}
+    else {outA=p[1].toFixed(8);outB=p[0].toFixed(8);}
+    return {nome:r.nome,a:outA,b:outB,z:r.z||''};
+  });
+}
+function converterCoordenadas(modo){
+  const rows=modo==='manual'?_coordRows:_coordRowsArquivo;
+  if(!rows||!rows.length){toast('Nenhuma coordenada para converter.',true);return;}
+  const resultado=coordConverterRows(rows);
+  _coordUltimoResultado=resultado;
+  const fmtOut=document.getElementById('coord-fmt-out').value;
+  const labelA=fmtOut==='utm'?'Norte (N)':'Latitude',labelB=fmtOut==='utm'?'Leste (E)':'Longitude';
+  const rowsHtml=resultado.map(function(r){
+    if(r.erro) return '<tr><td>'+r.nome+'</td><td colspan="3" style="color:#A32D2D">'+r.erro+'</td></tr>';
+    return '<tr><td>'+r.nome+'</td><td>'+r.a+'</td><td>'+r.b+'</td><td>'+(r.z||'—')+'</td></tr>';
+  }).join('');
+  const html='<div class="tw mb1"><table><thead><tr><th>Nome</th><th>'+labelA+'</th><th>'+labelB+'</th><th>Z</th></tr></thead><tbody>'+rowsHtml+'</tbody></table></div>'
+    +'<button class="btn bp2" onclick="coordBaixarTxt()"><i class="ti ti-download"></i> Baixar TXT</button>';
+  document.getElementById(modo==='manual'?'coord-resultado-manual':'coord-resultado-arquivo').innerHTML=html;
+}
+function coordBaixarTxt(){
+  if(!_coordUltimoResultado.length){toast('Nada para baixar.',true);return;}
+  const linhas=_coordUltimoResultado.map(function(r){
+    if(r.erro) return r.nome+';ERRO;'+r.erro;
+    return [r.nome,r.a,r.b,r.z||''].join(';');
+  });
+  downloadText(linhas.join('\r\n'),'coordenadas_convertidas.txt');
+}
+
+// ── 3. Extrair Pontos de DXF ──
+var _ptsDxfEntities=[];
+var _ptsLinhasGeradas=[];
+function geoPtsHtml(){
+  return '<div class="card mb1">'
+    +'<div class="st mb1"><i class="ti ti-list-numbers" style="color:var(--brand)"></i>Extrair Pontos de DXF para TXT</div>'
+    +'<div class="fg mb1"><label class="fl">Arquivo DXF</label><input class="fc" type="file" id="pts-file" accept=".dxf" onchange="ptsArquivoSelecionado(this)"></div>'
+    +'<div id="pts-info" class="mu sm mb1" style="display:none"></div>'
+    +'<div class="g3 mb1">'
+    +'<div class="fg"><label class="fl">Prefixo do nome</label><input class="fc" id="pts-prefixo" placeholder="Ex: M, P, V..." value="P"></div>'
+    +'<div class="fg"><label class="fl">Número inicial</label><input class="fc" type="number" id="pts-inicio" value="1"></div>'
+    +'<div class="fg"><label class="fl">Código</label><input class="fc" id="pts-codigo" placeholder="Ex: PONTOS" value="PONTOS"></div>'
+    +'</div>'
+    +'<div class="g2 mb1">'
+    +'<div class="fg"><label class="fl">Formato de saída (ordem das colunas)</label><select class="fc" id="pts-formato" onchange="ptsToggleCustom()">'
+    +'<option value="NOME,CODIGO,E,N,Z">NOME,CODIGO,E,N,Z</option>'
+    +'<option value="NOME,E,N,Z">NOME,E,N,Z</option>'
+    +'<option value="CODIGO,E,N,Z,NOME">CODIGO,E,N,Z,NOME</option>'
+    +'<option value="E,N,Z">E,N,Z</option>'
+    +'<option value="custom">Personalizado...</option>'
+    +'</select></div>'
+    +'<div class="fg"><label class="fl">Delimitador</label><select class="fc" id="pts-delim"><option value=",">Vírgula (,)</option><option value=";" selected>Ponto e vírgula (;)</option><option value="tab">Tabulação</option><option value="space">Espaço</option></select></div>'
+    +'</div>'
+    +'<div class="fg mb1" id="pts-formato-custom-wrap" style="display:none"><label class="fl">Ordem personalizada (use NOME, CODIGO, E, N, Z)</label><input class="fc" id="pts-formato-custom" value="NOME,CODIGO,E,N,Z"></div>'
+    +'<div class="g2 mb1">'
+    +'<div class="fg"><label class="fl">Separador decimal</label><select class="fc" id="pts-decsep"><option value=".">Ponto (.)</option><option value=",">Vírgula (,)</option></select></div>'
+    +'<div class="fg"><label class="fl">Casas decimais</label><input class="fc" type="number" id="pts-precisao" value="3" min="0" max="8"></div>'
+    +'</div>'
+    +'<button class="btn bsm mb1" onclick="ptsGerarPreview()"><i class="ti ti-table"></i> Gerar pré-visualização</button>'
+    +'<div id="pts-preview" class="mb1"></div>'
+    +'<button class="btn bp2" id="pts-btn-baixar" onclick="ptsBaixarTxt()" disabled><i class="ti ti-download"></i> Baixar TXT</button>'
+    +'</div>';
+}
+function ptsToggleCustom(){
+  const v=document.getElementById('pts-formato').value;
+  document.getElementById('pts-formato-custom-wrap').style.display=v==='custom'?'':'none';
+}
+function ptsArquivoSelecionado(input){
+  const file=input.files[0];
+  const info=document.getElementById('pts-info');
+  _ptsDxfEntities=[];_ptsLinhasGeradas=[];
+  document.getElementById('pts-btn-baixar').disabled=true;
+  document.getElementById('pts-preview').innerHTML='';
+  if(!file){info.style.display='none';return;}
+  info.style.display='block';info.innerHTML='Lendo DXF...';
+  file.text().then(function(text){
+    try{
+      const parser=new DxfParser();
+      const dxf=parser.parse(text);
+      _ptsDxfEntities=(dxf.entities||[]).filter(function(en){return en.type==='POINT'&&en.position;});
+      if(!_ptsDxfEntities.length) throw new Error('Nenhuma entidade POINT encontrada no DXF.');
+      info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> '+_ptsDxfEntities.length+' ponto(s) encontrado(s), na ordem em que aparecem no arquivo.</span>';
+    }catch(e){
+      info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Erro: '+e.message+'</span>';
+    }
+  });
+}
+function ptsGerarPreview(){
+  if(!_ptsDxfEntities.length){toast('Selecione um DXF com pontos primeiro.',true);return;}
+  const prefixo=document.getElementById('pts-prefixo').value||'';
+  const inicio=parseInt(document.getElementById('pts-inicio').value,10)||1;
+  const codigo=document.getElementById('pts-codigo').value||'';
+  const decsep=document.getElementById('pts-decsep').value;
+  const precisao=parseInt(document.getElementById('pts-precisao').value,10);
+  const fmtSel=document.getElementById('pts-formato').value;
+  const ordem=(fmtSel==='custom'?document.getElementById('pts-formato-custom').value:fmtSel).split(',').map(function(s){return s.trim().toUpperCase();}).filter(Boolean);
+  const delimSel=document.getElementById('pts-delim').value;
+  const delim=delimSel==='tab'?'\t':(delimSel==='space'?' ':delimSel);
+  const fmtNum=function(n){
+    let s=n.toFixed(precisao);
+    if(decsep===',') s=s.replace('.',',');
+    return s;
+  };
+  const pontos=_ptsDxfEntities.map(function(en,i){
+    return {nome:prefixo+(inicio+i),codigo:codigo,e:en.position.x,n:en.position.y,z:en.position.z||0};
+  });
+  _ptsLinhasGeradas=pontos.map(function(p){
+    return ordem.map(function(tok){
+      if(tok==='NOME')return p.nome;
+      if(tok==='CODIGO')return p.codigo;
+      if(tok==='E')return fmtNum(p.e);
+      if(tok==='N')return fmtNum(p.n);
+      if(tok==='Z')return fmtNum(p.z);
+      return '';
+    }).join(delim);
+  });
+  const rowsHtml=pontos.slice(0,50).map(function(p){return '<tr><td>'+p.nome+'</td><td>'+p.codigo+'</td><td>'+fmtNum(p.e)+'</td><td>'+fmtNum(p.n)+'</td><td>'+fmtNum(p.z)+'</td></tr>';}).join('');
+  document.getElementById('pts-preview').innerHTML='<div class="tw"><table><thead><tr><th>Nome</th><th>Código</th><th>E</th><th>N</th><th>Z</th></tr></thead><tbody>'+rowsHtml+'</tbody></table></div>'
+    +(pontos.length>50?'<div class="mu sm">Mostrando 50 de '+pontos.length+' pontos. O TXT terá todos.</div>':'');
+  document.getElementById('pts-btn-baixar').disabled=false;
+}
+function ptsBaixarTxt(){
+  if(!_ptsLinhasGeradas.length){toast('Gere a pré-visualização primeiro.',true);return;}
+  downloadText(_ptsLinhasGeradas.join('\r\n'),'pontos_extraidos.txt');
+}
+
+// ── 4. Pontos → Arquivo (DXF/KML/SHP, opcionalmente como perímetro fechado) ──
+var _gerarPontosTexto='';
+function geoGerarHtml(){
+  return '<div class="card mb1">'
+    +'<div class="st mb1"><i class="ti ti-vector-triangle" style="color:var(--brand)"></i>Gerar Arquivo a partir de Pontos (TXT)</div>'
+    +'<div class="g2 mb1">'
+    +'<div class="fg"><label class="fl">Arquivo TXT de pontos</label><input class="fc" type="file" id="ger-file" accept=".txt,.csv" onchange="gerArquivoLido(this)"></div>'
+    +'<div class="fg"><label class="fl">Delimitador</label><select class="fc" id="ger-delim"><option value=",">Vírgula (,)</option><option value=";" selected>Ponto e vírgula (;)</option><option value="tab">Tabulação</option><option value="space">Espaço</option></select></div>'
+    +'</div>'
+    +'<div class="fg mb1"><label class="fl">Ordem das colunas no arquivo</label><input class="fc" id="ger-colorder" value="NOME,E,N,Z" placeholder="Ex: NOME,E,N,Z"></div>'
+    +'<div id="ger-info" class="mu sm mb1" style="display:none"></div>'
+    +'<label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:.75rem"><input type="checkbox" id="ger-perimetro" style="width:16px;height:16px;accent-color:var(--brand)"> <span class="fl" style="margin:0">Ligar como perímetro (liga os pontos em sequência e fecha o último no primeiro)</span></label>'
+    +'<div class="g3 mb1">'
+    +'<div class="fg"><label class="fl">Datum dos pontos</label><select class="fc" id="ger-datum">'+datumOptsHtml('SIRGAS2000')+'</select></div>'
+    +'<div class="fg"><label class="fl">Zona UTM</label><select class="fc" id="ger-zona">'+utmZoneOpts(21)+'</select></div>'
+    +'<div class="fg"><label class="fl">Hemisfério</label><select class="fc" id="ger-hemis"><option value="S" selected>Sul</option><option value="N">Norte</option></select></div>'
+    +'</div>'
+    +'<div class="fg mb1"><label class="fl">Converter para</label><select class="fc" id="ger-destino"><option value="kml">KML</option><option value="shp">Shapefile (.zip)</option><option value="dxf">DXF</option></select></div>'
+    +'<button class="btn bp2" id="ger-btn" onclick="gerarArquivoPontos()" disabled><i class="ti ti-download"></i> Gerar e baixar</button>'
+    +'</div>';
+}
+function gerArquivoLido(input){
+  const file=input.files[0];if(!file)return;
+  document.getElementById('ger-btn').disabled=true;
+  file.text().then(function(t){
+    _gerarPontosTexto=t;
+    const info=document.getElementById('ger-info');
+    info.style.display='block';
+    info.innerHTML='Arquivo lido. Clique em "Gerar e baixar".';
+    document.getElementById('ger-btn').disabled=false;
+  });
+}
+function gerLerPontos(){
+  const delimSel=document.getElementById('ger-delim').value;
+  const order=document.getElementById('ger-colorder').value.split(',').map(function(s){return s.trim().toUpperCase();}).filter(Boolean);
+  const splitFn=function(line){
+    if(delimSel==='tab') return line.split('\t');
+    if(delimSel==='space') return line.split(/\s+/);
+    return line.split(delimSel);
+  };
+  const linhas=_gerarPontosTexto.split(/\r?\n/).map(function(l){return l.trim();}).filter(Boolean);
+  return linhas.map(function(l){
+    const cols=splitFn(l).map(function(c){return c.trim();});
+    const rec={nome:'',e:NaN,n:NaN,z:0};
+    order.forEach(function(tok,idx){
+      const v=cols[idx]!==undefined?cols[idx]:'';
+      if(tok==='NOME')rec.nome=v;
+      else if(tok==='E')rec.e=parseFloat(v.replace(',','.'));
+      else if(tok==='N')rec.n=parseFloat(v.replace(',','.'));
+      else if(tok==='Z')rec.z=parseFloat(v.replace(',','.'))||0;
+    });
+    return rec;
+  });
+}
+function gerarArquivoPontos(){
+  if(!_gerarPontosTexto){toast('Selecione um arquivo TXT primeiro.',true);return;}
+  try{
+    const pontos=gerLerPontos();
+    if(!pontos.length||pontos.some(function(p){return isNaN(p.e)||isNaN(p.n);})) throw new Error('Não foi possível ler as coordenadas de todos os pontos — confira a ordem das colunas.');
+    const fechar=document.getElementById('ger-perimetro').checked;
+    const datum=document.getElementById('ger-datum').value;
+    const zona=parseInt(document.getElementById('ger-zona').value,10);
+    const hemisS=document.getElementById('ger-hemis').value==='S';
+    const destino=document.getElementById('ger-destino').value;
+    let gj;
+    if(fechar){
+      const coords=pontos.map(function(p){return [p.e,p.n,p.z||0];});
+      const first=coords[0],last=coords[coords.length-1];
+      if(first[0]!==last[0]||first[1]!==last[1]) coords.push(first);
+      gj={type:'FeatureCollection',features:[{type:'Feature',properties:{name:'Perímetro'},geometry:{type:'Polygon',coordinates:[coords]}}]};
+    } else {
+      gj={type:'FeatureCollection',features:pontos.map(function(p){return {type:'Feature',properties:{name:p.nome},geometry:{type:'Point',coordinates:[p.e,p.n,p.z||0]}};})};
+    }
+    let blob,filename;
+    if(destino==='kml'){
+      gj=reprojectGeoJSON(gj,projDef(datum,zona,hemisS),projDef('WGS84',null,false));
+      blob=new Blob([geojsonToKml(gj)],{type:'application/vnd.google-earth.kml+xml'});
+      filename=(fechar?'perimetro':'pontos')+'.kml';
+    } else if(destino==='dxf'){
+      blob=new Blob([geojsonToDxf(gj)],{type:'application/dxf'});
+      filename=(fechar?'perimetro':'pontos')+'.dxf';
+    } else if(destino==='shp'){
+      const buf=shpwrite.zip(gj);
+      blob=new Blob([buf],{type:'application/zip'});
+      filename=(fechar?'perimetro':'pontos')+'.zip';
+    }
+    downloadBlobGeo(blob,filename);
+    toast('Arquivo gerado com sucesso!');
+  }catch(e){
+    toast('Erro: '+e.message,true);
+  }
+}
+
+// ── 5. Memorial Descritivo ──
+var _memClientes=[],_memObras=[],_memVertices=[],_memTexto='';
+function geoMemorialHtml(){
+  return '<div class="card mb1">'
+    +'<div class="st mb1"><i class="ti ti-file-description" style="color:var(--brand)"></i>Memorial Descritivo</div>'
+    +'<div class="g2 mb1">'
+    +'<div class="fg"><label class="fl">Cliente</label><select class="fc" id="mem-cliente" onchange="memorialClienteChange()"><option value="">Selecione...</option></select></div>'
+    +'<div class="fg"><label class="fl">Obra</label><select class="fc" id="mem-obra" onchange="memorialObraChange()"><option value="">Selecione o cliente primeiro</option></select></div>'
+    +'</div>'
+    +'<div class="g3 mb1">'
+    +'<div class="fg"><label class="fl">Imóvel</label><input class="fc" id="mem-imovel"></div>'
+    +'<div class="fg"><label class="fl">Proprietário</label><input class="fc" id="mem-proprietario"></div>'
+    +'<div class="fg"><label class="fl">Comarca</label><input class="fc" id="mem-comarca"></div>'
+    +'</div>'
+    +'<div class="g3 mb1">'
+    +'<div class="fg"><label class="fl">Local (município)</label><input class="fc" id="mem-local"></div>'
+    +'<div class="fg"><label class="fl">UF</label><input class="fc" id="mem-uf"></div>'
+    +'<div class="fg"><label class="fl">Bairro</label><input class="fc" id="mem-bairro" value="ZONA RURAL"></div>'
+    +'</div>'
+    +'<div class="g2 mb1">'
+    +'<div class="fg"><label class="fl">Matrículas</label><input class="fc" id="mem-matriculas"></div>'
+    +'<div class="fg"><label class="fl">Localização descritiva</label><input class="fc" id="mem-localizacao" placeholder="na rodovia MS-258, zona rural do município de..."></div>'
+    +'</div>'
+    +'<div class="g3 mb1">'
+    +'<div class="fg"><label class="fl">Área (ha)</label><input class="fc" id="mem-area"></div>'
+    +'<div class="fg"><label class="fl">Perímetro (m)</label><input class="fc" id="mem-perimetro"></div>'
+    +'<div class="fg"><label class="fl">Datum das coordenadas</label><select class="fc" id="mem-datum">'+datumOptsHtml('SIRGAS2000')+'</select></div>'
+    +'</div>'
+    +'<div class="g2 mb1">'
+    +'<div class="fg"><label class="fl">Arquivo TXT dos vértices (nome_do_marco,E,N,Z,Confrontante)</label><input class="fc" type="file" id="mem-file" accept=".txt,.csv" onchange="memorialArquivoLido(this)"></div>'
+    +'<div class="fg"><label class="fl">Delimitador</label><select class="fc" id="mem-delim"><option value=",">Vírgula (,)</option><option value=";" selected>Ponto e vírgula (;)</option><option value="tab">Tabulação</option></select></div>'
+    +'</div>'
+    +'<div class="mu sm mb1">O confrontante deve incluir o artigo (ex: "a Rodovia MS-258", "o Córrego Vertente Clara"), pois entra exatamente assim na frase "confrontando com ...".</div>'
+    +'<div id="mem-info" class="mu sm mb1" style="display:none"></div>'
+    +'<button class="btn bsm mb1" onclick="memorialCalcular()"><i class="ti ti-calculator"></i> Calcular perímetro e área</button>'
+    +'<div id="mem-preview" class="mb1"></div>'
+    +'<div class="card mb1" style="background:#F4F8FF">'
+    +'<div class="st mb1" style="font-size:13px"><i class="ti ti-signature"></i> Assinatura</div>'
+    +'<div class="g2 mb1">'
+    +'<div class="fg"><label class="fl">Responsável técnico</label><input class="fc" id="mem-resp-nome" value="'+((EMPRESA&&EMPRESA.resp_nome)||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Título profissional</label><input class="fc" id="mem-resp-cargo" value="Técnico em Agrimensura"></div>'
+    +'</div>'
+    +'<div class="g2"><div class="fg"><label class="fl">CFT</label><input class="fc" id="mem-cft" value="'+((EMPRESA&&EMPRESA.cft)?('CFT n° '+EMPRESA.cft):'')+'"></div>'
+    +'<div class="fg"><label class="fl">Credenciamento</label><input class="fc" id="mem-credenciamento" placeholder="Ex: INCRA FUOH"></div></div>'
+    +'</div>'
+    +'<div class="mu sm mb1" style="color:#854F0B"><i class="ti ti-alert-triangle"></i> O memorial gerado segue o modelo padrão da empresa; revise no Word a frase de abertura do vértice inicial e outros detalhes finos antes de protocolar.</div>'
+    +'<button class="btn bp2" id="mem-btn-gerar" onclick="memorialGerarDocx()" disabled><i class="ti ti-file-download"></i> Gerar Memorial (.docx)</button>'
+    +'</div>';
+}
+async function memorialInit(){
+  const sel=document.getElementById('mem-cliente');
+  if(!sel||sel.dataset.loaded) return;
+  sel.dataset.loaded='1';
+  try{
+    const {data}=await sb.from('clientes').select('id,nome').eq('ativo',true).order('nome');
+    _memClientes=data||[];
+    sel.innerHTML='<option value="">Selecione...</option>'+_memClientes.map(function(c){return '<option value="'+c.id+'">'+c.nome+'</option>';}).join('');
+  }catch(e){}
+}
+async function memorialClienteChange(){
+  const cid=document.getElementById('mem-cliente').value;
+  const selObra=document.getElementById('mem-obra');
+  if(!cid){selObra.innerHTML='<option value="">Selecione o cliente primeiro</option>';return;}
+  selObra.innerHTML='<option value="">Carregando...</option>';
+  const {data}=await sb.from('obras').select('*').eq('cliente_id',cid).order('nome');
+  _memObras=data||[];
+  selObra.innerHTML='<option value="">Selecione...</option>'+_memObras.map(function(o){return '<option value="'+o.id+'">'+o.nome+'</option>';}).join('');
+  const cli=_memClientes.find(function(c){return String(c.id)===String(cid);});
+  document.getElementById('mem-proprietario').value=cli?cli.nome:'';
+}
+function memorialObraChange(){
+  const oid=document.getElementById('mem-obra').value;
+  const obra=_memObras.find(function(o){return String(o.id)===String(oid);});
+  if(!obra) return;
+  document.getElementById('mem-imovel').value=obra.nome||'';
+  const loc=parseMunicipio(obra.municipio);
+  document.getElementById('mem-local').value=loc.mun||'';
+  document.getElementById('mem-uf').value=loc.uf||'';
+  document.getElementById('mem-comarca').value=loc.mun||'';
+  document.getElementById('mem-matriculas').value=obra.ccir||'';
+  document.getElementById('mem-area').value=obra.area_ha?String(obra.area_ha).replace('.',','):'';
+}
+function memorialArquivoLido(input){
+  const file=input.files[0];if(!file)return;
+  file.text().then(function(t){_memTexto=t;toast('Arquivo lido. Clique em "Calcular perímetro e área".');});
+}
+function memorialLerVertices(){
+  const delimSel=document.getElementById('mem-delim').value;
+  const delim=delimSel==='tab'?'\t':delimSel;
+  const linhas=_memTexto.split(/\r?\n/).map(function(l){return l.trim();}).filter(Boolean);
+  return linhas.map(function(l){
+    const c=l.split(delim).map(function(x){return x.trim();});
+    return {nome:c[0]||'',e:parseFloat((c[1]||'').replace(',','.')),n:parseFloat((c[2]||'').replace(',','.')),z:parseFloat((c[3]||'').replace(',','.'))||0,confrontante:c[4]||''};
+  });
+}
+function memorialCalcular(){
+  if(!_memTexto){toast('Selecione o arquivo TXT dos vértices primeiro.',true);return;}
+  try{
+    const v=memorialLerVertices();
+    if(v.length<3||v.some(function(p){return isNaN(p.e)||isNaN(p.n);})) throw new Error('São necessários ao menos 3 vértices com coordenadas válidas.');
+    _memVertices=v;
+    let perim=0;
+    for(let i=0;i<v.length;i++){
+      const a=v[i],b=v[(i+1)%v.length];
+      perim+=Math.hypot(b.e-a.e,b.n-a.n);
+    }
+    let area2=0;
+    for(let i=0;i<v.length;i++){
+      const a=v[i],b=v[(i+1)%v.length];
+      area2+=(a.e*b.n-b.e*a.n);
+    }
+    const areaHa=Math.abs(area2)/2/10000;
+    document.getElementById('mem-perimetro').value=perim.toFixed(2).replace('.',',');
+    document.getElementById('mem-area').value=areaHa.toFixed(4).replace('.',',');
+    document.getElementById('mem-preview').innerHTML='<div class="tw"><table><thead><tr><th>Nome</th><th>E</th><th>N</th><th>Z</th><th>Confrontante</th></tr></thead><tbody>'
+      +v.map(function(p){return '<tr><td>'+p.nome+'</td><td>'+p.e+'</td><td>'+p.n+'</td><td>'+p.z+'</td><td>'+p.confrontante+'</td></tr>';}).join('')
+      +'</tbody></table></div>';
+    document.getElementById('mem-btn-gerar').disabled=false;
+    toast('Perímetro e área calculados.');
+  }catch(e){
+    toast('Erro: '+e.message,true);
+  }
+}
+function xmlEscapeGeo(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function fmtCoordBR(n){
+  return isNaN(n)?'':n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function memorialDataExtenso(){
+  const meses=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+  const d=new Date();
+  const local=document.getElementById('mem-local').value||'';
+  const uf=document.getElementById('mem-uf').value||'';
+  return local+' - '+uf+', '+d.getDate()+' de '+meses[d.getMonth()]+' de '+d.getFullYear()+'.';
+}
+function memorialBuildPerimetroRunsXml(vertices){
+  const boldRun=function(t){return '<w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:b/><w:bCs/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve">'+xmlEscapeGeo(t)+'</w:t></w:r>';};
+  const normalRun=function(t){return '<w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/><w:sz w:val="24"/><w:szCs w:val="24"/></w:rPr><w:t xml:space="preserve">'+xmlEscapeGeo(t)+'</w:t></w:r>';};
+  let xml=normalRun('Inicia-se no vértice ');
+  for(let i=0;i<vertices.length;i++){
+    const v=vertices[i];
+    xml+=boldRun(v.nome);
+    if(i<vertices.length-1){
+      xml+=normalRun(', definido pelas coordenadas '+(i===0?'UTM ':'')+'(E) = '+fmtCoordBR(v.e)+' m e (N) = '+fmtCoordBR(v.n)+' m, confrontando com '+v.confrontante+', até o vértice ');
+    } else {
+      xml+=normalRun(', definido pelas coordenadas (E) = '+fmtCoordBR(v.e)+' m e (N) = '+fmtCoordBR(v.n)+' m, confrontando com '+v.confrontante+', até o vértice inicial ');
+      xml+=boldRun(vertices[0].nome);
+      xml+=normalRun(', fechando-se, assim, o perímetro.');
+    }
+  }
+  return xml;
+}
+async function memorialGerarDocx(){
+  if(!_memVertices.length){toast('Calcule o perímetro e a área primeiro.',true);return;}
+  try{
+    const vals={
+      IMOVEL:document.getElementById('mem-imovel').value,
+      PROPRIETARIO:document.getElementById('mem-proprietario').value,
+      COMARCA:document.getElementById('mem-comarca').value,
+      LOCAL:document.getElementById('mem-local').value,
+      UF:document.getElementById('mem-uf').value,
+      MATRICULAS:document.getElementById('mem-matriculas').value,
+      BAIRRO:document.getElementById('mem-bairro').value,
+      AREA_HA:document.getElementById('mem-area').value+' ha',
+      PERIMETRO_M:document.getElementById('mem-perimetro').value+' m',
+      LOCALIZACAO_DESCRITIVA:document.getElementById('mem-localizacao').value,
+      DATUM:(GEO_DATUMS[document.getElementById('mem-datum').value]||{}).label||'',
+      DATA_LOCAL_EXTENSO:memorialDataExtenso(),
+      RESP_NOME:document.getElementById('mem-resp-nome').value,
+      RESP_CARGO:document.getElementById('mem-resp-cargo').value,
+      CFT:document.getElementById('mem-cft').value,
+      CREDENCIAMENTO:document.getElementById('mem-credenciamento').value
+    };
+    const perimetroRunsXml=memorialBuildPerimetroRunsXml(_memVertices);
+    const resp=await fetch('templates/memorial_modelo.docx');
+    if(!resp.ok) throw new Error('Template não encontrado (templates/memorial_modelo.docx).');
+    const buf=await resp.arrayBuffer();
+    const zip=await JSZip.loadAsync(buf);
+    let xml=await zip.file('word/document.xml').async('string');
+    Object.keys(vals).forEach(function(k){
+      const re=new RegExp('\\{\\{'+k+'\\}\\}','g');
+      xml=xml.replace(re,function(){return xmlEscapeGeo(vals[k]);});
+    });
+    xml=xml.replace('{{PERIMETRO_RUNS_XML}}',function(){return perimetroRunsXml;});
+    zip.file('word/document.xml',xml);
+    const blob=await zip.generateAsync({type:'blob'});
+    downloadBlobGeo(blob,'Memorial_Descritivo_'+(vals.IMOVEL||'imovel').replace(/[^a-zA-Z0-9_-]+/g,'_')+'.docx');
+    toast('Memorial gerado com sucesso!');
+  }catch(e){
+    toast('Erro ao gerar memorial: '+e.message,true);
+  }
+}
+
+// ── 6. Shape para CAR ──
+const SEMAC_CLASSES=[
+  {v:'101',l:'101 - Área Total do Imóvel'},
+  {v:'102',l:'102 - Área do Imóvel Certificada pelo INCRA'},
+  {v:'103',l:'103 - Remanescente de Vegetação Nativa'},
+  {v:'111',l:'111 - Reserva Particular de Patrimônio Natural'},
+  {v:'113',l:'113 - Área de Pousio'},
+  {v:'114',l:'114 - Área de Pastagem Nativa'},
+  {v:'115',l:'115 - Sede do Imóvel'},
+  {v:'120',l:'120 - Curso d’Água Efêmero'},
+  {v:'121',l:'121 - Curso d’Água Perene/Intermitente < 10 m'},
+  {v:'122',l:'122 - Curso d’Água Perene/Intermitente 10 a 50 m'},
+  {v:'123',l:'123 - Curso d’Água Perene/Intermitente 50 a 200 m'},
+  {v:'124',l:'124 - Curso d’Água Perene/Intermitente 200 a 600 m'},
+  {v:'125',l:'125 - Curso d’Água Perene/Intermitente > 600 m'},
+  {v:'140',l:'140 - Remanescente Proposto p/ Reserva Legal'},
+  {v:'142',l:'142 - Reserva Legal Averbada em Matrícula'}
+];
+var _carGeoJSON=null;
+function geoCarShpHtml(){
+  return '<div class="card mb1">'
+    +'<div class="st mb1"><i class="ti ti-leaf" style="color:var(--brand)"></i>Gerar Shapefile para o CAR (Res. SEMAC n° 12/2014)</div>'
+    +'<div class="mu sm mb1" style="background:#FFF8E7;border-radius:8px;padding:.6rem .9rem;color:#854F0B"><i class="ti ti-alert-triangle"></i> O shape gerado contém apenas a geometria e o atributo CLASSE (sem legendas, hachuras ou outras feições gráficas), conforme exige a norma.</div>'
+    +'<div class="fg mb1"><label class="fl">Arquivo DXF do perímetro</label><input class="fc" type="file" id="car-file" accept=".dxf" onchange="carArquivoSelecionado(this)"></div>'
+    +'<div id="car-info" class="mu sm mb1" style="display:none"></div>'
+    +'<div class="g3 mb1">'
+    +'<div class="fg"><label class="fl">Datum do DXF</label><select class="fc" id="car-datum">'+datumOptsHtml('SIRGAS2000')+'</select></div>'
+    +'<div class="fg"><label class="fl">Zona UTM</label><select class="fc" id="car-zona">'+utmZoneOpts(21)+'</select></div>'
+    +'<div class="fg"><label class="fl">Hemisfério</label><select class="fc" id="car-hemis"><option value="S" selected>Sul</option><option value="N">Norte</option></select></div>'
+    +'</div>'
+    +'<div class="fg mb1"><label class="fl">Classe (Tabela 1 do Anexo da Resolução)</label><select class="fc" id="car-classe" onchange="carToggleLargura()">'+SEMAC_CLASSES.map(function(c){return '<option value="'+c.v+'"'+(c.v==='101'?' selected':'')+'>'+c.l+'</option>';}).join('')+'</select></div>'
+    +'<div class="fg mb1" id="car-largura-wrap" style="display:none"><label class="fl">Largura do curso d’água (m)</label><input class="fc" type="number" step="0.1" id="car-largura"></div>'
+    +'<button class="btn bp2" id="car-btn" onclick="carGerarShape()" disabled><i class="ti ti-download"></i> Gerar Shapefile</button>'
+    +'</div>';
+}
+function carToggleLargura(){
+  const cn=parseInt(document.getElementById('car-classe').value,10);
+  document.getElementById('car-largura-wrap').style.display=(cn>=120&&cn<=125)?'':'none';
+}
+function carArquivoSelecionado(input){
+  const file=input.files[0];
+  const info=document.getElementById('car-info');
+  _carGeoJSON=null;
+  document.getElementById('car-btn').disabled=true;
+  if(!file){info.style.display='none';return;}
+  info.style.display='block';info.innerHTML='Lendo DXF...';
+  file.text().then(function(text){
+    try{
+      const parser=new DxfParser();
+      const dxf=parser.parse(text);
+      const gj=dxfToGeoJSON(dxf);
+      const poly=carMontarPoligono(gj);
+      if(!poly) throw new Error('Não foi possível montar um polígono fechado a partir do DXF (verifique se há uma polilinha fechada ou pontos suficientes).');
+      _carGeoJSON=poly;
+      info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> Perímetro lido com sucesso.</span>';
+      document.getElementById('car-btn').disabled=false;
+    }catch(e){
+      info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Erro: '+e.message+'</span>';
+    }
+  });
+}
+function carMontarPoligono(gj){
+  const feats=gj.features||[];
+  const poly=feats.find(function(f){return f.geometry&&f.geometry.type==='Polygon';});
+  if(poly) return poly;
+  const line=feats.find(function(f){return f.geometry&&f.geometry.type==='LineString';});
+  let coords=null;
+  if(line) coords=line.geometry.coordinates.slice();
+  else {
+    const pts=feats.filter(function(f){return f.geometry&&f.geometry.type==='Point';}).map(function(f){return f.geometry.coordinates;});
+    if(pts.length>=3) coords=pts;
+  }
+  if(!coords||coords.length<3) return null;
+  const first=coords[0],last=coords[coords.length-1];
+  if(first[0]!==last[0]||first[1]!==last[1]) coords.push(first);
+  return {type:'Feature',properties:{},geometry:{type:'Polygon',coordinates:[coords]}};
+}
+function carGerarShape(){
+  if(!_carGeoJSON){toast('Selecione um DXF válido primeiro.',true);return;}
+  try{
+    const classe=document.getElementById('car-classe').value;
+    const props={CLASSE:classe};
+    const cn=parseInt(classe,10);
+    if(cn>=120&&cn<=125){
+      const larg=document.getElementById('car-largura').value;
+      if(!larg) throw new Error('Informe a largura do curso d’água.');
+      props.LARGURA=larg;
+    }
+    const gj={type:'FeatureCollection',features:[{type:'Feature',properties:props,geometry:_carGeoJSON.geometry}]};
+    const buf=shpwrite.zip(gj);
+    const blob=new Blob([buf],{type:'application/zip'});
+    downloadBlobGeo(blob,'CAR_classe_'+classe+'.zip');
+    toast('Shapefile gerado com sucesso!');
+  }catch(e){
+    toast('Erro: '+e.message,true);
+  }
+}
 
 function rConfigFixed(){
   const el=document.getElementById('ct');if(!el)return;
