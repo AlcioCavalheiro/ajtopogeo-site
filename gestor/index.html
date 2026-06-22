@@ -6728,7 +6728,7 @@ async function convArquivoSelecionado(input){
   }
   convToggleCRS();
 }
-function converterArquivo(){
+async function converterArquivo(){
   if(!_convGeoJSON){toast('Selecione um arquivo válido primeiro.',true);return;}
   const destino=document.getElementById('conv-destino').value;
   let gj=_convGeoJSON;
@@ -6750,8 +6750,7 @@ function converterArquivo(){
       blob=new Blob([geojsonToDxf(gj)],{type:'application/dxf'});
       filename=_convFileName+'.dxf';
     } else if(destino==='shp'){
-      const buf=shpwrite.zip(gj);
-      blob=new Blob([buf],{type:'application/zip'});
+      blob=await shpwrite.zip(gj,{outputType:'blob'});
       filename=_convFileName+'.zip';
     }
     downloadBlobGeo(blob,filename);
@@ -7614,7 +7613,7 @@ function gerLerPontos(){
     return rec;
   });
 }
-function gerarArquivoPontos(){
+async function gerarArquivoPontos(){
   if(!_gerarPontosTexto){toast('Selecione um arquivo TXT primeiro.',true);return;}
   try{
     const pontos=gerLerPontos();
@@ -7642,8 +7641,7 @@ function gerarArquivoPontos(){
       blob=new Blob([geojsonToDxf(gj)],{type:'application/dxf'});
       filename=(fechar?'perimetro':'pontos')+'.dxf';
     } else if(destino==='shp'){
-      const buf=shpwrite.zip(gj);
-      blob=new Blob([buf],{type:'application/zip'});
+      blob=await shpwrite.zip(gj,{outputType:'blob'});
       filename=(fechar?'perimetro':'pontos')+'.zip';
     }
     downloadBlobGeo(blob,filename);
@@ -7924,7 +7922,7 @@ function carMontarPoligono(gj){
   if(first[0]!==last[0]||first[1]!==last[1]) coords.push(first);
   return {type:'Feature',properties:{},geometry:{type:'Polygon',coordinates:[coords]}};
 }
-function carGerarShape(){
+async function carGerarShape(){
   if(!_carGeoJSON){toast('Selecione um DXF válido primeiro.',true);return;}
   try{
     const classe=document.getElementById('car-classe').value;
@@ -7936,8 +7934,7 @@ function carGerarShape(){
       props.LARGURA=larg;
     }
     const gj={type:'FeatureCollection',features:[{type:'Feature',properties:props,geometry:_carGeoJSON.geometry}]};
-    const buf=shpwrite.zip(gj);
-    const blob=new Blob([buf],{type:'application/zip'});
+    const blob=await shpwrite.zip(gj,{outputType:'blob'});
     downloadBlobGeo(blob,'CAR_classe_'+classe+'.zip');
     toast('Shapefile gerado com sucesso!');
   }catch(e){
