@@ -104,6 +104,10 @@ select.fc{cursor:pointer}
 .tabs{display:flex;border-bottom:1px solid var(--bor);margin-bottom:1.25rem;overflow-x:auto}
 .tab{padding:8px 16px;font-size:13px;cursor:pointer;color:var(--mu);border-bottom:2px solid transparent;font-weight:500;transition:all .15s;white-space:nowrap}
 .tab:hover{color:var(--tx)}.tab.active{color:var(--bd);border-bottom-color:var(--brand);font-weight:600}
+#geo-tabs{flex-wrap:wrap;overflow-x:visible;overflow-y:visible;row-gap:6px;border-bottom:none}
+#geo-tabs .tab{border:1px solid var(--bor);border-radius:8px;border-bottom:1px solid var(--bor)}
+#geo-tabs .tab.active{background:var(--brand);color:#fff;border-color:var(--brand)}
+#geo-tabs .tab.active:hover{color:#fff}
 .tp{display:none}.tp.active{display:block}
 .sb2{display:flex;align-items:center;gap:8px;background:#f0f0eb;border-radius:8px;padding:6px 12px;max-width:260px}
 .sb2 i{color:var(--mu);font-size:16px}
@@ -275,6 +279,9 @@ select.fc{cursor:pointer}
   .tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;scrollbar-width:none}
   .tabs::-webkit-scrollbar{display:none}
   .tab{padding:8px 12px;font-size:12px;white-space:nowrap;flex-shrink:0}
+
+  /* Ferramentas Geo — sem scroll lateral, quebra em várias linhas */
+  #geo-tabs .tab{white-space:normal;flex-shrink:1;text-align:center;padding:8px 10px}
 
   /* Toast — largura de tela cheia */
   .toast{bottom:.75rem;right:.75rem;left:.75rem;max-width:none}
