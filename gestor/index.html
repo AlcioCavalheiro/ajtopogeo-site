@@ -6636,7 +6636,8 @@ const GEO_TABS=[
   {k:'memorial',ic:'ti-file-description',lb:'Memorial Descritivo'},
   {k:'carshp',ic:'ti-leaf',lb:'Shape para CAR'},
   {k:'incra',ic:'ti-file-upload',lb:'Importar Memorial INCRA'},
-  {k:'anuencia',ic:'ti-signature',lb:'Anuência de Limites'}
+  {k:'anuencia',ic:'ti-signature',lb:'Anuência de Limites'},
+  {k:'cad',ic:'ti-axis-x',lb:'CAD Simples'}
 ];
 function rGeoFerramentasFixed(){
   const el=document.getElementById('ct');if(!el)return;
@@ -6650,7 +6651,8 @@ function rGeoFerramentasFixed(){
     +'<div id="geo-memorial" style="display:none">'+geoMemorialHtml()+'</div>'
     +'<div id="geo-carshp" style="display:none">'+geoCarShpHtml()+'</div>'
     +'<div id="geo-incra" style="display:none">'+geoIncraHtml()+'</div>'
-    +'<div id="geo-anuencia" style="display:none">'+geoAnuenciaHtml()+'</div>';
+    +'<div id="geo-anuencia" style="display:none">'+geoAnuenciaHtml()+'</div>'
+    +'<div id="geo-cad" style="display:none">'+geoCadHtml()+'</div>';
   coordUpdateUI();
   memorialInit();
   anuenciaInit();
@@ -7347,6 +7349,215 @@ async function anuenciaGerarDocx(){
   }catch(e){
     toast('Erro ao gerar anuência: '+e.message,true);
   }
+}
+
+// ── 9. CAD Simples — selecionar e nomear pontos de um desenho ──
+var _cadGeoJSON=null,_cadPontos=[],_cadSelecionado=null,_cadView={cx:0,cy:0,w:100,h:100},_cadDragInicio=null,_cadDragMoveu=false;
+function geoCadHtml(){
+  return '<div class="card mb1">'
+    +'<div class="st mb1"><i class="ti ti-axis-x" style="color:var(--brand)"></i>CAD Simples — Selecionar e Nomear Pontos</div>'
+    +'<div class="mu sm mb1">Importe um DXF, KML ou Shapefile (.zip). Arraste para mover o desenho, use a roda do mouse para zoom, clique num ponto para selecioná-lo e dar um nome.</div>'
+    +'<div class="fg mb1"><label class="fl">Arquivo (.dxf, .kml ou .zip)</label><input class="fc" type="file" id="cad-file" accept=".dxf,.kml,.zip" onchange="cadArquivoSelecionado(this)"></div>'
+    +'<div id="cad-info" class="mu sm mb1" style="display:none"></div>'
+    +'<div style="display:flex;gap:1rem;flex-wrap:wrap">'
+    +'<div style="flex:2;min-width:320px;border:1px solid var(--bor);border-radius:8px;overflow:hidden;background:#fafaf7">'
+    +'<svg id="cad-svg" viewBox="0 0 100 100" style="width:100%;height:480px;display:block;cursor:grab;touch-action:none" onpointerdown="cadPointerDown(event)" onpointermove="cadPointerMove(event)" onpointerup="cadPointerUp(event)" onpointerleave="cadPointerUp(event)" onwheel="cadWheel(event)" onclick="cadSvgClick(event)"></svg>'
+    +'</div>'
+    +'<div style="flex:1;min-width:260px">'
+    +'<div class="card mb1" id="cad-painel" style="background:#F4F8FF"><div class="mu sm">Clique em um ponto no desenho para selecioná-lo.</div></div>'
+    +'<div class="st mb1" style="font-size:13px">Pontos nomeados</div>'
+    +'<div id="cad-lista" class="mb1"><div class="mu sm">Nenhum ponto nomeado ainda.</div></div>'
+    +'<button class="btn bsm mb1" onclick="cadExportarTxt()"><i class="ti ti-file-text"></i> Exportar TXT</button> '
+    +'<button class="btn bsm mb1" onclick="cadExportarDxf()"><i class="ti ti-file-export"></i> Exportar DXF</button>'
+    +'</div>'
+    +'</div>'
+    +'</div>';
+}
+async function cadArquivoSelecionado(input){
+  const file=input.files[0];if(!file)return;
+  const info=document.getElementById('cad-info');
+  info.style.display='block';info.innerHTML='Lendo arquivo...';
+  try{
+    const ext=file.name.toLowerCase().split('.').pop();
+    let gj;
+    if(ext==='dxf'){
+      const text=await file.text();
+      const parser=new DxfParser();
+      gj=dxfToGeoJSON(parser.parse(text));
+    } else if(ext==='kml'){
+      const text=await file.text();
+      gj=toGeoJSON.kml(new DOMParser().parseFromString(text,'text/xml'));
+    } else if(ext==='zip'){
+      const buf=await file.arrayBuffer();
+      gj=await shp(buf);
+      if(Array.isArray(gj)) gj=gj[0];
+    } else {
+      throw new Error('Formato não suportado. Use .dxf, .kml ou .zip (shapefile).');
+    }
+    _cadGeoJSON=gj;
+    _cadPontos=cadExtrairPontos(gj);
+    if(!_cadPontos.length) throw new Error('Nenhum ponto encontrado no arquivo.');
+    _cadSelecionado=null;
+    cadAjustarView();
+    cadRenderSvg();
+    cadAtualizarPainel();
+    cadAtualizarLista();
+    info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> '+_cadPontos.length+' ponto(s) encontrados — clique em um ponto no desenho para nomeá-lo.</span>';
+  }catch(e){
+    info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Erro: '+e.message+'</span>';
+  }
+}
+function cadExtrairPontos(gj){
+  const pts=[];
+  function add(c){pts.push({x:c[0],y:c[1],z:c[2]||0,nome:''});}
+  (gj.features||[]).forEach(function(f){
+    const g=f.geometry;if(!g)return;
+    if(g.type==='Point') add(g.coordinates);
+    else if(g.type==='MultiPoint') g.coordinates.forEach(add);
+    else if(g.type==='LineString') g.coordinates.forEach(add);
+    else if(g.type==='MultiLineString') g.coordinates.forEach(function(l){l.forEach(add);});
+    else if(g.type==='Polygon') g.coordinates.forEach(function(r){r.forEach(add);});
+    else if(g.type==='MultiPolygon') g.coordinates.forEach(function(poly){poly.forEach(function(r){r.forEach(add);});});
+  });
+  const dedup=[];
+  pts.forEach(function(p){
+    const dup=dedup.find(function(q){return Math.abs(q.x-p.x)<1e-6&&Math.abs(q.y-p.y)<1e-6;});
+    if(!dup) dedup.push(p);
+  });
+  return dedup;
+}
+function cadAjustarView(){
+  const xs=_cadPontos.map(function(p){return p.x;}),ys=_cadPontos.map(function(p){return -p.y;});
+  const minX=Math.min.apply(null,xs),maxX=Math.max.apply(null,xs);
+  const minY=Math.min.apply(null,ys),maxY=Math.max.apply(null,ys);
+  const w=(maxX-minX)||10,h=(maxY-minY)||10;
+  const pad=Math.max(w,h)*0.1||1;
+  _cadView.cx=(minX+maxX)/2;
+  _cadView.cy=(minY+maxY)/2;
+  _cadView.w=w+pad*2;
+  _cadView.h=h+pad*2;
+}
+function cadGeometriaSvg(g){
+  if(!g) return '';
+  const sw=Math.max(_cadView.w,_cadView.h)*0.0015;
+  function pts(coords){return coords.map(function(c){return c[0]+','+(-c[1]);}).join(' ');}
+  if(g.type==='LineString') return '<polyline points="'+pts(g.coordinates)+'" fill="none" stroke="#888" stroke-width="'+sw+'"/>';
+  if(g.type==='MultiLineString') return g.coordinates.map(function(l){return cadGeometriaSvg({type:'LineString',coordinates:l});}).join('');
+  if(g.type==='Polygon') return g.coordinates.map(function(r){return '<polygon points="'+pts(r)+'" fill="#0D4FA01a" stroke="#888" stroke-width="'+sw+'"/>';}).join('');
+  if(g.type==='MultiPolygon') return g.coordinates.map(function(poly){return cadGeometriaSvg({type:'Polygon',coordinates:poly});}).join('');
+  return '';
+}
+function cadRenderSvg(){
+  const svg=document.getElementById('cad-svg');
+  if(!svg) return;
+  svg.setAttribute('viewBox',(_cadView.cx-_cadView.w/2)+' '+(_cadView.cy-_cadView.h/2)+' '+_cadView.w+' '+_cadView.h);
+  let geomSvg='';
+  (_cadGeoJSON&&_cadGeoJSON.features||[]).forEach(function(f){geomSvg+=cadGeometriaSvg(f.geometry);});
+  const r=Math.max(_cadView.w,_cadView.h)*0.006;
+  const pontosSvg=_cadPontos.map(function(p,i){
+    const sel=i===_cadSelecionado;
+    return '<circle cx="'+p.x+'" cy="'+(-p.y)+'" r="'+r+'" class="cad-pt" data-i="'+i+'" fill="'+(sel?'#E24B4A':(p.nome?'#27500A':'#0D4FA0'))+'" stroke="#fff" stroke-width="'+(r*0.2)+'"/>'
+      +(p.nome?'<text x="'+(p.x+r*1.6)+'" y="'+(-p.y)+'" font-size="'+(r*2.2)+'" fill="#222" style="pointer-events:none;user-select:none">'+xmlEscapeGeo(p.nome)+'</text>':'');
+  }).join('');
+  svg.innerHTML=geomSvg+pontosSvg;
+}
+function cadScreenToSvg(evt){
+  const svg=document.getElementById('cad-svg');
+  const pt=svg.createSVGPoint();
+  pt.x=evt.clientX;pt.y=evt.clientY;
+  const ctm=svg.getScreenCTM();
+  if(!ctm) return {x:0,y:0};
+  const p=pt.matrixTransform(ctm.inverse());
+  return {x:p.x,y:p.y};
+}
+function cadPointerDown(evt){
+  _cadDragInicio=cadScreenToSvg(evt);
+  _cadDragMoveu=false;
+}
+function cadPointerMove(evt){
+  if(!_cadDragInicio) return;
+  const p=cadScreenToSvg(evt);
+  const dx=p.x-_cadDragInicio.x,dy=p.y-_cadDragInicio.y;
+  if(Math.abs(dx)>0.002*_cadView.w||Math.abs(dy)>0.002*_cadView.h) _cadDragMoveu=true;
+  if(_cadDragMoveu){
+    _cadView.cx-=dx;_cadView.cy-=dy;
+    cadRenderSvg();
+    _cadDragInicio=cadScreenToSvg(evt);
+  }
+}
+function cadPointerUp(evt){_cadDragInicio=null;}
+function cadWheel(evt){
+  if(!_cadGeoJSON) return;
+  evt.preventDefault();
+  const p=cadScreenToSvg(evt);
+  const fator=evt.deltaY>0?1.1:0.9;
+  _cadView.w*=fator;_cadView.h*=fator;
+  _cadView.cx=p.x+(_cadView.cx-p.x)*fator;
+  _cadView.cy=p.y+(_cadView.cy-p.y)*fator;
+  cadRenderSvg();
+}
+function cadSvgClick(evt){
+  if(_cadDragMoveu){_cadDragMoveu=false;return;}
+  const target=evt.target;
+  if(target.classList&&target.classList.contains('cad-pt')) cadSelecionarPonto(parseInt(target.dataset.i,10));
+  else cadSelecionarPonto(null);
+}
+function cadSelecionarPonto(i){
+  _cadSelecionado=i;
+  cadRenderSvg();
+  cadAtualizarPainel();
+}
+function cadAtualizarPainel(){
+  const el=document.getElementById('cad-painel');
+  if(!el) return;
+  if(_cadSelecionado===null){el.innerHTML='<div class="mu sm">Clique em um ponto no desenho para selecioná-lo.</div>';return;}
+  const p=_cadPontos[_cadSelecionado];
+  el.innerHTML='<div class="fg mb1"><label class="fl">Nome do ponto selecionado</label><input class="fc" id="cad-nome-input" value="'+xmlEscapeGeo(p.nome||'')+'" onkeydown="if(event.key===\'Enter\')cadConfirmarNome()"></div>'
+    +'<div class="mu sm mb1">E: '+p.x.toFixed(3)+' · N: '+p.y.toFixed(3)+(p.z?' · Z: '+p.z.toFixed(3):'')+'</div>'
+    +'<button class="btn bp2 bsm" onclick="cadConfirmarNome()"><i class="ti ti-check"></i> Confirmar nome</button>';
+  setTimeout(function(){const inp=document.getElementById('cad-nome-input');if(inp){inp.focus();inp.select();}},0);
+}
+function cadConfirmarNome(){
+  if(_cadSelecionado===null) return;
+  _cadPontos[_cadSelecionado].nome=document.getElementById('cad-nome-input').value;
+  cadRenderSvg();
+  cadAtualizarLista();
+}
+function cadAtualizarLista(){
+  const el=document.getElementById('cad-lista');
+  if(!el) return;
+  const temNomeados=_cadPontos.some(function(p){return p.nome;});
+  if(!temNomeados){el.innerHTML='<div class="mu sm">Nenhum ponto nomeado ainda.</div>';return;}
+  el.innerHTML='<div class="tw"><table><thead><tr><th>Nome</th><th>E</th><th>N</th><th>Z</th><th></th></tr></thead><tbody>'
+    +_cadPontos.map(function(p,i){
+      if(!p.nome) return '';
+      return '<tr><td>'+xmlEscapeGeo(p.nome)+'</td><td>'+p.x.toFixed(3)+'</td><td>'+p.y.toFixed(3)+'</td><td>'+(p.z||0).toFixed(3)+'</td><td><button class="btn bxs" onclick="cadFocarPonto('+i+')"><i class="ti ti-focus-2"></i></button> <button class="btn bxs bdr" onclick="cadRemoverNome('+i+')"><i class="ti ti-x"></i></button></td></tr>';
+    }).join('')
+    +'</tbody></table></div>';
+}
+function cadRemoverNome(i){
+  _cadPontos[i].nome='';
+  if(_cadSelecionado===i) cadAtualizarPainel();
+  cadRenderSvg();
+  cadAtualizarLista();
+}
+function cadFocarPonto(i){
+  cadSelecionarPonto(i);
+  _cadView.cx=_cadPontos[i].x;_cadView.cy=-_cadPontos[i].y;
+  cadRenderSvg();
+}
+function cadExportarTxt(){
+  const nomeados=_cadPontos.filter(function(p){return p.nome;});
+  if(!nomeados.length){toast('Nomeie ao menos um ponto antes de exportar.',true);return;}
+  const linhas=nomeados.map(function(p){return [p.nome,p.x.toFixed(3),p.y.toFixed(3),(p.z||0).toFixed(3)].join(';');});
+  downloadText(linhas.join('\r\n'),'pontos_nomeados.txt');
+}
+function cadExportarDxf(){
+  const nomeados=_cadPontos.filter(function(p){return p.nome;});
+  if(!nomeados.length){toast('Nomeie ao menos um ponto antes de exportar.',true);return;}
+  const gj={type:'FeatureCollection',features:nomeados.map(function(p){return {type:'Feature',properties:{name:p.nome},geometry:{type:'Point',coordinates:[p.x,p.y,p.z||0]}};})};
+  const blob=new Blob([geojsonToDxf(gj)],{type:'application/dxf'});
+  downloadBlobGeo(blob,'pontos_nomeados.dxf');
 }
 
 // ── 4. Pontos → Arquivo (DXF/KML/SHP, opcionalmente como perímetro fechado) ──
