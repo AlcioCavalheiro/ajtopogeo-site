@@ -7082,7 +7082,7 @@ function ptsBaixarTxt(){
 }
 
 // ── 7. Importar Memorial INCRA (PDF) -> DXF ──
-var _incraHeader={},_incraVertices=[];
+var _incraHeader={},_incraVertices=[],_incraPerimetros=[];
 function geoIncraHtml(){
   return '<div class="card mb1">'
     +'<div class="st mb1"><i class="ti ti-file-upload" style="color:var(--brand)"></i>Importar Memorial Descritivo do INCRA (PDF)</div>'
@@ -7106,13 +7106,27 @@ async function incraArquivoLido(input){
       const content=await page.getTextContent();
       linhasTodas=linhasTodas.concat(incraAgruparLinhas(content.items));
     }
-    const dados=incraParseLinhas(linhasTodas);
-    _incraHeader=dados.header;
-    _incraVertices=dados.vertices;
-    if(!_incraVertices.length) throw new Error('Nenhum vértice encontrado. Confira se o PDF é o Memorial Descritivo gerado pelo SIGEF.');
+    // Split into per-perimeter sections (cada "MEMORIAL DESCRITIVO" inicia um novo perímetro)
+    const secoes=incraSplitSections(linhasTodas);
+    _incraPerimetros=secoes.map(function(sec){return incraParseLinhas(sec);}).filter(function(p){return p.vertices.length>0;});
+    // Fallback: se nenhuma seção isolada teve vértices, tenta o conjunto todo
+    if(!_incraPerimetros.length){
+      const dados=incraParseLinhas(linhasTodas);
+      if(dados.vertices.length) _incraPerimetros=[dados];
+    }
+    if(!_incraPerimetros.length) throw new Error('Nenhum vértice encontrado. Confira se o PDF é o Memorial Descritivo gerado pelo SIGEF.');
+    // Achata todos os vértices em _incraVertices, marcando o perímetro de cada um
+    _incraVertices=[];
+    _incraPerimetros.forEach(function(per,idx){
+      const nome=per.header.denominacao||('Perímetro '+(idx+1));
+      per.nome=nome;
+      per.vertices.forEach(function(v){v.perimetroNome=nome;v.perimetroIdx=idx;_incraVertices.push(v);});
+    });
+    _incraHeader=_incraPerimetros[0].header;
     incraPreencherCampos();
     incraRenderTabela();
-    info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> '+_incraVertices.length+' vértice(s) encontrado(s) no memorial.</span>';
+    const totP=_incraPerimetros.length,totV=_incraVertices.length;
+    info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> '+(totP>1?totP+' perímetro(s) encontrado(s) — ':'')+totV+' vértice(s) no memorial.</span>';
   }catch(e){
     info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Erro ao ler PDF: '+e.message+'</span>';
   }
@@ -7129,6 +7143,16 @@ function incraAgruparLinhas(items){
   return grupos.map(function(g){
     return g.itens.sort(function(a,b){return a.transform[4]-b.transform[4];}).map(function(it){return it.str;}).join(' ').replace(/\s+/g,' ').trim();
   }).filter(Boolean);
+}
+// Divide todas as linhas em seções por "MEMORIAL DESCRITIVO" — cada seção = um perímetro
+function incraSplitSections(linhas){
+  const secs=[];let cur=null;
+  linhas.forEach(function(l){
+    if(/^MEMORIAL\s+DESCRITIVO\s*$/i.test(l.trim())){if(cur)secs.push(cur);cur=[l];}
+    else if(cur) cur.push(l);
+  });
+  if(cur) secs.push(cur);
+  return secs.length?secs:[linhas];
 }
 function incraParseLinhas(linhas){
   const texto=linhas.join(' \n ');
@@ -7157,7 +7181,10 @@ function incraParseLinhas(linhas){
     area:campo('Área (Sistema Geodésico Local):'),
     perimetro:campo('Perímetro (m):')
   };
-  const linhaRe=/^(\S+)\s+(-?\d+°\d+'[\d,]+")\s+(-?\d+°\d+'[\d,]+")\s+([\d,]+)\s+(\S+)\s+(\d+°\d+')\s+([\d,]+)\s+(.+)$/;
+  // [°º] aceita tanto o símbolo de grau (U+00B0) quanto o ordinal masculino (U+00BA),
+  // variante comum em PDFs gerados pelo SIGEF não-certificado.
+  // [\d.,]+ na altitude aceita tanto vírgula (memorial certificado) quanto ponto (não-certificado).
+  const linhaRe=/^(\S+)\s+(-?\d+[°º]\d+'[\d,]+")\s+(-?\d+[°º]\d+'[\d,]+")\s+([\d.,]+)\s+(\S+)\s+(\d+[°º]\d+')\s+([\d,]+)\s+(.+)$/;
   const vertices=[];
   linhas.forEach(function(l){
     const m=l.match(linhaRe);
@@ -7174,8 +7201,18 @@ function incraPreencherCampos(){
   const lons=_incraVertices.map(function(v){return v.lonDec;});
   const lonMed=lons.length?(lons.reduce(function(a,b){return a+b;},0)/lons.length):-54;
   const zonaCalc=Math.floor((lonMed+180)/6)+1;
-  document.getElementById('incra-campos').innerHTML=
-    '<div class="g2 mb1"><div class="fg"><label class="fl">Denominação</label><input class="fc" id="incra-denominacao" value="'+(h.denominacao||'')+'"></div>'
+  const multi=_incraPerimetros.length>1;
+  // Resumo de perímetros (só exibe quando há mais de um)
+  const perSummary=multi
+    ?'<div class="card mb1" style="background:var(--bg-2);padding:10px 14px">'
+      +'<div class="fl mb1" style="font-size:13px">Perímetros encontrados no memorial</div>'
+      +'<div class="tw"><table><thead><tr><th>#</th><th>Denominação</th><th>Área (ha)</th><th>Perímetro (m)</th><th>Vértices</th></tr></thead><tbody>'
+      +_incraPerimetros.map(function(p,i){return '<tr><td>'+(i+1)+'</td><td>'+p.header.denominacao+'</td><td>'+p.header.area+'</td><td>'+p.header.perimetro+'</td><td>'+p.vertices.length+'</td></tr>';}).join('')
+      +'</tbody></table></div></div>'
+    :'';
+  const lblDxf=multi?'Gerar DXF (todos os perímetros — camadas separadas)':'Gerar DXF (pontos + perímetro)';
+  document.getElementById('incra-campos').innerHTML=perSummary
+    +'<div class="g2 mb1"><div class="fg"><label class="fl">Denominação</label><input class="fc" id="incra-denominacao" value="'+(h.denominacao||'')+'"></div>'
     +'<div class="fg"><label class="fl">Proprietário(a)</label><input class="fc" id="incra-proprietario" value="'+(h.proprietario||'')+'"></div></div>'
     +'<div class="g2 mb1"><div class="fg"><label class="fl">Matrícula</label><input class="fc" id="incra-matricula" value="'+(h.matricula||'')+'"></div>'
     +'<div class="fg"><label class="fl">Município/UF</label><input class="fc" id="incra-municipioUf" value="'+(h.municipioUf||'')+'"></div></div>'
@@ -7188,17 +7225,20 @@ function incraPreencherCampos(){
     +'<div class="g3 mb1"><div class="fg"><label class="fl">Datum</label><select class="fc" id="incra-datum">'+datumOptsHtml('SIRGAS2000')+'</select></div>'
     +'<div class="fg"><label class="fl">Zona UTM</label><select class="fc" id="incra-zona">'+utmZoneOpts(zonaCalc)+'</select></div>'
     +'<div class="fg"><label class="fl">Hemisfério</label><select class="fc" id="incra-hemis"><option value="S" selected>Sul</option><option value="N">Norte</option></select></div></div>'
-    +'<button class="btn bp2 bsm mb1" onclick="incraGerarDxf()"><i class="ti ti-download"></i> Gerar DXF (pontos + perímetro)</button>'
+    +'<button class="btn bp2 bsm mb1" onclick="incraGerarDxf()"><i class="ti ti-download"></i> '+lblDxf+'</button>'
     +' <button class="btn bsm mb1" onclick="incraIrParaAnuencia()"><i class="ti ti-signature"></i> Usar na Anuência de Limites</button>';
 }
 function incraRenderTabela(){
+  const multi=_incraPerimetros.length>1;
   const rows=_incraVertices.map(function(v,i){
-    return '<tr><td><input type="checkbox" class="incra-chk" data-i="'+i+'" checked></td><td>'+v.codigo+'</td><td class="mu sm">'+v.lon+'</td><td class="mu sm">'+v.lat+'</td><td>'+v.alt+'</td><td>'+v.vante+'</td><td>'+v.azimute+'</td><td>'+v.dist+'</td><td class="mu sm">'+v.confrontacao+'</td></tr>';
+    return '<tr><td><input type="checkbox" class="incra-chk" data-i="'+i+'" checked></td>'
+      +(multi?'<td class="mu sm">'+v.perimetroNome+'</td>':'')
+      +'<td>'+v.codigo+'</td><td class="mu sm">'+v.lon+'</td><td class="mu sm">'+v.lat+'</td><td>'+v.alt+'</td><td>'+v.vante+'</td><td>'+v.azimute+'</td><td>'+v.dist+'</td><td class="mu sm">'+v.confrontacao+'</td></tr>';
   }).join('');
   document.getElementById('incra-tabela-wrap').innerHTML=
     '<div class="fxb mb1"><div class="st" style="font-size:13px;margin:0">Marcos do memorial (selecione os que entram no DXF/anuência)</div>'
     +'<div class="fx g8"><button class="btn bxs" onclick="incraMarcarTodos(true)">Marcar todos</button><button class="btn bxs" onclick="incraMarcarTodos(false)">Desmarcar todos</button></div></div>'
-    +'<div class="tw"><table><thead><tr><th></th><th>Código</th><th>Longitude</th><th>Latitude</th><th>Alt.</th><th>Vante</th><th>Azimute</th><th>Dist (m)</th><th>Confrontação</th></tr></thead><tbody id="incra-tbody">'+rows+'</tbody></table></div>';
+    +'<div class="tw"><table><thead><tr><th></th>'+(multi?'<th>Perímetro</th>':'')+'<th>Código</th><th>Longitude</th><th>Latitude</th><th>Alt.</th><th>Vante</th><th>Azimute</th><th>Dist (m)</th><th>Confrontação</th></tr></thead><tbody id="incra-tbody">'+rows+'</tbody></table></div>';
 }
 function incraMarcarTodos(v){document.querySelectorAll('.incra-chk').forEach(function(c){c.checked=v;});}
 function incraSelecionados(){
@@ -7217,13 +7257,47 @@ function incraGerarDxf(){
     const dstDef=projDef(datum,zona,hemisS);
     const pts=sel.map(function(v){
       const p=proj4(srcDef,dstDef,[v.lonDec,v.latDec]);
-      return {nome:v.codigo,e:p[0],n:p[1],z:v.altDec||0};
+      return {nome:v.codigo,e:p[0],n:p[1],z:v.altDec||0,perimetroNome:v.perimetroNome||'',perimetroIdx:v.perimetroIdx||0};
     });
-    const coordsPoly=pts.map(function(p){return [p.e,p.n,p.z];});
-    const first=coordsPoly[0],last=coordsPoly[coordsPoly.length-1];
-    if(first[0]!==last[0]||first[1]!==last[1]) coordsPoly.push(first);
-    const gj={type:'FeatureCollection',features:[{type:'Feature',properties:{name:'Perímetro'},geometry:{type:'Polygon',coordinates:[coordsPoly]}}].concat(pts.map(function(p){return {type:'Feature',properties:{name:p.nome},geometry:{type:'Point',coordinates:[p.e,p.n,p.z]}};}))};
-    const blob=new Blob([geojsonToDxf(gj)],{type:'application/dxf'});
+    const multi=_incraPerimetros.length>1;
+    let dxfContent;
+    if(multi){
+      // Agrupa pontos por perímetro e gera uma camada DXF por perímetro
+      const grupos={};
+      pts.forEach(function(p){
+        const key=p.perimetroNome||('perim_'+p.perimetroIdx);
+        if(!grupos[key]) grupos[key]=[];
+        grupos[key].push(p);
+      });
+      let entities='';
+      Object.keys(grupos).forEach(function(nomePer){
+        const gpPts=grupos[nomePer];
+        if(gpPts.length<2) return;
+        const layer=nomePer.replace(/[^a-zA-Z0-9_-]/g,'_');
+        const coordsPoly=gpPts.map(function(p){return [p.e,p.n,p.z];});
+        const f=coordsPoly[0],l=coordsPoly[coordsPoly.length-1];
+        if(f[0]!==l[0]||f[1]!==l[1]) coordsPoly.push(f);
+        // Polilinha do perímetro
+        let s='0\nPOLYLINE\n8\n'+layer+'\n66\n1\n70\n1\n';
+        coordsPoly.forEach(function(c){s+='0\nVERTEX\n8\n'+layer+'\n10\n'+c[0]+'\n20\n'+c[1]+'\n30\n'+(c[2]||0)+'\n';});
+        s+='0\nSEQEND\n';
+        entities+=s;
+        // Pontos + textos
+        gpPts.forEach(function(p){
+          entities+='0\nPOINT\n8\n'+layer+'\n10\n'+p.e+'\n20\n'+p.n+'\n30\n'+p.z+'\n';
+          entities+='0\nTEXT\n8\n'+layer+'_TEXTO\n10\n'+p.e+'\n20\n'+p.n+'\n30\n'+p.z+'\n40\n0\n1\n'+p.nome+'\n';
+        });
+      });
+      dxfContent='0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n'+entities+'0\nENDSEC\n0\nEOF\n';
+    }else{
+      // Perímetro único — comportamento original
+      const coordsPoly=pts.map(function(p){return [p.e,p.n,p.z];});
+      const first=coordsPoly[0],last=coordsPoly[coordsPoly.length-1];
+      if(first[0]!==last[0]||first[1]!==last[1]) coordsPoly.push(first);
+      const gj={type:'FeatureCollection',features:[{type:'Feature',properties:{name:'Perímetro'},geometry:{type:'Polygon',coordinates:[coordsPoly]}}].concat(pts.map(function(p){return {type:'Feature',properties:{name:p.nome},geometry:{type:'Point',coordinates:[p.e,p.n,p.z]}};}))};
+      dxfContent=geojsonToDxf(gj);
+    }
+    const blob=new Blob([dxfContent],{type:'application/dxf'});
     downloadBlobGeo(blob,(_incraHeader.denominacao||'memorial').replace(/[^a-zA-Z0-9_-]+/g,'_')+'.dxf');
     toast('DXF gerado com sucesso!');
   }catch(e){
