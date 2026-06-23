@@ -6604,8 +6604,10 @@ function geojsonToKml(gj){
   }).join('');
   return '<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document>'+placemarks+'</Document></kml>';
 }
-function dxfEntityPoint(x,y,z){
-  return '0\nPOINT\n8\n0\n10\n'+x+'\n20\n'+y+'\n30\n'+(z||0)+'\n';
+function dxfEntityPoint(x,y,z,nome){
+  let s='0\nPOINT\n8\n0\n10\n'+x+'\n20\n'+y+'\n30\n'+(z||0)+'\n';
+  if(nome) s+='0\nTEXT\n8\nTEXTO\n10\n'+x+'\n20\n'+y+'\n30\n'+(z||0)+'\n40\n0\n1\n'+nome+'\n';
+  return s;
 }
 function dxfEntityPolyline(coords,closed){
   let s='0\nPOLYLINE\n8\n0\n66\n1\n70\n'+(closed?1:0)+'\n';
@@ -6617,8 +6619,9 @@ function geojsonToDxf(gj){
   let entities='';
   (gj.features||[]).forEach(function(f){
     const g=f.geometry;if(!g) return;
-    if(g.type==='Point') entities+=dxfEntityPoint(g.coordinates[0],g.coordinates[1],g.coordinates[2]);
-    else if(g.type==='MultiPoint') g.coordinates.forEach(function(c){entities+=dxfEntityPoint(c[0],c[1],c[2]);});
+    const nome=(f.properties&&(f.properties.name||f.properties.nome))||'';
+    if(g.type==='Point') entities+=dxfEntityPoint(g.coordinates[0],g.coordinates[1],g.coordinates[2],nome);
+    else if(g.type==='MultiPoint') g.coordinates.forEach(function(c){entities+=dxfEntityPoint(c[0],c[1],c[2],nome);});
     else if(g.type==='LineString') entities+=dxfEntityPolyline(g.coordinates,false);
     else if(g.type==='MultiLineString') g.coordinates.forEach(function(c){entities+=dxfEntityPolyline(c,false);});
     else if(g.type==='Polygon') g.coordinates.forEach(function(ring){entities+=dxfEntityPolyline(ring,true);});
