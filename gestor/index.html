@@ -8008,11 +8008,22 @@ function cadOdsLinhaValores(rowEl){
   }
   return out;
 }
-function cadOdsNumLinhas(tableEl){
+function cadOdsLinhasComDados(tableEl,maxLinhas){
   const rows=tableEl.getElementsByTagName('table:table-row');
-  let total=0;
-  for(let i=0;i<rows.length;i++) total+=odsRepeated(rows[i],'table:number-rows-repeated');
-  return total;
+  const out=[];
+  for(let i=0;i<rows.length&&out.length<maxLinhas;i++){
+    const row=rows[i];
+    const rep=odsRepeated(row,'table:number-rows-repeated');
+    if(rep>1){
+      const vals=cadOdsLinhaValores(row);
+      const temConteudo=vals.some(function(v){return v.texto&&v.texto.trim();});
+      if(!temConteudo) break;
+      for(let k=0;k<rep&&out.length<maxLinhas;k++) out.push(row);
+    } else {
+      out.push(row);
+    }
+  }
+  return out;
 }
 function cadNormalizarTexto(t){
   return (t||'').toString().trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
@@ -8030,6 +8041,59 @@ function cadOdsDetectarColunas(header){
     z:achar(['z','cota','altitude','h','elevacao'])
   };
 }
+function cadOdsParseCoordenada(texto){
+  const limpo=String(texto||'').trim();
+  if(!limpo) return NaN;
+  if(/[0-9][°ºd\s]+[0-9]/.test(limpo)||/[NSEOW]\s*$/i.test(limpo)) return parseDMS(limpo);
+  const n=parseFloat(limpo.replace(/\./g,'').replace(',','.'));
+  return isNaN(n)?parseFloat(limpo):n;
+}
+function cadGeograficaParaUtm(lonDec,latDec){
+  const zona=Math.floor((lonDec+180)/6)+1;
+  const sul=latDec<0;
+  const origem=projDef('SIRGAS2000',null);
+  const destino=projDef('SIRGAS2000',zona,sul);
+  const xy=proj4(origem,destino,[lonDec,latDec]);
+  return {x:xy[0],y:xy[1]};
+}
+function cadOdsExtrairPerimetrosSigef(xmlDoc){
+  const perimetros=[];
+  let n=1;
+  while(n<=200){
+    const tabela=odsFindTable(xmlDoc,'perimetro_'+n);
+    if(!tabela) break;
+    const denomRow=odsLerLinha(tabela,SIGEF_PERIM_HEADER_LINHAS.denominacao);
+    const denominacao=(denomRow?odsLerCelulaTexto(denomRow,SIGEF_ID_COL_VALOR).trim():'')||('Perímetro '+n);
+    const tipoRow=odsLerLinha(tabela,8);
+    const tipoCoord=tipoRow?cadNormalizarTexto(odsLerCelulaTexto(tipoRow,1)):'';
+    const geografica=tipoCoord.indexOf('geo')>=0;
+    const vertices=[];
+    const primeira=SIGEF_PERIM_TABELA_PRIMEIRA_LINHA_DADOS;
+    for(let i=primeira;i<primeira+2000;i++){
+      const row=odsLerLinha(tabela,i);
+      const nome=row?odsLerCelulaTexto(row,0).trim():'';
+      if(!nome) break;
+      const txtLong=odsLerCelulaTexto(row,1),txtLat=odsLerCelulaTexto(row,3),txtH=odsLerCelulaTexto(row,5);
+      let x,y;
+      if(geografica){
+        const lon=parseDMS(txtLong),lat=parseDMS(txtLat);
+        if(isNaN(lon)||isNaN(lat)) continue;
+        const utm=cadGeograficaParaUtm(lon,lat);x=utm.x;y=utm.y;
+      } else {
+        x=cadOdsParseCoordenada(txtLong);y=cadOdsParseCoordenada(txtLat);
+      }
+      if(isNaN(x)||isNaN(y)) continue;
+      const z=cadOdsParseCoordenada(txtH);
+      vertices.push({nome:nome,x:x,y:y,z:isNaN(z)?0:z,
+        sigmaE:cadOdsParseCoordenada(odsLerCelulaTexto(row,2))||0,
+        sigmaN:cadOdsParseCoordenada(odsLerCelulaTexto(row,4))||0,
+        sigmaZ:cadOdsParseCoordenada(odsLerCelulaTexto(row,6))||0});
+    }
+    if(vertices.length) perimetros.push({denominacao:denominacao,geografica:geografica,vertices:vertices});
+    n++;
+  }
+  return perimetros;
+}
 async function cadImportarOds(input){
   const file=input.files[0];if(!file)return;
   const info=document.getElementById('cad-ods-info');
@@ -8042,45 +8106,71 @@ async function cadImportarOds(input){
     const xmlStr=await contentFile.async('string');
     const xmlDoc=new DOMParser().parseFromString(xmlStr,'application/xml');
     if(xmlDoc.getElementsByTagName('parsererror').length) throw new Error('Não foi possível interpretar o XML da planilha — arquivo corrompido?');
-    const tabelas=xmlDoc.getElementsByTagName('table:table');
-    if(!tabelas.length) throw new Error('Nenhuma aba/tabela encontrada na planilha.');
-    const tabela=tabelas[0];
-    const totalLinhas=cadOdsNumLinhas(tabela);
-    if(totalLinhas<2) throw new Error('A planilha precisa de uma linha de cabeçalho e ao menos uma linha de pontos.');
-    const header=cadOdsLinhaValores(odsLerLinha(tabela,0)).map(function(c){return c.texto;});
-    const col=cadOdsDetectarColunas(header);
-    if(col.x<0||col.y<0) throw new Error('Não foi possível identificar as colunas de coordenadas (E/X e N/Y) no cabeçalho da planilha. Use cabeçalhos como "Ponto", "E", "N" e "Z".');
-    const layerId='ods_'+Date.now();
-    const layerNome=file.name.replace(/\.ods$/i,'');
-    const pontosNovos=[];
-    for(let i=1;i<totalLinhas;i++){
-      const row=odsLerLinha(tabela,i);
-      if(!row) continue;
-      const vals=cadOdsLinhaValores(row);
-      const x=vals[col.x]?vals[col.x].valor:NaN;
-      const y=vals[col.y]?vals[col.y].valor:NaN;
-      if(isNaN(x)||isNaN(y)) continue;
-      const z=col.z>=0&&vals[col.z]?vals[col.z].valor:0;
-      const nome=col.nome>=0&&vals[col.nome]?vals[col.nome].texto.trim():'';
-      const pt={id:_cadNextId++,x:x,y:y,z:isNaN(z)?0:z,nome:nome,layerId:layerId,sigmaE:0,sigmaN:0,sigmaZ:0,ordemNome:0};
-      if(nome) pt.ordemNome=++_cadOrdemContador;
-      pontosNovos.push(pt);
+    const ehModeloSigef=!!(odsFindTable(xmlDoc,'identificacao')&&odsFindTable(xmlDoc,'perimetro_1'));
+    let totalPontos=0,totalPerimetros=0,teveConversaoGeografica=false;
+    if(ehModeloSigef){
+      const perimetros=cadOdsExtrairPerimetrosSigef(xmlDoc);
+      if(!perimetros.length) throw new Error('A planilha é do modelo SIGEF, mas nenhum vértice foi encontrado nas abas "perimetro_N".');
+      if(!_cadGeoJSON) _cadGeoJSON={type:'FeatureCollection',features:[]};
+      perimetros.forEach(function(per,idx){
+        if(per.geografica) teveConversaoGeografica=true;
+        const layerId='sigef_perimetro_'+(idx+1)+'_'+Date.now();
+        const pontosPerimetro=per.vertices.map(function(v){
+          const pt={id:_cadNextId++,x:v.x,y:v.y,z:v.z,nome:v.nome,layerId:layerId,sigmaE:v.sigmaE,sigmaN:v.sigmaN,sigmaZ:v.sigmaZ,ordemNome:0};
+          if(pt.nome) pt.ordemNome=++_cadOrdemContador;
+          return pt;
+        });
+        _cadPontos=_cadPontos.concat(pontosPerimetro);
+        const coords=pontosPerimetro.map(function(p){return [p.x,p.y,p.z||0];});
+        coords.push(coords[0]);
+        _cadGeoJSON.features.push({type:'Feature',properties:{layer:layerId},geometry:{type:'Polygon',coordinates:[coords]}});
+        cadDerivarCamadas(_cadGeoJSON);
+        const camada=_cadCamadas.find(function(c){return c.id===layerId;});
+        if(camada) camada.nome=per.denominacao;
+        totalPontos+=pontosPerimetro.length;
+        totalPerimetros++;
+      });
+    } else {
+      const tabelas=xmlDoc.getElementsByTagName('table:table');
+      if(!tabelas.length) throw new Error('Nenhuma aba/tabela encontrada na planilha.');
+      const tabela=tabelas[0];
+      const linhas=cadOdsLinhasComDados(tabela,5000);
+      if(linhas.length<2) throw new Error('A planilha precisa de uma linha de cabeçalho e ao menos uma linha de pontos.');
+      const header=cadOdsLinhaValores(linhas[0]).map(function(c){return c.texto;});
+      const col=cadOdsDetectarColunas(header);
+      if(col.x<0||col.y<0) throw new Error('Não foi possível identificar as colunas de coordenadas (E/X e N/Y) no cabeçalho da planilha. Use cabeçalhos como "Ponto", "E", "N" e "Z".');
+      const layerId='ods_'+Date.now();
+      const layerNome=file.name.replace(/\.ods$/i,'');
+      const pontosNovos=[];
+      for(let i=1;i<linhas.length;i++){
+        const vals=cadOdsLinhaValores(linhas[i]);
+        const x=vals[col.x]?vals[col.x].valor:NaN;
+        const y=vals[col.y]?vals[col.y].valor:NaN;
+        if(isNaN(x)||isNaN(y)) continue;
+        const z=col.z>=0&&vals[col.z]?vals[col.z].valor:0;
+        const nome=col.nome>=0&&vals[col.nome]?vals[col.nome].texto.trim():'';
+        const pt={id:_cadNextId++,x:x,y:y,z:isNaN(z)?0:z,nome:nome,layerId:layerId,sigmaE:0,sigmaN:0,sigmaZ:0,ordemNome:0};
+        if(nome) pt.ordemNome=++_cadOrdemContador;
+        pontosNovos.push(pt);
+      }
+      if(!pontosNovos.length) throw new Error('Nenhuma linha com coordenadas válidas foi encontrada na planilha.');
+      _cadPontos=_cadPontos.concat(pontosNovos);
+      const coords=pontosNovos.map(function(p){return [p.x,p.y,p.z||0];});
+      coords.push(coords[0]);
+      if(!_cadGeoJSON) _cadGeoJSON={type:'FeatureCollection',features:[]};
+      _cadGeoJSON.features.push({type:'Feature',properties:{layer:layerId},geometry:{type:'Polygon',coordinates:[coords]}});
+      cadDerivarCamadas(_cadGeoJSON);
+      const camada=_cadCamadas.find(function(c){return c.id===layerId;});
+      if(camada) camada.nome=layerNome;
+      totalPontos=pontosNovos.length;
+      totalPerimetros=1;
     }
-    if(!pontosNovos.length) throw new Error('Nenhuma linha com coordenadas válidas foi encontrada na planilha.');
-    _cadPontos=_cadPontos.concat(pontosNovos);
-    const coords=pontosNovos.map(function(p){return [p.x,p.y,p.z||0];});
-    coords.push(coords[0]);
-    if(!_cadGeoJSON) _cadGeoJSON={type:'FeatureCollection',features:[]};
-    _cadGeoJSON.features.push({type:'Feature',properties:{layer:layerId},geometry:{type:'Polygon',coordinates:[coords]}});
-    cadDerivarCamadas(_cadGeoJSON);
-    const camada=_cadCamadas.find(function(c){return c.id===layerId;});
-    if(camada) camada.nome=layerNome;
     cadAjustarView();
     cadRenderCamadas();
     cadRenderSvg();
     cadAtualizarPainel();
     cadAtualizarLista();
-    info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> '+pontosNovos.length+' ponto(s) e perímetro importados da planilha "'+xmlEscapeGeo(layerNome)+'".</span>';
+    info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> '+totalPontos+' ponto(s) e '+totalPerimetros+' perímetro(s) importados'+(teveConversaoGeografica?' (coordenadas geográficas convertidas para UTM)':'')+'.</span>';
     input.value='';
   }catch(e){
     info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Erro: '+e.message+'</span>';
