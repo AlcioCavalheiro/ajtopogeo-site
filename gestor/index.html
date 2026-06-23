@@ -7403,7 +7403,7 @@ var _cadView={cx:0,cy:0,w:100,h:100},_cadDragInicio=null,_cadDragMoveu=false,_ca
 var _cadOrigin={x:0,y:0};
 function cadWorldToLocal(x,y){return {x:x-_cadOrigin.x,y:-(y-_cadOrigin.y)};}
 function cadLocalToWorld(x,y){return {x:x+_cadOrigin.x,y:_cadOrigin.y-y};}
-var _cadModo='select',_cadMedicaoPontos=[],_cadSnapAtivo=true,_cadSnapTolPx=12;
+var _cadModo='select',_cadMedicaoPontos=[],_cadPolilinhaPontos=[],_cadSnapAtivo=true,_cadSnapTolPx=12;
 const CAD_PALETA=['#0D4FA0','#27500A','#A32D2D','#854F0B','#5B3A8E','#0E7C7B','#B5482A','#2D5F8A','#6B6B0F','#7A2E5C'];
 function geoCadHtml(){
   return '<div class="card mb1">'
@@ -7411,10 +7411,13 @@ function geoCadHtml(){
     +'<div class="mu sm mb1">Importe um DXF, KML ou Shapefile (.zip). Arraste para mover o desenho, use a roda do mouse para zoom, clique num ponto para selecioná-lo e dar um nome. Camadas do DXF são detectadas automaticamente; você também pode criar camadas manuais.</div>'
     +'<div class="fg mb1"><label class="fl">Arquivo (.dxf, .kml ou .zip)</label><input class="fc" type="file" id="cad-file" accept=".dxf,.kml,.zip" onchange="cadArquivoSelecionado(this)"></div>'
     +'<div id="cad-info" class="mu sm mb1" style="display:none"></div>'
+    +'<div class="fg mb1"><label class="fl">Importar pontos e perímetro de planilha (.ods)</label><input class="fc" type="file" id="cad-ods-file" accept=".ods" onchange="cadImportarOds(this)"></div>'
+    +'<div id="cad-ods-info" class="mu sm mb1" style="display:none"></div>'
     +'<div class="mb1" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">'
     +'<button class="btn bsm bp2" id="cad-modo-select" onclick="cadSetModo(\'select\')"><i class="ti ti-pointer"></i> Selecionar</button>'
     +'<button class="btn bsm" id="cad-modo-medir" onclick="cadSetModo(\'medir\')"><i class="ti ti-ruler-2"></i> Régua</button>'
     +'<button class="btn bsm" id="cad-modo-criar" onclick="cadSetModo(\'criar-ponto\')"><i class="ti ti-circle-plus"></i> Criar ponto</button>'
+    +'<button class="btn bsm" id="cad-modo-polilinha" onclick="cadSetModo(\'polilinha\')"><i class="ti ti-line"></i> Polilinha</button>'
     +'<label style="display:flex;align-items:center;gap:6px;margin-left:.5rem;cursor:pointer"><input type="checkbox" id="cad-snap" checked onchange="_cadSnapAtivo=this.checked"> <span class="mu sm">Snap em vértices</span></label>'
     +'<label style="display:flex;align-items:center;gap:6px"><span class="mu sm">Tolerância (px)</span><input class="fc" style="width:60px" type="number" id="cad-snap-tol" value="12" onchange="_cadSnapTolPx=parseFloat(this.value)||12"></label>'
     +'</div>'
@@ -7428,6 +7431,7 @@ function geoCadHtml(){
     +'<button class="btn bxs mb1" onclick="cadCriarCamada()"><i class="ti ti-plus"></i> Nova camada</button>'
     +'<div class="card mb1" id="cad-painel" style="background:#F4F8FF"><div class="mu sm">Clique em um ponto no desenho para selecioná-lo.</div></div>'
     +'<div id="cad-medicao-info" class="card mb1" style="display:none;background:#FFF8E6"></div>'
+    +'<div id="cad-polilinha-info" class="card mb1" style="display:none;background:#E8F4FF"></div>'
     +'<div class="st mb1" style="font-size:13px">Pontos nomeados</div>'
     +'<div id="cad-lista" class="mb1"><div class="mu sm">Nenhum ponto nomeado ainda.</div></div>'
     +'<button class="btn bsm mb1" onclick="cadExportarTxt()"><i class="ti ti-file-text"></i> Exportar TXT</button> '
@@ -7615,7 +7619,15 @@ function cadRenderSvg(){
       medicaoSvg+='<text x="'+((la.x+lb.x)/2)+'" y="'+((la.y+lb.y)/2)+'" font-size="'+(r*2.4)+'" fill="#854F0B" style="pointer-events:none;user-select:none">'+dist.toFixed(3)+' m</text>';
     }
   }
-  svg.innerHTML=geomSvg+pontosSvg+medicaoSvg;
+  let polilinhaSvg='';
+  if(_cadModo==='polilinha'&&_cadPolilinhaPontos.length){
+    polilinhaSvg+=_cadPolilinhaPontos.map(function(p){const l=cadWorldToLocal(p.x,p.y);return '<circle cx="'+l.x+'" cy="'+l.y+'" r="'+(r*0.8)+'" fill="#0D4FA0"/>';}).join('');
+    if(_cadPolilinhaPontos.length>1){
+      const pts=_cadPolilinhaPontos.map(function(p){const l=cadWorldToLocal(p.x,p.y);return l.x+','+l.y;}).join(' ');
+      polilinhaSvg+='<polyline points="'+pts+'" fill="none" stroke="#0D4FA0" stroke-width="'+(r*0.4)+'" stroke-dasharray="'+(r*0.6)+','+(r*0.4)+'"/>';
+    }
+  }
+  svg.innerHTML=geomSvg+pontosSvg+medicaoSvg+polilinhaSvg;
 }
 function cadScreenToSvg(evt){
   const svg=document.getElementById('cad-svg');
@@ -7669,13 +7681,15 @@ function cadHitTestPonto(svgPt){
 function cadSetModo(modo){
   _cadModo=modo;
   _cadMedicaoPontos=[];
-  const map={select:'cad-modo-select',medir:'cad-modo-medir','criar-ponto':'cad-modo-criar'};
+  _cadPolilinhaPontos=[];
+  const map={select:'cad-modo-select',medir:'cad-modo-medir','criar-ponto':'cad-modo-criar',polilinha:'cad-modo-polilinha'};
   Object.keys(map).forEach(function(m){
     const btn=document.getElementById(map[m]);
     if(btn) btn.classList.toggle('bp2',m===modo);
   });
   const info=document.getElementById('cad-medicao-info');
   if(info) info.style.display='none';
+  cadRenderPolilinhaInfo();
   cadRenderSvg();
 }
 function cadPointerDown(evt){
@@ -7732,6 +7746,14 @@ function cadSvgClick(evt){
     cadRenderMedicaoInfo();
     return;
   }
+  if(_cadModo==='polilinha'){
+    const snap=cadBuscarSnap(p);
+    const pt=snap||cadLocalToWorld(p.x,p.y);
+    _cadPolilinhaPontos.push(pt);
+    cadRenderSvg();
+    cadRenderPolilinhaInfo();
+    return;
+  }
   if(_cadModo==='criar-ponto'){
     const snap=cadBuscarSnap(p);
     const pt=snap||cadLocalToWorld(p.x,p.y);
@@ -7759,6 +7781,54 @@ function cadRenderMedicaoInfo(){
   const dist=cadDistancia(_cadMedicaoPontos[0],_cadMedicaoPontos[1]);
   el.style.display='block';
   el.innerHTML='<div class="st" style="font-size:13px">Distância medida</div><div class="mu">'+dist.toFixed(3)+' m</div><button class="btn bxs" style="margin-top:6px" onclick="_cadMedicaoPontos=[];cadRenderSvg();cadRenderMedicaoInfo();"><i class="ti ti-x"></i> Limpar</button>';
+}
+function cadRenderPolilinhaInfo(){
+  const el=document.getElementById('cad-polilinha-info');
+  if(!el) return;
+  if(_cadModo!=='polilinha'){el.style.display='none';return;}
+  el.style.display='block';
+  const n=_cadPolilinhaPontos.length;
+  el.innerHTML='<div class="st" style="font-size:13px">Desenhando polilinha</div>'
+    +'<div class="mu sm mb1">'+n+' ponto(s) clicado(s). Clique no desenho para adicionar vértices (com snap, se ativo).</div>'
+    +'<div style="display:flex;gap:.4rem;flex-wrap:wrap">'
+    +'<button class="btn bxs"'+(n<1?' disabled':'')+' onclick="cadPolilinhaDesfazerUltimo()"><i class="ti ti-arrow-back-up"></i> Desfazer último</button>'
+    +'<button class="btn bxs bp2"'+(n<2?' disabled':'')+' onclick="cadPolilinhaConcluir(false)"><i class="ti ti-check"></i> Concluir (aberta)</button>'
+    +'<button class="btn bxs bp2"'+(n<3?' disabled':'')+' onclick="cadPolilinhaConcluir(true)"><i class="ti ti-rectangle"></i> Concluir (fechada)</button>'
+    +'<button class="btn bxs bdr"'+(n<1?' disabled':'')+' onclick="cadPolilinhaCancelar()"><i class="ti ti-x"></i> Cancelar</button>'
+    +'</div>';
+}
+function cadPolilinhaDesfazerUltimo(){
+  _cadPolilinhaPontos.pop();
+  cadRenderSvg();
+  cadRenderPolilinhaInfo();
+}
+function cadPolilinhaCancelar(){
+  _cadPolilinhaPontos=[];
+  cadRenderSvg();
+  cadRenderPolilinhaInfo();
+}
+function cadPolilinhaConcluir(fechada){
+  if(_cadPolilinhaPontos.length<(fechada?3:2)) return;
+  if(!_cadCamadas.some(function(c){return c.id==='_default';})) _cadCamadas.push({id:'_default',nome:'Sem camada',cor:CAD_PALETA[0],visivel:true,origem:'auto'});
+  const pontosNovos=_cadPolilinhaPontos.map(function(p){
+    const existente=_cadPontos.find(function(q){return Math.abs(q.x-p.x)<1e-6&&Math.abs(q.y-p.y)<1e-6;});
+    if(existente) return existente;
+    const novo={id:_cadNextId++,x:p.x,y:p.y,z:0,nome:'',layerId:'_default',sigmaE:0,sigmaN:0,sigmaZ:0};
+    _cadPontos.push(novo);
+    return novo;
+  });
+  const coords=pontosNovos.map(function(p){return [p.x,p.y,p.z||0];});
+  if(fechada) coords.push(coords[0]);
+  if(!_cadGeoJSON) _cadGeoJSON={type:'FeatureCollection',features:[]};
+  _cadGeoJSON.features.push({type:'Feature',properties:{layer:'_default'},geometry:{type:fechada?'Polygon':'LineString',coordinates:fechada?[coords]:coords}});
+  _cadPolilinhaPontos=[];
+  cadAjustarView();
+  cadRenderCamadas();
+  cadRenderSvg();
+  cadAtualizarPainel();
+  cadAtualizarLista();
+  cadRenderPolilinhaInfo();
+  toast('Polilinha '+(fechada?'fechada':'aberta')+' criada com '+pontosNovos.length+' vértice(s).');
 }
 function cadSelecionarPonto(id){
   _cadSelecionado=id;
@@ -7908,6 +7978,113 @@ function cadExportarDxf(){
   const gj={type:'FeatureCollection',features:nomeados.map(function(p){return {type:'Feature',properties:{name:p.nome},geometry:{type:'Point',coordinates:[p.x,p.y,p.z||0]}};})};
   const blob=new Blob([geojsonToDxf(gj)],{type:'application/dxf'});
   downloadBlobGeo(blob,'pontos_cad.dxf');
+}
+function cadOdsTexto(cell){
+  if(!cell) return '';
+  const ps=cell.getElementsByTagName('text:p');
+  let txt='';
+  for(let j=0;j<ps.length;j++) txt+=ps[j].textContent;
+  return txt;
+}
+function cadOdsNumero(cell){
+  if(!cell) return NaN;
+  const v=cell.getAttribute('office:value');
+  if(v!==null&&v!=='') return parseFloat(v);
+  const txt=cadOdsTexto(cell).trim();
+  if(!txt) return NaN;
+  const limpo=txt.replace(/\./g,'').replace(',','.');
+  const n=parseFloat(limpo);
+  return isNaN(n)?parseFloat(txt):n;
+}
+function cadOdsLinhaValores(rowEl){
+  if(!rowEl) return [];
+  const cells=rowEl.getElementsByTagName('table:table-cell');
+  const out=[];
+  for(let i=0;i<cells.length;i++){
+    const cell=cells[i];
+    const rep=odsRepeated(cell,'table:number-columns-repeated');
+    const item={texto:cadOdsTexto(cell),valor:cadOdsNumero(cell)};
+    for(let k=0;k<rep;k++) out.push(item);
+  }
+  return out;
+}
+function cadOdsNumLinhas(tableEl){
+  const rows=tableEl.getElementsByTagName('table:table-row');
+  let total=0;
+  for(let i=0;i<rows.length;i++) total+=odsRepeated(rows[i],'table:number-rows-repeated');
+  return total;
+}
+function cadNormalizarTexto(t){
+  return (t||'').toString().trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+}
+function cadOdsDetectarColunas(header){
+  const norm=header.map(cadNormalizarTexto);
+  function achar(opcoes){
+    for(let i=0;i<norm.length;i++){ if(opcoes.indexOf(norm[i])>=0) return i; }
+    return -1;
+  }
+  return {
+    nome:achar(['ponto','pontos','nome','vertice','vertices','marco','codigo','cod','id']),
+    x:achar(['e','x','este','coordenada e','coord e','long','longitude']),
+    y:achar(['n','y','norte','coordenada n','coord n','lat','latitude']),
+    z:achar(['z','cota','altitude','h','elevacao'])
+  };
+}
+async function cadImportarOds(input){
+  const file=input.files[0];if(!file)return;
+  const info=document.getElementById('cad-ods-info');
+  if(info){info.style.display='block';info.innerHTML='Lendo planilha...';}
+  try{
+    const buf=await file.arrayBuffer();
+    const zip=await JSZip.loadAsync(buf);
+    const contentFile=zip.file('content.xml');
+    if(!contentFile) throw new Error('Arquivo não parece ser um .ods válido (content.xml não encontrado).');
+    const xmlStr=await contentFile.async('string');
+    const xmlDoc=new DOMParser().parseFromString(xmlStr,'application/xml');
+    if(xmlDoc.getElementsByTagName('parsererror').length) throw new Error('Não foi possível interpretar o XML da planilha — arquivo corrompido?');
+    const tabelas=xmlDoc.getElementsByTagName('table:table');
+    if(!tabelas.length) throw new Error('Nenhuma aba/tabela encontrada na planilha.');
+    const tabela=tabelas[0];
+    const totalLinhas=cadOdsNumLinhas(tabela);
+    if(totalLinhas<2) throw new Error('A planilha precisa de uma linha de cabeçalho e ao menos uma linha de pontos.');
+    const header=cadOdsLinhaValores(odsLerLinha(tabela,0)).map(function(c){return c.texto;});
+    const col=cadOdsDetectarColunas(header);
+    if(col.x<0||col.y<0) throw new Error('Não foi possível identificar as colunas de coordenadas (E/X e N/Y) no cabeçalho da planilha. Use cabeçalhos como "Ponto", "E", "N" e "Z".');
+    const layerId='ods_'+Date.now();
+    const layerNome=file.name.replace(/\.ods$/i,'');
+    const pontosNovos=[];
+    for(let i=1;i<totalLinhas;i++){
+      const row=odsLerLinha(tabela,i);
+      if(!row) continue;
+      const vals=cadOdsLinhaValores(row);
+      const x=vals[col.x]?vals[col.x].valor:NaN;
+      const y=vals[col.y]?vals[col.y].valor:NaN;
+      if(isNaN(x)||isNaN(y)) continue;
+      const z=col.z>=0&&vals[col.z]?vals[col.z].valor:0;
+      const nome=col.nome>=0&&vals[col.nome]?vals[col.nome].texto.trim():'';
+      const pt={id:_cadNextId++,x:x,y:y,z:isNaN(z)?0:z,nome:nome,layerId:layerId,sigmaE:0,sigmaN:0,sigmaZ:0,ordemNome:0};
+      if(nome) pt.ordemNome=++_cadOrdemContador;
+      pontosNovos.push(pt);
+    }
+    if(!pontosNovos.length) throw new Error('Nenhuma linha com coordenadas válidas foi encontrada na planilha.');
+    _cadPontos=_cadPontos.concat(pontosNovos);
+    const coords=pontosNovos.map(function(p){return [p.x,p.y,p.z||0];});
+    coords.push(coords[0]);
+    if(!_cadGeoJSON) _cadGeoJSON={type:'FeatureCollection',features:[]};
+    _cadGeoJSON.features.push({type:'Feature',properties:{layer:layerId},geometry:{type:'Polygon',coordinates:[coords]}});
+    cadDerivarCamadas(_cadGeoJSON);
+    const camada=_cadCamadas.find(function(c){return c.id===layerId;});
+    if(camada) camada.nome=layerNome;
+    cadAjustarView();
+    cadRenderCamadas();
+    cadRenderSvg();
+    cadAtualizarPainel();
+    cadAtualizarLista();
+    info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> '+pontosNovos.length+' ponto(s) e perímetro importados da planilha "'+xmlEscapeGeo(layerNome)+'".</span>';
+    input.value='';
+  }catch(e){
+    info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Erro: '+e.message+'</span>';
+  }
 }
 
 // ── 9c. Memorial INCRA — preenchimento da Planilha SIGEF (.ods) oficial ──
