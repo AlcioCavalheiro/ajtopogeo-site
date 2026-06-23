@@ -6680,8 +6680,7 @@ const GEO_TABS=[
   {k:'carshp',ic:'ti-leaf',lb:'Shape para CAR'},
   {k:'incra',ic:'ti-file-upload',lb:'Importar Memorial INCRA'},
   {k:'anuencia',ic:'ti-signature',lb:'Anuência de Limites'},
-  {k:'cad',ic:'ti-axis-x',lb:'CAD Simples'},
-  {k:'cadav',ic:'ti-stack-2',lb:'CAD Avançado'},
+  {k:'cad',ic:'ti-stack-2',lb:'CAD'},
   {k:'sigef',ic:'ti-table',lb:'Planilha SIGEF (.ods)'}
 ];
 function rGeoFerramentasFixed(){
@@ -6698,7 +6697,6 @@ function rGeoFerramentasFixed(){
     +'<div id="geo-incra" style="display:none">'+geoIncraHtml()+'</div>'
     +'<div id="geo-anuencia" style="display:none">'+geoAnuenciaHtml()+'</div>'
     +'<div id="geo-cad" style="display:none">'+geoCadHtml()+'</div>'
-    +'<div id="geo-cadav" style="display:none">'+geoCadAvHtml()+'</div>'
     +'<div id="geo-sigef" style="display:none">'+geoSigefHtml()+'</div>';
   coordUpdateUI();
   memorialInit();
@@ -7399,22 +7397,37 @@ async function anuenciaGerarDocx(){
   }
 }
 
-// ── 9. CAD Simples — selecionar e nomear pontos de um desenho ──
-var _cadGeoJSON=null,_cadPontos=[],_cadSelecionado=null,_cadView={cx:0,cy:0,w:100,h:100},_cadDragInicio=null,_cadDragMoveu=false,_cadOrdemContador=0;
+// ── 9. CAD — múltiplas camadas, régua, edição de coordenadas, snap e navegação sequencial ──
+var _cadGeoJSON=null,_cadPontos=[],_cadNextId=1,_cadCamadas=[],_cadSelecionado=null,_cadOrdemContador=0;
+var _cadView={cx:0,cy:0,w:100,h:100},_cadDragInicio=null,_cadDragMoveu=false,_cadDragPontoId=null;
 var _cadOrigin={x:0,y:0};
 function cadWorldToLocal(x,y){return {x:x-_cadOrigin.x,y:-(y-_cadOrigin.y)};}
+function cadLocalToWorld(x,y){return {x:x+_cadOrigin.x,y:_cadOrigin.y-y};}
+var _cadModo='select',_cadMedicaoPontos=[],_cadSnapAtivo=true,_cadSnapTolPx=12;
+const CAD_PALETA=['#0D4FA0','#27500A','#A32D2D','#854F0B','#5B3A8E','#0E7C7B','#B5482A','#2D5F8A','#6B6B0F','#7A2E5C'];
 function geoCadHtml(){
   return '<div class="card mb1">'
-    +'<div class="st mb1"><i class="ti ti-axis-x" style="color:var(--brand)"></i>CAD Simples — Selecionar e Nomear Pontos</div>'
-    +'<div class="mu sm mb1">Importe um DXF, KML ou Shapefile (.zip). Arraste para mover o desenho, use a roda do mouse para zoom, clique num ponto para selecioná-lo e dar um nome.</div>'
+    +'<div class="st mb1"><i class="ti ti-stack-2" style="color:var(--brand)"></i>CAD — Camadas, Régua, Edição de Coordenadas e Navegação</div>'
+    +'<div class="mu sm mb1">Importe um DXF, KML ou Shapefile (.zip). Arraste para mover o desenho, use a roda do mouse para zoom, clique num ponto para selecioná-lo e dar um nome. Camadas do DXF são detectadas automaticamente; você também pode criar camadas manuais.</div>'
     +'<div class="fg mb1"><label class="fl">Arquivo (.dxf, .kml ou .zip)</label><input class="fc" type="file" id="cad-file" accept=".dxf,.kml,.zip" onchange="cadArquivoSelecionado(this)"></div>'
     +'<div id="cad-info" class="mu sm mb1" style="display:none"></div>'
+    +'<div class="mb1" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">'
+    +'<button class="btn bsm bp2" id="cad-modo-select" onclick="cadSetModo(\'select\')"><i class="ti ti-pointer"></i> Selecionar</button>'
+    +'<button class="btn bsm" id="cad-modo-medir" onclick="cadSetModo(\'medir\')"><i class="ti ti-ruler-2"></i> Régua</button>'
+    +'<button class="btn bsm" id="cad-modo-criar" onclick="cadSetModo(\'criar-ponto\')"><i class="ti ti-circle-plus"></i> Criar ponto</button>'
+    +'<label style="display:flex;align-items:center;gap:6px;margin-left:.5rem;cursor:pointer"><input type="checkbox" id="cad-snap" checked onchange="_cadSnapAtivo=this.checked"> <span class="mu sm">Snap em vértices</span></label>'
+    +'<label style="display:flex;align-items:center;gap:6px"><span class="mu sm">Tolerância (px)</span><input class="fc" style="width:60px" type="number" id="cad-snap-tol" value="12" onchange="_cadSnapTolPx=parseFloat(this.value)||12"></label>'
+    +'</div>'
     +'<div style="display:flex;gap:1rem;flex-wrap:wrap">'
     +'<div style="flex:2;min-width:320px;border:1px solid var(--bor);border-radius:8px;overflow:hidden;background:#fafaf7">'
-    +'<svg id="cad-svg" viewBox="0 0 100 100" style="width:100%;height:480px;display:block;cursor:grab;touch-action:none" onpointerdown="cadPointerDown(event)" onpointermove="cadPointerMove(event)" onpointerup="cadPointerUp(event)" onpointerleave="cadPointerUp(event)" onwheel="cadWheel(event)" onclick="cadSvgClick(event)"></svg>'
+    +'<svg id="cad-svg" viewBox="0 0 100 100" style="width:100%;height:480px;display:block;cursor:crosshair;touch-action:none" onpointerdown="cadPointerDown(event)" onpointermove="cadPointerMove(event)" onpointerup="cadPointerUp(event)" onpointerleave="cadPointerUp(event)" onwheel="cadWheel(event)" onclick="cadSvgClick(event)"></svg>'
     +'</div>'
     +'<div style="flex:1;min-width:260px">'
+    +'<div class="st mb1" style="font-size:13px">Camadas</div>'
+    +'<div id="cad-camadas" class="mb1"><div class="mu sm">Nenhuma camada ainda.</div></div>'
+    +'<button class="btn bxs mb1" onclick="cadCriarCamada()"><i class="ti ti-plus"></i> Nova camada</button>'
     +'<div class="card mb1" id="cad-painel" style="background:#F4F8FF"><div class="mu sm">Clique em um ponto no desenho para selecioná-lo.</div></div>'
+    +'<div id="cad-medicao-info" class="card mb1" style="display:none;background:#FFF8E6"></div>'
     +'<div class="st mb1" style="font-size:13px">Pontos nomeados</div>'
     +'<div id="cad-lista" class="mb1"><div class="mu sm">Nenhum ponto nomeado ainda.</div></div>'
     +'<button class="btn bsm mb1" onclick="cadExportarTxt()"><i class="ti ti-file-text"></i> Exportar TXT</button> '
@@ -7444,281 +7457,30 @@ async function cadArquivoSelecionado(input){
     } else {
       throw new Error('Formato não suportado. Use .dxf, .kml ou .zip (shapefile).');
     }
-    _cadGeoJSON=gj;
-    _cadPontos=cadExtrairPontos(gj);
-    if(!_cadPontos.length) throw new Error('Nenhum ponto encontrado no arquivo.');
-    _cadSelecionado=null;
-    _cadOrdemContador=0;
-    cadAjustarView();
-    cadRenderSvg();
-    cadAtualizarPainel();
-    cadAtualizarLista();
-    info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> '+_cadPontos.length+' ponto(s) encontrados — clique em um ponto no desenho para nomeá-lo.</span>';
+    cadImportarGeoJSON(gj);
+    info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> '+_cadPontos.length+' ponto(s) encontrados em '+_cadCamadas.length+' camada(s).</span>';
   }catch(e){
     info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Erro: '+e.message+'</span>';
   }
+}
+function cadImportarGeoJSON(gj){
+  _cadGeoJSON=gj;
+  cadDerivarCamadas(gj);
+  _cadPontos=cadExtrairPontos(gj);
+  if(!_cadPontos.length) throw new Error('Nenhum ponto encontrado no arquivo.');
+  _cadSelecionado=null;
+  _cadOrdemContador=0;
+  cadAjustarView();
+  cadRenderCamadas();
+  cadRenderSvg();
+  cadAtualizarPainel();
+  cadAtualizarLista();
 }
 function cadExtrairPontos(gj){
   const pts=[];
-  // prioridade alta (2) = entidade POINT, cuja cota é individual e confiável;
-  // prioridade baixa (1) = vértice de LINE/POLYLINE/POLYGON, que no DXF (LWPOLYLINE)
-  // costuma compartilhar uma única elevação para a entidade toda, podendo não
-  // refletir a cota real de cada vértice.
-  function add(c,prio){pts.push({x:c[0],y:c[1],z:c[2]||0,nome:'',_prio:prio});}
-  (gj.features||[]).forEach(function(f){
-    const g=f.geometry;if(!g)return;
-    if(g.type==='Point') add(g.coordinates,2);
-    else if(g.type==='MultiPoint') g.coordinates.forEach(function(c){add(c,2);});
-    else if(g.type==='LineString') g.coordinates.forEach(function(c){add(c,1);});
-    else if(g.type==='MultiLineString') g.coordinates.forEach(function(l){l.forEach(function(c){add(c,1);});});
-    else if(g.type==='Polygon') g.coordinates.forEach(function(r){r.forEach(function(c){add(c,1);});});
-    else if(g.type==='MultiPolygon') g.coordinates.forEach(function(poly){poly.forEach(function(r){r.forEach(function(c){add(c,1);});});});
-  });
-  const dedup=[];
-  pts.forEach(function(p){
-    const dup=dedup.find(function(q){return Math.abs(q.x-p.x)<1e-6&&Math.abs(q.y-p.y)<1e-6;});
-    if(!dup) dedup.push(p);
-    else if(p._prio>dup._prio) dup.z=p.z,dup._prio=p._prio;
-  });
-  dedup.forEach(function(p){delete p._prio;});
-  return dedup;
-}
-function cadAjustarView(){
-  const xs=_cadPontos.map(function(p){return p.x;}),ys=_cadPontos.map(function(p){return p.y;});
-  const minX=Math.min.apply(null,xs),maxX=Math.max.apply(null,xs);
-  const minY=Math.min.apply(null,ys),maxY=Math.max.apply(null,ys);
-  const w=(maxX-minX)||10,h=(maxY-minY)||10;
-  const pad=Math.max(w,h)*0.1||1;
-  _cadOrigin={x:(minX+maxX)/2,y:(minY+maxY)/2};
-  _cadView.cx=0;
-  _cadView.cy=0;
-  _cadView.w=w+pad*2;
-  _cadView.h=h+pad*2;
-}
-function cadGeometriaSvg(g){
-  if(!g) return '';
-  const sw=Math.max(_cadView.w,_cadView.h)*0.0015;
-  function pts(coords){return coords.map(function(c){const l=cadWorldToLocal(c[0],c[1]);return l.x+','+l.y;}).join(' ');}
-  if(g.type==='LineString') return '<polyline points="'+pts(g.coordinates)+'" fill="none" stroke="#888" stroke-width="'+sw+'"/>';
-  if(g.type==='MultiLineString') return g.coordinates.map(function(l){return cadGeometriaSvg({type:'LineString',coordinates:l});}).join('');
-  if(g.type==='Polygon') return g.coordinates.map(function(r){return '<polygon points="'+pts(r)+'" fill="#0D4FA01a" stroke="#888" stroke-width="'+sw+'"/>';}).join('');
-  if(g.type==='MultiPolygon') return g.coordinates.map(function(poly){return cadGeometriaSvg({type:'Polygon',coordinates:poly});}).join('');
-  return '';
-}
-function cadRenderSvg(){
-  const svg=document.getElementById('cad-svg');
-  if(!svg) return;
-  svg.setAttribute('viewBox',(_cadView.cx-_cadView.w/2)+' '+(_cadView.cy-_cadView.h/2)+' '+_cadView.w+' '+_cadView.h);
-  let geomSvg='';
-  (_cadGeoJSON&&_cadGeoJSON.features||[]).forEach(function(f){geomSvg+=cadGeometriaSvg(f.geometry);});
-  const r=Math.max(_cadView.w,_cadView.h)*0.006;
-  const pontosSvg=_cadPontos.map(function(p,i){
-    const sel=i===_cadSelecionado;
-    const loc=cadWorldToLocal(p.x,p.y);
-    return '<circle cx="'+loc.x+'" cy="'+loc.y+'" r="'+r+'" class="cad-pt" data-i="'+i+'" fill="'+(sel?'#E24B4A':(p.nome?'#27500A':'#0D4FA0'))+'" stroke="#fff" stroke-width="'+(r*0.2)+'"/>'
-      +(p.nome?'<text x="'+(loc.x+r*1.6)+'" y="'+loc.y+'" font-size="'+(r*2.2)+'" fill="#222" style="pointer-events:none;user-select:none">'+xmlEscapeGeo(p.nome)+'</text>':'');
-  }).join('');
-  svg.innerHTML=geomSvg+pontosSvg;
-}
-function cadScreenToSvg(evt){
-  const svg=document.getElementById('cad-svg');
-  const pt=svg.createSVGPoint();
-  pt.x=evt.clientX;pt.y=evt.clientY;
-  const ctm=svg.getScreenCTM();
-  if(!ctm) return {x:0,y:0};
-  const p=pt.matrixTransform(ctm.inverse());
-  return {x:p.x,y:p.y};
-}
-function cadPointerDown(evt){
-  _cadDragInicio=cadScreenToSvg(evt);
-  _cadDragMoveu=false;
-}
-function cadPointerMove(evt){
-  if(!_cadDragInicio) return;
-  const p=cadScreenToSvg(evt);
-  const dx=p.x-_cadDragInicio.x,dy=p.y-_cadDragInicio.y;
-  if(Math.abs(dx)>0.002*_cadView.w||Math.abs(dy)>0.002*_cadView.h) _cadDragMoveu=true;
-  if(_cadDragMoveu){
-    _cadView.cx-=dx;_cadView.cy-=dy;
-    cadRenderSvg();
-    _cadDragInicio=cadScreenToSvg(evt);
-  }
-}
-function cadPointerUp(evt){_cadDragInicio=null;}
-function cadWheel(evt){
-  if(!_cadGeoJSON) return;
-  evt.preventDefault();
-  const p=cadScreenToSvg(evt);
-  const fator=evt.deltaY>0?1.1:0.9;
-  _cadView.w*=fator;_cadView.h*=fator;
-  _cadView.cx=p.x+(_cadView.cx-p.x)*fator;
-  _cadView.cy=p.y+(_cadView.cy-p.y)*fator;
-  cadRenderSvg();
-}
-function cadSvgClick(evt){
-  if(_cadDragMoveu){_cadDragMoveu=false;return;}
-  const target=evt.target;
-  if(target.classList&&target.classList.contains('cad-pt')) cadSelecionarPonto(parseInt(target.dataset.i,10));
-  else cadSelecionarPonto(null);
-}
-function cadSelecionarPonto(i){
-  _cadSelecionado=i;
-  cadRenderSvg();
-  cadAtualizarPainel();
-}
-function cadAtualizarPainel(){
-  const el=document.getElementById('cad-painel');
-  if(!el) return;
-  if(_cadSelecionado===null){el.innerHTML='<div class="mu sm">Clique em um ponto no desenho para selecioná-lo.</div>';return;}
-  const p=_cadPontos[_cadSelecionado];
-  el.innerHTML='<div class="fg mb1"><label class="fl">Nome do ponto selecionado</label><input class="fc" id="cad-nome-input" value="'+xmlEscapeGeo(p.nome||'')+'" onkeydown="if(event.key===\'Enter\')cadConfirmarNome()"></div>'
-    +'<div class="mu sm mb1">E: '+p.x.toFixed(3)+' · N: '+p.y.toFixed(3)+(p.z?' · Z: '+p.z.toFixed(3):'')+'</div>'
-    +'<button class="btn bp2 bsm" onclick="cadConfirmarNome()"><i class="ti ti-check"></i> Confirmar nome</button>';
-  setTimeout(function(){const inp=document.getElementById('cad-nome-input');if(inp){inp.focus();inp.select();}},0);
-}
-function cadConfirmarNome(){
-  if(_cadSelecionado===null) return;
-  const p=_cadPontos[_cadSelecionado];
-  if(!p.nome) p.ordemNome=++_cadOrdemContador;
-  p.nome=document.getElementById('cad-nome-input').value;
-  cadRenderSvg();
-  cadAtualizarLista();
-}
-function cadAtualizarLista(){
-  const el=document.getElementById('cad-lista');
-  if(!el) return;
-  const nomeados=_cadPontos.map(function(p,i){return {p:p,i:i};}).filter(function(o){return o.p.nome;});
-  if(!nomeados.length){el.innerHTML='<div class="mu sm">Nenhum ponto nomeado ainda.</div>';return;}
-  nomeados.sort(function(a,b){return (a.p.ordemNome||0)-(b.p.ordemNome||0);});
-  el.innerHTML='<div class="tw"><table><thead><tr><th>Nome</th><th>E</th><th>N</th><th>Z</th><th></th></tr></thead><tbody>'
-    +nomeados.map(function(o){
-      const p=o.p,i=o.i;
-      return '<tr><td>'+xmlEscapeGeo(p.nome)+'</td><td>'+p.x.toFixed(3)+'</td><td>'+p.y.toFixed(3)+'</td><td>'+(p.z||0).toFixed(3)+'</td><td><button class="btn bxs" onclick="cadFocarPonto('+i+')"><i class="ti ti-focus-2"></i></button> <button class="btn bxs bdr" onclick="cadRemoverNome('+i+')"><i class="ti ti-x"></i></button></td></tr>';
-    }).join('')
-    +'</tbody></table></div>';
-}
-function cadRemoverNome(i){
-  _cadPontos[i].nome='';
-  _cadPontos[i].ordemNome=0;
-  if(_cadSelecionado===i) cadAtualizarPainel();
-  cadRenderSvg();
-  cadAtualizarLista();
-}
-function cadFocarPonto(i){
-  cadSelecionarPonto(i);
-  const loc=cadWorldToLocal(_cadPontos[i].x,_cadPontos[i].y);
-  _cadView.cx=loc.x;_cadView.cy=loc.y;
-  cadRenderSvg();
-}
-function cadExportarTxt(){
-  const nomeados=_cadPontos.filter(function(p){return p.nome;});
-  if(!nomeados.length){toast('Nomeie ao menos um ponto antes de exportar.',true);return;}
-  const linhas=nomeados.map(function(p){return [p.nome,p.x.toFixed(3),p.y.toFixed(3),(p.z||0).toFixed(3)].join(';');});
-  downloadText(linhas.join('\r\n'),'pontos_nomeados.txt');
-}
-function cadExportarDxf(){
-  const nomeados=_cadPontos.filter(function(p){return p.nome;});
-  if(!nomeados.length){toast('Nomeie ao menos um ponto antes de exportar.',true);return;}
-  const gj={type:'FeatureCollection',features:nomeados.map(function(p){return {type:'Feature',properties:{name:p.nome},geometry:{type:'Point',coordinates:[p.x,p.y,p.z||0]}};})};
-  const blob=new Blob([geojsonToDxf(gj)],{type:'application/dxf'});
-  downloadBlobGeo(blob,'pontos_nomeados.dxf');
-}
-
-// ── 9b. CAD Avançado — múltiplas camadas, régua, edição de coordenadas e snap ──
-var _cadAvGeoJSON=null,_cadAvPontos=[],_cadAvNextId=1,_cadAvCamadas=[],_cadAvSelecionado=null;
-var _cadAvView={cx:0,cy:0,w:100,h:100},_cadAvDragInicio=null,_cadAvDragMoveu=false,_cadAvDragPontoId=null;
-var _cadAvOrigin={x:0,y:0};
-function cadAvWorldToLocal(x,y){return {x:x-_cadAvOrigin.x,y:-(y-_cadAvOrigin.y)};}
-function cadAvLocalToWorld(x,y){return {x:x+_cadAvOrigin.x,y:_cadAvOrigin.y-y};}
-var _cadAvModo='select',_cadAvMedicaoPontos=[],_cadAvSnapAtivo=true,_cadAvSnapTolPx=12;
-const CADAV_PALETA=['#0D4FA0','#27500A','#A32D2D','#854F0B','#5B3A8E','#0E7C7B','#B5482A','#2D5F8A','#6B6B0F','#7A2E5C'];
-function geoCadAvHtml(){
-  return '<div class="card mb1">'
-    +'<div class="st mb1"><i class="ti ti-stack-2" style="color:var(--brand)"></i>CAD Avançado — Camadas, Régua e Edição de Coordenadas</div>'
-    +'<div class="mu sm mb1">Importe um DXF, KML ou Shapefile (.zip), ou reaproveite os pontos já carregados na CAD Simples. Camadas do DXF são detectadas automaticamente; você também pode criar camadas manuais.</div>'
-    +'<div class="g2 mb1">'
-    +'<div class="fg"><label class="fl">Arquivo (.dxf, .kml ou .zip)</label><input class="fc" type="file" id="cadav-file" accept=".dxf,.kml,.zip" onchange="cadAvArquivoSelecionado(this)"></div>'
-    +'<div class="fg"><label class="fl">&nbsp;</label><button class="btn bsm" onclick="cadAvCarregarDoCadSimples()"><i class="ti ti-arrow-back-up"></i> Usar pontos da CAD Simples</button></div>'
-    +'</div>'
-    +'<div id="cadav-info" class="mu sm mb1" style="display:none"></div>'
-    +'<div class="mb1" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">'
-    +'<button class="btn bsm bp2" id="cadav-modo-select" onclick="cadAvSetModo(\'select\')"><i class="ti ti-pointer"></i> Selecionar</button>'
-    +'<button class="btn bsm" id="cadav-modo-medir" onclick="cadAvSetModo(\'medir\')"><i class="ti ti-ruler-2"></i> Régua</button>'
-    +'<button class="btn bsm" id="cadav-modo-criar" onclick="cadAvSetModo(\'criar-ponto\')"><i class="ti ti-circle-plus"></i> Criar ponto</button>'
-    +'<label style="display:flex;align-items:center;gap:6px;margin-left:.5rem;cursor:pointer"><input type="checkbox" id="cadav-snap" checked onchange="_cadAvSnapAtivo=this.checked"> <span class="mu sm">Snap em vértices</span></label>'
-    +'<label style="display:flex;align-items:center;gap:6px"><span class="mu sm">Tolerância (px)</span><input class="fc" style="width:60px" type="number" id="cadav-snap-tol" value="12" onchange="_cadAvSnapTolPx=parseFloat(this.value)||12"></label>'
-    +'</div>'
-    +'<div style="display:flex;gap:1rem;flex-wrap:wrap">'
-    +'<div style="flex:2;min-width:320px;border:1px solid var(--bor);border-radius:8px;overflow:hidden;background:#fafaf7">'
-    +'<svg id="cadav-svg" viewBox="0 0 100 100" style="width:100%;height:480px;display:block;cursor:crosshair;touch-action:none" onpointerdown="cadAvPointerDown(event)" onpointermove="cadAvPointerMove(event)" onpointerup="cadAvPointerUp(event)" onpointerleave="cadAvPointerUp(event)" onwheel="cadAvWheel(event)" onclick="cadAvSvgClick(event)"></svg>'
-    +'</div>'
-    +'<div style="flex:1;min-width:260px">'
-    +'<div class="st mb1" style="font-size:13px">Camadas</div>'
-    +'<div id="cadav-camadas" class="mb1"><div class="mu sm">Nenhuma camada ainda.</div></div>'
-    +'<button class="btn bxs mb1" onclick="cadAvCriarCamada()"><i class="ti ti-plus"></i> Nova camada</button>'
-    +'<div class="card mb1" id="cadav-painel" style="background:#F4F8FF"><div class="mu sm">Clique em um ponto no desenho para selecioná-lo.</div></div>'
-    +'<div id="cadav-medicao-info" class="card mb1" style="display:none;background:#FFF8E6"></div>'
-    +'<button class="btn bsm mb1" onclick="cadAvExportarTxt()"><i class="ti ti-file-text"></i> Exportar TXT</button> '
-    +'<button class="btn bsm mb1" onclick="cadAvExportarDxf()"><i class="ti ti-file-export"></i> Exportar DXF</button>'
-    +'</div>'
-    +'</div>'
-    +'</div>';
-}
-async function cadAvArquivoSelecionado(input){
-  const file=input.files[0];if(!file)return;
-  const info=document.getElementById('cadav-info');
-  info.style.display='block';info.innerHTML='Lendo arquivo...';
-  try{
-    const ext=file.name.toLowerCase().split('.').pop();
-    let gj;
-    if(ext==='dxf'){
-      const text=await file.text();
-      const parser=new DxfParser();
-      gj=dxfToGeoJSON(parser.parse(text));
-    } else if(ext==='kml'){
-      const text=await file.text();
-      gj=toGeoJSON.kml(new DOMParser().parseFromString(text,'text/xml'));
-    } else if(ext==='zip'){
-      const buf=await file.arrayBuffer();
-      gj=await shp(buf);
-      if(Array.isArray(gj)) gj=gj[0];
-    } else {
-      throw new Error('Formato não suportado. Use .dxf, .kml ou .zip (shapefile).');
-    }
-    cadAvImportarGeoJSON(gj);
-    info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> '+_cadAvPontos.length+' ponto(s) encontrados em '+_cadAvCamadas.length+' camada(s).</span>';
-  }catch(e){
-    info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Erro: '+e.message+'</span>';
-  }
-}
-function cadAvCarregarDoCadSimples(){
-  if(!_cadGeoJSON||!_cadPontos.length){toast('Importe um arquivo na aba CAD Simples primeiro.',true);return;}
-  const info=document.getElementById('cadav-info');
-  info.style.display='block';
-  try{
-    const gj=JSON.parse(JSON.stringify(_cadGeoJSON));
-    cadAvImportarGeoJSON(gj);
-    info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> '+_cadAvPontos.length+' ponto(s) carregados da CAD Simples.</span>';
-  }catch(e){
-    info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Erro: '+e.message+'</span>';
-  }
-}
-function cadAvImportarGeoJSON(gj){
-  _cadAvGeoJSON=gj;
-  cadAvDerivarCamadas(gj);
-  _cadAvPontos=cadAvExtrairPontos(gj);
-  if(!_cadAvPontos.length) throw new Error('Nenhum ponto encontrado no arquivo.');
-  _cadAvSelecionado=null;
-  cadAvAjustarView();
-  cadAvRenderCamadas();
-  cadAvRenderSvg();
-  cadAvAtualizarPainel();
-}
-function cadAvExtrairPontos(gj){
-  const pts=[];
-  // ver cadExtrairPontos: prioridade alta (2) = entidade POINT (cota individual confiável);
+  // prioridade alta (2) = entidade POINT (cota individual confiável);
   // prioridade baixa (1) = vértice de LINE/POLYLINE/POLYGON (cota da entidade toda no DXF).
-  function add(c,layerId,prio){pts.push({id:_cadAvNextId++,x:c[0],y:c[1],z:c[2]||0,nome:'',layerId:layerId||'_default',sigmaE:0,sigmaN:0,sigmaZ:0,_prio:prio});}
+  function add(c,layerId,prio){pts.push({id:_cadNextId++,x:c[0],y:c[1],z:c[2]||0,nome:'',layerId:layerId||'_default',sigmaE:0,sigmaN:0,sigmaZ:0,_prio:prio});}
   (gj.features||[]).forEach(function(f){
     const g=f.geometry;if(!g)return;
     const layerId=(f.properties&&f.properties.layer)||'_default';
@@ -7738,125 +7500,125 @@ function cadAvExtrairPontos(gj){
   dedup.forEach(function(p){delete p._prio;});
   return dedup;
 }
-function cadAvDerivarCamadas(gj){
+function cadDerivarCamadas(gj){
   const vistos={};
   const novas=[];
   (gj.features||[]).forEach(function(f){
     const lid=(f.properties&&f.properties.layer)||'_default';
     if(!vistos[lid]){
       vistos[lid]=true;
-      const existente=_cadAvCamadas.find(function(c){return c.id===lid;});
-      novas.push(existente||{id:lid,nome:(lid==='_default'?'Sem camada':lid),cor:CADAV_PALETA[novas.length%CADAV_PALETA.length],visivel:true,origem:'auto'});
+      const existente=_cadCamadas.find(function(c){return c.id===lid;});
+      novas.push(existente||{id:lid,nome:(lid==='_default'?'Sem camada':lid),cor:CAD_PALETA[novas.length%CAD_PALETA.length],visivel:true,origem:'auto'});
     }
   });
-  const manuais=_cadAvCamadas.filter(function(c){return c.origem==='manual'&&!novas.some(function(n){return n.id===c.id;});});
-  _cadAvCamadas=novas.concat(manuais);
+  const manuais=_cadCamadas.filter(function(c){return c.origem==='manual'&&!novas.some(function(n){return n.id===c.id;});});
+  _cadCamadas=novas.concat(manuais);
 }
-function cadAvCriarCamada(){
+function cadCriarCamada(){
   const nome=prompt('Nome da nova camada:');
   if(!nome||!nome.trim()) return;
   const id='manual_'+Date.now();
-  _cadAvCamadas.push({id:id,nome:nome.trim(),cor:CADAV_PALETA[_cadAvCamadas.length%CADAV_PALETA.length],visivel:true,origem:'manual'});
-  cadAvRenderCamadas();
+  _cadCamadas.push({id:id,nome:nome.trim(),cor:CAD_PALETA[_cadCamadas.length%CAD_PALETA.length],visivel:true,origem:'manual'});
+  cadRenderCamadas();
 }
-function cadAvRenomearCamada(id,nome){
-  const c=_cadAvCamadas.find(function(c){return c.id===id;});
+function cadRenomearCamada(id,nome){
+  const c=_cadCamadas.find(function(c){return c.id===id;});
   if(c) c.nome=nome;
 }
-function cadAvRemoverCamada(id){
-  _cadAvPontos.forEach(function(p){if(p.layerId===id) p.layerId='_default';});
-  _cadAvCamadas=_cadAvCamadas.filter(function(c){return c.id!==id;});
-  cadAvRenderCamadas();
-  cadAvRenderSvg();
+function cadRemoverCamada(id){
+  _cadPontos.forEach(function(p){if(p.layerId===id) p.layerId='_default';});
+  _cadCamadas=_cadCamadas.filter(function(c){return c.id!==id;});
+  cadRenderCamadas();
+  cadRenderSvg();
 }
-function cadAvToggleVisibilidade(id){
-  const c=_cadAvCamadas.find(function(c){return c.id===id;});
-  if(c){c.visivel=!c.visivel;cadAvRenderSvg();}
+function cadToggleVisibilidade(id){
+  const c=_cadCamadas.find(function(c){return c.id===id;});
+  if(c){c.visivel=!c.visivel;cadRenderSvg();}
 }
-function cadAvSetCor(id,cor){
-  const c=_cadAvCamadas.find(function(c){return c.id===id;});
-  if(c){c.cor=cor;cadAvRenderSvg();}
+function cadSetCor(id,cor){
+  const c=_cadCamadas.find(function(c){return c.id===id;});
+  if(c){c.cor=cor;cadRenderSvg();}
 }
-function cadAvAtribuirCamada(pontoId,camadaId){
-  const p=_cadAvPontos.find(function(p){return p.id===pontoId;});
-  if(p){p.layerId=camadaId;cadAvRenderSvg();cadAvAtualizarPainel();}
+function cadAtribuirCamada(pontoId,camadaId){
+  const p=_cadPontos.find(function(p){return p.id===pontoId;});
+  if(p){p.layerId=camadaId;cadRenderSvg();cadAtualizarPainel();}
 }
-function cadAvRenderCamadas(){
-  const el=document.getElementById('cadav-camadas');
+function cadRenderCamadas(){
+  const el=document.getElementById('cad-camadas');
   if(!el) return;
-  if(!_cadAvCamadas.length){el.innerHTML='<div class="mu sm">Nenhuma camada ainda.</div>';return;}
-  el.innerHTML=_cadAvCamadas.map(function(c){
-    const n=_cadAvPontos.filter(function(p){return p.layerId===c.id;}).length;
+  if(!_cadCamadas.length){el.innerHTML='<div class="mu sm">Nenhuma camada ainda.</div>';return;}
+  el.innerHTML=_cadCamadas.map(function(c){
+    const n=_cadPontos.filter(function(p){return p.layerId===c.id;}).length;
     return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">'
-      +'<input type="checkbox" '+(c.visivel?'checked':'')+' onchange="cadAvToggleVisibilidade(\''+c.id+'\')">'
-      +'<input type="color" value="'+c.cor+'" style="width:24px;height:24px;padding:0;border:none" onchange="cadAvSetCor(\''+c.id+'\',this.value)">'
-      +'<input class="fc" style="flex:1;padding:2px 6px;font-size:12px" value="'+xmlEscapeGeo(c.nome)+'" onchange="cadAvRenomearCamada(\''+c.id+'\',this.value)">'
+      +'<input type="checkbox" '+(c.visivel?'checked':'')+' onchange="cadToggleVisibilidade(\''+c.id+'\')">'
+      +'<input type="color" value="'+c.cor+'" style="width:24px;height:24px;padding:0;border:none" onchange="cadSetCor(\''+c.id+'\',this.value)">'
+      +'<input class="fc" style="flex:1;padding:2px 6px;font-size:12px" value="'+xmlEscapeGeo(c.nome)+'" onchange="cadRenomearCamada(\''+c.id+'\',this.value)">'
       +'<span class="mu sm">'+n+'</span>'
-      +(c.origem==='manual'?'<button class="btn bxs bdr" onclick="cadAvRemoverCamada(\''+c.id+'\')"><i class="ti ti-x"></i></button>':'')
+      +(c.origem==='manual'?'<button class="btn bxs bdr" onclick="cadRemoverCamada(\''+c.id+'\')"><i class="ti ti-x"></i></button>':'')
       +'</div>';
   }).join('');
 }
-function cadAvAjustarView(){
-  const xs=_cadAvPontos.map(function(p){return p.x;}),ys=_cadAvPontos.map(function(p){return p.y;});
+function cadAjustarView(){
+  const xs=_cadPontos.map(function(p){return p.x;}),ys=_cadPontos.map(function(p){return p.y;});
   const minX=Math.min.apply(null,xs),maxX=Math.max.apply(null,xs);
   const minY=Math.min.apply(null,ys),maxY=Math.max.apply(null,ys);
   const w=(maxX-minX)||10,h=(maxY-minY)||10;
   const pad=Math.max(w,h)*0.1||1;
-  _cadAvOrigin={x:(minX+maxX)/2,y:(minY+maxY)/2};
-  _cadAvView.cx=0;
-  _cadAvView.cy=0;
-  _cadAvView.w=w+pad*2;
-  _cadAvView.h=h+pad*2;
+  _cadOrigin={x:(minX+maxX)/2,y:(minY+maxY)/2};
+  _cadView.cx=0;
+  _cadView.cy=0;
+  _cadView.w=w+pad*2;
+  _cadView.h=h+pad*2;
 }
-function cadAvCamadaCor(layerId){
-  const c=_cadAvCamadas.find(function(c){return c.id===layerId;});
+function cadCamadaCor(layerId){
+  const c=_cadCamadas.find(function(c){return c.id===layerId;});
   return c?c.cor:'#888';
 }
-function cadAvGeometriaSvg(f){
+function cadGeometriaSvg(f){
   const g=f.geometry;if(!g) return '';
   const layerId=(f.properties&&f.properties.layer)||'_default';
-  const camada=_cadAvCamadas.find(function(c){return c.id===layerId;});
+  const camada=_cadCamadas.find(function(c){return c.id===layerId;});
   if(camada&&!camada.visivel) return '';
-  const cor=cadAvCamadaCor(layerId);
-  const sw=Math.max(_cadAvView.w,_cadAvView.h)*0.0015;
-  function pts(coords){return coords.map(function(c){const l=cadAvWorldToLocal(c[0],c[1]);return l.x+','+l.y;}).join(' ');}
+  const cor=cadCamadaCor(layerId);
+  const sw=Math.max(_cadView.w,_cadView.h)*0.0015;
+  function pts(coords){return coords.map(function(c){const l=cadWorldToLocal(c[0],c[1]);return l.x+','+l.y;}).join(' ');}
   if(g.type==='LineString') return '<polyline points="'+pts(g.coordinates)+'" fill="none" stroke="'+cor+'" stroke-width="'+sw+'"/>';
-  if(g.type==='MultiLineString') return g.coordinates.map(function(l){return cadAvGeometriaSvg({properties:f.properties,geometry:{type:'LineString',coordinates:l}});}).join('');
+  if(g.type==='MultiLineString') return g.coordinates.map(function(l){return cadGeometriaSvg({properties:f.properties,geometry:{type:'LineString',coordinates:l}});}).join('');
   if(g.type==='Polygon') return g.coordinates.map(function(r){return '<polygon points="'+pts(r)+'" fill="'+cor+'1a" stroke="'+cor+'" stroke-width="'+sw+'"/>';}).join('');
-  if(g.type==='MultiPolygon') return g.coordinates.map(function(poly){return cadAvGeometriaSvg({properties:f.properties,geometry:{type:'Polygon',coordinates:poly}});}).join('');
+  if(g.type==='MultiPolygon') return g.coordinates.map(function(poly){return cadGeometriaSvg({properties:f.properties,geometry:{type:'Polygon',coordinates:poly}});}).join('');
   return '';
 }
-function cadAvRenderSvg(){
-  const svg=document.getElementById('cadav-svg');
+function cadRenderSvg(){
+  const svg=document.getElementById('cad-svg');
   if(!svg) return;
-  svg.setAttribute('viewBox',(_cadAvView.cx-_cadAvView.w/2)+' '+(_cadAvView.cy-_cadAvView.h/2)+' '+_cadAvView.w+' '+_cadAvView.h);
+  svg.setAttribute('viewBox',(_cadView.cx-_cadView.w/2)+' '+(_cadView.cy-_cadView.h/2)+' '+_cadView.w+' '+_cadView.h);
   let geomSvg='';
-  (_cadAvGeoJSON&&_cadAvGeoJSON.features||[]).forEach(function(f){geomSvg+=cadAvGeometriaSvg(f);});
-  const r=Math.max(_cadAvView.w,_cadAvView.h)*0.006;
-  const pontosSvg=_cadAvPontos.map(function(p){
-    const camada=_cadAvCamadas.find(function(c){return c.id===p.layerId;});
+  (_cadGeoJSON&&_cadGeoJSON.features||[]).forEach(function(f){geomSvg+=cadGeometriaSvg(f);});
+  const r=Math.max(_cadView.w,_cadView.h)*0.006;
+  const pontosSvg=_cadPontos.map(function(p){
+    const camada=_cadCamadas.find(function(c){return c.id===p.layerId;});
     if(camada&&!camada.visivel) return '';
-    const sel=p.id===_cadAvSelecionado;
-    const cor=sel?'#E24B4A':cadAvCamadaCor(p.layerId);
-    const loc=cadAvWorldToLocal(p.x,p.y);
-    return '<circle cx="'+loc.x+'" cy="'+loc.y+'" r="'+r+'" class="cadav-pt" data-id="'+p.id+'" fill="'+cor+'" stroke="#fff" stroke-width="'+(r*0.2)+'"/>'
+    const sel=p.id===_cadSelecionado;
+    const cor=sel?'#E24B4A':cadCamadaCor(p.layerId);
+    const loc=cadWorldToLocal(p.x,p.y);
+    return '<circle cx="'+loc.x+'" cy="'+loc.y+'" r="'+r+'" class="cad-pt" data-id="'+p.id+'" fill="'+cor+'" stroke="#fff" stroke-width="'+(r*0.2)+'"/>'
       +(p.nome?'<text x="'+(loc.x+r*1.6)+'" y="'+loc.y+'" font-size="'+(r*2.2)+'" fill="#222" style="pointer-events:none;user-select:none">'+xmlEscapeGeo(p.nome)+'</text>':'');
   }).join('');
   let medicaoSvg='';
-  if(_cadAvModo==='medir'&&_cadAvMedicaoPontos.length){
-    medicaoSvg+=_cadAvMedicaoPontos.map(function(p){const l=cadAvWorldToLocal(p.x,p.y);return '<circle cx="'+l.x+'" cy="'+l.y+'" r="'+(r*0.8)+'" fill="#854F0B"/>';}).join('');
-    if(_cadAvMedicaoPontos.length===2){
-      const a=_cadAvMedicaoPontos[0],b=_cadAvMedicaoPontos[1];
-      const dist=cadAvDistancia(a,b);
-      const la=cadAvWorldToLocal(a.x,a.y),lb=cadAvWorldToLocal(b.x,b.y);
+  if(_cadModo==='medir'&&_cadMedicaoPontos.length){
+    medicaoSvg+=_cadMedicaoPontos.map(function(p){const l=cadWorldToLocal(p.x,p.y);return '<circle cx="'+l.x+'" cy="'+l.y+'" r="'+(r*0.8)+'" fill="#854F0B"/>';}).join('');
+    if(_cadMedicaoPontos.length===2){
+      const a=_cadMedicaoPontos[0],b=_cadMedicaoPontos[1];
+      const dist=cadDistancia(a,b);
+      const la=cadWorldToLocal(a.x,a.y),lb=cadWorldToLocal(b.x,b.y);
       medicaoSvg+='<line x1="'+la.x+'" y1="'+la.y+'" x2="'+lb.x+'" y2="'+lb.y+'" stroke="#854F0B" stroke-width="'+(r*0.4)+'" stroke-dasharray="'+(r*0.6)+','+(r*0.4)+'"/>';
       medicaoSvg+='<text x="'+((la.x+lb.x)/2)+'" y="'+((la.y+lb.y)/2)+'" font-size="'+(r*2.4)+'" fill="#854F0B" style="pointer-events:none;user-select:none">'+dist.toFixed(3)+' m</text>';
     }
   }
   svg.innerHTML=geomSvg+pontosSvg+medicaoSvg;
 }
-function cadAvScreenToSvg(evt){
-  const svg=document.getElementById('cadav-svg');
+function cadScreenToSvg(evt){
+  const svg=document.getElementById('cad-svg');
   const pt=svg.createSVGPoint();
   pt.x=evt.clientX;pt.y=evt.clientY;
   const ctm=svg.getScreenCTM();
@@ -7864,24 +7626,24 @@ function cadAvScreenToSvg(evt){
   const p=pt.matrixTransform(ctm.inverse());
   return {x:p.x,y:p.y};
 }
-function cadAvSnapTolSvg(){
-  const svg=document.getElementById('cadav-svg');
+function cadSnapTolSvg(){
+  const svg=document.getElementById('cad-svg');
   if(!svg) return 0;
   const rect=svg.getBoundingClientRect();
   if(!rect.width) return 0;
-  return (_cadAvSnapTolPx/rect.width)*_cadAvView.w;
+  return (_cadSnapTolPx/rect.width)*_cadView.w;
 }
-function cadAvBuscarSnap(svgPt){
-  if(!_cadAvSnapAtivo) return null;
-  const tol=cadAvSnapTolSvg();
+function cadBuscarSnap(svgPt){
+  if(!_cadSnapAtivo) return null;
+  const tol=cadSnapTolSvg();
   if(!tol) return null;
   let melhor=null,melhorD=tol;
   function checar(worldX,worldY){
-    const loc=cadAvWorldToLocal(worldX,worldY);
+    const loc=cadWorldToLocal(worldX,worldY);
     const d=Math.hypot(loc.x-svgPt.x,loc.y-svgPt.y);
     if(d<melhorD){melhorD=d;melhor={x:worldX,y:worldY};}
   }
-  (_cadAvGeoJSON&&_cadAvGeoJSON.features||[]).forEach(function(f){
+  (_cadGeoJSON&&_cadGeoJSON.features||[]).forEach(function(f){
     const g=f.geometry;if(!g) return;
     function each(coords){coords.forEach(function(c){checar(c[0],c[1]);});}
     if(g.type==='LineString'||g.type==='MultiPoint') each(g.coordinates);
@@ -7889,178 +7651,271 @@ function cadAvBuscarSnap(svgPt){
     else if(g.type==='Polygon') g.coordinates.forEach(each);
     else if(g.type==='MultiPolygon') g.coordinates.forEach(function(poly){poly.forEach(each);});
   });
-  _cadAvPontos.forEach(function(p){checar(p.x,p.y);});
+  _cadPontos.forEach(function(p){checar(p.x,p.y);});
   return melhor;
 }
-function cadAvHitTestPonto(svgPt){
-  const r=Math.max(_cadAvView.w,_cadAvView.h)*0.006*2.5;
+function cadHitTestPonto(svgPt){
+  const r=Math.max(_cadView.w,_cadView.h)*0.006*2.5;
   let melhor=null,melhorD=r;
-  _cadAvPontos.forEach(function(p){
-    const camada=_cadAvCamadas.find(function(c){return c.id===p.layerId;});
+  _cadPontos.forEach(function(p){
+    const camada=_cadCamadas.find(function(c){return c.id===p.layerId;});
     if(camada&&!camada.visivel) return;
-    const loc=cadAvWorldToLocal(p.x,p.y);
+    const loc=cadWorldToLocal(p.x,p.y);
     const d=Math.hypot(loc.x-svgPt.x,loc.y-svgPt.y);
     if(d<melhorD){melhorD=d;melhor=p;}
   });
   return melhor;
 }
-function cadAvSetModo(modo){
-  _cadAvModo=modo;
-  _cadAvMedicaoPontos=[];
-  const map={select:'cadav-modo-select',medir:'cadav-modo-medir','criar-ponto':'cadav-modo-criar'};
+function cadSetModo(modo){
+  _cadModo=modo;
+  _cadMedicaoPontos=[];
+  const map={select:'cad-modo-select',medir:'cad-modo-medir','criar-ponto':'cad-modo-criar'};
   Object.keys(map).forEach(function(m){
     const btn=document.getElementById(map[m]);
     if(btn) btn.classList.toggle('bp2',m===modo);
   });
-  const info=document.getElementById('cadav-medicao-info');
+  const info=document.getElementById('cad-medicao-info');
   if(info) info.style.display='none';
-  cadAvRenderSvg();
+  cadRenderSvg();
 }
-function cadAvPointerDown(evt){
-  _cadAvDragInicio=cadAvScreenToSvg(evt);
-  _cadAvDragMoveu=false;
-  _cadAvDragPontoId=null;
-  if(_cadAvModo==='select'){
-    const hit=cadAvHitTestPonto(_cadAvDragInicio);
-    if(hit) _cadAvDragPontoId=hit.id;
+function cadPointerDown(evt){
+  _cadDragInicio=cadScreenToSvg(evt);
+  _cadDragMoveu=false;
+  _cadDragPontoId=null;
+  if(_cadModo==='select'){
+    const hit=cadHitTestPonto(_cadDragInicio);
+    if(hit) _cadDragPontoId=hit.id;
   }
 }
-function cadAvPointerMove(evt){
-  if(!_cadAvDragInicio) return;
-  const p=cadAvScreenToSvg(evt);
-  const dx=p.x-_cadAvDragInicio.x,dy=p.y-_cadAvDragInicio.y;
-  if(Math.abs(dx)>0.002*_cadAvView.w||Math.abs(dy)>0.002*_cadAvView.h) _cadAvDragMoveu=true;
-  if(_cadAvDragMoveu){
-    if(_cadAvDragPontoId!=null){
-      const pt=_cadAvPontos.find(function(p2){return p2.id===_cadAvDragPontoId;});
+function cadPointerMove(evt){
+  if(!_cadDragInicio) return;
+  const p=cadScreenToSvg(evt);
+  const dx=p.x-_cadDragInicio.x,dy=p.y-_cadDragInicio.y;
+  if(Math.abs(dx)>0.002*_cadView.w||Math.abs(dy)>0.002*_cadView.h) _cadDragMoveu=true;
+  if(_cadDragMoveu){
+    if(_cadDragPontoId!=null){
+      const pt=_cadPontos.find(function(p2){return p2.id===_cadDragPontoId;});
       if(pt){
-        const snap=cadAvBuscarSnap(p);
-        const alvo=snap||cadAvLocalToWorld(p.x,p.y);
+        const snap=cadBuscarSnap(p);
+        const alvo=snap||cadLocalToWorld(p.x,p.y);
         pt.x=alvo.x;pt.y=alvo.y;
-        cadAvRenderSvg();
-        if(_cadAvSelecionado===pt.id) cadAvAtualizarPainel();
+        cadRenderSvg();
+        if(_cadSelecionado===pt.id) cadAtualizarPainel();
       }
     } else {
-      _cadAvView.cx-=dx;_cadAvView.cy-=dy;
-      cadAvRenderSvg();
+      _cadView.cx-=dx;_cadView.cy-=dy;
+      cadRenderSvg();
     }
-    _cadAvDragInicio=cadAvScreenToSvg(evt);
+    _cadDragInicio=cadScreenToSvg(evt);
   }
 }
-function cadAvPointerUp(evt){_cadAvDragInicio=null;_cadAvDragPontoId=null;}
-function cadAvWheel(evt){
-  if(!_cadAvGeoJSON&&!_cadAvPontos.length) return;
+function cadPointerUp(evt){_cadDragInicio=null;_cadDragPontoId=null;}
+function cadWheel(evt){
+  if(!_cadGeoJSON&&!_cadPontos.length) return;
   evt.preventDefault();
-  const p=cadAvScreenToSvg(evt);
+  const p=cadScreenToSvg(evt);
   const fator=evt.deltaY>0?1.1:0.9;
-  _cadAvView.w*=fator;_cadAvView.h*=fator;
-  _cadAvView.cx=p.x+(_cadAvView.cx-p.x)*fator;
-  _cadAvView.cy=p.y+(_cadAvView.cy-p.y)*fator;
-  cadAvRenderSvg();
+  _cadView.w*=fator;_cadView.h*=fator;
+  _cadView.cx=p.x+(_cadView.cx-p.x)*fator;
+  _cadView.cy=p.y+(_cadView.cy-p.y)*fator;
+  cadRenderSvg();
 }
-function cadAvSvgClick(evt){
-  if(_cadAvDragMoveu){_cadAvDragMoveu=false;return;}
-  const p=cadAvScreenToSvg(evt);
-  if(_cadAvModo==='medir'){
-    if(_cadAvMedicaoPontos.length>=2) _cadAvMedicaoPontos=[];
-    const snap=cadAvBuscarSnap(p);
-    const pt=snap||cadAvLocalToWorld(p.x,p.y);
-    _cadAvMedicaoPontos.push(pt);
-    cadAvRenderSvg();
-    cadAvRenderMedicaoInfo();
+function cadSvgClick(evt){
+  if(_cadDragMoveu){_cadDragMoveu=false;return;}
+  const p=cadScreenToSvg(evt);
+  if(_cadModo==='medir'){
+    if(_cadMedicaoPontos.length>=2) _cadMedicaoPontos=[];
+    const snap=cadBuscarSnap(p);
+    const pt=snap||cadLocalToWorld(p.x,p.y);
+    _cadMedicaoPontos.push(pt);
+    cadRenderSvg();
+    cadRenderMedicaoInfo();
     return;
   }
-  if(_cadAvModo==='criar-ponto'){
-    const snap=cadAvBuscarSnap(p);
-    const pt=snap||cadAvLocalToWorld(p.x,p.y);
-    const novo={id:_cadAvNextId++,x:pt.x,y:pt.y,z:0,nome:'',layerId:'_default',sigmaE:0,sigmaN:0,sigmaZ:0};
-    _cadAvPontos.push(novo);
-    if(!_cadAvCamadas.some(function(c){return c.id==='_default';})) _cadAvCamadas.push({id:'_default',nome:'Sem camada',cor:CADAV_PALETA[0],visivel:true,origem:'auto'});
-    cadAvSelecionarPonto(novo.id);
-    cadAvRenderCamadas();
-    cadAvRenderSvg();
+  if(_cadModo==='criar-ponto'){
+    const snap=cadBuscarSnap(p);
+    const pt=snap||cadLocalToWorld(p.x,p.y);
+    const novo={id:_cadNextId++,x:pt.x,y:pt.y,z:0,nome:'',layerId:'_default',sigmaE:0,sigmaN:0,sigmaZ:0};
+    _cadPontos.push(novo);
+    if(!_cadCamadas.some(function(c){return c.id==='_default';})) _cadCamadas.push({id:'_default',nome:'Sem camada',cor:CAD_PALETA[0],visivel:true,origem:'auto'});
+    cadSelecionarPonto(novo.id);
+    cadRenderCamadas();
+    cadRenderSvg();
     return;
   }
   const target=evt.target;
-  if(target.classList&&target.classList.contains('cadav-pt')) cadAvSelecionarPonto(parseInt(target.dataset.id,10));
-  else cadAvSelecionarPonto(null);
+  if(target.classList&&target.classList.contains('cad-pt')) cadSelecionarPonto(parseInt(target.dataset.id,10));
+  else cadSelecionarPonto(null);
 }
-function cadAvDistancia(p1,p2){return Math.hypot(p2.x-p1.x,p2.y-p1.y);}
-function cadAvRenderMedicaoInfo(){
-  const el=document.getElementById('cadav-medicao-info');
+function cadDistancia(p1,p2){return Math.hypot(p2.x-p1.x,p2.y-p1.y);}
+function cadRenderMedicaoInfo(){
+  const el=document.getElementById('cad-medicao-info');
   if(!el) return;
-  if(_cadAvMedicaoPontos.length<2){
+  if(_cadMedicaoPontos.length<2){
     el.style.display='block';
     el.innerHTML='<div class="mu sm">Clique em um segundo ponto para medir a distância.</div>';
     return;
   }
-  const dist=cadAvDistancia(_cadAvMedicaoPontos[0],_cadAvMedicaoPontos[1]);
+  const dist=cadDistancia(_cadMedicaoPontos[0],_cadMedicaoPontos[1]);
   el.style.display='block';
-  el.innerHTML='<div class="st" style="font-size:13px">Distância medida</div><div class="mu">'+dist.toFixed(3)+' m</div><button class="btn bxs" style="margin-top:6px" onclick="_cadAvMedicaoPontos=[];cadAvRenderSvg();cadAvRenderMedicaoInfo();"><i class="ti ti-x"></i> Limpar</button>';
+  el.innerHTML='<div class="st" style="font-size:13px">Distância medida</div><div class="mu">'+dist.toFixed(3)+' m</div><button class="btn bxs" style="margin-top:6px" onclick="_cadMedicaoPontos=[];cadRenderSvg();cadRenderMedicaoInfo();"><i class="ti ti-x"></i> Limpar</button>';
 }
-function cadAvSelecionarPonto(id){
-  _cadAvSelecionado=id;
-  cadAvRenderSvg();
-  cadAvAtualizarPainel();
+function cadSelecionarPonto(id){
+  _cadSelecionado=id;
+  cadRenderSvg();
+  cadAtualizarPainel();
 }
-function cadAvAtualizarPainel(){
-  const el=document.getElementById('cadav-painel');
+function cadAtualizarPainel(){
+  const el=document.getElementById('cad-painel');
   if(!el) return;
-  if(_cadAvSelecionado===null){el.innerHTML='<div class="mu sm">Clique em um ponto no desenho para selecioná-lo.</div>';return;}
-  const p=_cadAvPontos.find(function(p){return p.id===_cadAvSelecionado;});
-  if(!p){el.innerHTML='<div class="mu sm">Ponto não encontrado.</div>';return;}
-  el.innerHTML='<div class="fg mb1"><label class="fl">Nome do ponto</label><input class="fc" id="cadav-nome-input" value="'+xmlEscapeGeo(p.nome||'')+'"></div>'
+  const nav='<div class="mb1" style="display:flex;gap:.4rem;flex-wrap:wrap">'
+    +'<button class="btn bxs" onclick="cadSelecionarMaisAoNorte()"><i class="ti ti-arrow-up"></i> Mais ao Norte</button>'
+    +'<button class="btn bxs" onclick="cadProximoNaLinha()"><i class="ti ti-rotate-clockwise"></i> Próximo (horário)</button>'
+    +'</div>';
+  if(_cadSelecionado===null){el.innerHTML=nav+'<div class="mu sm">Clique em um ponto no desenho para selecioná-lo.</div>';return;}
+  const p=_cadPontos.find(function(p){return p.id===_cadSelecionado;});
+  if(!p){el.innerHTML=nav+'<div class="mu sm">Ponto não encontrado.</div>';return;}
+  el.innerHTML=nav+'<div class="fg mb1"><label class="fl">Nome do ponto</label><input class="fc" id="cad-nome-input" value="'+xmlEscapeGeo(p.nome||'')+'"></div>'
     +'<div class="g3 mb1">'
-    +'<div class="fg"><label class="fl">E (X)</label><input class="fc" id="cadav-x-input" type="number" step="any" value="'+p.x+'"></div>'
-    +'<div class="fg"><label class="fl">N (Y)</label><input class="fc" id="cadav-y-input" type="number" step="any" value="'+p.y+'"></div>'
-    +'<div class="fg"><label class="fl">Z</label><input class="fc" id="cadav-z-input" type="number" step="any" value="'+(p.z||0)+'"></div>'
+    +'<div class="fg"><label class="fl">E (X)</label><input class="fc" id="cad-x-input" type="number" step="any" value="'+p.x+'"></div>'
+    +'<div class="fg"><label class="fl">N (Y)</label><input class="fc" id="cad-y-input" type="number" step="any" value="'+p.y+'"></div>'
+    +'<div class="fg"><label class="fl">Z</label><input class="fc" id="cad-z-input" type="number" step="any" value="'+(p.z||0)+'"></div>'
     +'</div>'
     +'<div class="g3 mb1">'
-    +'<div class="fg"><label class="fl">σ E</label><input class="fc" id="cadav-sigmae-input" type="number" step="any" value="'+(p.sigmaE||0)+'"></div>'
-    +'<div class="fg"><label class="fl">σ N</label><input class="fc" id="cadav-sigman-input" type="number" step="any" value="'+(p.sigmaN||0)+'"></div>'
-    +'<div class="fg"><label class="fl">σ Z</label><input class="fc" id="cadav-sigmaz-input" type="number" step="any" value="'+(p.sigmaZ||0)+'"></div>'
+    +'<div class="fg"><label class="fl">σ E</label><input class="fc" id="cad-sigmae-input" type="number" step="any" value="'+(p.sigmaE||0)+'"></div>'
+    +'<div class="fg"><label class="fl">σ N</label><input class="fc" id="cad-sigman-input" type="number" step="any" value="'+(p.sigmaN||0)+'"></div>'
+    +'<div class="fg"><label class="fl">σ Z</label><input class="fc" id="cad-sigmaz-input" type="number" step="any" value="'+(p.sigmaZ||0)+'"></div>'
     +'</div>'
-    +'<div class="fg mb1"><label class="fl">Camada</label><select class="fc" id="cadav-camada-select">'
-    +_cadAvCamadas.map(function(c){return '<option value="'+c.id+'"'+(c.id===p.layerId?' selected':'')+'>'+xmlEscapeGeo(c.nome)+'</option>';}).join('')
+    +'<div class="fg mb1"><label class="fl">Camada</label><select class="fc" id="cad-camada-select">'
+    +_cadCamadas.map(function(c){return '<option value="'+c.id+'"'+(c.id===p.layerId?' selected':'')+'>'+xmlEscapeGeo(c.nome)+'</option>';}).join('')
     +'</select></div>'
-    +'<button class="btn bp2 bsm" onclick="cadAvAplicarEdicaoPonto()"><i class="ti ti-check"></i> Aplicar</button>';
-  setTimeout(function(){const inp=document.getElementById('cadav-nome-input');if(inp){inp.focus();inp.select();}},0);
+    +'<button class="btn bp2 bsm" onclick="cadAplicarEdicaoPonto()"><i class="ti ti-check"></i> Aplicar</button>';
+  setTimeout(function(){const inp=document.getElementById('cad-nome-input');if(inp){inp.focus();inp.select();}},0);
 }
-function cadAvAplicarEdicaoPonto(){
-  if(_cadAvSelecionado===null) return;
-  const p=_cadAvPontos.find(function(p){return p.id===_cadAvSelecionado;});
+function cadAplicarEdicaoPonto(){
+  if(_cadSelecionado===null) return;
+  const p=_cadPontos.find(function(p){return p.id===_cadSelecionado;});
   if(!p) return;
-  const x=parseFloat(document.getElementById('cadav-x-input').value);
-  const y=parseFloat(document.getElementById('cadav-y-input').value);
-  const z=parseFloat(document.getElementById('cadav-z-input').value);
+  const x=parseFloat(document.getElementById('cad-x-input').value);
+  const y=parseFloat(document.getElementById('cad-y-input').value);
+  const z=parseFloat(document.getElementById('cad-z-input').value);
   if(isNaN(x)||isNaN(y)){toast('Coordenadas inválidas.',true);return;}
   p.x=x;p.y=y;p.z=isNaN(z)?0:z;
-  p.sigmaE=parseFloat(document.getElementById('cadav-sigmae-input').value)||0;
-  p.sigmaN=parseFloat(document.getElementById('cadav-sigman-input').value)||0;
-  p.sigmaZ=parseFloat(document.getElementById('cadav-sigmaz-input').value)||0;
-  p.nome=document.getElementById('cadav-nome-input').value;
-  p.layerId=document.getElementById('cadav-camada-select').value;
-  cadAvRenderCamadas();
-  cadAvRenderSvg();
+  p.sigmaE=parseFloat(document.getElementById('cad-sigmae-input').value)||0;
+  p.sigmaN=parseFloat(document.getElementById('cad-sigman-input').value)||0;
+  p.sigmaZ=parseFloat(document.getElementById('cad-sigmaz-input').value)||0;
+  const novoNome=document.getElementById('cad-nome-input').value;
+  if(novoNome&&!p.nome) p.ordemNome=++_cadOrdemContador;
+  else if(!novoNome) p.ordemNome=0;
+  p.nome=novoNome;
+  p.layerId=document.getElementById('cad-camada-select').value;
+  cadRenderCamadas();
+  cadRenderSvg();
+  cadAtualizarLista();
   toast('Ponto atualizado.');
 }
-function cadAvExportarTxt(){
-  const nomeados=_cadAvPontos.filter(function(p){return p.nome;});
+function cadAtualizarLista(){
+  const el=document.getElementById('cad-lista');
+  if(!el) return;
+  const nomeados=_cadPontos.filter(function(p){return p.nome;});
+  if(!nomeados.length){el.innerHTML='<div class="mu sm">Nenhum ponto nomeado ainda.</div>';return;}
+  nomeados.sort(function(a,b){return (a.ordemNome||0)-(b.ordemNome||0);});
+  el.innerHTML='<div class="tw"><table><thead><tr><th>Nome</th><th>E</th><th>N</th><th>Z</th><th></th></tr></thead><tbody>'
+    +nomeados.map(function(p){
+      return '<tr><td>'+xmlEscapeGeo(p.nome)+'</td><td>'+p.x.toFixed(3)+'</td><td>'+p.y.toFixed(3)+'</td><td>'+(p.z||0).toFixed(3)+'</td><td><button class="btn bxs" onclick="cadFocarPonto('+p.id+')"><i class="ti ti-focus-2"></i></button> <button class="btn bxs bdr" onclick="cadRemoverNome('+p.id+')"><i class="ti ti-x"></i></button></td></tr>';
+    }).join('')
+    +'</tbody></table></div>';
+}
+function cadRemoverNome(id){
+  const p=_cadPontos.find(function(p){return p.id===id;});
+  if(!p) return;
+  p.nome='';
+  p.ordemNome=0;
+  if(_cadSelecionado===id) cadAtualizarPainel();
+  cadRenderSvg();
+  cadAtualizarLista();
+}
+function cadFocarPonto(id){
+  cadSelecionarPonto(id);
+  const p=_cadPontos.find(function(p){return p.id===id;});
+  if(!p) return;
+  const loc=cadWorldToLocal(p.x,p.y);
+  _cadView.cx=loc.x;_cadView.cy=loc.y;
+  cadRenderSvg();
+}
+function cadSelecionarMaisAoNorte(){
+  if(!_cadPontos.length){toast('Importe um arquivo primeiro.',true);return;}
+  let melhor=_cadPontos[0];
+  _cadPontos.forEach(function(p){
+    if(p.y>melhor.y||(p.y===melhor.y&&p.x<melhor.x)) melhor=p;
+  });
+  cadFocarPonto(melhor.id);
+}
+function cadLocalizarVerticeNaLinha(p){
+  let achado=null;
+  function fechado(coords){return coords.length>2&&Math.abs(coords[0][0]-coords[coords.length-1][0])<1e-6&&Math.abs(coords[0][1]-coords[coords.length-1][1])<1e-6;}
+  function buscar(coords,closed){
+    for(let i=0;i<coords.length;i++){
+      if(Math.abs(coords[i][0]-p.x)<1e-6&&Math.abs(coords[i][1]-p.y)<1e-6){achado={coords:coords,idx:i,closed:closed};return true;}
+    }
+    return false;
+  }
+  (_cadGeoJSON&&_cadGeoJSON.features||[]).some(function(f){
+    const g=f.geometry;if(!g) return false;
+    if(g.type==='LineString') return buscar(g.coordinates,fechado(g.coordinates));
+    if(g.type==='MultiLineString') return g.coordinates.some(function(l){return buscar(l,fechado(l));});
+    if(g.type==='Polygon') return g.coordinates.some(function(r){return buscar(r,true);});
+    if(g.type==='MultiPolygon') return g.coordinates.some(function(poly){return poly.some(function(r){return buscar(r,true);});});
+    return false;
+  });
+  return achado;
+}
+function cadProximoNaLinha(){
+  if(_cadSelecionado===null){toast('Selecione um ponto primeiro.',true);return;}
+  const p=_cadPontos.find(function(p){return p.id===_cadSelecionado;});
+  if(!p) return;
+  const loc=cadLocalizarVerticeNaLinha(p);
+  if(!loc){toast('Este ponto não pertence a nenhuma linha/polígono importado.',true);return;}
+  const coords=loc.coords,n=coords.length;
+  const total=loc.closed?n-1:n;
+  let idx=loc.idx;
+  if(loc.closed){
+    let signedArea=0;
+    for(let i=0;i<total;i++){
+      const a=coords[i],b=coords[(i+1)%total];
+      signedArea+=a[0]*b[1]-b[0]*a[1];
+    }
+    const passo=signedArea>0?-1:1;
+    idx=((idx%total)+passo+total)%total;
+  } else {
+    if(idx>=n-1){toast('Já está no fim da linha.',true);return;}
+    idx=idx+1;
+  }
+  const alvo=coords[idx];
+  const destino=_cadPontos.find(function(q){return Math.abs(q.x-alvo[0])<1e-6&&Math.abs(q.y-alvo[1])<1e-6;});
+  if(!destino){toast('Vértice de destino não encontrado entre os pontos.',true);return;}
+  cadFocarPonto(destino.id);
+}
+function cadExportarTxt(){
+  const nomeados=_cadPontos.filter(function(p){return p.nome;});
   if(!nomeados.length){toast('Nomeie ao menos um ponto antes de exportar.',true);return;}
   const linhas=nomeados.map(function(p){return [p.nome,p.x.toFixed(3),p.y.toFixed(3),(p.z||0).toFixed(3)].join(';');});
-  downloadText(linhas.join('\r\n'),'pontos_cad_avancado.txt');
+  downloadText(linhas.join('\r\n'),'pontos_cad.txt');
 }
-function cadAvExportarDxf(){
-  const nomeados=_cadAvPontos.filter(function(p){return p.nome;});
+function cadExportarDxf(){
+  const nomeados=_cadPontos.filter(function(p){return p.nome;});
   if(!nomeados.length){toast('Nomeie ao menos um ponto antes de exportar.',true);return;}
   const gj={type:'FeatureCollection',features:nomeados.map(function(p){return {type:'Feature',properties:{name:p.nome},geometry:{type:'Point',coordinates:[p.x,p.y,p.z||0]}};})};
   const blob=new Blob([geojsonToDxf(gj)],{type:'application/dxf'});
-  downloadBlobGeo(blob,'pontos_cad_avancado.dxf');
+  downloadBlobGeo(blob,'pontos_cad.dxf');
 }
 
 // ── 9c. Memorial INCRA — preenchimento da Planilha SIGEF (.ods) oficial ──
 var _sigefClientes=[],_sigefObras=[],_sigefModeloZip=null,_sigefXmlDoc=null,_sigefArquivoNome='memorial';
-var _sigefVertices=[],_sigefPontosOrigem=[],_sigefVizinhos=[];
+var _sigefVizinhos=[];
+var _sigefPerimetros=[{denominacao:'PARTE 1',parcela_numero:'001',lado:'Externo',vertices:[],pontosOrigem:[]}];
+var _sigefPerimetroAtual=0;
+function sigefPerimetroAtual(){return _sigefPerimetros[_sigefPerimetroAtual];}
 const SIGEF_METODOS_POSICIONAMENTO=[
   {grupo:'GNSS', itens:[
     {cod:'PG1',nome:'Relativo estático',tipos:['M','P']},
@@ -8109,7 +7964,7 @@ const SIGEF_PERIM_TABELA_PRIMEIRA_LINHA_DADOS=11;
 function geoSigefHtml(){
   return '<div class="card mb1">'
     +'<div class="st mb1"><i class="ti ti-table" style="color:var(--brand)"></i>Memorial INCRA — Planilha SIGEF (.ods)</div>'
-    +'<div class="mu sm mb1">Selecione cliente/obra para preencher os dados do imóvel, envie a planilha .ods oficial do INCRA como modelo, monte a lista de vértices do perímetro (reaproveitando pontos da CAD Avançado, se quiser) e gere o arquivo .ods preenchido — as demais abas e a formatação do modelo são preservadas integralmente.</div>'
+    +'<div class="mu sm mb1">Selecione cliente/obra para preencher os dados do imóvel, envie a planilha .ods oficial do INCRA como modelo, monte a lista de vértices do perímetro (reaproveitando pontos da CAD, se quiser) e gere o arquivo .ods preenchido — as demais abas e a formatação do modelo são preservadas integralmente.</div>'
     +'<div class="g2 mb1">'
     +'<div class="fg"><label class="fl">Cliente</label><select class="fc" id="sigef-cliente" onchange="sigefClienteChange()"><option value="">Selecione...</option></select></div>'
     +'<div class="fg"><label class="fl">Obra</label><select class="fc" id="sigef-obra" onchange="sigefObraChange()"><option value="">Selecione o cliente primeiro</option></select></div>'
@@ -8134,16 +7989,14 @@ function geoSigefHtml(){
     +'<div class="fg"><label class="fl">Matrícula</label><input class="fc" id="sigef-matricula"></div>'
     +'<div class="fg"><label class="fl">Município(s)</label><input class="fc" id="sigef-municipios"></div>'
     +'</div>'
-    +'<div class="st mb1" style="font-size:13px">Parcela / perímetro</div>'
-    +'<div class="g3 mb1">'
-    +'<div class="fg"><label class="fl">Denominação da parcela</label><input class="fc" id="sigef-perim-denominacao" value="PARTE 1"></div>'
-    +'<div class="fg"><label class="fl">Parcela número</label><input class="fc" id="sigef-perim-parcela_numero" value="001"></div>'
-    +'<div class="fg"><label class="fl">Lado</label><select class="fc" id="sigef-perim-lado"><option>Externo</option><option>Interno</option></select></div>'
-    +'</div>'
+    +'<div class="st mb1" style="font-size:13px">Parcelas / perímetros do imóvel</div>'
+    +'<div class="mu sm mb1">Cada parcela/perímetro adicionado aqui vira uma aba "perimetro_N" separada na planilha .ods gerada.</div>'
+    +'<div id="sigef-perimetros-chips" class="mb1" style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center"></div>'
+    +'<div id="sigef-perimetro-campos" class="mb1"></div>'
     +'<div class="mu sm mb1" style="color:#854F0B"><i class="ti ti-alert-triangle"></i> "Sistema de referência", "Tipo de Coordenada", "Meridiano Central" e "Hemisfério" não são alterados — ficam exatamente como estão no .ods modelo enviado.</div>'
     +'<div class="g2 mb1">'
     +'<div class="fg"><label class="fl">Planilha .ods modelo (oficial INCRA)</label><input class="fc" type="file" id="sigef-file" accept=".ods" onchange="sigefCarregarModelo(this)"></div>'
-    +'<div class="fg"><label class="fl">&nbsp;</label><button class="btn bsm" onclick="sigefCarregarDoCadAvancado()"><i class="ti ti-arrow-back-up"></i> Usar pontos da CAD Avançado</button></div>'
+    +'<div class="fg"><label class="fl">&nbsp;</label><button class="btn bsm" onclick="sigefCarregarDoCad()"><i class="ti ti-arrow-back-up"></i> Usar pontos da CAD</button></div>'
     +'</div>'
     +'<div id="sigef-info" class="mu sm mb1" style="display:none"></div>'
     +'<div class="g2 mb1">'
@@ -8166,7 +8019,51 @@ async function sigefInit(){
     _sigefClientes=data||[];
     sel.innerHTML='<option value="">Selecione...</option>'+_sigefClientes.map(function(c){return '<option value="'+c.id+'">'+c.nome+'</option>';}).join('');
   }catch(e){}
+  sigefRenderPerimetros();
+}
+function sigefRenderPerimetroChips(){
+  const el=document.getElementById('sigef-perimetros-chips');
+  if(!el) return;
+  el.innerHTML=_sigefPerimetros.map(function(p,i){
+    return '<button class="btn bxs'+(i===_sigefPerimetroAtual?' bp2':'')+'" onclick="sigefSelecionarPerimetro('+i+')">'+xmlEscapeGeo(p.denominacao||('Perímetro '+(i+1)))+'</button>';
+  }).join('')
+    +'<button class="btn bxs" onclick="sigefAdicionarPerimetro()"><i class="ti ti-plus"></i> Adicionar perímetro</button>'
+    +(_sigefPerimetros.length>1?'<button class="btn bxs bdr" onclick="sigefRemoverPerimetro()"><i class="ti ti-x"></i> Remover este perímetro</button>':'');
+}
+function sigefRenderPerimetroCampos(){
+  const el=document.getElementById('sigef-perimetro-campos');
+  if(!el) return;
+  const p=sigefPerimetroAtual();
+  el.innerHTML='<div class="g3 mb1">'
+    +'<div class="fg"><label class="fl">Denominação da parcela</label><input class="fc" value="'+xmlEscapeGeo(p.denominacao)+'" onchange="sigefAtualizarCampoPerimetro(\'denominacao\',this.value)"></div>'
+    +'<div class="fg"><label class="fl">Parcela número</label><input class="fc" value="'+xmlEscapeGeo(p.parcela_numero)+'" onchange="sigefAtualizarCampoPerimetro(\'parcela_numero\',this.value)"></div>'
+    +'<div class="fg"><label class="fl">Lado</label><select class="fc" onchange="sigefAtualizarCampoPerimetro(\'lado\',this.value)"><option'+(p.lado==='Externo'?' selected':'')+'>Externo</option><option'+(p.lado==='Interno'?' selected':'')+'>Interno</option></select></div>'
+    +'</div>';
+}
+function sigefRenderPerimetros(){
+  sigefRenderPerimetroChips();
+  sigefRenderPerimetroCampos();
   sigefRenderVertices();
+}
+function sigefAtualizarCampoPerimetro(campo,valor){
+  sigefPerimetroAtual()[campo]=valor;
+  if(campo==='denominacao') sigefRenderPerimetroChips();
+}
+function sigefAdicionarPerimetro(){
+  const n=_sigefPerimetros.length+1;
+  _sigefPerimetros.push({denominacao:'PARTE '+n,parcela_numero:String(n).padStart(3,'0'),lado:'Externo',vertices:[],pontosOrigem:[]});
+  _sigefPerimetroAtual=_sigefPerimetros.length-1;
+  sigefRenderPerimetros();
+}
+function sigefRemoverPerimetro(){
+  if(_sigefPerimetros.length<=1) return;
+  _sigefPerimetros.splice(_sigefPerimetroAtual,1);
+  _sigefPerimetroAtual=Math.max(0,_sigefPerimetroAtual-1);
+  sigefRenderPerimetros();
+}
+function sigefSelecionarPerimetro(i){
+  _sigefPerimetroAtual=i;
+  sigefRenderPerimetros();
 }
 async function sigefClienteChange(){
   const cid=document.getElementById('sigef-cliente').value;
@@ -8189,12 +8086,12 @@ function sigefObraChange(){
   const obra=_sigefObras.find(function(o){return String(o.id)===String(oid);});
   if(!obra) return;
   document.getElementById('sigef-denominacao').value=obra.nome||'';
-  document.getElementById('sigef-perim-denominacao').value=(obra.nome||'PARTE 1').toUpperCase();
+  sigefPerimetroAtual().denominacao=(obra.nome||'PARTE 1').toUpperCase();
   document.getElementById('sigef-matricula').value=obra.ccir||'';
   const loc=parseMunicipio(obra.municipio);
   document.getElementById('sigef-municipios').value=loc.mun?(loc.mun+(loc.uf?('-'+loc.uf):'')):'';
   _sigefVizinhos=obra.vizinhos||[];
-  sigefRenderVertices();
+  sigefRenderPerimetros();
 }
 async function sigefCarregarModelo(input){
   const file=input.files[0];if(!file)return;
@@ -8212,24 +8109,26 @@ async function sigefCarregarModelo(input){
     _sigefXmlDoc=xmlDoc;
     _sigefArquivoNome=file.name.replace(/\.ods$/i,'');
     info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> Modelo carregado: '+xmlEscapeGeo(file.name)+'</span>';
-    document.getElementById('sigef-btn-gerar').disabled=!_sigefVertices.length;
+    document.getElementById('sigef-btn-gerar').disabled=!sigefPerimetroAtual().vertices.length;
   }catch(e){
     info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Erro: '+e.message+'</span>';
     _sigefModeloZip=null;_sigefXmlDoc=null;
   }
 }
-function sigefCarregarDoCadAvancado(){
-  if(!_cadAvPontos.length){toast('Importe ou crie pontos na aba CAD Avançado primeiro.',true);return;}
-  _sigefPontosOrigem=JSON.parse(JSON.stringify(_cadAvPontos));
-  _sigefVertices=_sigefPontosOrigem.map(function(p){return sigefNovoVertice(p.nome||('V'+p.id),p.x,p.y,p.z,p.sigmaE,p.sigmaN,p.sigmaZ);});
+function sigefCarregarDoCad(){
+  if(!_cadPontos.length){toast('Importe ou crie pontos na aba CAD primeiro.',true);return;}
+  const p=sigefPerimetroAtual();
+  p.pontosOrigem=JSON.parse(JSON.stringify(_cadPontos));
+  p.vertices=p.pontosOrigem.map(function(pt){return sigefNovoVertice(pt.nome||('V'+pt.id),pt.x,pt.y,pt.z,pt.sigmaE,pt.sigmaN,pt.sigmaZ);});
   sigefRenderVertices();
-  toast(_sigefVertices.length+' vértice(s) carregados da CAD Avançado.');
+  toast(p.vertices.length+' vértice(s) carregados da CAD.');
 }
 function sigefImportarSigmasTxt(input){
   const file=input.files[0];if(!file)return;
   const info=document.getElementById('sigef-sigmas-info');
   info.style.display='block';
-  if(!_sigefVertices.length){info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Monte a lista de vértices antes de importar os sigmas.</span>';input.value='';return;}
+  const vertices=sigefPerimetroAtual().vertices;
+  if(!vertices.length){info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Monte a lista de vértices antes de importar os sigmas.</span>';input.value='';return;}
   const delimSel=document.getElementById('sigef-sigmas-delim').value;
   const splitFn=function(line){
     if(delimSel==='tab') return line.split('\t');
@@ -8246,7 +8145,7 @@ function sigefImportarSigmasTxt(input){
       const sigmaN=parseFloat(String(cols[2]||'').replace(',','.'))||0;
       const sigmaZ=parseFloat(String(cols[3]||'').replace(',','.'))||0;
       if(!nome) return;
-      const v=_sigefVertices.find(function(v){return v.nome===nome;});
+      const v=vertices.find(function(v){return v.nome===nome;});
       if(v){v.sigmaLong=sigmaE;v.sigmaLat=sigmaN;v.sigmaH=sigmaZ;aplicados++;}
       else naoEncontrados.push(nome);
     });
@@ -8262,17 +8161,19 @@ function sigefNovoVertice(nome,long,lat,h,sigmaLong,sigmaLat,sigmaH){
     tipoVertice:'M',metodoPosicionamento:'PG6',tipoLimite:'LA1',confronta:false,cns:'',matricula:'',descritivo:''};
 }
 function sigefAdicionarVertice(){
-  _sigefVertices.push(sigefNovoVertice('V'+(_sigefVertices.length+1),0,0,0));
+  const vertices=sigefPerimetroAtual().vertices;
+  vertices.push(sigefNovoVertice('V'+(vertices.length+1),0,0,0));
   sigefRenderVertices();
 }
 function sigefRemoverVertice(i){
-  _sigefVertices.splice(i,1);
+  sigefPerimetroAtual().vertices.splice(i,1);
   sigefRenderVertices();
 }
 function sigefMoverVertice(i,dir){
+  const vertices=sigefPerimetroAtual().vertices;
   const j=i+dir;
-  if(j<0||j>=_sigefVertices.length) return;
-  const tmp=_sigefVertices[i];_sigefVertices[i]=_sigefVertices[j];_sigefVertices[j]=tmp;
+  if(j<0||j>=vertices.length) return;
+  const tmp=vertices[i];vertices[i]=vertices[j];vertices[j]=tmp;
   sigefRenderVertices();
 }
 function sigefBuscarMetodo(cod){
@@ -8290,15 +8191,16 @@ function sigefMetodosParaTipo(tipoVertice){
   return out;
 }
 function sigefAtualizarVertice(i,campo,valor){
-  if(!_sigefVertices[i]) return;
-  if(campo==='confronta') _sigefVertices[i][campo]=!!valor;
-  else if(['long','sigmaLong','lat','sigmaLat','h','sigmaH'].indexOf(campo)>=0) _sigefVertices[i][campo]=parseFloat(String(valor).replace(',','.'))||0;
-  else _sigefVertices[i][campo]=valor;
+  const vertices=sigefPerimetroAtual().vertices;
+  if(!vertices[i]) return;
+  if(campo==='confronta') vertices[i][campo]=!!valor;
+  else if(['long','sigmaLong','lat','sigmaLat','h','sigmaH'].indexOf(campo)>=0) vertices[i][campo]=parseFloat(String(valor).replace(',','.'))||0;
+  else vertices[i][campo]=valor;
   if(campo==='tipoVertice'){
-    const atual=sigefBuscarMetodo(_sigefVertices[i].metodoPosicionamento);
+    const atual=sigefBuscarMetodo(vertices[i].metodoPosicionamento);
     if(!atual||atual.tipos.indexOf(valor)<0){
       const compat=sigefMetodosParaTipo(valor)[0];
-      if(compat) _sigefVertices[i].metodoPosicionamento=compat.cod;
+      if(compat) vertices[i].metodoPosicionamento=compat.cod;
     }
     sigefRenderVertices();
   } else if(campo==='confronta'){
@@ -8306,12 +8208,13 @@ function sigefAtualizarVertice(i,campo,valor){
   }
 }
 function sigefAplicarConfrontante(i,vizIdx){
-  if(!_sigefVertices[i]||vizIdx==='') return;
+  const vertices=sigefPerimetroAtual().vertices;
+  if(!vertices[i]||vizIdx==='') return;
   const viz=_sigefVizinhos[parseInt(vizIdx,10)];
   if(!viz) return;
-  _sigefVertices[i].cns=viz.cns||'';
-  _sigefVertices[i].matricula=viz.matricula||'';
-  _sigefVertices[i].descritivo=viz.nomeImovel||'';
+  vertices[i].cns=viz.cns||'';
+  vertices[i].matricula=viz.matricula||'';
+  vertices[i].descritivo=viz.nomeImovel||'';
   sigefRenderVertices();
 }
 function sigefMetodoOptsHtml(tipoVertice,selecionado){
@@ -8337,12 +8240,13 @@ function sigefTipoLimiteOptsHtml(selecionado){
 function sigefRenderVertices(){
   const el=document.getElementById('sigef-vertices');
   if(!el) return;
-  if(!_sigefVertices.length){el.innerHTML='<div class="mu sm">Nenhum vértice ainda — use "Usar pontos da CAD Avançado" ou adicione manualmente.</div>';document.getElementById('sigef-btn-gerar').disabled=true;return;}
+  const vertices=sigefPerimetroAtual().vertices;
+  if(!vertices.length){el.innerHTML='<div class="mu sm">Nenhum vértice ainda — use "Usar pontos da CAD" ou adicione manualmente.</div>';document.getElementById('sigef-btn-gerar').disabled=true;return;}
   el.innerHTML='<div class="tw"><table><thead><tr>'
     +'<th>Vértice</th><th>E/Long</th><th>σ Long</th><th>N/Lat</th><th>σ Lat</th><th>h</th><th>σ h</th>'
     +'<th>Tipo Vért.</th><th>Método Posic.</th><th>Tipo Limite</th><th>Confronta?</th><th>CNS</th><th>Matrícula</th><th>Descritivo</th><th></th>'
     +'</tr></thead><tbody>'
-    +_sigefVertices.map(function(v,i){
+    +vertices.map(function(v,i){
       return '<tr>'
         +'<td><input class="fc" style="width:90px" value="'+xmlEscapeGeo(v.nome)+'" onchange="sigefAtualizarVertice('+i+',\'nome\',this.value)"></td>'
         +'<td><input class="fc" style="width:100px" type="number" step="any" value="'+v.long+'" onchange="sigefAtualizarVertice('+i+',\'long\',this.value)"></td>'
@@ -8478,9 +8382,23 @@ function odsPreencherIdentificacao(xmlDoc,dados){
     if(row) odsSetCelulaTexto(row,SIGEF_ID_COL_VALOR,dados[chave]||'');
   });
 }
-function odsPreencherPerimetro(xmlDoc,header,vertices){
-  const tableEl=odsFindTable(xmlDoc,'perimetro_1');
-  if(!tableEl) throw new Error('Aba "perimetro_1" não encontrada no modelo.');
+function odsGarantirTabelaPerimetro(xmlDoc,index,tabelaModelo){
+  const nome='perimetro_'+index;
+  const existente=odsFindTable(xmlDoc,nome);
+  if(existente) return existente;
+  const clone=tabelaModelo.cloneNode(true);
+  clone.setAttribute('table:name',nome);
+  let ancora=odsFindTable(xmlDoc,'perimetro_1');
+  for(let i=index-1;i>=1;i--){
+    const anterior=odsFindTable(xmlDoc,'perimetro_'+i);
+    if(anterior){ancora=anterior;break;}
+  }
+  if(ancora.nextSibling) ancora.parentNode.insertBefore(clone,ancora.nextSibling);
+  else ancora.parentNode.appendChild(clone);
+  return clone;
+}
+function odsPreencherPerimetro(xmlDoc,header,vertices,tableEl){
+  if(!tableEl) throw new Error('Aba de perímetro não encontrada/criada no modelo.');
   Object.keys(SIGEF_PERIM_HEADER_LINHAS).forEach(function(chave){
     const row=odsIsolarLinha(tableEl,SIGEF_PERIM_HEADER_LINHAS[chave]);
     if(row) odsSetCelulaTexto(row,SIGEF_ID_COL_VALOR,header[chave]||'');
@@ -8491,7 +8409,7 @@ function odsPreencherPerimetro(xmlDoc,header,vertices){
     const rows=tableEl.getElementsByTagName('table:table-row');
     linhaModelo=rows[rows.length-1]||null;
   }
-  if(!linhaModelo) throw new Error('Não foi possível localizar uma linha-modelo na aba "perimetro_1".');
+  if(!linhaModelo) throw new Error('Não foi possível localizar uma linha-modelo na aba "'+tableEl.getAttribute('table:name')+'".');
   const linhaModeloClone=linhaModelo.cloneNode(true);
   linhaModeloClone.removeAttribute('table:number-rows-repeated');
   function fmtNum(n){return (n==null||isNaN(n))?'0,00':Number(n).toFixed(2).replace('.',',');}
@@ -8521,7 +8439,8 @@ function odsPreencherPerimetro(xmlDoc,header,vertices){
 }
 async function sigefGerarOds(){
   if(!_sigefModeloZip||!_sigefXmlDoc){toast('Envie a planilha .ods modelo primeiro.',true);return;}
-  if(!_sigefVertices.length){toast('Adicione ao menos um vértice antes de gerar.',true);return;}
+  const semVertices=_sigefPerimetros.findIndex(function(p){return !p.vertices.length;});
+  if(semVertices>=0){toast('O perímetro "'+(_sigefPerimetros[semVertices].denominacao||('#'+(semVertices+1)))+'" não tem vértices. Adicione ao menos um.',true);return;}
   try{
     const dados={
       natureza_servico:document.getElementById('sigef-natureza_servico').value,
@@ -8536,13 +8455,15 @@ async function sigefGerarOds(){
       matricula:document.getElementById('sigef-matricula').value,
       municipios:document.getElementById('sigef-municipios').value
     };
-    const header={
-      denominacao:document.getElementById('sigef-perim-denominacao').value,
-      parcela_numero:document.getElementById('sigef-perim-parcela_numero').value,
-      lado:document.getElementById('sigef-perim-lado').value
-    };
     odsPreencherIdentificacao(_sigefXmlDoc,dados);
-    odsPreencherPerimetro(_sigefXmlDoc,header,_sigefVertices);
+    const tabelaBase=odsFindTable(_sigefXmlDoc,'perimetro_1');
+    if(!tabelaBase) throw new Error('Aba "perimetro_1" não encontrada no modelo.');
+    const tabelaModelo=tabelaBase.cloneNode(true);
+    _sigefPerimetros.forEach(function(p,i){
+      const tableEl=odsGarantirTabelaPerimetro(_sigefXmlDoc,i+1,tabelaModelo);
+      const header={denominacao:p.denominacao,parcela_numero:p.parcela_numero,lado:p.lado};
+      odsPreencherPerimetro(_sigefXmlDoc,header,p.vertices,tableEl);
+    });
     const xmlFinal=odsSerializar(_sigefXmlDoc);
     _sigefModeloZip.file('content.xml',xmlFinal);
     const blob=await _sigefModeloZip.generateAsync({type:'blob'});
@@ -8680,8 +8601,8 @@ function geoMemorialHtml(){
     +'<div class="fg"><label class="fl">Arquivo TXT dos vértices (nome_do_marco,E,N,Z,Confrontante)</label><input class="fc" type="file" id="mem-file" accept=".txt,.csv" onchange="memorialArquivoLido(this)"></div>'
     +'<div class="fg"><label class="fl">Delimitador</label><select class="fc" id="mem-delim"><option value=",">Vírgula (,)</option><option value=";" selected>Ponto e vírgula (;)</option><option value="tab">Tabulação</option></select></div>'
     +'</div>'
-    +'<div class="mu sm mb1">Ou importe direto os pontos já nomeados na aba "CAD Simples" (a ordem dos pontos na CAD define a sequência do perímetro).</div>'
-    +'<button class="btn bsm mb1" onclick="memorialImportarCad()"><i class="ti ti-arrow-back-up"></i> Importar pontos da CAD Simples</button>'
+    +'<div class="mu sm mb1">Ou importe direto os pontos já nomeados na aba "CAD" (a ordem de nomeação dos pontos na CAD define a sequência do perímetro).</div>'
+    +'<button class="btn bsm mb1" onclick="memorialImportarCad()"><i class="ti ti-arrow-back-up"></i> Importar pontos da CAD</button>'
     +'<div class="mu sm mb1">O confrontante deve incluir o artigo (ex: "a Rodovia MS-258", "o Córrego Vertente Clara"), pois entra exatamente assim na frase "confrontando com ...". Após importar, preencha o confrontante e a cota Z de cada vértice na tabela abaixo. Azimutes e distâncias entre vértices são calculados automaticamente.</div>'
     +'<div id="mem-info" class="mu sm mb1" style="display:none"></div>'
     +'<button class="btn bsm mb1" onclick="memorialCalcular()"><i class="ti ti-calculator"></i> Calcular perímetro e área</button>'
@@ -8758,13 +8679,13 @@ function memorialCalcular(){
   }
 }
 function memorialImportarCad(){
-  if(typeof _cadPontos==='undefined'||!_cadPontos.length){toast('Importe e nomeie os pontos na aba "CAD Simples" primeiro.',true);return;}
+  if(typeof _cadPontos==='undefined'||!_cadPontos.length){toast('Importe e nomeie os pontos na aba "CAD" primeiro.',true);return;}
   const nomeados=_cadPontos.filter(function(p){return p.nome;}).sort(function(a,b){return (a.ordemNome||0)-(b.ordemNome||0);});
-  if(nomeados.length<3){toast('Nomeie ao menos 3 pontos na aba "CAD Simples" antes de importar.',true);return;}
+  if(nomeados.length<3){toast('Nomeie ao menos 3 pontos na aba "CAD" antes de importar.',true);return;}
   const v=nomeados.map(function(p){return {nome:p.nome,e:p.x,n:p.y,z:p.z||0,confrontante:''};});
   try{
     memorialProcessarVertices(v);
-    toast(v.length+' ponto(s) importados da CAD Simples. Preencha os confrontantes e confira a cota Z na tabela abaixo.');
+    toast(v.length+' ponto(s) importados da CAD. Preencha os confrontantes e confira a cota Z na tabela abaixo.');
   }catch(e){
     toast('Erro: '+e.message,true);
   }
