@@ -7413,10 +7413,13 @@ function geoCadHtml(){
     +'<div id="cad-info" class="mu sm mb1" style="display:none"></div>'
     +'<div class="fg mb1"><label class="fl">Importar pontos e perímetro de planilha (.ods)</label><input class="fc" type="file" id="cad-ods-file" accept=".ods" onchange="cadImportarOds(this)"></div>'
     +'<div id="cad-ods-info" class="mu sm mb1" style="display:none"></div>'
+    +'<div class="fg mb1"><label class="fl">Importar pontos de arquivo de texto (.txt, .csv)</label><input class="fc" type="file" id="cad-txt-file" accept=".txt,.csv" onchange="cadImportarTxt(this)"></div>'
+    +'<div id="cad-txt-info" class="mu sm mb1" style="display:none"></div>'
     +'<div class="mb1" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">'
     +'<button class="btn bsm bp2" id="cad-modo-select" onclick="cadSetModo(\'select\')"><i class="ti ti-pointer"></i> Selecionar</button>'
     +'<button class="btn bsm" id="cad-modo-medir" onclick="cadSetModo(\'medir\')"><i class="ti ti-ruler-2"></i> Régua</button>'
-    +'<button class="btn bsm" id="cad-modo-criar" onclick="cadSetModo(\'criar-ponto\')"><i class="ti ti-circle-plus"></i> Criar ponto</button>'
+    +'<button class="btn bsm" id="cad-modo-criar" onclick="cadSetModo(\'criar-ponto\')"><i class="ti ti-circle-plus"></i> Criar ponto (clique no desenho)</button>'
+    +'<button class="btn bsm" onclick="cadNovoPontoCoordenadas()"><i class="ti ti-keyboard"></i> Novo ponto por coordenadas</button>'
     +'<button class="btn bsm" id="cad-modo-polilinha" onclick="cadSetModo(\'polilinha\')"><i class="ti ti-line"></i> Polilinha</button>'
     +'<label style="display:flex;align-items:center;gap:6px;margin-left:.5rem;cursor:pointer"><input type="checkbox" id="cad-snap" checked onchange="_cadSnapAtivo=this.checked"> <span class="mu sm">Snap em vértices</span></label>'
     +'<label style="display:flex;align-items:center;gap:6px"><span class="mu sm">Tolerância (px)</span><input class="fc" style="width:60px" type="number" id="cad-snap-tol" value="12" onchange="_cadSnapTolPx=parseFloat(this.value)||12"></label>'
@@ -7468,12 +7471,20 @@ async function cadArquivoSelecionado(input){
   }
 }
 function cadImportarGeoJSON(gj){
-  _cadGeoJSON=gj;
-  cadDerivarCamadas(gj);
-  _cadPontos=cadExtrairPontos(gj);
-  if(!_cadPontos.length) throw new Error('Nenhum ponto encontrado no arquivo.');
+  const pontosNovos=cadExtrairPontos(gj);
+  if(!pontosNovos.length) throw new Error('Nenhum ponto encontrado no arquivo.');
+  const substituir=_cadPontos.length>0&&!confirm('Já existem '+_cadPontos.length+' ponto(s) no projeto.\n\nOK = Adicionar os novos pontos aos existentes\nCancelar = Substituir tudo pelo arquivo importado');
+  if(substituir){
+    _cadGeoJSON=gj;
+    _cadPontos=pontosNovos;
+    _cadOrdemContador=0;
+  } else {
+    if(!_cadGeoJSON) _cadGeoJSON={type:'FeatureCollection',features:[]};
+    _cadGeoJSON.features=_cadGeoJSON.features.concat(gj.features||[]);
+    _cadPontos=_cadPontos.concat(pontosNovos);
+  }
   _cadSelecionado=null;
-  _cadOrdemContador=0;
+  cadDerivarCamadas(_cadGeoJSON);
   cadAjustarView();
   cadRenderCamadas();
   cadRenderSvg();
@@ -7733,6 +7744,64 @@ function cadWheel(evt){
   _cadView.cx=p.x+(_cadView.cx-p.x)*fator;
   _cadView.cy=p.y+(_cadView.cy-p.y)*fator;
   cadRenderSvg();
+}
+function cadNovoPontoCoordenadas(){
+  if(!_cadCamadas.some(function(c){return c.id==='_default';})) _cadCamadas.push({id:'_default',nome:'Sem camada',cor:CAD_PALETA[0],visivel:true,origem:'auto'});
+  const centro=_cadGeoJSON||_cadPontos.length?cadLocalToWorld(_cadView.cx,_cadView.cy):{x:0,y:0};
+  const novo={id:_cadNextId++,x:centro.x,y:centro.y,z:0,nome:'',layerId:'_default',sigmaE:0,sigmaN:0,sigmaZ:0};
+  _cadPontos.push(novo);
+  if(!_cadGeoJSON) _cadGeoJSON={type:'FeatureCollection',features:[]};
+  cadAjustarView();
+  cadRenderCamadas();
+  cadRenderSvg();
+  cadSelecionarPonto(novo.id);
+  cadAtualizarLista();
+  toast('Ponto criado. Informe Nome, E, N e Z e clique em Aplicar.');
+}
+async function cadImportarTxt(input){
+  const file=input.files[0];if(!file)return;
+  const info=document.getElementById('cad-txt-info');
+  if(info){info.style.display='block';info.innerHTML='Lendo arquivo...';}
+  try{
+    const texto=await file.text();
+    const linhas=texto.split(/\r?\n/).map(function(l){return l.trim();}).filter(function(l){return l.length;});
+    if(!linhas.length) throw new Error('Arquivo vazio.');
+    const pontosNovos=[];
+    linhas.forEach(function(linha){
+      const delim=linha.indexOf(';')>=0?';':(linha.indexOf(',')>=0?',':(linha.indexOf('\t')>=0?'\t':/\s+/));
+      const cols=linha.split(delim).map(function(c){return c.trim();}).filter(function(c){return c.length;});
+      if(cols.length<3) return;
+      let nome='',idx=0;
+      if(isNaN(parseFloat(cols[0].replace(',','.')))){nome=cols[0];idx=1;}
+      const x=parseFloat(cols[idx].replace(',','.'));
+      const y=parseFloat(cols[idx+1].replace(',','.'));
+      const z=cols[idx+2]!==undefined?parseFloat(cols[idx+2].replace(',','.')):0;
+      if(isNaN(x)||isNaN(y)) return;
+      if(!nome&&cols.length>idx+3) nome=cols[idx+3];
+      const pt={id:_cadNextId++,x:x,y:y,z:isNaN(z)?0:z,nome:nome||'',layerId:'',sigmaE:0,sigmaN:0,sigmaZ:0,ordemNome:0};
+      if(pt.nome) pt.ordemNome=++_cadOrdemContador;
+      pontosNovos.push(pt);
+    });
+    if(!pontosNovos.length) throw new Error('Nenhum ponto com coordenadas válidas encontrado. Formato esperado: NOME,E,N,Z (ou E,N,Z), uma linha por ponto.');
+    const layerId='txt_'+Date.now();
+    pontosNovos.forEach(function(p){p.layerId=layerId;});
+    _cadPontos=_cadPontos.concat(pontosNovos);
+    if(!_cadGeoJSON) _cadGeoJSON={type:'FeatureCollection',features:[]};
+    const coords=pontosNovos.map(function(p){return [p.x,p.y,p.z||0];});
+    _cadGeoJSON.features.push({type:'Feature',properties:{layer:layerId},geometry:{type:'MultiPoint',coordinates:coords}});
+    cadDerivarCamadas(_cadGeoJSON);
+    const camada=_cadCamadas.find(function(c){return c.id===layerId;});
+    if(camada) camada.nome=file.name.replace(/\.(txt|csv)$/i,'');
+    cadAjustarView();
+    cadRenderCamadas();
+    cadRenderSvg();
+    cadAtualizarPainel();
+    cadAtualizarLista();
+    info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> '+pontosNovos.length+' ponto(s) importados.</span>';
+    input.value='';
+  }catch(e){
+    info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Erro: '+e.message+'</span>';
+  }
 }
 function cadSvgClick(evt){
   if(_cadDragMoveu){_cadDragMoveu=false;return;}
