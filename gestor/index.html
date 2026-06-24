@@ -7552,7 +7552,7 @@ function cadToggleSatelite(){
     if(wrap) wrap.style.background='#000';
     if(btn) btn.classList.add('bp2');
     if(zonaWrap) zonaWrap.style.display='flex';
-    cadSyncLeaflet();
+    setTimeout(function(){if(_cadMapBg){_cadMapBg.invalidateSize();cadSyncLeaflet();}},50);
   }else{
     if(bg) bg.style.display='none';
     if(wrap) wrap.style.background='#fafaf7';
