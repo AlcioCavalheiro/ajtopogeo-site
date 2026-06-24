@@ -6684,7 +6684,8 @@ const GEO_TABS=[
   {k:'incra',ic:'ti-file-upload',lb:'Importar Memorial INCRA'},
   {k:'anuencia',ic:'ti-signature',lb:'Anuência de Limites'},
   {k:'cad',ic:'ti-stack-2',lb:'CAD'},
-  {k:'sigef',ic:'ti-table',lb:'Planilha SIGEF (.ods)'}
+  {k:'sigef',ic:'ti-table',lb:'Planilha SIGEF (.ods)'},
+  {k:'gmaps',ic:'ti-current-location',lb:'Ponto do Maps'}
 ];
 function rGeoFerramentasFixed(){
   const el=document.getElementById('ct');if(!el)return;
@@ -6700,7 +6701,8 @@ function rGeoFerramentasFixed(){
     +'<div id="geo-incra" style="display:none">'+geoIncraHtml()+'</div>'
     +'<div id="geo-anuencia" style="display:none">'+geoAnuenciaHtml()+'</div>'
     +'<div id="geo-cad" style="display:none">'+geoCadHtml()+'</div>'
-    +'<div id="geo-sigef" style="display:none">'+geoSigefHtml()+'</div>';
+    +'<div id="geo-sigef" style="display:none">'+geoSigefHtml()+'</div>'
+    +'<div id="geo-gmaps" style="display:none">'+geoGmapsHtml()+'</div>';
   coordUpdateUI();
   memorialInit();
   anuenciaInit();
@@ -7206,8 +7208,8 @@ function incraPreencherCampos(){
   const perSummary=multi
     ?'<div class="card mb1" style="background:var(--bg-2);padding:10px 14px">'
       +'<div class="fl mb1" style="font-size:13px">Perímetros encontrados no memorial</div>'
-      +'<div class="tw"><table><thead><tr><th>#</th><th>Denominação</th><th>Área (ha)</th><th>Perímetro (m)</th><th>Vértices</th></tr></thead><tbody>'
-      +_incraPerimetros.map(function(p,i){return '<tr><td>'+(i+1)+'</td><td>'+p.header.denominacao+'</td><td>'+p.header.area+'</td><td>'+p.header.perimetro+'</td><td>'+p.vertices.length+'</td></tr>';}).join('')
+      +'<div class="tw"><table><thead><tr><th>#</th><th>Denominação</th><th>Área (ha)</th><th>Perímetro (m)</th><th>Vértices</th><th></th></tr></thead><tbody>'
+      +_incraPerimetros.map(function(p,i){return '<tr><td>'+(i+1)+'</td><td>'+p.header.denominacao+'</td><td>'+p.header.area+'</td><td>'+p.header.perimetro+'</td><td>'+p.vertices.length+'</td><td><button class="btn bxs" onclick="incraIrParaMemorial('+i+')"><i class="ti ti-file-description"></i> Memorial</button></td></tr>';}).join('')
       +'</tbody></table></div></div>'
     :'';
   const lblDxf=multi?'Gerar DXF (todos os perímetros — camadas separadas)':'Gerar DXF (pontos + perímetro)';
@@ -7226,7 +7228,8 @@ function incraPreencherCampos(){
     +'<div class="fg"><label class="fl">Zona UTM</label><select class="fc" id="incra-zona">'+utmZoneOpts(zonaCalc)+'</select></div>'
     +'<div class="fg"><label class="fl">Hemisfério</label><select class="fc" id="incra-hemis"><option value="S" selected>Sul</option><option value="N">Norte</option></select></div></div>'
     +'<button class="btn bp2 bsm mb1" onclick="incraGerarDxf()"><i class="ti ti-download"></i> '+lblDxf+'</button>'
-    +' <button class="btn bsm mb1" onclick="incraIrParaAnuencia()"><i class="ti ti-signature"></i> Usar na Anuência de Limites</button>';
+    +' <button class="btn bsm mb1" onclick="incraIrParaAnuencia()"><i class="ti ti-signature"></i> Usar na Anuência de Limites</button>'
+    +(multi?'':' <button class="btn bsm mb1" onclick="incraIrParaMemorial(0)"><i class="ti ti-file-description"></i> Gerar Memorial Descritivo</button>');
 }
 function incraRenderTabela(){
   const multi=_incraPerimetros.length>1;
@@ -7311,6 +7314,52 @@ function incraIrParaAnuencia(){
   _incraHeader.municipioUf=document.getElementById('incra-municipioUf').value;
   geoTab('anuencia');
   anuenciaCarregarDoMemorial();
+}
+function incraIrParaMemorial(idx){
+  if(!_incraPerimetros.length){toast('Nenhum memorial importado.',true);return;}
+  const per=_incraPerimetros[idx];
+  if(!per){toast('Perímetro não encontrado.',true);return;}
+  const datum=document.getElementById('incra-datum').value;
+  const zona=parseInt(document.getElementById('incra-zona').value,10);
+  const hemisS=document.getElementById('incra-hemis').value==='S';
+  const srcDef=projDef(datum,null,false);
+  const dstDef=projDef(datum,zona,hemisS);
+  const vertices=per.vertices.map(function(v){
+    const p=proj4(srcDef,dstDef,[v.lonDec,v.latDec]);
+    return {nome:v.codigo,e:Math.round(p[0]*1000)/1000,n:Math.round(p[1]*1000)/1000,z:v.altDec||0,confrontante:v.confrontacao||''};
+  });
+  if(vertices.length<3){toast('Perímetro com menos de 3 vértices.',true);return;}
+  const single=_incraPerimetros.length===1;
+  const h=per.header;
+  const denominacao=single?(document.getElementById('incra-denominacao').value||h.denominacao):h.denominacao;
+  const proprietario=single?(document.getElementById('incra-proprietario').value||h.proprietario):h.proprietario;
+  const matricula=single?(document.getElementById('incra-matricula').value||h.matricula):h.matricula;
+  const municipioUf=document.getElementById('incra-municipioUf').value||h.municipioUf;
+  const tecnico=document.getElementById('incra-tecnico').value||h.tecnico;
+  const credenciamento=document.getElementById('incra-credenciamento').value||h.credenciamento;
+  const areaRaw=single?(document.getElementById('incra-area').value||h.area):h.area;
+  const perimRaw=single?(document.getElementById('incra-perimetro').value||h.perimetro):h.perimetro;
+  geoTab('memorial');
+  document.getElementById('mem-imovel').value=denominacao||'';
+  document.getElementById('mem-proprietario').value=proprietario||'';
+  const muParts=(municipioUf||'').split(/\s*[\/\-]\s*/);
+  document.getElementById('mem-local').value=(muParts[0]||'').trim();
+  document.getElementById('mem-uf').value=(muParts[1]||'').trim();
+  document.getElementById('mem-comarca').value=(muParts[0]||'').trim();
+  document.getElementById('mem-matriculas').value=matricula||'';
+  const areaNum=parseFloat((areaRaw||'').replace(/\./g,'').replace(',','.').replace(/[^\d.]/g,''));
+  if(!isNaN(areaNum)){
+    const isM2=/m[²2]/i.test(areaRaw||'');
+    document.getElementById('mem-area-unid').value=isM2?'m2':'ha';
+    document.getElementById('mem-area').value=areaNum.toFixed(isM2?2:4).replace('.',',');
+  }
+  const perimNum=parseFloat((perimRaw||'').replace(/\./g,'').replace(',','.'));
+  if(!isNaN(perimNum)) document.getElementById('mem-perimetro').value=perimNum.toFixed(2).replace('.',',');
+  const respNome=document.getElementById('mem-resp-nome');
+  if(tecnico&&!respNome.value) respNome.value=tecnico;
+  document.getElementById('mem-credenciamento').value=credenciamento||'';
+  memorialProcessarVertices(vertices);
+  toast('Perímetro '+(idx+1)+' transferido. Revise o confrontante de cada vértice e gere o .docx.');
 }
 
 // ── 8. Anuência de Limites ──
@@ -7478,10 +7527,59 @@ async function anuenciaGerarDocx(){
 var _cadGeoJSON=null,_cadPontos=[],_cadNextId=1,_cadCamadas=[],_cadSelecionado=null,_cadOrdemContador=0;
 var _cadView={cx:0,cy:0,w:100,h:100},_cadDragInicio=null,_cadDragMoveu=false,_cadDragPontoId=null;
 var _cadOrigin={x:0,y:0};
+var _cadMapBg=null,_cadMapAtivo=false,_cadUtmZona=21,_cadUtmSul=true;
 function cadWorldToLocal(x,y){return {x:x-_cadOrigin.x,y:-(y-_cadOrigin.y)};}
 function cadLocalToWorld(x,y){return {x:x+_cadOrigin.x,y:_cadOrigin.y-y};}
 var _cadModo='select',_cadMedicaoPontos=[],_cadPolilinhaPontos=[],_cadSnapAtivo=true,_cadSnapTolPx=12;
 const CAD_PALETA=['#0D4FA0','#27500A','#A32D2D','#854F0B','#5B3A8E','#0E7C7B','#B5482A','#2D5F8A','#6B6B0F','#7A2E5C'];
+function cadInitMap(){
+  if(_cadMapBg) return;
+  const el=document.getElementById('cad-map-bg');
+  if(!el) return;
+  _cadMapBg=L.map('cad-map-bg',{zoomControl:false,attributionControl:false,dragging:false,touchZoom:false,doubleClickZoom:false,scrollWheelZoom:false,boxZoom:false,keyboard:false});
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:21,maxNativeZoom:19}).addTo(_cadMapBg);
+  _cadMapBg.setView([-20,-54],5);
+}
+function cadToggleSatelite(){
+  _cadMapAtivo=!_cadMapAtivo;
+  const bg=document.getElementById('cad-map-bg');
+  const wrap=document.getElementById('cad-canvas-wrap');
+  const btn=document.getElementById('cad-btn-satelite');
+  const zonaWrap=document.getElementById('cad-zona-wrap');
+  if(_cadMapAtivo){
+    cadInitMap();
+    if(bg) bg.style.display='';
+    if(wrap) wrap.style.background='#000';
+    if(btn) btn.classList.add('bp2');
+    if(zonaWrap) zonaWrap.style.display='flex';
+    cadSyncLeaflet();
+  }else{
+    if(bg) bg.style.display='none';
+    if(wrap) wrap.style.background='#fafaf7';
+    if(btn) btn.classList.remove('bp2');
+    if(zonaWrap) zonaWrap.style.display='none';
+  }
+}
+function cadSyncLeaflet(){
+  if(!_cadMapAtivo||!_cadMapBg) return;
+  if(!_cadPontos.length&&(!_cadGeoJSON||!(_cadGeoJSON.features||[]).length)){
+    _cadMapBg.setView([-20,-54],8);return;
+  }
+  try{
+    const xW=_cadOrigin.x+_cadView.cx-_cadView.w/2;
+    const xE=_cadOrigin.x+_cadView.cx+_cadView.w/2;
+    const yS=_cadOrigin.y-_cadView.cy-_cadView.h/2;
+    const yN=_cadOrigin.y-_cadView.cy+_cadView.h/2;
+    const src=projDef('SIRGAS2000',_cadUtmZona,_cadUtmSul);
+    const dst=projDef('WGS84',null,false);
+    const sw=proj4(src,dst,[xW,yS]);
+    const ne=proj4(src,dst,[xE,yN]);
+    _cadMapBg.fitBounds([[sw[1],sw[0]],[ne[1],ne[0]]],{animate:false,padding:[0,0]});
+  }catch(e){}
+}
+function cadSetZona(v){_cadUtmZona=parseInt(v,10);cadSyncLeaflet();}
+function cadSetHemis(v){_cadUtmSul=v==='S';cadSyncLeaflet();}
+
 function geoCadHtml(){
   return '<div class="card mb1">'
     +'<div class="st mb1"><i class="ti ti-stack-2" style="color:var(--brand)"></i>CAD — Camadas, Régua, Edição de Coordenadas e Navegação</div>'
@@ -7500,10 +7598,15 @@ function geoCadHtml(){
     +'<button class="btn bsm" id="cad-modo-polilinha" onclick="cadSetModo(\'polilinha\')"><i class="ti ti-line"></i> Polilinha</button>'
     +'<label style="display:flex;align-items:center;gap:6px;margin-left:.5rem;cursor:pointer"><input type="checkbox" id="cad-snap" checked onchange="_cadSnapAtivo=this.checked"> <span class="mu sm">Snap em vértices</span></label>'
     +'<label style="display:flex;align-items:center;gap:6px"><span class="mu sm">Tolerância (px)</span><input class="fc" style="width:60px" type="number" id="cad-snap-tol" value="12" onchange="_cadSnapTolPx=parseFloat(this.value)||12"></label>'
+    +'<button class="btn bsm" id="cad-btn-satelite" style="margin-left:auto" onclick="cadToggleSatelite()" title="Fundo de satélite Esri"><i class="ti ti-satellite"></i> Satélite</button>'
+    +'<span id="cad-zona-wrap" style="display:none;align-items:center;gap:4px"><span class="mu sm">Zona</span><select class="fc" style="width:64px;padding:2px 4px" id="cad-zona-utm" onchange="cadSetZona(this.value)">'+utmZoneOpts(21)+'</select><select class="fc" style="width:50px;padding:2px 4px" id="cad-hemis-utm" onchange="cadSetHemis(this.value)"><option value="S" selected>S</option><option value="N">N</option></select></span>'
     +'</div>'
     +'<div style="display:flex;gap:1rem;flex-wrap:wrap">'
-    +'<div style="flex:2;min-width:320px;border:1px solid var(--bor);border-radius:8px;overflow:hidden;background:#fafaf7">'
-    +'<svg id="cad-svg" viewBox="0 0 100 100" style="width:100%;height:480px;display:block;cursor:crosshair;touch-action:none" onpointerdown="cadPointerDown(event)" onpointermove="cadPointerMove(event)" onpointerup="cadPointerUp(event)" onpointerleave="cadPointerUp(event)" onwheel="cadWheel(event)" onclick="cadSvgClick(event)"></svg>'
+    +'<div style="flex:2;min-width:320px;border:1px solid var(--bor);border-radius:8px;overflow:hidden">'
+    +'<div id="cad-canvas-wrap" style="position:relative;width:100%;height:480px;background:#fafaf7">'
+    +'<div id="cad-map-bg" style="position:absolute;inset:0;display:none"></div>'
+    +'<svg id="cad-svg" viewBox="0 0 100 100" style="position:absolute;inset:0;width:100%;height:100%;cursor:crosshair;touch-action:none;background:transparent" onpointerdown="cadPointerDown(event)" onpointermove="cadPointerMove(event)" onpointerup="cadPointerUp(event)" onpointerleave="cadPointerUp(event)" onwheel="cadWheel(event)" onclick="cadSvgClick(event)"></svg>'
+    +'</div>'
     +'</div>'
     +'<div style="flex:1;min-width:260px">'
     +'<div class="st mb1" style="font-size:13px">Camadas</div>'
@@ -7661,6 +7764,7 @@ function cadAjustarView(){
   _cadView.cy=0;
   _cadView.w=w+pad*2;
   _cadView.h=h+pad*2;
+  cadSyncLeaflet();
 }
 function cadCamadaCor(layerId){
   const c=_cadCamadas.find(function(c){return c.id===layerId;});
@@ -7811,7 +7915,7 @@ function cadPointerMove(evt){
     _cadDragInicio=cadScreenToSvg(evt);
   }
 }
-function cadPointerUp(evt){_cadDragInicio=null;_cadDragPontoId=null;}
+function cadPointerUp(evt){_cadDragInicio=null;_cadDragPontoId=null;cadSyncLeaflet();}
 function cadWheel(evt){
   if(!_cadGeoJSON&&!_cadPontos.length) return;
   evt.preventDefault();
@@ -7821,6 +7925,7 @@ function cadWheel(evt){
   _cadView.cx=p.x+(_cadView.cx-p.x)*fator;
   _cadView.cy=p.y+(_cadView.cy-p.y)*fator;
   cadRenderSvg();
+  cadSyncLeaflet();
 }
 function cadNovoPontoCoordenadas(){
   if(!_cadCamadas.some(function(c){return c.id==='_default';})) _cadCamadas.push({id:'_default',nome:'Sem camada',cor:CAD_PALETA[0],visivel:true,origem:'auto'});
@@ -8058,6 +8163,7 @@ function cadFocarPonto(id){
   const loc=cadWorldToLocal(p.x,p.y);
   _cadView.cx=loc.x;_cadView.cy=loc.y;
   cadRenderSvg();
+  cadSyncLeaflet();
 }
 function cadSelecionarMaisAoNorte(){
   if(!_cadPontos.length){toast('Importe um arquivo primeiro.',true);return;}
@@ -8197,6 +8303,7 @@ function cadOdsParseCoordenada(texto){
 function cadGeograficaParaUtm(lonDec,latDec){
   const zona=Math.floor((lonDec+180)/6)+1;
   const sul=latDec<0;
+  _cadUtmZona=zona;_cadUtmSul=sul;
   const origem=projDef('SIRGAS2000',null);
   const destino=projDef('SIRGAS2000',zona,sul);
   const xy=proj4(origem,destino,[lonDec,latDec]);
@@ -8374,6 +8481,115 @@ const SIGEF_ID_LINHAS={natureza_servico:1,tipo_pessoa:4,nome:5,cpf_cnpj:6,denomi
 const SIGEF_ID_COL_VALOR=1;
 const SIGEF_PERIM_HEADER_LINHAS={denominacao:2,parcela_numero:3,lado:4};
 const SIGEF_PERIM_TABELA_PRIMEIRA_LINHA_DADOS=11;
+// ── Ponto do Google Maps ──
+var _gmapsLat=null,_gmapsLng=null;
+function geoGmapsHtml(){
+  return '<div class="card mb1">'
+    +'<div class="st mb1"><i class="ti ti-current-location" style="color:var(--brand)"></i>Ponto do Google Maps</div>'
+    +'<div class="mu sm mb1">Cole um link do Google Maps ou coordenadas decimais para exportar como arquivo topográfico.</div>'
+    +'<div class="fg mb1"><label class="fl">Link do Google Maps ou coordenadas decimais</label>'
+    +'<input class="fc" id="gmaps-url" placeholder="https://maps.google.com/... ou -20.4637, -54.6225" oninput="gmapsParsear()"></div>'
+    +'<div id="gmaps-info" class="mu sm mb1" style="display:none"></div>'
+    +'<div class="g2 mb1" id="gmaps-coords" style="display:none">'
+    +'<div class="fg"><label class="fl">Latitude</label><input class="fc" id="gmaps-lat" type="number" step="any" oninput="gmapsAtualizarUtm()"></div>'
+    +'<div class="fg"><label class="fl">Longitude</label><input class="fc" id="gmaps-lng" type="number" step="any" oninput="gmapsAtualizarUtm()"></div>'
+    +'</div>'
+    +'<div class="g2 mb1" id="gmaps-extras" style="display:none">'
+    +'<div class="fg"><label class="fl">Nome do ponto</label><input class="fc" id="gmaps-nome" placeholder="P-01" value="P-01"></div>'
+    +'<div class="fg"><label class="fl">Cota Z / altitude (opcional)</label><input class="fc" id="gmaps-z" type="number" step="any" placeholder="0"></div>'
+    +'</div>'
+    +'<div id="gmaps-utm" class="mu sm mb1" style="display:none;background:#F0F7FF;border-radius:8px;padding:.6rem .9rem;color:#185FA5"></div>'
+    +'<div class="fx g8" id="gmaps-btns" style="display:none;flex-wrap:wrap">'
+    +'<button class="btn bsm" onclick="gmapsExportarTxt()"><i class="ti ti-file-text"></i> TXT</button>'
+    +'<button class="btn bsm" onclick="gmapsExportarDxf()"><i class="ti ti-vector"></i> DXF</button>'
+    +'<button class="btn bsm" onclick="gmapsExportarShp()"><i class="ti ti-layers-difference"></i> Shapefile</button>'
+    +'</div>'
+    +'</div>';
+}
+function gmapsParsear(){
+  const raw=(document.getElementById('gmaps-url').value||'').trim();
+  const info=document.getElementById('gmaps-info');
+  let lat=null,lng=null;
+  // @LAT,LNG,zoom
+  let m=raw.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)[,z\/]/);
+  if(!m) m=raw.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)$/);
+  if(m){lat=parseFloat(m[1]);lng=parseFloat(m[2]);}
+  // ?q=LAT,LNG
+  if(lat===null){m=raw.match(/[?&]q=(-?\d+[\.\d]*),(-?\d+[\.\d]*)/);if(m){lat=parseFloat(m[1]);lng=parseFloat(m[2]);}}
+  // Raw "LAT, LNG"
+  if(lat===null){m=raw.match(/^(-?\d+\.?\d*)\s*[,;]\s*(-?\d+\.?\d*)$/);if(m){lat=parseFloat(m[1]);lng=parseFloat(m[2]);}}
+  // Shortened URL notice
+  if(lat===null&&(raw.indexOf('goo.gl')>=0||raw.indexOf('maps.app')>=0)){
+    info.style.display='';
+    info.innerHTML='<span style="color:#854F0B"><i class="ti ti-alert-triangle"></i> Link encurtado detectado. Abra o link no navegador, copie a URL completa da barra de endereço e cole aqui.</span>';
+    gmapsEsconder();return;
+  }
+  if(lat===null||isNaN(lat)||isNaN(lng)||Math.abs(lat)>90||Math.abs(lng)>180){
+    info.style.display=raw?'':'none';
+    if(raw) info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Não foi possível extrair coordenadas. Cole o link completo do Google Maps ou as coordenadas no formato -20.4637, -54.6225.</span>';
+    gmapsEsconder();return;
+  }
+  info.style.display='';
+  info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> Coordenadas extraídas com sucesso.</span>';
+  _gmapsLat=lat;_gmapsLng=lng;
+  document.getElementById('gmaps-lat').value=lat.toFixed(7);
+  document.getElementById('gmaps-lng').value=lng.toFixed(7);
+  ['gmaps-coords','gmaps-extras','gmaps-btns'].forEach(function(id){document.getElementById(id).style.display='';});
+  gmapsAtualizarUtm();
+}
+function gmapsEsconder(){
+  ['gmaps-coords','gmaps-extras','gmaps-utm','gmaps-btns'].forEach(function(id){document.getElementById(id).style.display='none';});
+  _gmapsLat=null;_gmapsLng=null;
+}
+function gmapsAtualizarUtm(){
+  const lat=parseFloat(document.getElementById('gmaps-lat').value);
+  const lng=parseFloat(document.getElementById('gmaps-lng').value);
+  if(isNaN(lat)||isNaN(lng))return;
+  _gmapsLat=lat;_gmapsLng=lng;
+  try{
+    const u=gmapsGetUtm(lat,lng);
+    const el=document.getElementById('gmaps-utm');
+    el.style.display='';
+    el.innerHTML='<i class="ti ti-location"></i> UTM SIRGAS2000 — Zona <strong>'+u.zona+(u.sul?'S':'N')+'</strong> &nbsp;|&nbsp; E: <strong>'+u.e.toFixed(3)+'</strong> &nbsp;|&nbsp; N: <strong>'+u.n.toFixed(3)+'</strong>';
+  }catch(e){}
+}
+function gmapsGetUtm(lat,lng){
+  if(lat===undefined){lat=parseFloat(document.getElementById('gmaps-lat').value);lng=parseFloat(document.getElementById('gmaps-lng').value);}
+  const zona=Math.floor((lng+180)/6)+1;
+  const sul=lat<0;
+  const xy=proj4(projDef('SIRGAS2000',null),projDef('SIRGAS2000',zona,sul),[lng,lat]);
+  return {e:xy[0],n:xy[1],zona:zona,sul:sul};
+}
+function gmapsExportarTxt(){
+  if(_gmapsLat===null){toast('Cole um link ou coordenadas primeiro.',true);return;}
+  const nome=(document.getElementById('gmaps-nome').value||'P-01').trim();
+  const z=parseFloat(document.getElementById('gmaps-z').value)||0;
+  const u=gmapsGetUtm();
+  downloadText(nome+';'+u.e.toFixed(3)+';'+u.n.toFixed(3)+';'+z.toFixed(3),'ponto_maps.txt');
+  toast('TXT exportado!');
+}
+function gmapsExportarDxf(){
+  if(_gmapsLat===null){toast('Cole um link ou coordenadas primeiro.',true);return;}
+  const nome=(document.getElementById('gmaps-nome').value||'P-01').trim();
+  const z=parseFloat(document.getElementById('gmaps-z').value)||0;
+  const u=gmapsGetUtm();
+  const gj={type:'FeatureCollection',features:[{type:'Feature',properties:{name:nome},geometry:{type:'Point',coordinates:[u.e,u.n,z]}}]};
+  const blob=new Blob([geojsonToDxf(gj)],{type:'application/dxf'});
+  downloadBlobGeo(blob,'ponto_maps.dxf');
+  toast('DXF exportado!');
+}
+async function gmapsExportarShp(){
+  if(_gmapsLat===null){toast('Cole um link ou coordenadas primeiro.',true);return;}
+  try{
+    const nome=(document.getElementById('gmaps-nome').value||'P-01').trim();
+    const z=parseFloat(document.getElementById('gmaps-z').value)||0;
+    const gj={type:'FeatureCollection',features:[{type:'Feature',properties:{NOME:nome},geometry:{type:'Point',coordinates:[_gmapsLng,_gmapsLat,z]}}]};
+    const blob=await shpwrite.zip(gj,{outputType:'blob'});
+    downloadBlobGeo(blob,'ponto_maps.zip');
+    toast('Shapefile exportado!');
+  }catch(e){toast('Erro ao gerar shapefile: '+e.message,true);}
+}
+
 function geoSigefHtml(){
   return '<div class="card mb1">'
     +'<div class="st mb1"><i class="ti ti-table" style="color:var(--brand)"></i>Memorial INCRA — Planilha SIGEF (.ods)</div>'
