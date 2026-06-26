@@ -9949,7 +9949,6 @@ function cadCapturarSatelite(){
     if(typeof leafletImage==='undefined'){reject(new Error('leaflet-image não carregado'));return;}
     const zoomAtual=_cadMapBg.getZoom();
     const centroLL=_cadMapBg.getCenter();
-    _cadMapBg.setView(centroLL,Math.max(zoomAtual-4,8),{animate:false});
     let _capturado=false;
     function _fazerCaptura(){
       if(_capturado)return;_capturado=true;
@@ -9959,11 +9958,11 @@ function cadCapturarSatelite(){
         const tl=_cadMapBg.containerPointToLatLng([0,0]);
         const br=_cadMapBg.containerPointToLatLng([ms.x,ms.y]);
         const captureBounds={minLat:br.lat,maxLat:tl.lat,minLon:tl.lng,maxLon:br.lng};
+        _cadMapBg.off('tileload',_onTile);_cadMapBg.off('tileerror',_onTile);
         _cadMapBg.setView(centroLL,zoomAtual,{animate:false});
         setTimeout(function(){cadSyncLeaflet();},300);
         if(err){reject(err);return;}
         try{
-          // Verifica se o canvas não está todo escuro (falha de CORS nos tiles)
           const ctx2=canvas.getContext('2d');
           const id=ctx2.getImageData(0,0,Math.min(canvas.width,120),Math.min(canvas.height,120));
           let brilho=0;for(let k=0;k<id.data.length;k+=4)brilho+=id.data[k]+id.data[k+1]+id.data[k+2];
@@ -9972,9 +9971,14 @@ function cadCapturarSatelite(){
         }catch(e){reject(e);}
       });
     }
-    // dispara quando todos os tiles estiverem carregados
-    _cadMapBg.once('load',function(){setTimeout(_fazerCaptura,800);});
-    // fallback de segurança caso o evento não dispare
+    // conta tiles do novo zoom; captura 600ms após o último tile chegar
+    let _tileTimer=null;
+    function _onTile(){clearTimeout(_tileTimer);_tileTimer=setTimeout(_fazerCaptura,600);}
+    _cadMapBg.on('tileload',_onTile);
+    _cadMapBg.on('tileerror',_onTile);
+    // dispara o novo zoom DEPOIS de registrar os listeners
+    _cadMapBg.setView(centroLL,Math.max(zoomAtual-4,8),{animate:false});
+    // fallback de segurança
     setTimeout(_fazerCaptura,12000);
   });
 }
