@@ -9973,7 +9973,13 @@ function cadCapturarSatelite(){
     }
     // conta tiles do novo zoom; captura 600ms após o último tile chegar
     let _tileTimer=null;
-    function _onTile(){clearTimeout(_tileTimer);_tileTimer=setTimeout(_fazerCaptura,600);}
+    function _onTile(){
+      clearTimeout(_tileTimer);
+      _tileTimer=setTimeout(function(){
+        // aguarda 2 frames para garantir que o canvas foi repintado
+        requestAnimationFrame(function(){requestAnimationFrame(_fazerCaptura);});
+      },2500);
+    }
     _cadMapBg.on('tileload',_onTile);
     _cadMapBg.on('tileerror',_onTile);
     // dispara o novo zoom DEPOIS de registrar os listeners
