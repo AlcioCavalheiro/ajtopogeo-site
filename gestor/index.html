@@ -10210,8 +10210,8 @@ function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
     const ang=Math.atan2(-(sq.y-sp.y),sq.x-sp.x)*180/Math.PI;
     const a=ang>90||ang<-90?ang+180:ang;
     const az=d.trechos&&d.trechos[i]?d.trechos[i].az:'';
-    // azimute na linha mais afastada, distância mais próxima
-    const ox2=-dy/len*4.5,oy2=dx/len*4.5;
+    // azimute acima (mais afastado da linha), distância abaixo (mais próximo)
+    const ox2=-dy/len*6,oy2=dx/len*6;
     if(az){doc.text(az,pm.x+ox2,pm.y+oy2,{angle:a,align:'center'});}
     doc.text(dist.toFixed(2)+' m',pm.x+ox,pm.y+oy,{angle:a,align:'center'});
   });
