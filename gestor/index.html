@@ -10229,9 +10229,10 @@ function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
     const cross=dx*(ctrP.y-sp.y)-dy*(ctrP.x-sp.x);
     const sgn=cross>0?1:-1;
     const outX=sgn*dy/len,outY=-sgn*dx/len;
-    // distância mais perto da linha, azimute mais longe — ambos do lado externo
-    doc.text(dist.toFixed(2)+' m',pm.x+outX*3.5,pm.y+outY*3.5,{angle:a,align:'center'});
-    if(az){doc.text(az,pm.x+outX*7,pm.y+outY*7,{angle:a,align:'center'});}
+    // azimute de um lado da linha, distância do outro — espaço igual em cada lado
+    const off=3;
+    if(az){doc.text(az,pm.x+outX*off,pm.y+outY*off,{angle:a,align:'center'});}
+    doc.text(dist.toFixed(2)+' m',pm.x-outX*off,pm.y-outY*off,{angle:a,align:'center'});
   });
 
   // Confrontantes nos segmentos — fora do perímetro com linha líder
