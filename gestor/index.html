@@ -10074,7 +10074,7 @@ function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
   const vMinX=minX-pad,vMaxX=maxX+pad,vMinY=minY-pad,vMaxY=maxY+pad;
   const vW=vMaxX-vMinX,vH=vMaxY-vMinY;
   const sc=Math.min(mw/vW,mh/vH);
-  const offX=mx+(mw-vW*sc)/2,offY=my+(mh-vH*sc)/2;
+  const offX=mx+(mw-vW*sc)/2,offY=my-(mh-vH*sc)/2;
   function px(x,y){return{x:offX+(x-vMinX)*sc,y:offY+mh-(y-vMinY)*sc};}
 
   // Fundo branco
