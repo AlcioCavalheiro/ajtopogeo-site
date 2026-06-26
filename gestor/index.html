@@ -10159,22 +10159,37 @@ function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
     doc.text(dist.toFixed(2)+' m',pm.x+ox,pm.y+oy,{angle:a,align:'center'});
   });
 
-  // Confrontantes nos segmentos
+  // Confrontantes nos segmentos — fora do perímetro com linha líder
   if(d.trechos&&d.trechos.length){
-    doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(0,60,0);
+    const ctrSx=pts.reduce(function(s,p){return s+p.x;},0)/pts.length;
+    const ctrSy=pts.reduce(function(s,p){return s+p.y;},0)/pts.length;
+    const ctrScreen=px(ctrSx,ctrSy);
     pts.forEach(function(p,i){
       const tr=d.trechos[i];
       const conf=tr&&tr.conf&&tr.conf!=='—'?tr.conf:'';
       if(!conf)return;
       const q=pts[(i+1)%pts.length];
       const sp=px(p.x,p.y),sq=px(q.x,q.y);
-      const dx=sq.x-sp.x,dy=sq.y-sp.y;
-      const len=Math.sqrt(dx*dx+dy*dy)||1;
-      const ox=-dy/len*11,oy=dx/len*11;
-      const pm=px((p.x+q.x)/2,(p.y+q.y)/2);
-      const ang=Math.atan2(-(sq.y-sp.y),sq.x-sp.x)*180/Math.PI;
-      const a=ang>90||ang<-90?ang+180:ang;
-      doc.text(conf,pm.x+ox,pm.y+oy,{angle:a,align:'center'});
+      const mid={x:(sp.x+sq.x)/2,y:(sp.y+sq.y)/2};
+      // direção para fora: centroide → ponto médio
+      const odx=mid.x-ctrScreen.x,ody=mid.y-ctrScreen.y;
+      const olen=Math.sqrt(odx*odx+ody*ody)||1;
+      const nx=odx/olen,ny=ody/olen;
+      // linha líder: da borda até 9mm para fora
+      const lx=mid.x+nx*9,ly=mid.y+ny*9;
+      doc.setDrawColor(0,80,0);doc.setLineWidth(0.4);
+      doc.line(mid.x,mid.y,lx,ly);
+      // caixa branca com texto
+      doc.setFont('helvetica','bold');doc.setFontSize(6);doc.setTextColor(0,50,0);
+      const lines=doc.splitTextToSize(conf,38);
+      const lineH=3.8,pad=1.5;
+      const bw=38+pad*2,bh=lines.length*lineH+pad*2;
+      const bx=lx+nx*1-bw/2,by=ly+ny*1-bh/2;
+      doc.setFillColor(255,255,255);doc.setDrawColor(160,160,160);doc.setLineWidth(0.3);
+      doc.rect(bx,by,bw,bh,'FD');
+      lines.forEach(function(ln,li){
+        doc.text(ln,lx+nx,by+pad+lineH*li+lineH*0.75,{align:'center'});
+      });
     });
   }
 
