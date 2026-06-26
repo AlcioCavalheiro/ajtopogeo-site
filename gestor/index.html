@@ -9997,7 +9997,7 @@ function cadGerarPdfA3(d,sateliteImg){
   doc.setFont('helvetica','bold');doc.setFontSize(6.5);doc.setTextColor(255,255,255);
   doc.text('PLANTA DE SITUAÇÃO',PX+PW/2,py+3.8,{align:'center'});py+=5.5;
   const SIT_H=76;
-  cadMpDesenharSit(doc,d,PX,py,PW,SIT_H,false);
+  cadMpDesenharSit(doc,d,PX,py,PW,SIT_H,sateliteImg);
   py+=SIT_H;doc.line(PX,py,PX+PW,py);
 
   // Coordenadas geográficas
@@ -10065,7 +10065,8 @@ function cadGerarPdfA3(d,sateliteImg){
   toast('PDF A3 gerado com sucesso!');
 }
 
-function cadMpDesenharSit(doc,d,sx,sy,sw,sh,hasSat){
+function cadMpDesenharSit(doc,d,sx,sy,sw,sh,sateliteImg){
+  const hasSat=!!sateliteImg;
   const pts=d.pontos;
   if(!hasSat){doc.setFillColor(235,245,255);doc.rect(sx,sy,sw,sh,'F');}
   if(pts.length<2)return;
@@ -10080,7 +10081,11 @@ function cadMpDesenharSit(doc,d,sx,sy,sw,sh,hasSat){
   const offX=sx+(sw-vW*sc)/2,offY=sy+(sh-vH*sc)/2;
   function spx(x,y){return{x:offX+(x-minX+pad)*sc,y:offY+(maxY-y+pad)*sc};}
   const polyPts=pts.map(function(p){return spx(p.x,p.y);});
-  if(!hasSat){doc.setFillColor(255,238,153);_mpPoly(doc,polyPts,'F');}
+  if(hasSat){
+    try{doc.addImage(sateliteImg,'JPEG',sx,sy,sw,sh,'','FAST');}catch(e){}
+  } else {
+    doc.setFillColor(255,238,153);_mpPoly(doc,polyPts,'F');
+  }
   doc.setDrawColor(204,0,0);doc.setLineWidth(hasSat?1:0.5);_mpPoly(doc,polyPts,'S');
   pts.forEach(function(p){
     const pm=spx(p.x,p.y);
