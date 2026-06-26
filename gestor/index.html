@@ -9950,7 +9950,9 @@ function cadCapturarSatelite(){
     const zoomAtual=_cadMapBg.getZoom();
     const centroLL=_cadMapBg.getCenter();
     _cadMapBg.setView(centroLL,Math.max(zoomAtual-4,8),{animate:false});
-    setTimeout(function(){
+    let _capturado=false;
+    function _fazerCaptura(){
+      if(_capturado)return;_capturado=true;
       leafletImage(_cadMapBg,function(err,canvas){
         // captura bounds ANTES de restaurar o zoom
         const b=_cadMapBg.getBounds();
@@ -9967,7 +9969,11 @@ function cadCapturarSatelite(){
           resolve({dataUrl:canvas.toDataURL('image/jpeg',0.85),bounds:captureBounds});
         }catch(e){reject(e);}
       });
-    },6000);
+    }
+    // dispara quando todos os tiles estiverem carregados
+    _cadMapBg.once('load',function(){setTimeout(_fazerCaptura,800);});
+    // fallback de segurança caso o evento não dispare
+    setTimeout(_fazerCaptura,12000);
   });
 }
 
