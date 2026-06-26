@@ -7590,6 +7590,7 @@ function geoCadHtml(){
     +'<div class="fg mb1"><label class="fl">Importar pontos e perímetro de planilha (.ods)</label><input class="fc" type="file" id="cad-ods-file" accept=".ods" onchange="cadImportarOds(this)"></div>'
     +'<div id="cad-ods-info" class="mu sm mb1" style="display:none"></div>'
     +'<div class="fg mb1"><label class="fl">Importar pontos de arquivo de texto (.txt, .csv)</label><input class="fc" type="file" id="cad-txt-file" accept=".txt,.csv" onchange="cadImportarTxt(this)"></div>'
+    +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:.4rem"><label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="cad-txt-criar-linha"> <span class="mu sm">Criar linha (polilinha) automaticamente na importação</span></label></div>'
     +'<div id="cad-txt-info" class="mu sm mb1" style="display:none"></div>'
     +'<div class="mb1" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">'
     +'<button class="btn bsm bp2" id="cad-modo-select" onclick="cadSetModo(\'select\')"><i class="ti ti-pointer"></i> Selecionar</button>'
@@ -7980,6 +7981,10 @@ async function cadImportarTxt(input){
     if(!_cadGeoJSON) _cadGeoJSON={type:'FeatureCollection',features:[]};
     const coords=pontosNovos.map(function(p){return [p.x,p.y,p.z||0];});
     _cadGeoJSON.features.push({type:'Feature',properties:{layer:layerId},geometry:{type:'MultiPoint',coordinates:coords}});
+    const criarLinha=document.getElementById('cad-txt-criar-linha')&&document.getElementById('cad-txt-criar-linha').checked;
+    if(criarLinha&&coords.length>=2){
+      _cadGeoJSON.features.push({type:'Feature',properties:{layer:layerId},geometry:{type:'LineString',coordinates:coords}});
+    }
     cadDerivarCamadas(_cadGeoJSON);
     const camada=_cadCamadas.find(function(c){return c.id===layerId;});
     if(camada) camada.nome=file.name.replace(/\.(txt|csv)$/i,'');
@@ -7988,7 +7993,8 @@ async function cadImportarTxt(input){
     cadRenderSvg();
     cadAtualizarPainel();
     cadAtualizarLista();
-    info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> '+pontosNovos.length+' ponto(s) importados.</span>';
+    const msgLinha=criarLinha&&coords.length>=2?' + linha criada.':'';
+    info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> '+pontosNovos.length+' ponto(s) importados'+msgLinha+'</span>';
     input.value='';
   }catch(e){
     info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Erro: '+e.message+'</span>';
