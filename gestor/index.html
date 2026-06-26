@@ -9997,7 +9997,10 @@ function cadGerarPdfA3(d,sateliteImg){
   doc.setFont('helvetica','bold');doc.setFontSize(6.5);doc.setTextColor(255,255,255);
   doc.text('PLANTA DE SITUAÇÃO',PX+PW/2,py+3.8,{align:'center'});py+=5.5;
   const SIT_H=76;
-  cadMpDesenharSit(doc,d,PX,py,PW,SIT_H);
+  if(sateliteImg){
+    try{doc.addImage(sateliteImg,'JPEG',PX,py,PW,SIT_H,'','FAST');}catch(e){}
+  }
+  cadMpDesenharSit(doc,d,PX,py,PW,SIT_H,!!sateliteImg);
   py+=SIT_H;doc.line(PX,py,PX+PW,py);
 
   // Coordenadas geográficas
@@ -10065,9 +10068,9 @@ function cadGerarPdfA3(d,sateliteImg){
   toast('PDF A3 gerado com sucesso!');
 }
 
-function cadMpDesenharSit(doc,d,sx,sy,sw,sh){
+function cadMpDesenharSit(doc,d,sx,sy,sw,sh,hasSat){
   const pts=d.pontos;
-  doc.setFillColor(235,245,255);doc.rect(sx,sy,sw,sh,'F');
+  if(!hasSat){doc.setFillColor(235,245,255);doc.rect(sx,sy,sw,sh,'F');}
   if(pts.length<2)return;
   const minX=Math.min.apply(null,pts.map(function(p){return p.x;}));
   const maxX=Math.max.apply(null,pts.map(function(p){return p.x;}));
@@ -10080,8 +10083,8 @@ function cadMpDesenharSit(doc,d,sx,sy,sw,sh){
   const offX=sx+(sw-vW*sc)/2,offY=sy+(sh-vH*sc)/2;
   function spx(x,y){return{x:offX+(x-minX+pad)*sc,y:offY+(maxY-y+pad)*sc};}
   const polyPts=pts.map(function(p){return spx(p.x,p.y);});
-  doc.setFillColor(255,238,153);_mpPoly(doc,polyPts,'F');
-  doc.setDrawColor(204,0,0);doc.setLineWidth(0.5);_mpPoly(doc,polyPts,'S');
+  if(!hasSat){doc.setFillColor(255,238,153);_mpPoly(doc,polyPts,'F');}
+  doc.setDrawColor(204,0,0);doc.setLineWidth(hasSat?1:0.5);_mpPoly(doc,polyPts,'S');
   pts.forEach(function(p){
     const pm=spx(p.x,p.y);
     doc.setFillColor(255,255,255);doc.setDrawColor(204,0,0);doc.setLineWidth(0.3);
@@ -10174,7 +10177,7 @@ function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
       const pm=px((p.x+q.x)/2,(p.y+q.y)/2);
       const ang=Math.atan2(-(sq.y-sp.y),sq.x-sp.x)*180/Math.PI;
       const a=ang>90||ang<-90?ang+180:ang;
-      doc.text(conf,pm.x+ox,pm.y+oy,{angle:a,align:'center',maxWidth:Math.max(len*0.65,20)});
+      doc.text(conf,pm.x+ox,pm.y+oy,{angle:a,align:'center'});
     });
   }
 
