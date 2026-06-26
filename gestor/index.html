@@ -9824,7 +9824,17 @@ function cadAbrirModalMapa(){
       +'</tr>';
   }).join('');
   _cadMapaDados={trechos,area,perim,centro};
+  sb.from('obras').select('id,nome,municipio,ccir,cliente_id,proprietarios,clientes(nome,cpfcnpj)').order('nome').then(function(r){
+    const opts=(r.data||[]).map(function(o){return '<option value="'+o.id+'">'+o.nome+(o.municipio?' — '+o.municipio:'')+'</option>';}).join('');
+    const sel=document.getElementById('mmap-obra-sel');
+    if(sel) sel.innerHTML='<option value="">— selecione para preencher automaticamente —</option>'+opts;
+    (r.data||[]).forEach(function(o){if(sel) sel._obrasData=(sel._obrasData||{});sel._obrasData[o.id]=o;});
+  });
   document.getElementById('modal-mapa-body').innerHTML=''
+    +'<div class="fg mb1" style="background:#F0F7FF;padding:.6rem .9rem;border-radius:6px;border:1px solid #c0d8f8">'
+    +'<label class="fl" style="color:#003366"><i class="ti ti-database-import" style="margin-right:4px"></i>Importar dados da obra</label>'
+    +'<select class="fc" id="mmap-obra-sel" onchange="mmapCarregarObra(this)"><option value="">Carregando obras...</option></select>'
+    +'</div>'
     +'<div class="g2">'
     +'<div class="fg"><label class="fl">Nome do Imóvel *</label><input class="fc" id="mmap-imovel" placeholder="Ex: FAZENDA SÃO JOÃO – PARCELA 1"></div>'
     +'<div class="fg"><label class="fl">Assunto</label><select class="fc" id="mmap-assunto">'
@@ -9867,6 +9877,33 @@ function cadAbrirModalMapa(){
     +'<i class="ti ti-file-type-pdf"></i> Gerar PDF A3</button>'
     +'</div>';
   document.getElementById('modal-mapa-perim').style.display='flex';
+}
+
+function mmapCarregarObra(sel){
+  const obraId=sel.value;
+  if(!obraId) return;
+  const obra=(sel._obrasData||{})[obraId];
+  if(!obra) return;
+  // Nome do imóvel
+  document.getElementById('mmap-imovel').value=obra.nome||'';
+  // Município / UF e Comarca
+  const mun=obra.municipio||'';
+  document.getElementById('mmap-mun').value=mun;
+  // Tenta extrair comarca (parte antes de / ou -)
+  const comarca=(mun.split('/')[0]||mun.split('-')[0]||mun).trim();
+  document.getElementById('mmap-comarca').value=comarca;
+  // CCIR
+  document.getElementById('mmap-incra').value=obra.ccir||'';
+  // Proprietário: usa primeiro item de proprietarios[], senão cliente
+  const props=obra.proprietarios||[];
+  const cli=obra.clientes;
+  if(props.length){
+    document.getElementById('mmap-prop').value=props[0].nome||'';
+    document.getElementById('mmap-cpf').value=props[0].cpf||'';
+  } else if(cli){
+    document.getElementById('mmap-prop').value=cli.nome||'';
+    document.getElementById('mmap-cpf').value=cli.cpfcnpj||'';
+  }
 }
 
 async function cadConfirmarGerarMapa(){
