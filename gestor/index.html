@@ -10209,7 +10209,8 @@ function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
     const pm=px((p.x+q.x)/2,(p.y+q.y)/2);
     const ang=Math.atan2(-(sq.y-sp.y),sq.x-sp.x)*180/Math.PI;
     const a=ang>90||ang<-90?ang+180:ang;
-    doc.text(dist.toFixed(2)+' m',pm.x+ox,pm.y+oy,{angle:a,align:'center'});
+    const az=d.trechos&&d.trechos[i]?d.trechos[i].az:'';
+    doc.text((az?az+'  ':'')+dist.toFixed(2)+' m',pm.x+ox,pm.y+oy,{angle:a,align:'center'});
   });
 
   // Confrontantes nos segmentos — fora do perímetro com linha líder
