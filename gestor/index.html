@@ -9970,9 +9970,15 @@ function cadCapturarSatelite(){
         if(err){reject(err);return;}
         try{
           const ctx2=canvas.getContext('2d');
-          const id=ctx2.getImageData(0,0,Math.min(canvas.width,120),Math.min(canvas.height,120));
-          let brilho=0;for(let k=0;k<id.data.length;k+=4)brilho+=id.data[k]+id.data[k+1]+id.data[k+2];
-          if(brilho/(id.data.length/4*3)<15){reject(new Error('Imagem escura (CORS bloqueado)'));return;}
+          // amostra o centro do canvas para evitar rejeitar imagens escuras válidas (ex: Sentinel-2 com floresta)
+          const cx2=Math.floor(canvas.width/2),cy2=Math.floor(canvas.height/2);
+          const sw2=Math.min(canvas.width,160),sh2=Math.min(canvas.height,160);
+          const id=ctx2.getImageData(Math.max(0,cx2-sw2/2),Math.max(0,cy2-sh2/2),sw2,sh2);
+          let brilho=0;let varSum=0;let prev=0;
+          for(let k=0;k<id.data.length;k+=4){const v=id.data[k]+id.data[k+1]+id.data[k+2];brilho+=v;varSum+=Math.abs(v-prev);prev=v;}
+          const avgB=brilho/(id.data.length/4*3);
+          // rejeita só se completamente preto (CORS total) E sem variação de pixels
+          if(avgB<3&&varSum<100){reject(new Error('Imagem escura (CORS bloqueado)'));return;}
           resolve({dataUrl:canvas.toDataURL('image/jpeg',0.85),bounds:captureBounds});
         }catch(e){reject(e);}
       });
@@ -10197,6 +10203,9 @@ function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
   _mpPoly(doc,polyPts,'S');
 
   // Distâncias nos segmentos
+  // centroide em coordenadas de página para determinar direção "para fora"
+  const ctrPx=pts.reduce(function(s,p){return s+px(p.x,p.y).x;},0)/pts.length;
+  const ctrPy=pts.reduce(function(s,p){return s+px(p.x,p.y).y;},0)/pts.length;
   doc.setFont('helvetica','bold');doc.setFontSize(5.5);doc.setTextColor(0,0,140);
   pts.forEach(function(p,i){
     const q=pts[(i+1)%pts.length];
@@ -10204,16 +10213,18 @@ function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
     const sp=px(p.x,p.y),sq=px(q.x,q.y);
     const dx=sq.x-sp.x,dy=sq.y-sp.y;
     const len=Math.sqrt(dx*dx+dy*dy)||1;
-    // offset perpendicular de 2.5mm para fora da linha
-    const ox=-dy/len*2.5,oy=dx/len*2.5;
     const pm=px((p.x+q.x)/2,(p.y+q.y)/2);
     const ang=Math.atan2(-(sq.y-sp.y),sq.x-sp.x)*180/Math.PI;
     const a=ang>90||ang<-90?ang+180:ang;
     const az=d.trechos&&d.trechos[i]?d.trechos[i].az:'';
-    // azimute de um lado, distância do outro, mesma distância da linha
-    const off=3.5,pox=-dy/len*off,poy=dx/len*off;
-    if(az){doc.text(az,pm.x+pox,pm.y+poy,{angle:a,align:'center'});}
-    doc.text(dist.toFixed(2)+' m',pm.x-pox,pm.y-poy,{angle:a,align:'center'});
+    // perpendicular que aponta para fora (away from centroid)
+    const perp1x=-dy/len,perp1y=dx/len;
+    const toMidX=pm.x-ctrPx,toMidY=pm.y-ctrPy;
+    const dot=perp1x*toMidX+perp1y*toMidY;
+    const outX=dot>=0?perp1x:-perp1x,outY=dot>=0?perp1y:-perp1y;
+    // azimute mais longe, distância mais perto (ambos do lado de fora)
+    if(az){doc.text(az,pm.x+outX*5.5,pm.y+outY*5.5,{angle:a,align:'center'});}
+    doc.text(dist.toFixed(2)+' m',pm.x+outX*3,pm.y+outY*3,{angle:a,align:'center'});
   });
 
   // Confrontantes nos segmentos — fora do perímetro com linha líder
