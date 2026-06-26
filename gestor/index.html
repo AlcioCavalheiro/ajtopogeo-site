@@ -9797,6 +9797,7 @@ function _mpPoly(doc,pts,style){
   doc.lines(pts.slice(1).map(function(p,i){return[p.x-pts[i].x,p.y-pts[i].y];}),pts[0].x,pts[0].y,[1,1],style,true);
 }
 
+var _cadMapaDados=null;
 function cadAbrirModalMapa(){
   const nomeados=_cadPontos.filter(function(p){return p.nome;});
   if(nomeados.length<3){toast('Nomeie ao menos 3 pontos para gerar o mapa.',true);return;}
@@ -9822,7 +9823,7 @@ function cadAbrirModalMapa(){
       +'</select></td>'
       +'</tr>';
   }).join('');
-  const tJson=JSON.stringify(trechos).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  _cadMapaDados={trechos,area,perim,centro};
   document.getElementById('modal-mapa-body').innerHTML=''
     +'<div class="g2">'
     +'<div class="fg"><label class="fl">Nome do Imóvel *</label><input class="fc" id="mmap-imovel" placeholder="Ex: FAZENDA SÃO JOÃO – PARCELA 1"></div>'
@@ -9862,17 +9863,17 @@ function cadAbrirModalMapa(){
     +'</tr></thead><tbody>'+confRows+'</tbody></table></div>'
     +'<div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1.25rem">'
     +'<button class="btn" onclick="document.getElementById(\'modal-mapa-perim\').style.display=\'none\'">Cancelar</button>'
-    +'<button class="btn bp2" onclick="cadConfirmarGerarMapa(\''+tJson+'\','+area+','+perim+',\''+JSON.stringify(centro).replace(/'/g,"\\'")+'\')">'
+    +'<button class="btn bp2" onclick="cadConfirmarGerarMapa()">'
     +'<i class="ti ti-file-type-pdf"></i> Gerar PDF A3</button>'
     +'</div>';
   document.getElementById('modal-mapa-perim').style.display='flex';
 }
 
-async function cadConfirmarGerarMapa(tJson,area,perim,centroJson){
+async function cadConfirmarGerarMapa(){
   const imovel=(document.getElementById('mmap-imovel').value||'').trim();
   const prop=(document.getElementById('mmap-prop').value||'').trim();
   if(!imovel||!prop){toast('Preencha o nome do imóvel e o proprietário.',true);return;}
-  const trechosBas=JSON.parse(tJson);
+  const trechosBas=_cadMapaDados.trechos;
   const nomeados=_cadPontos.filter(function(p){return p.nome;});
   const trechos=trechosBas.map(function(r,i){
     return Object.assign({},r,{
@@ -9890,7 +9891,7 @@ async function cadConfirmarGerarMapa(tJson,area,perim,centroJson){
     incra:document.getElementById('mmap-incra').value.trim(),
     data:document.getElementById('mmap-data').value.trim(),
     escala:document.getElementById('mmap-escala').value.trim(),
-    area,perim,centro:JSON.parse(centroJson),
+    area:_cadMapaDados.area,perim:_cadMapaDados.perim,centro:_cadMapaDados.centro,
     pontos:nomeados,trechos,
     zona:_cadUtmZona,sul:_cadUtmSul
   };
