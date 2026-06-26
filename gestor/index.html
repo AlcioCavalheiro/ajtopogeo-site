@@ -9945,7 +9945,7 @@ function cadCapturarSatelite(){
     if(typeof leafletImage==='undefined'){reject(new Error('leaflet-image não carregado'));return;}
     const zoomAtual=_cadMapBg.getZoom();
     const centroLL=_cadMapBg.getCenter();
-    _cadMapBg.setView(centroLL,Math.max(zoomAtual-3,10),{animate:false});
+    _cadMapBg.setView(centroLL,Math.max(zoomAtual-2,12),{animate:false});
     setTimeout(function(){
       leafletImage(_cadMapBg,function(err,canvas){
         _cadMapBg.setView(centroLL,zoomAtual,{animate:false});
@@ -9960,7 +9960,7 @@ function cadCapturarSatelite(){
           resolve(canvas.toDataURL('image/jpeg',0.85));
         }catch(e){reject(e);}
       });
-    },2200);
+    },4000);
   });
 }
 
@@ -9981,7 +9981,7 @@ function cadGerarPdfA3(d,sateliteImg){
   // Separadores
   doc.setDrawColor(0,51,102);doc.setLineWidth(0.5);
   doc.line(PX-1,MY,PX-1,MY+MH);
-  doc.line(MX,SY-1,W-5,SY-1);
+  doc.line(MX,SY-1,PX+PW,SY-1);
 
   // ─── PAINEL DIREITO ───────────────────────────────────────────────
   let py=PY;
@@ -10127,7 +10127,7 @@ function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
     // offset perpendicular de 2.5mm para fora da linha
     const ox=-dy/len*2.5,oy=dx/len*2.5;
     const pm=px((p.x+q.x)/2,(p.y+q.y)/2);
-    const ang=-Math.atan2(-(sq.y-sp.y),sq.x-sp.x)*180/Math.PI;
+    const ang=Math.atan2(-(sq.y-sp.y),sq.x-sp.x)*180/Math.PI;
     const a=ang>90||ang<-90?ang+180:ang;
     doc.text(dist.toFixed(2)+' m',pm.x+ox,pm.y+oy,{angle:a,align:'center'});
   });
@@ -10144,7 +10144,7 @@ function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
     const ctr2=px(utmCxM,utmCyM);
     const ddx=pm.x-ctr2.x,ddy=pm.y-ctr2.y;
     const dlen=Math.sqrt(ddx*ddx+ddy*ddy)||1;
-    const lox=ddx/dlen*(r+2),loy=ddy/dlen*(r+2);
+    const lox=ddx/dlen*(r+5),loy=ddy/dlen*(r+5);
     doc.setFont('helvetica','bold');doc.setFontSize(5.5);doc.setTextColor(20,20,20);
     doc.text(p.nome,pm.x+lox,pm.y+loy+1.2);
   });
@@ -10175,7 +10175,7 @@ function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
   doc.setFontSize(6);doc.text(d.escala,bx,by+7);
 
   // Rosa dos ventos — tamanho e fonte ampliados para melhor leitura
-  const nvR=10,nvX=mx+mw-16,nvY=my+16;
+  const nvR=10,nvX=mx+mw-16,nvY=my+14;
   doc.setFillColor(255,255,255);doc.setDrawColor(0,51,102);doc.setLineWidth(0.6);
   doc.circle(nvX,nvY,nvR+2,'FD');
   // seta N (azul)
