@@ -9945,7 +9945,7 @@ function cadCapturarSatelite(){
     if(typeof leafletImage==='undefined'){reject(new Error('leaflet-image não carregado'));return;}
     const zoomAtual=_cadMapBg.getZoom();
     const centroLL=_cadMapBg.getCenter();
-    _cadMapBg.setView(centroLL,Math.max(zoomAtual-2,12),{animate:false});
+    _cadMapBg.setView(centroLL,Math.max(zoomAtual-4,8),{animate:false});
     setTimeout(function(){
       leafletImage(_cadMapBg,function(err,canvas){
         _cadMapBg.setView(centroLL,zoomAtual,{animate:false});
@@ -9960,7 +9960,7 @@ function cadCapturarSatelite(){
           resolve(canvas.toDataURL('image/jpeg',0.85));
         }catch(e){reject(e);}
       });
-    },4000);
+    },6000);
   });
 }
 
