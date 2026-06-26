@@ -9997,13 +9997,7 @@ function cadGerarPdfA3(d,sateliteImg){
   doc.setFont('helvetica','bold');doc.setFontSize(6.5);doc.setTextColor(255,255,255);
   doc.text('PLANTA DE SITUAÇÃO',PX+PW/2,py+3.8,{align:'center'});py+=5.5;
   const SIT_H=76;
-  if(sateliteImg){
-    try{doc.addImage(sateliteImg,'JPEG',PX,py,PW,SIT_H,'','FAST');}catch(e){}
-  }else{
-    doc.setFillColor(180,210,235);doc.rect(PX,py,PW,SIT_H,'F');
-    doc.setFont('helvetica','italic');doc.setFontSize(7);doc.setTextColor(80,100,130);
-    doc.text('(imagem de satélite)',PX+PW/2,py+SIT_H/2,{align:'center'});
-  }
+  cadMpDesenharSit(doc,d,PX,py,PW,SIT_H);
   py+=SIT_H;doc.line(PX,py,PX+PW,py);
 
   // Coordenadas geográficas
@@ -10071,6 +10065,39 @@ function cadGerarPdfA3(d,sateliteImg){
   toast('PDF A3 gerado com sucesso!');
 }
 
+function cadMpDesenharSit(doc,d,sx,sy,sw,sh){
+  const pts=d.pontos;
+  doc.setFillColor(235,245,255);doc.rect(sx,sy,sw,sh,'F');
+  if(pts.length<2)return;
+  const minX=Math.min.apply(null,pts.map(function(p){return p.x;}));
+  const maxX=Math.max.apply(null,pts.map(function(p){return p.x;}));
+  const minY=Math.min.apply(null,pts.map(function(p){return p.y;}));
+  const maxY=Math.max.apply(null,pts.map(function(p){return p.y;}));
+  const spanX=maxX-minX||1,spanY=maxY-minY||1;
+  const pad=Math.max(spanX,spanY)*0.18;
+  const vW=spanX+pad*2,vH=spanY+pad*2;
+  const sc=Math.min(sw/vW,sh/vH)*0.88;
+  const offX=sx+(sw-vW*sc)/2,offY=sy+(sh-vH*sc)/2;
+  function spx(x,y){return{x:offX+(x-minX+pad)*sc,y:offY+(maxY-y+pad)*sc};}
+  const polyPts=pts.map(function(p){return spx(p.x,p.y);});
+  doc.setFillColor(255,238,153);_mpPoly(doc,polyPts,'F');
+  doc.setDrawColor(204,0,0);doc.setLineWidth(0.5);_mpPoly(doc,polyPts,'S');
+  pts.forEach(function(p){
+    const pm=spx(p.x,p.y);
+    doc.setFillColor(255,255,255);doc.setDrawColor(204,0,0);doc.setLineWidth(0.3);
+    doc.circle(pm.x,pm.y,1,'FD');
+    doc.setFillColor(0,0,0);doc.circle(pm.x,pm.y,0.25,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(4);doc.setTextColor(20,20,20);
+    doc.text(p.nome,pm.x+1.5,pm.y-1);
+  });
+  // Rosa dos ventos mini
+  const nX=sx+sw-6,nY=sy+8;
+  doc.setFillColor(0,51,102);
+  doc.lines([[0,-5],[2,5],[-2,5]],nX,nY-2,[1,1],'F',true);
+  doc.setFont('helvetica','bold');doc.setFontSize(5);doc.setTextColor(0,30,80);
+  doc.text('N',nX,nY-8,{align:'center'});
+}
+
 function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
   const pts=d.pontos;if(pts.length<2)return;
   const minX=Math.min.apply(null,pts.map(function(p){return p.x;}));
@@ -10131,6 +10158,25 @@ function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
     const a=ang>90||ang<-90?ang+180:ang;
     doc.text(dist.toFixed(2)+' m',pm.x+ox,pm.y+oy,{angle:a,align:'center'});
   });
+
+  // Confrontantes nos segmentos
+  if(d.trechos&&d.trechos.length){
+    doc.setFont('helvetica','italic');doc.setFontSize(4.5);doc.setTextColor(100,0,120);
+    pts.forEach(function(p,i){
+      const tr=d.trechos[i];
+      const conf=tr&&tr.conf&&tr.conf!=='—'?tr.conf:'';
+      if(!conf)return;
+      const q=pts[(i+1)%pts.length];
+      const sp=px(p.x,p.y),sq=px(q.x,q.y);
+      const dx=sq.x-sp.x,dy=sq.y-sp.y;
+      const len=Math.sqrt(dx*dx+dy*dy)||1;
+      const ox=-dy/len*5,oy=dx/len*5;
+      const pm=px((p.x+q.x)/2,(p.y+q.y)/2);
+      const ang=Math.atan2(-(sq.y-sp.y),sq.x-sp.x)*180/Math.PI;
+      const a=ang>90||ang<-90?ang+180:ang;
+      doc.text(conf,pm.x+ox,pm.y+oy,{angle:a,align:'center',maxWidth:Math.max(len*0.65,20)});
+    });
+  }
 
   // Marcos: círculo branco / borda vermelha / ponto central
   const utmCxM=pts.reduce(function(s,p){return s+p.x;},0)/pts.length;
