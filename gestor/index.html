@@ -7983,7 +7983,7 @@ async function cadImportarTxt(input){
     _cadGeoJSON.features.push({type:'Feature',properties:{layer:layerId},geometry:{type:'MultiPoint',coordinates:coords}});
     const criarLinha=document.getElementById('cad-txt-criar-linha')&&document.getElementById('cad-txt-criar-linha').checked;
     if(criarLinha&&coords.length>=2){
-      _cadGeoJSON.features.push({type:'Feature',properties:{layer:layerId},geometry:{type:'LineString',coordinates:coords}});
+      _cadGeoJSON.features.push({type:'Feature',properties:{layer:layerId},geometry:{type:'Polygon',coordinates:[coords]}});
     }
     cadDerivarCamadas(_cadGeoJSON);
     const camada=_cadCamadas.find(function(c){return c.id===layerId;});
