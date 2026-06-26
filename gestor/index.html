@@ -9977,7 +9977,7 @@ function cadCapturarSatelite(){
     _cadMapBg.on('tileload',_onTile);
     _cadMapBg.on('tileerror',_onTile);
     // dispara o novo zoom DEPOIS de registrar os listeners
-    _cadMapBg.setView(centroLL,Math.max(zoomAtual-4,8),{animate:false});
+    _cadMapBg.setView(centroLL,Math.max(zoomAtual-2,13),{animate:false});
     // fallback de segurança
     setTimeout(_fazerCaptura,12000);
   });
