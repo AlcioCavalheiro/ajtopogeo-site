@@ -10187,8 +10187,6 @@ function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
       const nx=odx/olen,ny=ody/olen;
       // linha líder: da borda até 16mm para fora
       const lx=mid.x+nx*16,ly=mid.y+ny*16;
-      doc.setDrawColor(0,80,0);doc.setLineWidth(0.4);
-      doc.line(mid.x,mid.y,lx,ly);
       // texto sem caixa
       doc.setFont('helvetica','bold');doc.setFontSize(6);doc.setTextColor(0,50,0);
       const lines=doc.splitTextToSize(conf,38);
