@@ -9937,9 +9937,14 @@ async function cadConfirmarGerarMapa(){
     zona:_cadUtmZona,sul:_cadUtmSul
   };
   document.getElementById('modal-mapa-perim').style.display='none';
+  // garante que o satélite está ativo para captura — ativa automaticamente se necessário
+  const _satEraAtivo=_cadMapAtivo;
+  if(!_satEraAtivo) cadToggleSatelite();
   toast('Capturando satélite e gerando PDF...');
+  await new Promise(function(r){setTimeout(r,600);});
   let sateliteImg=null;
   try{sateliteImg=await cadCapturarSatelite();}catch(e){console.warn('Satélite:',e);}
+  if(!_satEraAtivo) cadToggleSatelite(); // restaura estado original
   cadGerarPdfA3(dados,sateliteImg);
 }
 
@@ -10202,10 +10207,11 @@ function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
   doc.setDrawColor(204,0,0);doc.setLineWidth(0.8);
   _mpPoly(doc,polyPts,'S');
 
-  // Distâncias nos segmentos
-  // centroide em coordenadas de página para determinar direção "para fora"
-  const ctrPx=pts.reduce(function(s,p){return s+px(p.x,p.y).x;},0)/pts.length;
-  const ctrPy=pts.reduce(function(s,p){return s+px(p.x,p.y).y;},0)/pts.length;
+  // Distâncias e azimutes nos segmentos
+  // centroide em coordenadas UTM → page para produto vetorial
+  const ctrUx=pts.reduce(function(s,p){return s+p.x;},0)/pts.length;
+  const ctrUy=pts.reduce(function(s,p){return s+p.y;},0)/pts.length;
+  const ctrP=px(ctrUx,ctrUy);
   doc.setFont('helvetica','bold');doc.setFontSize(5.5);doc.setTextColor(0,0,140);
   pts.forEach(function(p,i){
     const q=pts[(i+1)%pts.length];
@@ -10213,18 +10219,19 @@ function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
     const sp=px(p.x,p.y),sq=px(q.x,q.y);
     const dx=sq.x-sp.x,dy=sq.y-sp.y;
     const len=Math.sqrt(dx*dx+dy*dy)||1;
-    const pm=px((p.x+q.x)/2,(p.y+q.y)/2);
+    const pm={x:(sp.x+sq.x)/2,y:(sp.y+sq.y)/2};
     const ang=Math.atan2(-(sq.y-sp.y),sq.x-sp.x)*180/Math.PI;
     const a=ang>90||ang<-90?ang+180:ang;
     const az=d.trechos&&d.trechos[i]?d.trechos[i].az:'';
-    // perpendicular que aponta para fora (away from centroid)
-    const perp1x=-dy/len,perp1y=dx/len;
-    const toMidX=pm.x-ctrPx,toMidY=pm.y-ctrPy;
-    const dot=perp1x*toMidX+perp1y*toMidY;
-    const outX=dot>=0?perp1x:-perp1x,outY=dot>=0?perp1y:-perp1y;
-    // azimute mais longe, distância mais perto (ambos do lado de fora)
-    if(az){doc.text(az,pm.x+outX*5.5,pm.y+outY*5.5,{angle:a,align:'center'});}
-    doc.text(dist.toFixed(2)+' m',pm.x+outX*3,pm.y+outY*3,{angle:a,align:'center'});
+    // produto vetorial (D × V) onde D=direção do segmento, V=vetor até centroide
+    // cross > 0 → centroide à direita do segmento (PDF y↓) → normal externa = (dy,-dx)/len
+    // cross ≤ 0 → centroide à esquerda                    → normal externa = (-dy,dx)/len
+    const cross=dx*(ctrP.y-sp.y)-dy*(ctrP.x-sp.x);
+    const sgn=cross>0?1:-1;
+    const outX=sgn*dy/len,outY=-sgn*dx/len;
+    // distância mais perto da linha, azimute mais longe — ambos do lado externo
+    doc.text(dist.toFixed(2)+' m',pm.x+outX*3.5,pm.y+outY*3.5,{angle:a,align:'center'});
+    if(az){doc.text(az,pm.x+outX*7,pm.y+outY*7,{angle:a,align:'center'});}
   });
 
   // Confrontantes nos segmentos — fora do perímetro com linha líder
