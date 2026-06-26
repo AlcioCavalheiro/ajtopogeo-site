@@ -9954,9 +9954,11 @@ function cadCapturarSatelite(){
     function _fazerCaptura(){
       if(_capturado)return;_capturado=true;
       leafletImage(_cadMapBg,function(err,canvas){
-        // captura bounds ANTES de restaurar o zoom
-        const b=_cadMapBg.getBounds();
-        const captureBounds={minLat:b.getSouth(),maxLat:b.getNorth(),minLon:b.getWest(),maxLon:b.getEast()};
+        // captura bounds exatos pelos cantos do div do mapa (antes de restaurar zoom)
+        const ms=_cadMapBg.getSize();
+        const tl=_cadMapBg.containerPointToLatLng([0,0]);
+        const br=_cadMapBg.containerPointToLatLng([ms.x,ms.y]);
+        const captureBounds={minLat:br.lat,maxLat:tl.lat,minLon:tl.lng,maxLon:br.lng};
         _cadMapBg.setView(centroLL,zoomAtual,{animate:false});
         setTimeout(function(){cadSyncLeaflet();},300);
         if(err){reject(err);return;}
