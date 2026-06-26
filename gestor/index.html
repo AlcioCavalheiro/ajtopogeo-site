@@ -9997,10 +9997,7 @@ function cadGerarPdfA3(d,sateliteImg){
   doc.setFont('helvetica','bold');doc.setFontSize(6.5);doc.setTextColor(255,255,255);
   doc.text('PLANTA DE SITUAÇÃO',PX+PW/2,py+3.8,{align:'center'});py+=5.5;
   const SIT_H=76;
-  if(sateliteImg){
-    try{doc.addImage(sateliteImg,'JPEG',PX,py,PW,SIT_H,'','FAST');}catch(e){}
-  }
-  cadMpDesenharSit(doc,d,PX,py,PW,SIT_H,!!sateliteImg);
+  cadMpDesenharSit(doc,d,PX,py,PW,SIT_H,false);
   py+=SIT_H;doc.line(PX,py,PX+PW,py);
 
   // Coordenadas geográficas
@@ -10164,7 +10161,7 @@ function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
 
   // Confrontantes nos segmentos
   if(d.trechos&&d.trechos.length){
-    doc.setFont('helvetica','italic');doc.setFontSize(4.5);doc.setTextColor(100,0,120);
+    doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(0,60,0);
     pts.forEach(function(p,i){
       const tr=d.trechos[i];
       const conf=tr&&tr.conf&&tr.conf!=='—'?tr.conf:'';
@@ -10173,7 +10170,7 @@ function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
       const sp=px(p.x,p.y),sq=px(q.x,q.y);
       const dx=sq.x-sp.x,dy=sq.y-sp.y;
       const len=Math.sqrt(dx*dx+dy*dy)||1;
-      const ox=-dy/len*5,oy=dx/len*5;
+      const ox=-dy/len*11,oy=dx/len*11;
       const pm=px((p.x+q.x)/2,(p.y+q.y)/2);
       const ang=Math.atan2(-(sq.y-sp.y),sq.x-sp.x)*180/Math.PI;
       const a=ang>90||ang<-90?ang+180:ang;
