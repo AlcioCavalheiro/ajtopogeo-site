@@ -9995,12 +9995,13 @@ function cadGerarPdfA3(d,sateliteImg){
   // Regiões
   const MX=7,MY=7,MW=253,MH=230;
   const PX=263,PY=7,PW=151,PH=230;
-  const SY=240,SH=H-SY-4;
+  const FR=5.5; // borda interna do PDF
+  const SY=240,SH=H-SY-FR-4; // carimbo termina dentro da moldura interna
 
   // Separadores
   doc.setDrawColor(0,51,102);doc.setLineWidth(0.5);
   doc.line(PX-1,MY,PX-1,MY+MH);
-  doc.line(MX,SY-1,PX+PW,SY-1);
+  doc.line(FR,SY-1,FR+(W-11),SY-1);
 
   // ─── PAINEL DIREITO ───────────────────────────────────────────────
   let py=PY;
@@ -10078,7 +10079,7 @@ function cadGerarPdfA3(d,sateliteImg){
   cadMpDesenharMapa(doc,d,MX,MY,MW,MH);
 
   // ─── CARIMBO ───────────────────────────────────────────────────────
-  cadMpCarimbo(doc,d,MX,SY,PX+PW-MX,SH);
+  cadMpCarimbo(doc,d,FR,SY,W-11,SH);
 
   doc.save('Mapa_Perimetro_'+(d.imovel||'').replace(/[^a-zA-Z0-9]/g,'_').slice(0,30)+'.pdf');
   toast('PDF A3 gerado com sucesso!');
