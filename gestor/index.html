@@ -9854,8 +9854,8 @@ function cadAbrirModalMapa(){
     +'<div class="fg"><label class="fl">Matrícula</label><input class="fc" id="mmap-matricula" placeholder="Nº matrícula CRI"></div>'
     +'<div class="fg"><label class="fl">Cód. INCRA / CCIR</label><input class="fc" id="mmap-incra" placeholder="000.000.000.000-0"></div>'
     +'</div><div class="g2">'
-    +'<div class="fg"><label class="fl">Cód. FUOH (INCRA)</label><input class="fc" id="mmap-fuoh" placeholder="FUOH-000-000-000-000-00"></div>'
-    +'<div class="fg"><label class="fl">Nº TRT</label><input class="fc" id="mmap-trt" placeholder="Ex: TRT-001/2025"></div>'
+    +'<div class="fg"><label class="fl">Nº TRT</label><input class="fc" id="mmap-trt" placeholder="Ex: DN1651"></div>'
+    +'<div class="fg"></div>'
     +'</div><div class="g2">'
     +'<div class="fg"><label class="fl">Data</label><input class="fc" id="mmap-data" value="'+hoje+'"></div>'
     +'<div class="fg"><label class="fl">Escala (aprox.)</label><input class="fc" id="mmap-escala" value="1:'+escAuto.toLocaleString('pt-BR')+'"></div>'
@@ -9929,7 +9929,6 @@ async function cadConfirmarGerarMapa(){
     comarca:document.getElementById('mmap-comarca').value.trim(),
     matricula:document.getElementById('mmap-matricula').value.trim(),
     incra:document.getElementById('mmap-incra').value.trim(),
-    fuoh:document.getElementById('mmap-fuoh').value.trim(),
     trt:document.getElementById('mmap-trt').value.trim(),
     data:document.getElementById('mmap-data').value.trim(),
     escala:document.getElementById('mmap-escala').value.trim(),
@@ -10309,11 +10308,10 @@ function cadMpCarimbo(doc,d,cx,cy,cw,ch){
   lbl('SISTEMA DE REFERÊNCIA',xB,y3,col2a);
   doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(20,20,20);
   doc.text('SIRGAS 2000 — UTM Fuso '+d.zona+(d.sul?'S':'N'),xB+1.5,y3+r3H*0.65,{maxWidth:col2a-3});
-  lbl('RESPONSÁVEL TÉCNICO / CÓD. INCRA',xB+col2a,y3,colBW-col2a);
-  doc.setFont('helvetica','normal');doc.setFontSize(6);doc.setTextColor(20,20,20);
-  doc.text('Alcio M. Cavalheiro Jr. — CFT 0503712213-9',xB+col2a+1.5,y3+r3H*0.28,{maxWidth:colBW-col2a-3});
-  doc.text('FUOH: '+(d.fuoh||'—'),xB+col2a+1.5,y3+r3H*0.55,{maxWidth:colBW-col2a-3});
-  doc.text('TRT: '+(d.trt||'—'),xB+col2a+1.5,y3+r3H*0.82,{maxWidth:colBW-col2a-3});
+  lbl('RESPONSÁVEL TÉCNICO:',xB+col2a,y3,colBW-col2a);
+  doc.setFont('helvetica','normal');doc.setFontSize(5.5);doc.setTextColor(20,20,20);
+  doc.text('ALCIO MARQUES CAVALHEIRO JUNIOR CFT 0503712213-9 CÓDIGO DO INCRA: FUOH',xB+col2a+1.5,y3+r3H*0.45,{maxWidth:colBW-col2a-3});
+  doc.text('TRT Nº: '+(d.trt||'—'),xB+col2a+1.5,y3+r3H*0.78,{maxWidth:colBW-col2a-3});
   // Assinatura digital
   doc.setFillColor(228,238,255);doc.rect(xSig,cy,assinW,ch,'F');
   doc.setDrawColor(0,51,102);doc.setLineWidth(0.35);
