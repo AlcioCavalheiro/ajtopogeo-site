@@ -10310,8 +10310,8 @@ function cadMpCarimbo(doc,d,cx,cy,cw,ch){
   doc.text('SIRGAS 2000 — UTM Fuso '+d.zona+(d.sul?'S':'N'),xB+1.5,y3+r3H*0.65,{maxWidth:col2a-3});
   lbl('RESPONSÁVEL TÉCNICO:',xB+col2a,y3,colBW-col2a);
   doc.setFont('helvetica','normal');doc.setFontSize(5.5);doc.setTextColor(20,20,20);
-  doc.text('ALCIO MARQUES CAVALHEIRO JUNIOR CFT 0503712213-9 CÓDIGO DO INCRA: FUOH',xB+col2a+1.5,y3+r3H*0.45,{maxWidth:colBW-col2a-3});
-  doc.text('TRT Nº: '+(d.trt||'—'),xB+col2a+1.5,y3+r3H*0.78,{maxWidth:colBW-col2a-3});
+  doc.text('ALCIO MARQUES CAVALHEIRO JUNIOR CFT 0503712213-9 CÓDIGO DO INCRA: FUOH',xB+col2a+1.5,y3+r3H*0.45);
+  doc.text('TRT Nº: '+(d.trt||'—'),xB+col2a+1.5,y3+r3H*0.78);
   // Assinatura digital
   doc.setFillColor(228,238,255);doc.rect(xSig,cy,assinW,ch,'F');
   doc.setDrawColor(0,51,102);doc.setLineWidth(0.35);
