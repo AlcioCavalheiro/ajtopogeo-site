@@ -10230,9 +10230,11 @@ function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
     const sgn=cross>0?1:-1;
     const outX=sgn*dy/len,outY=-sgn*dx/len;
     // azimute de um lado da linha, distância do outro — espaço igual em cada lado
-    const off=3;
-    if(az){doc.text(az,pm.x+outX*off,pm.y+outY*off,{angle:a,align:'center'});}
-    doc.text(dist.toFixed(2)+' m',pm.x-outX*off,pm.y-outY*off,{angle:a,align:'center'});
+    // baseline para 'middle' garante que o texto fique centrado no ponto de âncora,
+    // tornando o afastamento simétrico em relação à linha em qualquer inclinação
+    const off=4;
+    if(az){doc.text(az,pm.x+outX*off,pm.y+outY*off,{angle:a,align:'center',baseline:'middle'});}
+    doc.text(dist.toFixed(2)+' m',pm.x-outX*off,pm.y-outY*off,{angle:a,align:'center',baseline:'middle'});
   });
 
   // Confrontantes nos segmentos — fora do perímetro com linha líder
