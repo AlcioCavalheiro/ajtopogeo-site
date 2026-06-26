@@ -7537,8 +7537,8 @@ function cadInitMap(){
   if(_cadMapBg) return;
   const el=document.getElementById('cad-map-bg');
   if(!el) return;
-  _cadMapBg=L.map('cad-map-bg',{zoomControl:false,attributionControl:false,dragging:false,touchZoom:false,doubleClickZoom:false,scrollWheelZoom:false,boxZoom:false,keyboard:false});
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:21,maxNativeZoom:19}).addTo(_cadMapBg);
+  _cadMapBg=L.map('cad-map-bg',{zoomControl:false,attributionControl:false,dragging:false,touchZoom:false,doubleClickZoom:false,scrollWheelZoom:false,boxZoom:false,keyboard:false,zoomSnap:0,zoomDelta:0.1});
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:21,maxNativeZoom:19,crossOrigin:true}).addTo(_cadMapBg);
   _cadMapBg.setView([-20,-54],5);
 }
 function cadToggleSatelite(){
