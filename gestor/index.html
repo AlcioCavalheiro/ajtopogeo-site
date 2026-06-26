@@ -9951,7 +9951,14 @@ function cadCapturarSatelite(){
         _cadMapBg.setView(centroLL,zoomAtual,{animate:false});
         setTimeout(function(){cadSyncLeaflet();},300);
         if(err){reject(err);return;}
-        try{resolve(canvas.toDataURL('image/jpeg',0.85));}catch(e){reject(e);}
+        try{
+          // Verifica se o canvas não está todo escuro (falha de CORS nos tiles)
+          const ctx2=canvas.getContext('2d');
+          const id=ctx2.getImageData(0,0,Math.min(canvas.width,120),Math.min(canvas.height,120));
+          let brilho=0;for(let k=0;k<id.data.length;k+=4)brilho+=id.data[k]+id.data[k+1]+id.data[k+2];
+          if(brilho/(id.data.length/4*3)<15){reject(new Error('Imagem escura (CORS bloqueado)'));return;}
+          resolve(canvas.toDataURL('image/jpeg',0.85));
+        }catch(e){reject(e);}
       });
     },2200);
   });
@@ -10012,15 +10019,16 @@ function cadGerarPdfA3(d,sateliteImg){
   doc.setFillColor(0,51,102);doc.rect(PX,py,PW,5,'F');
   doc.setFont('helvetica','bold');doc.setFontSize(6.5);doc.setTextColor(255,255,255);
   doc.text('COORDENADAS DOS VÉRTICES',PX+PW/2,py+3.5,{align:'center'});py+=5;
-  const cVX=[PX,PX+27,PX+89];
+  const cVX=[PX,PX+23,PX+72,PX+121];
   doc.setFillColor(170,212,255);doc.rect(PX,py,PW,4.5,'F');
-  doc.setFont('helvetica','bold');doc.setFontSize(5.8);doc.setTextColor(0,30,80);
-  ['Vértice','Coord. E (m)','Coord. N (m)'].forEach(function(t,i){doc.text(t,cVX[i]+1,py+3.2);});py+=4.5;
-  doc.setFont('helvetica','normal');doc.setFontSize(6);doc.setTextColor(20,20,20);
+  doc.setFont('helvetica','bold');doc.setFontSize(5.5);doc.setTextColor(0,30,80);
+  ['Vértice','Coord. E (m)','Coord. N (m)','Coord. Z (m)'].forEach(function(t,i){doc.text(t,cVX[i]+1,py+3.2);});py+=4.5;
+  doc.setFont('helvetica','normal');doc.setFontSize(5.8);doc.setTextColor(20,20,20);
   d.pontos.forEach(function(p,i){
     if(py>SY-16)return;
     doc.setFillColor(i%2===0?245:255,i%2===0?250:255,255);doc.rect(PX,py,PW,3.8,'F');
     doc.text(p.nome,cVX[0]+1,py+2.8);doc.text(p.x.toFixed(3),cVX[1]+1,py+2.8);doc.text(p.y.toFixed(3),cVX[2]+1,py+2.8);
+    doc.text(p.z!=null?p.z.toFixed(3):'—',cVX[3]+1,py+2.8);
     py+=3.8;
   });
   py+=1;doc.line(PX,py,PX+PW,py);
@@ -10057,7 +10065,7 @@ function cadGerarPdfA3(d,sateliteImg){
   cadMpDesenharMapa(doc,d,MX,MY,MW,MH);
 
   // ─── CARIMBO ───────────────────────────────────────────────────────
-  cadMpCarimbo(doc,d,MX,SY,W-11,SH);
+  cadMpCarimbo(doc,d,MX,SY,PX+PW-MX,SH);
 
   doc.save('Mapa_Perimetro_'+(d.imovel||'').replace(/[^a-zA-Z0-9]/g,'_').slice(0,30)+'.pdf');
   toast('PDF A3 gerado com sucesso!');
@@ -10080,18 +10088,19 @@ function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
   // Fundo branco
   doc.setFillColor(255,255,255);doc.rect(mx,my,mw,mh,'F');
 
-  // Grade UTM
+  // Grade UTM — estende range para cobrir toda a área do retângulo
   const gs=_mpGridStep(Math.max(vW,vH));
+  const gxEnd=vMinX+mw/sc,gyEnd=vMinY+mh/sc;
   doc.setDrawColor(150,175,210);doc.setLineWidth(0.15);
   doc.setLineDashPattern([0.8,0.8],0);
-  for(let gx=Math.ceil(vMinX/gs)*gs;gx<=vMaxX;gx+=gs){
-    const p=px(gx,vMinY);if(p.x<mx||p.x>mx+mw)continue;
+  for(let gx=Math.floor(vMinX/gs)*gs;gx<=gxEnd+gs;gx+=gs){
+    const p=px(gx,vMinY);if(p.x<mx-0.1||p.x>mx+mw+0.1)continue;
     doc.line(p.x,my,p.x,my+mh);
     doc.setFont('helvetica','normal');doc.setFontSize(4.5);doc.setTextColor(60,90,130);
     doc.text(Math.round(gx)+'',p.x,my+mh-1.5,{align:'center'});
   }
-  for(let gy=Math.ceil(vMinY/gs)*gs;gy<=vMaxY;gy+=gs){
-    const p=px(vMinX,gy);if(p.y<my||p.y>my+mh)continue;
+  for(let gy=Math.floor(vMinY/gs)*gs;gy<=gyEnd+gs;gy+=gs){
+    const p=px(vMinX,gy);if(p.y<my-0.1||p.y>my+mh+0.1)continue;
     doc.line(mx,p.y,mx+mw,p.y);
     doc.setFont('helvetica','normal');doc.setFontSize(4.5);doc.setTextColor(60,90,130);
     doc.text(Math.round(gy)+'',mx+1.5,p.y-1,{align:'left'});
@@ -10165,27 +10174,27 @@ function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
   doc.text('m',bx+segMm*2+2,by+1);
   doc.setFontSize(6);doc.text(d.escala,bx,by+7);
 
-  // Rosa dos ventos
-  const nvX=mx+mw-11,nvY=my+11,nvR=6.5;
-  doc.setFillColor(255,255,255);doc.setDrawColor(0,51,102);doc.setLineWidth(0.5);
-  doc.circle(nvX,nvY,nvR+1.5,'FD');
+  // Rosa dos ventos — tamanho e fonte ampliados para melhor leitura
+  const nvR=10,nvX=mx+mw-16,nvY=my+16;
+  doc.setFillColor(255,255,255);doc.setDrawColor(0,51,102);doc.setLineWidth(0.6);
+  doc.circle(nvX,nvY,nvR+2,'FD');
   // seta N (azul)
   doc.setFillColor(0,51,102);
-  doc.lines([[0,-nvR*0.65],[nvR*0.32,nvR*0.65],[-nvR*0.32,nvR*0.65]],nvX,nvY-nvR*0.18,[1,1],'F',true);
+  doc.lines([[0,-nvR*0.65],[nvR*0.35,nvR*0.65],[-nvR*0.35,nvR*0.65]],nvX,nvY-nvR*0.18,[1,1],'F',true);
   // seta S (cinza)
   doc.setFillColor(170,180,195);
-  doc.lines([[0,nvR*0.65],[nvR*0.32,-nvR*0.65],[-nvR*0.32,-nvR*0.65]],nvX,nvY+nvR*0.18,[1,1],'F',true);
-  doc.setFont('helvetica','bold');doc.setFontSize(5);doc.setTextColor(0,30,80);
-  doc.text('N',nvX,nvY-nvR-0.5,{align:'center'});
-  doc.text('S',nvX,nvY+nvR+3.5,{align:'center'});
-  doc.text('L',nvX+nvR+1.8,nvY+1,{align:'center'});
-  doc.text('O',nvX-nvR-1.8,nvY+1,{align:'center'});
+  doc.lines([[0,nvR*0.65],[nvR*0.35,-nvR*0.65],[-nvR*0.35,-nvR*0.65]],nvX,nvY+nvR*0.18,[1,1],'F',true);
+  doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(0,30,80);
+  doc.text('N',nvX,nvY-nvR-1.5,{align:'center'});
+  doc.text('S',nvX,nvY+nvR+5,{align:'center'});
+  doc.text('L',nvX+nvR+3.5,nvY+1.5,{align:'center'});
+  doc.text('O',nvX-nvR-3.5,nvY+1.5,{align:'center'});
 }
 
 function cadMpCarimbo(doc,d,cx,cy,cw,ch){
   doc.setFillColor(240,246,255);doc.rect(cx,cy,cw,ch,'F');
   doc.setDrawColor(0,51,102);doc.setLineWidth(0.5);doc.rect(cx,cy,cw,ch);
-  const assinW=44;
+  const assinW=54;
   const innerW=cw-assinW;
   const r1H=ch*0.38,r2H=(ch-r1H)/2,r3H=ch-r1H-r2H;
   const y1=cy,y2=cy+r1H,y3=y2+r2H;
@@ -10233,10 +10242,10 @@ function cadMpCarimbo(doc,d,cx,cy,cw,ch){
   doc.setFont('helvetica','italic');doc.setFontSize(5.5);doc.setTextColor(80,80,80);
   doc.text('ICP-Brasil',xSig+assinW/2,cy+10.5,{align:'center'});
   doc.setDrawColor(120,130,140);doc.setLineWidth(0.3);
-  doc.line(xSig+4,cy+ch-9,xSig+assinW-4,cy+ch-9);
+  doc.line(xSig+4,cy+ch-13,xSig+assinW-4,cy+ch-13);
   doc.setFont('helvetica','normal');doc.setFontSize(5.5);doc.setTextColor(20,20,20);
-  doc.text('Alcio Marques Cavalheiro Junior',xSig+assinW/2,cy+ch-5.5,{align:'center'});
-  doc.text('Técn. Agrimensura — CFT 0503712213-9',xSig+assinW/2,cy+ch-1.5,{align:'center'});
+  doc.text('Alcio Marques Cavalheiro Junior',xSig+assinW/2,cy+ch-9,{align:'center'});
+  doc.text('Técn. Agrimensura — CFT 0503712213-9',xSig+assinW/2,cy+ch-5,{align:'center'});
 }
 
 </script>
