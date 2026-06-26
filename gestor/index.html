@@ -9953,6 +9953,9 @@ function cadCapturarSatelite(){
     _cadMapBg.setView(centroLL,Math.max(zoomAtual-4,8),{animate:false});
     setTimeout(function(){
       leafletImage(_cadMapBg,function(err,canvas){
+        // captura bounds ANTES de restaurar o zoom
+        const b=_cadMapBg.getBounds();
+        const captureBounds={minLat:b.getSouth(),maxLat:b.getNorth(),minLon:b.getWest(),maxLon:b.getEast()};
         _cadMapBg.setView(centroLL,zoomAtual,{animate:false});
         setTimeout(function(){cadSyncLeaflet();},300);
         if(err){reject(err);return;}
@@ -9962,7 +9965,7 @@ function cadCapturarSatelite(){
           const id=ctx2.getImageData(0,0,Math.min(canvas.width,120),Math.min(canvas.height,120));
           let brilho=0;for(let k=0;k<id.data.length;k+=4)brilho+=id.data[k]+id.data[k+1]+id.data[k+2];
           if(brilho/(id.data.length/4*3)<15){reject(new Error('Imagem escura (CORS bloqueado)'));return;}
-          resolve(canvas.toDataURL('image/jpeg',0.85));
+          resolve({dataUrl:canvas.toDataURL('image/jpeg',0.85),bounds:captureBounds});
         }catch(e){reject(e);}
       });
     },6000);
@@ -10071,26 +10074,39 @@ function cadGerarPdfA3(d,sateliteImg){
 }
 
 function cadMpDesenharSit(doc,d,sx,sy,sw,sh,sateliteImg){
-  const hasSat=!!sateliteImg;
+  const hasSat=!!(sateliteImg&&sateliteImg.dataUrl);
   const pts=d.pontos;
   if(!hasSat){doc.setFillColor(235,245,255);doc.rect(sx,sy,sw,sh,'F');}
   if(pts.length<2)return;
-  const minX=Math.min.apply(null,pts.map(function(p){return p.x;}));
-  const maxX=Math.max.apply(null,pts.map(function(p){return p.x;}));
-  const minY=Math.min.apply(null,pts.map(function(p){return p.y;}));
-  const maxY=Math.max.apply(null,pts.map(function(p){return p.y;}));
-  const spanX=maxX-minX||1,spanY=maxY-minY||1;
-  const pad=Math.max(spanX,spanY)*0.18;
-  const vW=spanX+pad*2,vH=spanY+pad*2;
-  const sc=Math.min(sw/vW,sh/vH)*0.88;
-  const offX=sx+(sw-vW*sc)/2,offY=sy+(sh-vH*sc)/2;
-  function spx(x,y){return{x:offX+(x-minX+pad)*sc,y:offY+(maxY-y+pad)*sc};}
-  const polyPts=pts.map(function(p){return spx(p.x,p.y);});
+  let spx;
   if(hasSat){
-    try{doc.addImage(sateliteImg,'JPEG',sx,sy,sw,sh,'','FAST');}catch(e){}
+    // projeta usando bounds reais da captura (Mercator)
+    try{doc.addImage(sateliteImg.dataUrl,'JPEG',sx,sy,sw,sh,'','FAST');}catch(e){}
+    const bnd=sateliteImg.bounds;
+    function latToMerc(lat){return Math.log(Math.tan(Math.PI/4+lat*Math.PI/360));}
+    const mMin=latToMerc(bnd.minLat),mMax=latToMerc(bnd.maxLat);
+    const lonSpan=bnd.maxLon-bnd.minLon||1,mSpan=mMax-mMin||1;
+    spx=function(x,y){
+      const ll=_mpUtmToDMS(x,y,d.zona,d.sul);
+      const px2=sx+(ll.lon-bnd.minLon)/lonSpan*sw;
+      const py2=sy+(mMax-latToMerc(ll.lat))/mSpan*sh;
+      return{x:px2,y:py2};
+    };
   } else {
-    doc.setFillColor(255,238,153);_mpPoly(doc,polyPts,'F');
+    const minX=Math.min.apply(null,pts.map(function(p){return p.x;}));
+    const maxX=Math.max.apply(null,pts.map(function(p){return p.x;}));
+    const minY=Math.min.apply(null,pts.map(function(p){return p.y;}));
+    const maxY=Math.max.apply(null,pts.map(function(p){return p.y;}));
+    const spanX=maxX-minX||1,spanY=maxY-minY||1;
+    const pad=Math.max(spanX,spanY)*0.18;
+    const vW=spanX+pad*2,vH=spanY+pad*2;
+    const sc=Math.min(sw/vW,sh/vH)*0.88;
+    const offX=sx+(sw-vW*sc)/2,offY=sy+(sh-vH*sc)/2;
+    spx=function(x,y){return{x:offX+(x-minX+pad)*sc,y:offY+(maxY-y+pad)*sc};};
+    doc.setFillColor(255,238,153);
+    _mpPoly(doc,pts.map(function(p){return spx(p.x,p.y);}),'F');
   }
+  const polyPts=pts.map(function(p){return spx(p.x,p.y);});
   doc.setDrawColor(204,0,0);doc.setLineWidth(hasSat?1:0.5);_mpPoly(doc,polyPts,'S');
   pts.forEach(function(p){
     const pm=spx(p.x,p.y);
