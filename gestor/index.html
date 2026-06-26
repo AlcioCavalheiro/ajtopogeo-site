@@ -10006,11 +10006,22 @@ function cadGerarPdfA3(d,sateliteImg){
   // ─── PAINEL DIREITO ───────────────────────────────────────────────
   let py=PY;
 
-  // Logo
-  doc.setFillColor(0,51,102);doc.rect(PX,py,PW,26,'F');
-  try{doc.addImage(LOGO_B64,'PNG',PX+4,py+2,PW-8,22,'','FAST');}
-  catch(e){doc.setFont('helvetica','bold');doc.setFontSize(13);doc.setTextColor(255,255,255);doc.text('AJ TopoGeo',PX+PW/2,py+15,{align:'center'});}
-  py+=26;doc.setDrawColor(0,51,102);doc.setLineWidth(0.4);doc.line(PX,py,PX+PW,py);
+  // Logo + dados da empresa
+  const logoH=28,logoW=52;
+  doc.setFillColor(255,255,255);doc.rect(PX,py,PW,logoH,'F');
+  doc.setDrawColor(0,51,102);doc.setLineWidth(0.4);doc.rect(PX,py,PW,logoH);
+  try{doc.addImage(LOGO_B64,'PNG',PX+2,py+2,logoW,logoH-4,'','FAST');}
+  catch(e){doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(0,51,102);doc.text('AJ TopoGeo',PX+logoW/2,py+14,{align:'center'});}
+  // Dados da empresa à direita
+  const dX=PX+logoW+4,dW=PW-logoW-6;
+  doc.setFont('helvetica','bold');doc.setFontSize(6.5);doc.setTextColor(0,30,80);
+  doc.text('Sidrolândia-MS',dX+dW/2,py+6,{align:'center'});
+  doc.setFont('helvetica','normal');doc.setFontSize(6);
+  doc.text('www.ajtopogeo.com.br',dX+dW/2,py+10.5,{align:'center'});
+  doc.text('CNPJ: 46.639.961/0001-41',dX+dW/2,py+14.5,{align:'center'});
+  doc.text('Fone: (67) 9 99822-8594',dX+dW/2,py+18.5,{align:'center'});
+  doc.text('Gmail: ajtopogeo@gmail.com',dX+dW/2,py+22.5,{align:'center'});
+  py+=logoH;doc.setDrawColor(0,51,102);doc.setLineWidth(0.4);doc.line(PX,py,PX+PW,py);
 
   // Planta de Situação
   doc.setFillColor(0,51,102);doc.rect(PX,py,PW,5.5,'F');
