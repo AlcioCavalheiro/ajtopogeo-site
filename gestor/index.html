@@ -10210,10 +10210,10 @@ function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
     const ang=Math.atan2(-(sq.y-sp.y),sq.x-sp.x)*180/Math.PI;
     const a=ang>90||ang<-90?ang+180:ang;
     const az=d.trechos&&d.trechos[i]?d.trechos[i].az:'';
-    // azimute acima (mais afastado da linha), distância abaixo (mais próximo)
-    const ox2=-dy/len*6,oy2=dx/len*6;
-    if(az){doc.text(az,pm.x+ox2,pm.y+oy2,{angle:a,align:'center'});}
-    doc.text(dist.toFixed(2)+' m',pm.x+ox,pm.y+oy,{angle:a,align:'center'});
+    // azimute de um lado, distância do outro, mesma distância da linha
+    const off=3.5,pox=-dy/len*off,poy=dx/len*off;
+    if(az){doc.text(az,pm.x+pox,pm.y+poy,{angle:a,align:'center'});}
+    doc.text(dist.toFixed(2)+' m',pm.x-pox,pm.y-poy,{angle:a,align:'center'});
   });
 
   // Confrontantes nos segmentos — fora do perímetro com linha líder
