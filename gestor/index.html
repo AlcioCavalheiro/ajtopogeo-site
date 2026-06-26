@@ -10149,12 +10149,6 @@ function cadMpDesenharSit(doc,d,sx,sy,sw,sh,sateliteImg){
     doc.circle(pm.x,pm.y,1,'FD');
     doc.setFillColor(0,0,0);doc.circle(pm.x,pm.y,0.25,'F');
   });
-  // Rosa dos ventos mini
-  const nX=sx+sw-6,nY=sy+8;
-  doc.setFillColor(0,51,102);
-  doc.lines([[0,-5],[2,5],[-2,5]],nX,nY-2,[1,1],'F',true);
-  doc.setFont('helvetica','bold');doc.setFontSize(5);doc.setTextColor(0,30,80);
-  doc.text('N',nX,nY-8,{align:'center'});
 }
 
 function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
