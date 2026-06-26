@@ -9947,8 +9947,14 @@ function cadCapturarSatelite(){
   return new Promise(function(resolve,reject){
     if(!_cadMapBg||!_cadMapAtivo){reject(new Error('Satélite inativo'));return;}
     if(typeof leafletImage==='undefined'){reject(new Error('leaflet-image não carregado'));return;}
+    // calcula centro real do polígono a partir dos vértices nomeados
+    const _nmd=_cadPontos.filter(function(p){return p.nome;});
+    if(!_nmd.length){reject(new Error('Sem pontos nomeados'));return;}
+    const _cx=_nmd.reduce(function(s,p){return s+p.x;},0)/_nmd.length;
+    const _cy=_nmd.reduce(function(s,p){return s+p.y;},0)/_nmd.length;
+    const _ll=_mpUtmToDMS(_cx,_cy,_cadUtmZona,_cadUtmSul);
     const zoomAtual=_cadMapBg.getZoom();
-    const centroLL=_cadMapBg.getCenter();
+    const centroLL=L.latLng(_ll.lat,_ll.lon);
     let _capturado=false;
     function _fazerCaptura(){
       if(_capturado)return;_capturado=true;
