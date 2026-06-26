@@ -10239,15 +10239,6 @@ function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
     doc.text(p.nome,pm.x+lox,pm.y+loy+1.2);
   });
 
-  // Nome + matrícula + área no centro
-  const utmCx=pts.reduce(function(s,p){return s+p.x;},0)/pts.length;
-  const utmCy=pts.reduce(function(s,p){return s+p.y;},0)/pts.length;
-  const ctr=px(utmCx,utmCy);
-  doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(0,30,80);
-  doc.text(d.imovel,ctr.x,ctr.y-6,{align:'center',maxWidth:mw*0.6});
-  doc.setFontSize(6);doc.text('Matr.: '+d.matricula,ctr.x,ctr.y-1,{align:'center'});
-  doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(30,30,30);
-  doc.text((d.area/10000).toFixed(4)+' ha',ctr.x,ctr.y+4.5,{align:'center'});
 
   // Escala gráfica
   const segM=_mpNiceScale(vW*0.15);const segMm=segM*sc;
