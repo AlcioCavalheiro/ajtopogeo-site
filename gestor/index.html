@@ -7538,7 +7538,7 @@ function cadInitMap(){
   const el=document.getElementById('cad-map-bg');
   if(!el) return;
   _cadMapBg=L.map('cad-map-bg',{zoomControl:false,attributionControl:false,dragging:false,touchZoom:false,doubleClickZoom:false,scrollWheelZoom:false,boxZoom:false,keyboard:false,zoomSnap:0,zoomDelta:0.1});
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:21,maxNativeZoom:19,crossOrigin:true}).addTo(_cadMapBg);
+  L.tileLayer('https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2021_3857/default/g/{z}/{y}/{x}.jpg',{maxZoom:17,maxNativeZoom:17,crossOrigin:'anonymous',attribution:'Sentinel-2 cloudless 2021 © EOX IT Services GmbH'}).addTo(_cadMapBg);
   _cadMapBg.setView([-20,-54],5);
 }
 function cadToggleSatelite(){
