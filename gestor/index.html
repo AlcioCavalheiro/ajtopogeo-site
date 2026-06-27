@@ -7533,13 +7533,31 @@ function cadWorldToLocal(x,y){return {x:x-_cadOrigin.x,y:-(y-_cadOrigin.y)};}
 function cadLocalToWorld(x,y){return {x:x+_cadOrigin.x,y:_cadOrigin.y-y};}
 var _cadModo='select',_cadMedicaoPontos=[],_cadPolilinhaPontos=[],_cadSnapAtivo=true,_cadSnapTolPx=12;
 const CAD_PALETA=['#0D4FA0','#27500A','#A32D2D','#854F0B','#5B3A8E','#0E7C7B','#B5482A','#2D5F8A','#6B6B0F','#7A2E5C'];
+const CAD_BASEMAPS={
+  'esri':{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',maxZoom:23,maxNativeZoom:19,crossOrigin:'anonymous',attribution:'Esri World Imagery'},
+  'google':{url:'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',maxZoom:22,maxNativeZoom:21,crossOrigin:null,attribution:'Google Hybrid'},
+  'sentinel':{url:'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2021_3857/default/g/{z}/{y}/{x}.jpg',maxZoom:17,maxNativeZoom:17,crossOrigin:'anonymous',attribution:'Sentinel-2 cloudless 2021 © EOX IT Services GmbH'},
+};
+var _cadBasemapAtual='esri';
 function cadInitMap(){
   if(_cadMapBg) return;
   const el=document.getElementById('cad-map-bg');
   if(!el) return;
   _cadMapBg=L.map('cad-map-bg',{zoomControl:false,attributionControl:false,dragging:false,touchZoom:false,doubleClickZoom:false,scrollWheelZoom:false,boxZoom:false,keyboard:false,zoomSnap:0,zoomDelta:0.1});
-  _cadTileLayer=L.tileLayer('https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2021_3857/default/g/{z}/{y}/{x}.jpg',{maxZoom:17,maxNativeZoom:17,crossOrigin:'anonymous',attribution:'Sentinel-2 cloudless 2021 © EOX IT Services GmbH'}).addTo(_cadMapBg);
+  const bm=CAD_BASEMAPS[_cadBasemapAtual];
+  _cadTileLayer=L.tileLayer(bm.url,{maxZoom:bm.maxZoom,maxNativeZoom:bm.maxNativeZoom,crossOrigin:bm.crossOrigin,attribution:bm.attribution}).addTo(_cadMapBg);
   _cadMapBg.setView([-20,-54],5);
+}
+function cadTrocarBasemap(nome){
+  _cadBasemapAtual=nome;
+  const bm=CAD_BASEMAPS[nome];
+  if(_cadMapBg&&_cadTileLayer){
+    _cadMapBg.removeLayer(_cadTileLayer);
+    _cadTileLayer=L.tileLayer(bm.url,{maxZoom:bm.maxZoom,maxNativeZoom:bm.maxNativeZoom,crossOrigin:bm.crossOrigin,attribution:bm.attribution}).addTo(_cadMapBg);
+  }
+  // atualiza visual do dropdown
+  const sel=document.getElementById('cad-basemap-sel');
+  if(sel) sel.value=nome;
 }
 function cadToggleSatelite(){
   _cadMapAtivo=!_cadMapAtivo;
@@ -7547,18 +7565,21 @@ function cadToggleSatelite(){
   const wrap=document.getElementById('cad-canvas-wrap');
   const btn=document.getElementById('cad-btn-satelite');
   const zonaWrap=document.getElementById('cad-zona-wrap');
+  const bmSel=document.getElementById('cad-basemap-sel');
   if(_cadMapAtivo){
     cadInitMap();
     if(bg) bg.style.display='';
     if(wrap) wrap.style.background='#000';
     if(btn) btn.classList.add('bp2');
     if(zonaWrap) zonaWrap.style.display='flex';
+    if(bmSel) bmSel.style.display='';
     setTimeout(function(){if(_cadMapBg){_cadMapBg.invalidateSize();cadSyncLeaflet();}},50);
   }else{
     if(bg) bg.style.display='none';
     if(wrap) wrap.style.background='#fafaf7';
     if(btn) btn.classList.remove('bp2');
     if(zonaWrap) zonaWrap.style.display='none';
+    if(bmSel) bmSel.style.display='none';
   }
 }
 function cadSyncLeaflet(){
@@ -7600,7 +7621,14 @@ function geoCadHtml(){
     +'<button class="btn bsm" id="cad-modo-polilinha" onclick="cadSetModo(\'polilinha\')"><i class="ti ti-line"></i> Polilinha</button>'
     +'<label style="display:flex;align-items:center;gap:6px;margin-left:.5rem;cursor:pointer"><input type="checkbox" id="cad-snap" checked onchange="_cadSnapAtivo=this.checked"> <span class="mu sm">Snap em vértices</span></label>'
     +'<label style="display:flex;align-items:center;gap:6px"><span class="mu sm">Tolerância (px)</span><input class="fc" style="width:60px" type="number" id="cad-snap-tol" value="12" onchange="_cadSnapTolPx=parseFloat(this.value)||12"></label>'
-    +'<button class="btn bsm" id="cad-btn-satelite" style="margin-left:auto" onclick="cadToggleSatelite()" title="Fundo de satélite Esri"><i class="ti ti-satellite"></i> Satélite</button>'
+    +'<span style="margin-left:auto;display:flex;align-items:center;gap:4px">'
+    +'<button class="btn bsm" id="cad-btn-satelite" onclick="cadToggleSatelite()" title="Ativar/desativar fundo de satélite"><i class="ti ti-satellite"></i> Satélite</button>'
+    +'<select class="fc" id="cad-basemap-sel" style="padding:2px 6px;font-size:12px;display:none" onchange="cadTrocarBasemap(this.value)" title="Escolher imagem de fundo">'
+    +'<option value="esri" selected>Esri Imagery</option>'
+    +'<option value="google">Google Híbrido</option>'
+    +'<option value="sentinel">Sentinel-2</option>'
+    +'</select>'
+    +'</span>'
     +'<span id="cad-zona-wrap" style="display:none;align-items:center;gap:4px"><span class="mu sm">Zona</span><select class="fc" style="width:64px;padding:2px 4px" id="cad-zona-utm" onchange="cadSetZona(this.value)">'+utmZoneOpts(21)+'</select><select class="fc" style="width:50px;padding:2px 4px" id="cad-hemis-utm" onchange="cadSetHemis(this.value)"><option value="S" selected>S</option><option value="N">N</option></select></span>'
 +'<button class="btn bsm" style="background:#003366;color:#fff;border-color:#003366" onclick="cadAbrirModalMapa()" title="Gerar Mapa de Perímetro PDF A3"><i class="ti ti-map-2"></i> Mapa PDF A3</button>'
     +'</div>'
@@ -9954,6 +9982,8 @@ function cadCapturarSatelite(){
   return new Promise(function(resolve,reject){
     if(!_cadMapBg||!_cadMapAtivo){reject(new Error('Satélite inativo'));return;}
     if(typeof leafletImage==='undefined'){reject(new Error('leaflet-image não carregado'));return;}
+    // Google Hybrid bloqueia CORS — canvas ficaria tainted, pula captura graciosamente
+    if(CAD_BASEMAPS[_cadBasemapAtual].crossOrigin===null){reject(new Error('Basemap sem CORS (Google): captura desativada'));return;}
     // calcula centro real do polígono a partir dos vértices nomeados
     const _nmd=_cadPontos.filter(function(p){return p.nome;});
     if(!_nmd.length){reject(new Error('Sem pontos nomeados'));return;}
