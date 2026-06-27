@@ -9965,20 +9965,25 @@ async function cadConfirmarGerarMapa(){
     zona:_cadUtmZona,sul:_cadUtmSul
   };
   document.getElementById('modal-mapa-perim').style.display='none';
-  toast('Capturando satélite e gerando PDF...');
-  const _satEraAtivo=_cadMapAtivo;
-  if(!_satEraAtivo) cadToggleSatelite();
-  if(_cadMapBg){_cadMapBg.invalidateSize();cadSyncLeaflet();}
-  // sempre aguarda tiles — curto se já em cache, longo se ativado agora
-  await new Promise(function(r){
-    var _done=false;
-    function _finish(){if(_done)return;_done=true;if(_cadTileLayer)_cadTileLayer.off('load',_finish);r();}
-    if(_cadTileLayer) _cadTileLayer.once('load',_finish);
-    setTimeout(_finish, _satEraAtivo ? 1500 : 10000);
-  });
+  toast('Gerando mapa de situação e PDF...');
   let sateliteImg=null;
-  try{sateliteImg=await cadCapturarSatelite();}catch(e){console.warn('Satélite:',e);}
-  if(!_satEraAtivo) cadToggleSatelite();
+  // 1ª opção (robusta): monta a imagem buscando tiles direto p/ o bbox do
+  // imóvel — independe do mapa em tela, então funciona sempre que houver net.
+  try{sateliteImg=await cadCapturarSitSatelite(dados);}catch(e){console.warn('Situação (tiles):',e);}
+  // 2ª opção (fallback): captura o mapa de satélite em tela, se possível.
+  if(!sateliteImg){
+    const _satEraAtivo=_cadMapAtivo;
+    if(!_satEraAtivo) cadToggleSatelite();
+    if(_cadMapBg){_cadMapBg.invalidateSize();cadSyncLeaflet();}
+    await new Promise(function(r){
+      var _done=false;
+      function _finish(){if(_done)return;_done=true;if(_cadTileLayer)_cadTileLayer.off('load',_finish);r();}
+      if(_cadTileLayer) _cadTileLayer.once('load',_finish);
+      setTimeout(_finish, _satEraAtivo ? 1500 : 8000);
+    });
+    try{sateliteImg=await cadCapturarSatelite();}catch(e){console.warn('Satélite (tela):',e);}
+    if(!_satEraAtivo) cadToggleSatelite();
+  }
   cadGerarPdfA3(dados,sateliteImg);
 }
 
@@ -10007,6 +10012,81 @@ function cadCapturarSatelite(){
         resolve({dataUrl:canvas.toDataURL('image/jpeg',0.85),bounds:captureBounds});
       }catch(e){reject(e);}
     });
+  });
+}
+
+// Monta a imagem de satélite da Planta de Situação buscando os tiles
+// diretamente para o bounding box do imóvel. Não depende do mapa em tela
+// (não precisa ativar o satélite nem esperar a renderização do Leaflet),
+// então garante o mapa de situação no PDF sempre que houver internet.
+function cadCapturarSitSatelite(d){
+  return new Promise(function(resolve,reject){
+    try{
+      const pts=(d&&d.pontos)||[];
+      if(pts.length<2){reject(new Error('Pontos insuficientes'));return;}
+      // Usa o basemap selecionado se ele permitir CORS; senão Esri (sempre com CORS).
+      let bmKey=_cadBasemapAtual;
+      if(!CAD_BASEMAPS[bmKey]||CAD_BASEMAPS[bmKey].crossOrigin===null) bmKey='esri';
+      const bm=CAD_BASEMAPS[bmKey];
+      const TS=256, DEG=Math.PI/180;
+      function mercY(lat){return Math.log(Math.tan(Math.PI/4+lat*DEG/2));}
+      function invMercY(my){return (2*Math.atan(Math.exp(my))-Math.PI/2)/DEG;}
+      function lon2px(lon,z){return (lon+180)/360*Math.pow(2,z)*TS;}
+      function lat2px(lat,z){const s=Math.sin(lat*DEG);return (0.5-Math.log((1+s)/(1-s))/(4*Math.PI))*Math.pow(2,z)*TS;}
+      // bbox geográfico do imóvel
+      let minLat=Infinity,maxLat=-Infinity,minLon=Infinity,maxLon=-Infinity;
+      pts.forEach(function(p){
+        const ll=_mpUtmToDMS(p.x,p.y,d.zona,d.sul);
+        if(ll.lat<minLat)minLat=ll.lat; if(ll.lat>maxLat)maxLat=ll.lat;
+        if(ll.lon<minLon)minLon=ll.lon; if(ll.lon>maxLon)maxLon=ll.lon;
+      });
+      // Trabalha em Mercator (radianos) p/ aplicar margem e proporção sem distorção.
+      let xMin=minLon*DEG, xMax=maxLon*DEG, yMin=mercY(minLat), yMax=mercY(maxLat);
+      const cxm=(xMin+xMax)/2, cym=(yMin+yMax)/2;
+      let halfX=(xMax-xMin)/2, halfY=(yMax-yMin)/2;
+      const big=Math.max(halfX,halfY)||1e-6;
+      halfX+=big*0.22; halfY+=big*0.22;          // margem ~22% em volta do imóvel
+      const R=151/76;                            // proporção do painel da situação
+      if(halfX/halfY<R) halfX=halfY*R; else halfY=halfX/R;
+      xMin=cxm-halfX; xMax=cxm+halfX; yMin=cym-halfY; yMax=cym+halfY;
+      const bMinLon=xMin/DEG, bMaxLon=xMax/DEG, bMinLat=invMercY(yMin), bMaxLat=invMercY(yMax);
+      const bounds={minLat:bMinLat,maxLat:bMaxLat,minLon:bMinLon,maxLon:bMaxLon};
+      // Escolhe o maior zoom cuja largura em pixels caiba no alvo (~1280px).
+      const maxZ=bm.maxNativeZoom||19; let z=maxZ;
+      for(z=maxZ;z>2;z--){ if(lon2px(bMaxLon,z)-lon2px(bMinLon,z)<=1280) break; }
+      const px0=lon2px(bMinLon,z), px1=lon2px(bMaxLon,z);
+      const py0=lat2px(bMaxLat,z), py1=lat2px(bMinLat,z); // py0 = topo (maxLat)
+      const W=Math.max(1,Math.round(px1-px0)), H=Math.max(1,Math.round(py1-py0));
+      const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+      const ctx=cv.getContext('2d');
+      ctx.fillStyle='#dfeefc'; ctx.fillRect(0,0,W,H);
+      const nmax=Math.pow(2,z);
+      const tx0=Math.floor(px0/TS), tx1=Math.floor((px1-1e-4)/TS);
+      const ty0=Math.floor(py0/TS), ty1=Math.floor((py1-1e-4)/TS);
+      const jobs=[]; let loaded=0;
+      for(let tx=tx0;tx<=tx1;tx++){
+        for(let ty=ty0;ty<=ty1;ty++){
+          if(ty<0||ty>=nmax) continue;
+          const xx=((tx%nmax)+nmax)%nmax;
+          const url=bm.url.replace('{z}',z).replace('{x}',xx).replace('{y}',ty).replace('{s}','a');
+          const dx=Math.round(tx*TS-px0), dy=Math.round(ty*TS-py0);
+          jobs.push(new Promise(function(res){
+            const im=new Image(); let done=false;
+            function fin(ok){if(done)return;done=true;if(ok){try{ctx.drawImage(im,dx,dy,TS,TS);loaded++;}catch(e){}}res();}
+            im.crossOrigin='anonymous';
+            im.onload=function(){fin(true);};
+            im.onerror=function(){fin(false);};
+            setTimeout(function(){fin(false);},9000);
+            im.src=url;
+          }));
+        }
+      }
+      Promise.all(jobs).then(function(){
+        if(loaded===0){reject(new Error('Nenhum tile carregado'));return;}
+        let dataUrl; try{dataUrl=cv.toDataURL('image/jpeg',0.9);}catch(e){reject(e);return;}
+        resolve({dataUrl:dataUrl,bounds:bounds});
+      });
+    }catch(e){reject(e);}
   });
 }
 
