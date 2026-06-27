@@ -10052,9 +10052,8 @@ function cadGerarPdfA3(d,sateliteImg){
   doc.setFont('helvetica','bold');doc.setFontSize(6);doc.setTextColor(255,255,255);
   doc.text('COORDENADA GEOGRÁFICA CENTRAL — SIRGAS 2000 — Fuso '+d.zona+(d.sul?'S':'N'),PX+PW/2,py+3.5,{align:'center'});py+=5;
   doc.setFont('helvetica','normal');doc.setFontSize(6.5);doc.setTextColor(20,20,40);
-  doc.text('Latitude:   '+d.centro.latDMS,PX+2,py+4.5);
-  doc.text('Longitude: '+d.centro.lonDMS,PX+2,py+9.5);
-  py+=13;doc.line(PX,py,PX+PW,py);
+  doc.text('Latitude: '+d.centro.latDMS+'     Longitude: '+d.centro.lonDMS,PX+2,py+4.5);
+  py+=7;doc.line(PX,py,PX+PW,py);
 
   // Tabela vértices
   doc.setFillColor(0,51,102);doc.rect(PX,py,PW,5,'F');
@@ -10097,10 +10096,9 @@ function cadGerarPdfA3(d,sateliteImg){
 
   // Faixa resumo verde
   const rY=Math.min(py+2,SY-14);
-  doc.setFillColor(30,100,30);doc.rect(PX,rY,PW,12,'F');
+  doc.setFillColor(30,100,30);doc.rect(PX,rY,PW,7,'F');
   doc.setFont('helvetica','bold');doc.setFontSize(7);doc.setTextColor(255,255,255);
-  doc.text('ÁREA: '+(d.area/10000).toFixed(4)+' ha   ('+d.area.toFixed(2)+' m²)',PX+2,rY+4.5);
-  doc.text('PERÍMETRO: '+d.perim.toFixed(2)+' m',PX+2,rY+10);
+  doc.text('ÁREA: '+(d.area/10000).toFixed(4)+' ha   ('+d.area.toFixed(2)+' m²)     PERÍMETRO: '+d.perim.toFixed(2)+' m',PX+2,rY+4.5);
 
   // ─── ÁREA DO MAPA ──────────────────────────────────────────────────
   cadMpDesenharMapa(doc,d,MX,MY,MW,MH);
