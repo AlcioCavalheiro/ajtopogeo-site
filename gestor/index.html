@@ -10305,7 +10305,7 @@ function cadMpCarimbo(doc,d,cx,cy,cw,ch){
   // Linha 2
   lbl('IMÓVEL RURAL',xA,y2,colAW);val(d.imovel,xA,y2,colAW,6);
   lbl('MUNICÍPIO / COMARCA',xB,y2,col2a);val((d.mun||'')+(d.comarca?' — '+d.comarca:''),xB,y2,col2a,6.5);
-  lbl('MATRÍCULA',xB+col2a,y2,colBW-col2a);val(d.matricula,xB+col2a,y2,colBW-col2a,6.5);
+  lbl('MATRÍCULA / CCIR',xB+col2a,y2,colBW-col2a);val((d.matricula||'—')+(d.incra?' — CCIR: '+d.incra:''),xB+col2a,y2,colBW-col2a,6);
   // Linha 3
   lbl('ESCALA',xA,y3,colAW*0.45);val(d.escala,xA,y3,colAW*0.45,6.5);
   lbl('DATA',xA+colAW*0.45,y3,colAW*0.55);val(d.data,xA+colAW*0.45,y3,colAW*0.55,6.5);
