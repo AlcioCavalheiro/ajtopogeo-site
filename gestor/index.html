@@ -7602,6 +7602,112 @@ function cadSyncLeaflet(){
 function cadSetZona(v){_cadUtmZona=parseInt(v,10);cadSyncLeaflet();}
 function cadSetHemis(v){_cadUtmSul=v==='S';cadSyncLeaflet();}
 
+// ── Consulta ao acervo fundiário do INCRA (via proxy /api/incra) ──
+// Replica o GeoINCRA do QGIS: pega o retângulo visível na tela e baixa as
+// parcelas do INCRA contidas nele, adicionando-as como camada de referência.
+function cadIncraApiBase(){
+  if(window.INCRA_API_BASE) return window.INCRA_API_BASE;
+  if(location.protocol==='http:'||location.protocol==='https:') return '/api/incra';
+  return 'https://ajtopogeo.com.br/api/incra'; // aberto via file:// → usa produção
+}
+// Retângulo visível (cantos da tela) convertido para lon/lat (EPSG:4326).
+function cadViewBboxLonLat(){
+  if(!_cadPontos.length && !(_cadGeoJSON&&(_cadGeoJSON.features||[]).length)) return null;
+  try{
+    const xW=_cadOrigin.x+_cadView.cx-_cadView.w/2;
+    const xE=_cadOrigin.x+_cadView.cx+_cadView.w/2;
+    const yS=_cadOrigin.y-_cadView.cy-_cadView.h/2;
+    const yN=_cadOrigin.y-_cadView.cy+_cadView.h/2;
+    const src=projDef('SIRGAS2000',_cadUtmZona,_cadUtmSul);
+    const dst=projDef('WGS84',null,false);
+    const a=proj4(src,dst,[xW,yS]);
+    const b=proj4(src,dst,[xE,yN]);
+    return {minLon:Math.min(a[0],b[0]),minLat:Math.min(a[1],b[1]),maxLon:Math.max(a[0],b[0]),maxLat:Math.max(a[1],b[1])};
+  }catch(e){return null;}
+}
+// lon/lat → UTM na zona de trabalho atual (mesma zona usada para gerar o bbox,
+// garantindo que as parcelas fiquem alinhadas com o desenho na tela).
+function cadLonLatParaUtmZona(lon,lat){
+  const p=proj4(projDef('SIRGAS2000',null),projDef('SIRGAS2000',_cadUtmZona,_cadUtmSul),[lon,lat]);
+  return [p[0],p[1]];
+}
+function cadIncraGeomParaUtm(g){
+  if(!g) return null;
+  function ring(r){return r.map(function(c){return cadLonLatParaUtmZona(c[0],c[1]);});}
+  if(g.type==='Polygon') return {type:'Polygon',coordinates:g.coordinates.map(ring)};
+  if(g.type==='MultiPolygon') return {type:'MultiPolygon',coordinates:g.coordinates.map(function(poly){return poly.map(ring);})};
+  return null;
+}
+async function cadConsultarIncra(){
+  const res=document.getElementById('cad-incra-result');
+  const temaSel=document.getElementById('cad-incra-tema');
+  const tema=temaSel?temaSel.value:'certificada_sigef_particular';
+  const bbox=cadViewBboxLonLat();
+  if(!bbox){ toast('Carregue um desenho (DXF/KML/planilha) para definir a área antes de consultar o INCRA.',true); return; }
+  const dLon=bbox.maxLon-bbox.minLon, dLat=bbox.maxLat-bbox.minLat;
+  if(dLon>1||dLat>1){ toast('Área grande demais para o INCRA. Dê mais zoom no desenho e consulte de novo.',true); return; }
+  const btn=document.getElementById('cad-btn-incra');
+  if(btn) btn.disabled=true;
+  if(res){res.style.display='block';res.innerHTML='<span class="mu sm"><i class="ti ti-loader"></i> Consultando o acervo fundiário do INCRA…</span>';}
+  try{
+    const url=cadIncraApiBase()+'?tema='+encodeURIComponent(tema)
+      +'&bbox='+[bbox.minLon,bbox.minLat,bbox.maxLon,bbox.maxLat].map(function(v){return v.toFixed(6);}).join(',')
+      +'&max=1000';
+    const r=await fetch(url);
+    let data; try{data=await r.json();}catch(e){throw new Error('Resposta inválida do servidor de consulta.');}
+    if(!r.ok||data.erro) throw new Error(data.erro||('Erro '+r.status));
+    const feats=data.features||[];
+    if(!feats.length){
+      if(res) res.innerHTML='<span class="mu sm">Nenhuma parcela encontrada nessa área para “'+(data.tema_nome||tema)+'”.'+(data.erros?(' ('+data.erros.join('; ')+')'):'')+'</span>';
+      return;
+    }
+    const layerId='incra_'+Date.now();
+    if(!_cadGeoJSON) _cadGeoJSON={type:'FeatureCollection',features:[]};
+    let add=0;
+    feats.forEach(function(f){
+      const geom=cadIncraGeomParaUtm(f.geometry);
+      if(!geom) return;
+      _cadGeoJSON.features.push({type:'Feature',properties:Object.assign({},f.properties,{layer:layerId}),geometry:geom});
+      add++;
+    });
+    cadDerivarCamadas(_cadGeoJSON);
+    const cam=_cadCamadas.find(function(c){return c.id===layerId;});
+    if(cam){ cam.nome='INCRA · '+(data.tema_nome||tema)+' ('+((data.ufs||[]).join('/'))+') · '+add; cam.origem='incra'; }
+    cadRenderCamadas();
+    cadRenderSvg();
+    cadIncraRenderResultado(feats,data,res);
+    toast(add+' parcela(s) do INCRA carregada(s) como camada de referência.');
+  }catch(e){
+    if(res) res.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> '+e.message+'</span>';
+    else toast('Erro ao consultar o INCRA: '+e.message,true);
+  }finally{
+    if(btn) btn.disabled=false;
+  }
+}
+function cadIncraRenderResultado(feats,data,res){
+  if(!res) return;
+  let html='<div class="mu sm mb1" style="font-weight:600">'+feats.length+' parcela(s) — '+(data.tema_nome||'')+' ('+((data.ufs||[]).join('/'))+')</div>';
+  if(feats.some(function(f){return f.properties&&f.properties.parcela_codigo;})){
+    html+='<div style="max-height:170px;overflow:auto;border:1px solid var(--bor);border-radius:6px;padding:6px">';
+    feats.forEach(function(f,i){
+      const p=f.properties||{}, cod=p.parcela_codigo;
+      html+='<div style="padding:3px 0;border-bottom:1px solid #eee;font-size:12px">'
+        +'<b>'+(i+1)+'.</b> '+(cod?('<code style="font-size:11px">'+cod+'</code>'):'(sem código)');
+      if(cod){
+        const base='https://sigef.incra.gov.br/geo/exportar/';
+        html+=' — <a href="'+base+'parcela/shp/'+cod+'/" target="_blank" rel="noopener">SHP</a>'
+          +' · <a href="'+base+'vertice/csv/'+cod+'/" target="_blank" rel="noopener">CSV vértices</a>'
+          +' · <a href="https://sigef.incra.gov.br/geo/parcela/detalhe/'+cod+'/" target="_blank" rel="noopener">detalhes</a>';
+      }
+      html+='</div>';
+    });
+    html+='</div>';
+  }
+  if(data.erros) html+='<div class="mu sm" style="color:#A32D2D;margin-top:4px">Avisos: '+data.erros.join('; ')+'</div>';
+  res.style.display='block';
+  res.innerHTML=html;
+}
+
 function geoCadHtml(){
   return '<div class="card mb1">'
     +'<div class="st mb1"><i class="ti ti-stack-2" style="color:var(--brand)"></i>CAD — Camadas, Régua, Edição de Coordenadas e Navegação</div>'
@@ -7630,8 +7736,19 @@ function geoCadHtml(){
     +'</select>'
     +'</span>'
     +'<span id="cad-zona-wrap" style="display:none;align-items:center;gap:4px"><span class="mu sm">Zona</span><select class="fc" style="width:64px;padding:2px 4px" id="cad-zona-utm" onchange="cadSetZona(this.value)">'+utmZoneOpts(21)+'</select><select class="fc" style="width:50px;padding:2px 4px" id="cad-hemis-utm" onchange="cadSetHemis(this.value)"><option value="S" selected>S</option><option value="N">N</option></select></span>'
-+'<button class="btn bsm" style="background:#003366;color:#fff;border-color:#003366" onclick="cadAbrirModalMapa()" title="Gerar Mapa de Perímetro PDF A3"><i class="ti ti-map-2"></i> Mapa PDF A3</button>'
++'<button class="btn bsm" id="cad-btn-incra" style="background:#1d6b1d;color:#fff;border-color:#1d6b1d" onclick="cadConsultarIncra()" title="Buscar parcelas do INCRA na área visível na tela"><i class="ti ti-database-search"></i> Consultar INCRA</button>'
+    +'<select class="fc" id="cad-incra-tema" style="width:190px;padding:2px 6px;font-size:12px" title="Camada do acervo fundiário do INCRA">'
+    +'<option value="certificada_sigef_particular" selected>SIGEF — Particular</option>'
+    +'<option value="certificada_sigef_publico">SIGEF — Público</option>'
+    +'<option value="imoveiscertificados_privado">SNCI — Privado</option>'
+    +'<option value="imoveiscertificados_publico">SNCI — Público</option>'
+    +'<option value="assentamentos">Assentamentos</option>'
+    +'<option value="quilombolas">Quilombolas</option>'
+    +'<option value="parcelageo">Parcelas (parcelageo)</option>'
+    +'</select>'
+    +'<button class="btn bsm" style="background:#003366;color:#fff;border-color:#003366" onclick="cadAbrirModalMapa()" title="Gerar Mapa de Perímetro PDF A3"><i class="ti ti-map-2"></i> Mapa PDF A3</button>'
     +'</div>'
+    +'<div id="cad-incra-result" class="mb1" style="display:none"></div>'
     +'<div style="display:flex;gap:1rem;flex-wrap:wrap">'
     +'<div style="flex:2;min-width:320px;border:1px solid var(--bor);border-radius:8px;overflow:hidden">'
     +'<div id="cad-canvas-wrap" style="position:relative;width:100%;height:480px;background:#fafaf7">'
