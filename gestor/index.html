@@ -9965,9 +9965,20 @@ async function cadConfirmarGerarMapa(){
     zona:_cadUtmZona,sul:_cadUtmSul
   };
   document.getElementById('modal-mapa-perim').style.display='none';
-  toast('Gerando PDF...');
+  toast('Capturando satélite e gerando PDF...');
+  const _satEraAtivo=_cadMapAtivo;
+  if(!_satEraAtivo) cadToggleSatelite();
+  if(_cadMapBg){_cadMapBg.invalidateSize();cadSyncLeaflet();}
+  // aguarda tiles carregarem quando satélite foi ativado agora
+  if(!_satEraAtivo) await new Promise(function(r){
+    function _onLoad(){resolve();}
+    function resolve(){if(_cadTileLayer)_cadTileLayer.off('load',_onLoad);r();}
+    if(_cadTileLayer) _cadTileLayer.once('load',_onLoad);
+    setTimeout(resolve,8000);
+  });
   let sateliteImg=null;
   try{sateliteImg=await cadCapturarSatelite();}catch(e){console.warn('Satélite:',e);}
+  if(!_satEraAtivo) cadToggleSatelite();
   cadGerarPdfA3(dados,sateliteImg);
 }
 
