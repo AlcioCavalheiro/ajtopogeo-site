@@ -10083,14 +10083,13 @@ function cadGerarPdfA3(d,sateliteImg){
   ['De','Ao','Azimute','Dist.(m)','Confrontante / Posição'].forEach(function(t,i){doc.text(t,cTX[i]+1,py+3.2);});py+=4.5;
   d.trechos.forEach(function(r,i){
     if(py>SY-18)return;
-    const lh=9;
+    const lh=5.5;
     doc.setFillColor(i%2===0?245:255,i%2===0?250:255,255);doc.rect(PX,py,PW,lh,'F');
     doc.setFont('helvetica','normal');doc.setFontSize(5.8);doc.setTextColor(20,20,20);
     doc.text(r.de,cTX[0]+1,py+3.5);doc.text(r.para,cTX[1]+1,py+3.5);
     doc.text(r.az,cTX[2]+1,py+3.5);doc.text(r.dist,cTX[3]+1,py+3.5);
-    doc.text(r.conf,cTX[4]+1,py+3.5,{maxWidth:PW-(cTX[4]-PX)-2});
-    doc.setFont('helvetica','italic');doc.setFontSize(4.8);doc.setTextColor(80,80,80);
-    doc.text('('+r.pos+')',cTX[4]+1,py+7);
+    const confComPos=r.pos?(r.conf?r.conf+' ('+r.pos+')':'('+r.pos+')'):r.conf;
+    doc.text(confComPos,cTX[4]+1,py+3.5,{maxWidth:PW-(cTX[4]-PX)-2});
     py+=lh;
   });
 
