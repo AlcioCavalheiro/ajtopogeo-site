@@ -10213,36 +10213,6 @@ function cadMpDesenharMapa(doc,d,mx,my,mw,mh){
   doc.setDrawColor(204,0,0);doc.setLineWidth(0.8);
   _mpPoly(doc,polyPts,'S');
 
-  // Distâncias e azimutes nos segmentos
-  // centroide em coordenadas UTM → page para produto vetorial
-  const ctrUx=pts.reduce(function(s,p){return s+p.x;},0)/pts.length;
-  const ctrUy=pts.reduce(function(s,p){return s+p.y;},0)/pts.length;
-  const ctrP=px(ctrUx,ctrUy);
-  doc.setFont('helvetica','bold');doc.setFontSize(5.5);doc.setTextColor(0,0,140);
-  pts.forEach(function(p,i){
-    const q=pts[(i+1)%pts.length];
-    const dist=_mpDist(p,q);
-    const sp=px(p.x,p.y),sq=px(q.x,q.y);
-    const dx=sq.x-sp.x,dy=sq.y-sp.y;
-    const len=Math.sqrt(dx*dx+dy*dy)||1;
-    const pm={x:(sp.x+sq.x)/2,y:(sp.y+sq.y)/2};
-    const ang=Math.atan2(-(sq.y-sp.y),sq.x-sp.x)*180/Math.PI;
-    const a=ang>90||ang<-90?ang+180:ang;
-    const az=d.trechos&&d.trechos[i]?d.trechos[i].az:'';
-    // produto vetorial (D × V) onde D=direção do segmento, V=vetor até centroide
-    // cross > 0 → centroide à direita do segmento (PDF y↓) → normal externa = (dy,-dx)/len
-    // cross ≤ 0 → centroide à esquerda                    → normal externa = (-dy,dx)/len
-    const cross=dx*(ctrP.y-sp.y)-dy*(ctrP.x-sp.x);
-    const sgn=cross>0?1:-1;
-    const outX=sgn*dy/len,outY=-sgn*dx/len;
-    // azimute de um lado da linha, distância do outro — espaço igual em cada lado
-    // baseline para 'middle' garante que o texto fique centrado no ponto de âncora,
-    // tornando o afastamento simétrico em relação à linha em qualquer inclinação
-    const off=4;
-    if(az){doc.text(az,pm.x+outX*off,pm.y+outY*off,{angle:a,align:'center',baseline:'middle'});}
-    doc.text(dist.toFixed(2)+' m',pm.x-outX*off,pm.y-outY*off,{angle:a,align:'center',baseline:'middle'});
-  });
-
   // Confrontantes nos segmentos — fora do perímetro com linha líder
   if(d.trechos&&d.trechos.length){
     const ctrSx=pts.reduce(function(s,p){return s+p.x;},0)/pts.length;
