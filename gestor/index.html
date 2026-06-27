@@ -9965,16 +9965,9 @@ async function cadConfirmarGerarMapa(){
     zona:_cadUtmZona,sul:_cadUtmSul
   };
   document.getElementById('modal-mapa-perim').style.display='none';
-  // garante que o satélite está ativo para captura — ativa automaticamente se necessário
-  const _satEraAtivo=_cadMapAtivo;
-  if(!_satEraAtivo) cadToggleSatelite();
-  toast('Capturando satélite e gerando PDF...');
-  // tempo para o container do mapa ganhar layout e centralizar no polígono
-  if(_cadMapBg){_cadMapBg.invalidateSize();cadSyncLeaflet();}
-  await new Promise(function(r){setTimeout(r,1200);});
+  toast('Gerando PDF...');
   let sateliteImg=null;
   try{sateliteImg=await cadCapturarSatelite();}catch(e){console.warn('Satélite:',e);}
-  if(!_satEraAtivo) cadToggleSatelite(); // restaura estado original
   cadGerarPdfA3(dados,sateliteImg);
 }
 
@@ -9984,61 +9977,25 @@ function cadCapturarSatelite(){
     if(typeof leafletImage==='undefined'){reject(new Error('leaflet-image não carregado'));return;}
     // Google Hybrid bloqueia CORS — canvas ficaria tainted, pula captura graciosamente
     if(CAD_BASEMAPS[_cadBasemapAtual].crossOrigin===null){reject(new Error('Basemap sem CORS (Google): captura desativada'));return;}
-    // calcula centro real do polígono a partir dos vértices nomeados
-    const _nmd=_cadPontos.filter(function(p){return p.nome;});
-    if(!_nmd.length){reject(new Error('Sem pontos nomeados'));return;}
-    const _cx=_nmd.reduce(function(s,p){return s+p.x;},0)/_nmd.length;
-    const _cy=_nmd.reduce(function(s,p){return s+p.y;},0)/_nmd.length;
-    const _ll=_mpUtmToDMS(_cx,_cy,_cadUtmZona,_cadUtmSul);
-    const zoomAtual=_cadMapBg.getZoom();
-    const centroLL=L.latLng(_ll.lat,_ll.lon);
-    // garante tamanho correto do container antes de carregar tiles
+    // Captura a visão atual do CAD sem reposicionar o mapa
     _cadMapBg.invalidateSize();
-    let _capturado=false,_done=false;
-    function _cleanup(){
-      if(_cadTileLayer){_cadTileLayer.off('load',_onLayerLoad);}
-      clearTimeout(_fallback);
-    }
-    function _finish(ok,payload){
-      if(_done)return;_done=true;_cleanup();
-      // restaura visão original
-      _cadMapBg.setView(centroLL,zoomAtual,{animate:false});
-      setTimeout(function(){cadSyncLeaflet();},300);
-      if(ok)resolve(payload);else reject(payload);
-    }
-    function _fazerCaptura(){
-      if(_capturado)return;_capturado=true;
-      leafletImage(_cadMapBg,function(err,canvas){
-        if(err){_finish(false,err);return;}
-        // bounds exatos pelos cantos do div do mapa (antes de restaurar)
-        const ms=_cadMapBg.getSize();
-        const tl=_cadMapBg.containerPointToLatLng([0,0]);
-        const br=_cadMapBg.containerPointToLatLng([ms.x,ms.y]);
-        const captureBounds={minLat:br.lat,maxLat:tl.lat,minLon:tl.lng,maxLon:br.lng};
-        try{
-          const ctx2=canvas.getContext('2d');
-          // amostra o centro: detecta fundo uniforme (preto CORS ou azul sem tiles) pela baixa variância
-          const cx2=Math.floor(canvas.width/2),cy2=Math.floor(canvas.height/2);
-          const sw2=Math.min(canvas.width,160),sh2=Math.min(canvas.height,160);
-          const id=ctx2.getImageData(Math.max(0,cx2-sw2/2),Math.max(0,cy2-sh2/2),sw2,sh2);
-          let varSum=0,prev=-1;
-          for(let k=0;k<id.data.length;k+=4){const v=id.data[k]+id.data[k+1]+id.data[k+2];if(prev>=0)varSum+=Math.abs(v-prev);prev=v;}
-          // imagem real de satélite tem textura (varSum alto); fundo uniforme tem varSum ~0
-          if(varSum<2000){_finish(false,new Error('Tiles não carregados (fundo uniforme)'));return;}
-          _finish(true,{dataUrl:canvas.toDataURL('image/jpeg',0.85),bounds:captureBounds});
-        }catch(e){_finish(false,e);}
-      });
-    }
-    // captura quando TODOS os tiles visíveis terminam de carregar
-    function _onLayerLoad(){
-      // 2 frames para garantir repintura antes de capturar
-      requestAnimationFrame(function(){requestAnimationFrame(_fazerCaptura);});
-    }
-    if(_cadTileLayer){_cadTileLayer.on('load',_onLayerLoad);}
-    // dispara o novo zoom DEPOIS de registrar o listener
-    _cadMapBg.setView(centroLL,Math.max(zoomAtual-2,15),{animate:false});
-    // fallback de segurança: captura mesmo sem evento load (15s)
-    var _fallback=setTimeout(_fazerCaptura,15000);
+    leafletImage(_cadMapBg,function(err,canvas){
+      if(err){reject(err);return;}
+      const ms=_cadMapBg.getSize();
+      const tl=_cadMapBg.containerPointToLatLng([0,0]);
+      const br=_cadMapBg.containerPointToLatLng([ms.x,ms.y]);
+      const captureBounds={minLat:br.lat,maxLat:tl.lat,minLon:tl.lng,maxLon:br.lng};
+      try{
+        const ctx=canvas.getContext('2d');
+        const cx=Math.floor(canvas.width/2),cy=Math.floor(canvas.height/2);
+        const sw=Math.min(canvas.width,160),sh=Math.min(canvas.height,160);
+        const id=ctx.getImageData(Math.max(0,cx-sw/2),Math.max(0,cy-sh/2),sw,sh);
+        let varSum=0,prev=-1;
+        for(let k=0;k<id.data.length;k+=4){const v=id.data[k]+id.data[k+1]+id.data[k+2];if(prev>=0)varSum+=Math.abs(v-prev);prev=v;}
+        if(varSum<2000){reject(new Error('Tiles não carregados'));return;}
+        resolve({dataUrl:canvas.toDataURL('image/jpeg',0.85),bounds:captureBounds});
+      }catch(e){reject(e);}
+    });
   });
 }
 
