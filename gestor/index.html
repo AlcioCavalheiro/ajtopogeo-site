@@ -10655,7 +10655,7 @@ async function geoCarregarParcelas(){
   _gData.forEach(p=>geoDesenharParcela(p));
   if(_gData.length>0){
     const bounds=[];
-    _gData.forEach(p=>{if(_gLayers[p.id])try{bounds.push(..._gLayers[p.id].getBounds().toBBoxString().split(',').map(Number));}catch(e){});});
+    _gData.forEach(p=>{if(_gLayers[p.id])try{bounds.push(..._gLayers[p.id].getBounds().toBBoxString().split(',').map(Number));}catch(e){}});
     if(bounds.length)try{_gMap.fitBounds([[Math.min(...bounds.filter((_,i)=>i%2===1)),Math.min(...bounds.filter((_,i)=>i%2===0))],[Math.max(...bounds.filter((_,i)=>i%2===1)),Math.max(...bounds.filter((_,i)=>i%2===0))]],{padding:[30,30]});}catch(e){}
   }
   geoRenderPtsCamada();
