@@ -7692,10 +7692,10 @@ async function cadConsultarIncra(){
     const layerId='incra_'+Date.now();
     if(!_cadGeoJSON) _cadGeoJSON={type:'FeatureCollection',features:[]};
     let add=0;
-    feats.forEach(function(f){
+    feats.forEach(function(f,idx){
       const geom=cadIncraGeomParaUtm(f.geometry);
       if(!geom) return;
-      _cadGeoJSON.features.push({type:'Feature',properties:Object.assign({},f.properties,{layer:layerId}),geometry:geom});
+      _cadGeoJSON.features.push({type:'Feature',properties:Object.assign({},f.properties,{layer:layerId,_incra_idx:idx+1}),geometry:geom});
       add++;
     });
     cadDerivarCamadas(_cadGeoJSON);
@@ -7716,18 +7716,26 @@ var _cadIncraFeats=[];
 function cadIncraRenderResultado(feats,data,res){
   if(!res) return;
   _cadIncraFeats=feats;
-  let html='<div class="mu sm mb1" style="font-weight:600">'+feats.length+' parcela(s) — '+(data.tema_nome||'')+' ('+((data.ufs||[]).join('/'))+')</div>';
-  if(feats.some(function(f){return f.properties&&f.properties.parcela_codigo;})){
-    html+='<div style="max-height:200px;overflow:auto;border:1px solid var(--bor);border-radius:6px;padding:6px">';
+  const temCod=feats.some(function(f){return f.properties&&f.properties.parcela_codigo;});
+  let html='<div style="display:flex;align-items:center;gap:6px;margin-bottom:.4rem;flex-wrap:wrap">'
+    +'<span class="mu sm" style="font-weight:600;flex:1">'+feats.length+' parcela(s) — '+(data.tema_nome||'')+' ('+((data.ufs||[]).join('/'))+')</span>';
+  if(temCod){
+    html+='<label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer"><input type="checkbox" id="cad-incra-all" onchange="cadIncraToggleAll(this.checked)"> Todos</label>'
+      +'<select class="fc" id="cad-incra-fmt" style="padding:2px 6px;font-size:11px;width:auto"><option value="shp">SHP (.zip)</option><option value="dxf">DXF</option><option value="csv">CSV vértices</option></select>'
+      +'<button class="btn bp2 bsm" onclick="cadIncraDownSelected()"><i class="ti ti-download"></i> Baixar selecionados</button>';
+  }
+  html+='</div>';
+  if(temCod){
+    html+='<div style="max-height:200px;overflow:auto;border:1px solid var(--bor);border-radius:6px">';
     feats.forEach(function(f,i){
       const p=f.properties||{}, cod=p.parcela_codigo;
-      html+='<div style="padding:4px 0;border-bottom:1px solid #eee;font-size:12px;display:flex;align-items:center;gap:6px">'
-        +'<span style="min-width:20px;color:var(--mu)">'+(i+1)+'.</span>'
-        +(cod?('<code style="font-size:11px;flex:1">'+cod+'</code>'):'<span style="flex:1;color:var(--mu)">(sem código)</span>');
+      const nome=p.denominacao||p.nome_imovel||cod||'(sem código)';
+      html+='<div style="padding:5px 8px;border-bottom:1px solid #f0f0f0;font-size:12px;display:flex;align-items:center;gap:6px">'
+        +(cod?'<input type="checkbox" class="cad-incra-chk" data-idx="'+i+'" style="flex-shrink:0">':'<span style="width:14px"></span>')
+        +'<span style="min-width:18px;font-weight:700;color:var(--brand);font-size:11px">'+(i+1)+'</span>'
+        +'<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+nome+'">'+nome+'</span>';
       if(cod){
-        html+='<button class="btn bsm" style="padding:2px 7px;font-size:11px" onclick="cadIncraDown(\'shp\',\''+cod+'\')"><i class="ti ti-download"></i> SHP</button>'
-          +'<button class="btn bsm" style="padding:2px 7px;font-size:11px" onclick="cadIncraDown(\'csv\',\''+cod+'\')"><i class="ti ti-download"></i> CSV</button>'
-          +'<button class="btn bsm bp2" style="padding:2px 7px;font-size:11px" onclick="cadIncraDetalhes('+i+')"><i class="ti ti-info-circle"></i> Detalhes</button>';
+        html+='<button class="btn bsm" style="padding:2px 6px;font-size:11px;flex-shrink:0" onclick="cadIncraDetalhes('+i+')"><i class="ti ti-info-circle"></i></button>';
       }
       html+='</div>';
     });
@@ -7737,32 +7745,58 @@ function cadIncraRenderResultado(feats,data,res){
   res.style.display='block';
   res.innerHTML=html;
 }
-function cadIncraDown(tipo,cod){
-  const base='https://sigef.incra.gov.br/geo/exportar/';
-  const url=tipo==='shp'?(base+'parcela/shp/'+cod+'/'):(base+'vertice/csv/'+cod+'/');
-  const a=document.createElement('a');
-  a.href=url;
-  a.download='';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+function cadIncraToggleAll(on){
+  document.querySelectorAll('.cad-incra-chk').forEach(function(c){c.checked=on;});
+}
+async function cadIncraDownSelected(){
+  const checks=Array.from(document.querySelectorAll('.cad-incra-chk:checked'));
+  if(!checks.length){toast('Selecione ao menos uma parcela.',true);return;}
+  const fmt=(document.getElementById('cad-incra-fmt')||{value:'shp'}).value||'shp';
+  const idxs=checks.map(function(c){return parseInt(c.dataset.idx,10);});
+  const feats=idxs.map(function(i){return _cadIncraFeats[i];}).filter(Boolean);
+  const nomes=feats.map(function(f){return (f.properties&&(f.properties.parcela_codigo||f.properties.denominacao))||'parcela';});
+  const baseName=(nomes.length===1?nomes[0]:'incra_'+nomes.length+'_parcelas').replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,40);
+  const gj={type:'FeatureCollection',features:feats.map(function(f,i){return {type:'Feature',properties:Object.assign({},f.properties,{id:idxs[i]+1}),geometry:f.geometry};})};
+  try{
+    if(fmt==='dxf'){
+      const gjUtm={type:'FeatureCollection',features:gj.features.map(function(f){return {type:'Feature',properties:f.properties,geometry:cadIncraGeomParaUtm(f.geometry)||f.geometry};})};
+      const dxf=geojsonToDxf(gjUtm);
+      downloadBlobGeo(new Blob([dxf],{type:'application/dxf'}),baseName+'.dxf');
+    } else if(fmt==='csv'){
+      let csv='Parcela;Vertice;Longitude;Latitude\n';
+      feats.forEach(function(f,fi){
+        const cod=(f.properties&&f.properties.parcela_codigo)||('P'+(idxs[fi]+1));
+        function processRing(ring){ring.forEach(function(c,vi){csv+=cod+';V'+(vi+1)+';'+c[0].toFixed(8)+';'+c[1].toFixed(8)+'\n';});}
+        const g=f.geometry;if(!g)return;
+        if(g.type==='Polygon')g.coordinates.forEach(processRing);
+        else if(g.type==='MultiPolygon')g.coordinates.forEach(function(poly){poly.forEach(processRing);});
+      });
+      downloadBlobGeo(new Blob([csv],{type:'text/csv'}),baseName+'.csv');
+    } else {
+      validarCoordsWgs84(gj);
+      const blob=await shpwrite.zip(mergeLinhasParaShp(gj),{outputType:'blob'});
+      downloadBlobGeo(blob,baseName+'.zip');
+    }
+    toast('Download gerado com sucesso!');
+  }catch(e){toast('Erro ao gerar arquivo: '+e.message,true);}
 }
 function cadIncraDetalhes(idx){
   const f=_cadIncraFeats[idx];if(!f)return;
   const p=f.properties||{};
   const cod=p.parcela_codigo||'—';
-  const label_map={parcela_codigo:'Código',denominacao:'Denominação',status:'Status',area_ha:'Área (ha)',municipio:'Município',uf:'UF',data_submissao:'Submissão',data_certificacao:'Certificação',proprietario:'Proprietário',cpf_cnpj:'CPF/CNPJ',natureza:'Natureza',parcela_numero:'Nº Parcela',tema:'Tema'};
-  const rows=Object.entries(p).filter(function(kv){return kv[1]!==null&&kv[1]!==undefined&&String(kv[1]).trim()!=='';}).map(function(kv){
+  const label_map={parcela_codigo:'Código',denominacao:'Denominação',nome_imovel:'Nome',status:'Status',area_ha:'Área (ha)',municipio:'Município',uf:'UF',data_submissao:'Submissão',data_certificacao:'Certificação',proprietario:'Proprietário',cpf_cnpj:'CPF/CNPJ',natureza:'Natureza',parcela_numero:'Nº Parcela',tema:'Tema'};
+  const rows=Object.entries(p).filter(function(kv){return kv[0]!=='layer'&&kv[0]!=='_incra_idx'&&kv[1]!==null&&kv[1]!==undefined&&String(kv[1]).trim()!=='';}).map(function(kv){
     const label=label_map[kv[0]]||kv[0];
     const val=kv[0]==='area_ha'?Number(kv[1]).toFixed(4)+' ha':String(kv[1]);
     return '<tr><td style="color:var(--mu);padding:5px 8px;font-size:11px;white-space:nowrap;border-bottom:.5px solid var(--bor)">'+label+'</td>'
       +'<td style="padding:5px 8px;font-size:12px;word-break:break-all;border-bottom:.5px solid var(--bor)">'+val+'</td></tr>';
   }).join('');
-  document.getElementById('mt').textContent='Parcela INCRA — '+cod;
+  document.getElementById('mt').textContent='Parcela '+(idx+1)+' — '+cod;
   document.getElementById('mb').innerHTML=
     '<div style="display:flex;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap">'
-    +'<button class="btn bp2 bsm" onclick="cadIncraDown(\'shp\',\''+cod+'\')"><i class="ti ti-download"></i> Baixar SHP</button>'
-    +'<button class="btn bsm" onclick="cadIncraDown(\'csv\',\''+cod+'\')"><i class="ti ti-download"></i> Baixar CSV vértices</button>'
+    +'<button class="btn bp2 bsm" onclick="cadIncraDownUm('+idx+',\'shp\')"><i class="ti ti-download"></i> SHP</button>'
+    +'<button class="btn bsm" onclick="cadIncraDownUm('+idx+',\'dxf\')"><i class="ti ti-download"></i> DXF</button>'
+    +'<button class="btn bsm" onclick="cadIncraDownUm('+idx+',\'csv\')"><i class="ti ti-download"></i> CSV vértices</button>'
     +'</div>'
     +'<div style="overflow:auto;max-height:55vh"><table style="width:100%;border-collapse:collapse">'
     +'<thead><tr><th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--mu);border-bottom:1px solid var(--bor)">Campo</th>'
@@ -7770,6 +7804,31 @@ function cadIncraDetalhes(idx){
     +'<tbody>'+rows+'</tbody></table></div>';
   document.getElementById('mf').innerHTML='<button class="btn" onclick="closeModal()">Fechar</button>';
   document.getElementById('ov').classList.add('open');
+}
+async function cadIncraDownUm(idx,fmt){
+  const f=_cadIncraFeats[idx];if(!f)return;
+  const p=f.properties||{};
+  const base=(p.parcela_codigo||p.denominacao||('parcela_'+(idx+1))).replace(/[^a-zA-Z0-9_-]/g,'_').slice(0,40);
+  const gj={type:'FeatureCollection',features:[{type:'Feature',properties:p,geometry:f.geometry}]};
+  try{
+    if(fmt==='dxf'){
+      const gjUtm={type:'FeatureCollection',features:[{type:'Feature',properties:p,geometry:cadIncraGeomParaUtm(f.geometry)||f.geometry}]};
+      downloadBlobGeo(new Blob([geojsonToDxf(gjUtm)],{type:'application/dxf'}),base+'.dxf');
+    } else if(fmt==='csv'){
+      let csv='Vertice;Longitude;Latitude\n';
+      function processRing(ring){ring.forEach(function(c,vi){csv+='V'+(vi+1)+';'+c[0].toFixed(8)+';'+c[1].toFixed(8)+'\n';});}
+      const g=f.geometry;if(g){
+        if(g.type==='Polygon')g.coordinates.forEach(processRing);
+        else if(g.type==='MultiPolygon')g.coordinates.forEach(function(poly){poly.forEach(processRing);});
+      }
+      downloadBlobGeo(new Blob([csv],{type:'text/csv'}),base+'.csv');
+    } else {
+      validarCoordsWgs84(gj);
+      const blob=await shpwrite.zip(mergeLinhasParaShp(gj),{outputType:'blob'});
+      downloadBlobGeo(blob,base+'.zip');
+    }
+    toast('Download gerado!');
+  }catch(e){toast('Erro: '+e.message,true);}
 }
 
 function geoCadHtml(){
@@ -7989,6 +8048,11 @@ function cadCamadaCor(layerId){
   const c=_cadCamadas.find(function(c){return c.id===layerId;});
   return c?c.cor:'#888';
 }
+function cadPoligonoCentroide(ring){
+  let sx=0,sy=0,n=ring.length;
+  ring.forEach(function(c){sx+=c[0];sy+=c[1];});
+  return {x:sx/n,y:sy/n};
+}
 function cadGeometriaSvg(f){
   const g=f.geometry;if(!g) return '';
   const layerId=(f.properties&&f.properties.layer)||'_default';
@@ -7996,11 +8060,19 @@ function cadGeometriaSvg(f){
   if(camada&&!camada.visivel) return '';
   const cor=cadCamadaCor(layerId);
   const sw=Math.max(_cadView.w,_cadView.h)*0.0015;
+  const fs=Math.max(_cadView.w,_cadView.h)*0.018;
+  const idx=f.properties&&f.properties._incra_idx;
   function pts(coords){return coords.map(function(c){const l=cadWorldToLocal(c[0],c[1]);return l.x+','+l.y;}).join(' ');}
+  function labelSvg(ring){
+    if(!idx) return '';
+    const c=cadPoligonoCentroide(ring);const l=cadWorldToLocal(c.x,c.y);
+    return '<circle cx="'+l.x+'" cy="'+l.y+'" r="'+(fs*0.85)+'" fill="'+cor+'" opacity="0.85"/>'
+      +'<text x="'+l.x+'" y="'+l.y+'" font-size="'+fs+'" fill="#fff" text-anchor="middle" dominant-baseline="central" style="pointer-events:none;user-select:none;font-weight:700">'+idx+'</text>';
+  }
   if(g.type==='LineString') return '<polyline points="'+pts(g.coordinates)+'" fill="none" stroke="'+cor+'" stroke-width="'+sw+'"/>';
   if(g.type==='MultiLineString') return g.coordinates.map(function(l){return cadGeometriaSvg({properties:f.properties,geometry:{type:'LineString',coordinates:l}});}).join('');
-  if(g.type==='Polygon') return g.coordinates.map(function(r){return '<polygon points="'+pts(r)+'" fill="'+cor+'1a" stroke="'+cor+'" stroke-width="'+sw+'"/>';}).join('');
-  if(g.type==='MultiPolygon') return g.coordinates.map(function(poly){return cadGeometriaSvg({properties:f.properties,geometry:{type:'Polygon',coordinates:poly}});}).join('');
+  if(g.type==='Polygon') return g.coordinates.map(function(r,i){return '<polygon points="'+pts(r)+'" fill="'+cor+'1a" stroke="'+cor+'" stroke-width="'+sw+'"/>'+(i===0?labelSvg(r):'');}).join('');
+  if(g.type==='MultiPolygon') return g.coordinates.map(function(poly,pi){return cadGeometriaSvg({properties:Object.assign({},f.properties,{_incra_idx:pi===0?idx:null}),geometry:{type:'Polygon',coordinates:poly}});}).join('');
   return '';
 }
 function cadRenderSvg(){
