@@ -7712,20 +7712,22 @@ async function cadConsultarIncra(){
     if(btn) btn.disabled=false;
   }
 }
+var _cadIncraFeats=[];
 function cadIncraRenderResultado(feats,data,res){
   if(!res) return;
+  _cadIncraFeats=feats;
   let html='<div class="mu sm mb1" style="font-weight:600">'+feats.length+' parcela(s) — '+(data.tema_nome||'')+' ('+((data.ufs||[]).join('/'))+')</div>';
   if(feats.some(function(f){return f.properties&&f.properties.parcela_codigo;})){
-    html+='<div style="max-height:170px;overflow:auto;border:1px solid var(--bor);border-radius:6px;padding:6px">';
+    html+='<div style="max-height:200px;overflow:auto;border:1px solid var(--bor);border-radius:6px;padding:6px">';
     feats.forEach(function(f,i){
       const p=f.properties||{}, cod=p.parcela_codigo;
-      html+='<div style="padding:3px 0;border-bottom:1px solid #eee;font-size:12px">'
-        +'<b>'+(i+1)+'.</b> '+(cod?('<code style="font-size:11px">'+cod+'</code>'):'(sem código)');
+      html+='<div style="padding:4px 0;border-bottom:1px solid #eee;font-size:12px;display:flex;align-items:center;gap:6px">'
+        +'<span style="min-width:20px;color:var(--mu)">'+(i+1)+'.</span>'
+        +(cod?('<code style="font-size:11px;flex:1">'+cod+'</code>'):'<span style="flex:1;color:var(--mu)">(sem código)</span>');
       if(cod){
-        const base='https://sigef.incra.gov.br/geo/exportar/';
-        html+=' — <a href="'+base+'parcela/shp/'+cod+'/" target="_blank" rel="noopener">SHP</a>'
-          +' · <a href="'+base+'vertice/csv/'+cod+'/" target="_blank" rel="noopener">CSV vértices</a>'
-          +' · <a href="https://sigef.incra.gov.br/geo/parcela/detalhe/'+cod+'/" target="_blank" rel="noopener">detalhes</a>';
+        html+='<button class="btn bsm" style="padding:2px 7px;font-size:11px" onclick="cadIncraDown(\'shp\',\''+cod+'\')"><i class="ti ti-download"></i> SHP</button>'
+          +'<button class="btn bsm" style="padding:2px 7px;font-size:11px" onclick="cadIncraDown(\'csv\',\''+cod+'\')"><i class="ti ti-download"></i> CSV</button>'
+          +'<button class="btn bsm bp2" style="padding:2px 7px;font-size:11px" onclick="cadIncraDetalhes('+i+')"><i class="ti ti-info-circle"></i> Detalhes</button>';
       }
       html+='</div>';
     });
@@ -7734,6 +7736,40 @@ function cadIncraRenderResultado(feats,data,res){
   if(data.erros) html+='<div class="mu sm" style="color:#A32D2D;margin-top:4px">Avisos: '+data.erros.join('; ')+'</div>';
   res.style.display='block';
   res.innerHTML=html;
+}
+function cadIncraDown(tipo,cod){
+  const base='https://sigef.incra.gov.br/geo/exportar/';
+  const url=tipo==='shp'?(base+'parcela/shp/'+cod+'/'):(base+'vertice/csv/'+cod+'/');
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+function cadIncraDetalhes(idx){
+  const f=_cadIncraFeats[idx];if(!f)return;
+  const p=f.properties||{};
+  const cod=p.parcela_codigo||'—';
+  const label_map={parcela_codigo:'Código',denominacao:'Denominação',status:'Status',area_ha:'Área (ha)',municipio:'Município',uf:'UF',data_submissao:'Submissão',data_certificacao:'Certificação',proprietario:'Proprietário',cpf_cnpj:'CPF/CNPJ',natureza:'Natureza',parcela_numero:'Nº Parcela',tema:'Tema'};
+  const rows=Object.entries(p).filter(function(kv){return kv[1]!==null&&kv[1]!==undefined&&String(kv[1]).trim()!=='';}).map(function(kv){
+    const label=label_map[kv[0]]||kv[0];
+    const val=kv[0]==='area_ha'?Number(kv[1]).toFixed(4)+' ha':String(kv[1]);
+    return '<tr><td style="color:var(--mu);padding:5px 8px;font-size:11px;white-space:nowrap;border-bottom:.5px solid var(--bor)">'+label+'</td>'
+      +'<td style="padding:5px 8px;font-size:12px;word-break:break-all;border-bottom:.5px solid var(--bor)">'+val+'</td></tr>';
+  }).join('');
+  document.getElementById('mt').textContent='Parcela INCRA — '+cod;
+  document.getElementById('mb').innerHTML=
+    '<div style="display:flex;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap">'
+    +'<button class="btn bp2 bsm" onclick="cadIncraDown(\'shp\',\''+cod+'\')"><i class="ti ti-download"></i> Baixar SHP</button>'
+    +'<button class="btn bsm" onclick="cadIncraDown(\'csv\',\''+cod+'\')"><i class="ti ti-download"></i> Baixar CSV vértices</button>'
+    +'</div>'
+    +'<div style="overflow:auto;max-height:55vh"><table style="width:100%;border-collapse:collapse">'
+    +'<thead><tr><th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--mu);border-bottom:1px solid var(--bor)">Campo</th>'
+    +'<th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--mu);border-bottom:1px solid var(--bor)">Valor</th></tr></thead>'
+    +'<tbody>'+rows+'</tbody></table></div>';
+  document.getElementById('mf').innerHTML='<button class="btn" onclick="closeModal()">Fechar</button>';
+  document.getElementById('ov').classList.add('open');
 }
 
 function geoCadHtml(){
