@@ -19,6 +19,8 @@
     { "source": "/agricultura-precisao-fruticultura",      "destination": "/blog-agricultura-precisao-ms",           "permanent": true },
     { "source": "/projeto-terraplenagem",                  "destination": "/blog-projeto-terraplenagem",             "permanent": true },
     { "source": "/projeto-usucapiao",                      "destination": "/blog-usucapiao",                         "permanent": true },
-    { "source": "/drone-agricultura-precisao",             "destination": "/drone-mapeamento-agricultura-precisao-ms", "permanent": true }
+    { "source": "/drone-agricultura-precisao",             "destination": "/drone-mapeamento-agricultura-precisao-ms", "permanent": true },
+    { "source": "/georreferenciamento-sidrolandia",        "destination": "/georreferenciamento-sidrolandia-ms",       "permanent": true },
+    { "source": "/georreferenciamento-maracaju",           "destination": "/georreferenciamento-maracaju-ms",          "permanent": true }
   ]
 }
