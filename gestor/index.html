@@ -667,6 +667,7 @@ async function sincOrcamentoParaOS(orcId){
       orcamento_numero:o.numero,
       tipo: os.tipo&&os.tipo!=='Outro'?os.tipo:(tipoSvc||os.tipo),
       andamento:hist,
+      atualizado_em:new Date().toISOString(),
     };
     // Sincronizar obra se o orçamento tiver obra_id
     if(o.obra_id) updPayload.obra_id=o.obra_id;
@@ -2131,7 +2132,7 @@ async function atualizarTipoOS(osId, tipoAtual){
 async function salvarTipoOS(osId){
   const tipo=document.getElementById('os-tipo-edit')?.value;
   if(!tipo){closeModal();return;}
-  const{error}=await sb.from('ordens').update({tipo}).eq('id',osId);
+  const{error}=await sb.from('ordens').update({tipo,atualizado_em:new Date().toISOString()}).eq('id',osId);
   if(error){toast('Erro: '+error.message,true);return;}
   closeModal();
   toast('Tipo da OS atualizado!');
@@ -2441,7 +2442,7 @@ async function updMedicao(id,status){
     : null;
   if(statusOS){
     const{data:m}=await sb.from('medicoes').select('os_ids,os_dados,valor,numero,descricao').eq('id',id).single();
-    if(m?.os_ids?.length) await sb.from('ordens').update({status:statusOS}).in('id',m.os_ids);
+    if(m?.os_ids?.length) await sb.from('ordens').update({status:statusOS,atualizado_em:new Date().toISOString()}).in('id',m.os_ids);
     if(status==='Recebido') await _criarRecebimentosMedicao(m);
   }
   toast('Status atualizado!');
@@ -2731,7 +2732,7 @@ async function salvarNovaMedicao(){
   const{error}=await sb.from('medicoes').insert(payload);
   if(error){toast('Erro ao salvar: '+error.message,true);return;}
   // Atualiza status das OS incluídas para "Medição Realizada"
-  if(os_ids.length) await sb.from('ordens').update({status:'Medição Realizada'}).in('id',os_ids);
+  if(os_ids.length) await sb.from('ordens').update({status:'Medição Realizada',atualizado_em:new Date().toISOString()}).in('id',os_ids);
   toast('Medição criada!');closeModal2();rMedicao();
 }
 
@@ -4449,6 +4450,7 @@ async function saveOS(id){
   // Garantir que campos numéricos são válidos
   if(payload.local_lat===0||isNaN(payload.local_lat)) delete payload.local_lat;
   if(payload.local_lng===0||isNaN(payload.local_lng)) delete payload.local_lng;
+  payload.atualizado_em=new Date().toISOString();
   const{error}=await sb.from('ordens').update(payload).eq('id',id);
   if(error){toast('Erro: '+error.message,true);return;}
   const{data:osInfo}=await sb.from('ordens').select('numero,tipo,cliente_id,clientes(nome)').eq('id',id).single();
@@ -5847,7 +5849,7 @@ async function addAndamento(osId){
   const{data:os,error:errFetch}=await sb.from('ordens').select('andamento').eq('id',osId).single();
   if(errFetch){toast('Erro ao buscar OS: '+errFetch.message,true);return;}
   const lista=[...(os?.andamento||[]),novoItem];
-  const{error}=await sb.from('ordens').update({andamento:lista}).eq('id',osId);
+  const{error}=await sb.from('ordens').update({andamento:lista,atualizado_em:new Date().toISOString()}).eq('id',osId);
   if(error){toast('Erro ao salvar: '+error.message,true);return;}
   if(el)el.value='';
   const listEl=document.getElementById('os-and-list');
@@ -5871,7 +5873,7 @@ async function excluirAndamento(osId,idx){
   const{data:os,error:errFetch}=await sb.from('ordens').select('andamento').eq('id',osId).single();
   if(errFetch){toast('Erro: '+errFetch.message,true);return;}
   const lista=(os?.andamento||[]).filter((_,i)=>i!==idx);
-  const{error}=await sb.from('ordens').update({andamento:lista}).eq('id',osId);
+  const{error}=await sb.from('ordens').update({andamento:lista,atualizado_em:new Date().toISOString()}).eq('id',osId);
   if(error){toast('Erro ao excluir: '+error.message,true);return;}
   const listEl=document.getElementById('os-and-list');
   if(listEl)listEl.innerHTML=renderAndamentoList(lista,osId);
@@ -6043,7 +6045,7 @@ async function salvarNFMedicao(medId){
     for(const osId of osIds){
       const{data:os}=await sb.from('ordens').select('andamento').eq('id',osId).single();
       const lista=[...(os?.andamento||[]),andItem];
-      await sb.from('ordens').update({andamento:lista}).eq('id',osId);
+      await sb.from('ordens').update({andamento:lista,atualizado_em:new Date().toISOString()}).eq('id',osId);
     }
   }
   toast('NF '+numero+' salva e registrada em '+osIds.length+' OS!');
@@ -6190,7 +6192,7 @@ function _renderOSTabela(ors,q){
   if(tb)tb.innerHTML=tbody;
 }
 pageMap.ordens=async function rOSFixed(){
-  const{data}=await sb.from('ordens').select('*,clientes(nome)').order('created_at',{ascending:true});
+  const{data}=await sb.from('ordens').select('*,clientes(nome)').order('atualizado_em',{ascending:true,nullsFirst:true});
   _osCache=data||[];
   // Mapear obras separadamente (evita depender de FK no PostgREST)
   const obraIds=[...new Set((_osCache||[]).map(o=>o.obra_id).filter(Boolean))];
