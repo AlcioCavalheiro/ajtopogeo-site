@@ -7662,15 +7662,14 @@ async function anuenciaGerarDocx(){
     const buf=await resp.arrayBuffer();
     const zip=await JSZip.loadAsync(buf);
     let xml=await zip.file('word/document.xml').async('string');
+    xml=xml.replace(/(<w:tr\b[^>]*>[\s\S]*?Total:\s*\{\{TOTAL_MARCOS\}\})/,function(m){return linhasXml+m;});
+    xml=xml.replace(/(\{\{DATA_EXTENSO\}\}[\s\S]*?<\/w:p>)/,function(m){return m+assinaturas1Xml+assinaturas2Xml;});
     Object.keys(vals).forEach(function(k){
       const re=new RegExp('\\{\\{'+k+'\\}\\}','g');
       xml=xml.replace(re,function(){return xmlEscapeGeo(vals[k]);});
     });
     xml=xml.replace('{{QUALIFICACAO_IMOVEL1_XML}}',function(){return xmlRunsFromText(quali1Texto);});
     xml=xml.replace('{{QUALIFICACAO_IMOVEL2_XML}}',function(){return xmlRunsFromText(quali2Texto);});
-    xml=xml.replace('<!--LINHAS_TABELA_XML-->',function(){return linhasXml;});
-    xml=xml.replace('<!--ASSINATURAS_IMOVEL1_XML-->',function(){return assinaturas1Xml;});
-    xml=xml.replace('<!--ASSINATURAS_IMOVEL2_XML-->',function(){return assinaturas2Xml;});
     zip.file('word/document.xml',xml);
     const blob=await zip.generateAsync({type:'blob'});
     downloadBlobGeo(blob,'Anuencia_'+(_anuObra.nome||'obra').replace(/[^a-zA-Z0-9_-]+/g,'_')+'.docx');
