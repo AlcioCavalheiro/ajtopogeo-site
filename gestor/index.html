@@ -8253,7 +8253,7 @@ function cadGeometriaSvg(f){
   const cor=cadCamadaCor(layerId);
   const sw=Math.max(_cadView.w,_cadView.h)*0.0015;
   const fs=Math.max(_cadView.w,_cadView.h)*0.018;
-  const idx=f.properties&&f.properties._incra_idx;
+  const idx=f.properties&&(f.properties._incra_idx||f.properties._car_idx);
   function pts(coords){return coords.map(function(c){const l=cadWorldToLocal(c[0],c[1]);return l.x+','+l.y;}).join(' ');}
   function labelSvg(ring){
     if(!idx) return '';
@@ -8264,7 +8264,7 @@ function cadGeometriaSvg(f){
   if(g.type==='LineString') return '<polyline points="'+pts(g.coordinates)+'" fill="none" stroke="'+cor+'" stroke-width="'+sw+'"/>';
   if(g.type==='MultiLineString') return g.coordinates.map(function(l){return cadGeometriaSvg({properties:f.properties,geometry:{type:'LineString',coordinates:l}});}).join('');
   if(g.type==='Polygon') return g.coordinates.map(function(r,i){return '<polygon points="'+pts(r)+'" fill="'+cor+'1a" stroke="'+cor+'" stroke-width="'+sw+'"/>'+(i===0?labelSvg(r):'');}).join('');
-  if(g.type==='MultiPolygon') return g.coordinates.map(function(poly,pi){return cadGeometriaSvg({properties:Object.assign({},f.properties,{_incra_idx:pi===0?idx:null}),geometry:{type:'Polygon',coordinates:poly}});}).join('');
+  if(g.type==='MultiPolygon') return g.coordinates.map(function(poly,pi){return cadGeometriaSvg({properties:Object.assign({},f.properties,{_incra_idx:pi===0?f.properties._incra_idx:null,_car_idx:pi===0?f.properties._car_idx:null}),geometry:{type:'Polygon',coordinates:poly}});}).join('');
   return '';
 }
 function cadRenderSvg(){
