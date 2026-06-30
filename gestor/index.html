@@ -7657,7 +7657,7 @@ async function anuenciaGerarDocx(){
       LOCAL_UF:document.getElementById('anu-localuf').value,
       DATA_EXTENSO:d.getDate()+' de '+meses[d.getMonth()]+' de '+d.getFullYear()
     };
-    const resp=await fetch('templates/anuencia_modelo.docx');
+    const resp=await fetch('/gestor/templates/anuencia_modelo.docx');
     if(!resp.ok) throw new Error('Template não encontrado (templates/anuencia_modelo.docx).');
     const buf=await resp.arrayBuffer();
     const zip=await JSZip.loadAsync(buf);
@@ -10043,7 +10043,7 @@ async function memorialGerarDocx(){
       CREDENCIAMENTO:document.getElementById('mem-credenciamento').value
     };
     const perimetroRunsXml=memorialBuildPerimetroRunsXml(_memVertices);
-    const resp=await fetch('templates/memorial_modelo.docx');
+    const resp=await fetch('/gestor/templates/memorial_modelo.docx');
     if(!resp.ok) throw new Error('Template não encontrado (templates/memorial_modelo.docx).');
     const buf=await resp.arrayBuffer();
     const zip=await JSZip.loadAsync(buf);
