@@ -6714,7 +6714,8 @@ const GEO_TABS=[
   {k:'anuencia',ic:'ti-signature',lb:'Anuência de Limites'},
   {k:'cad',ic:'ti-stack-2',lb:'CAD'},
   {k:'sigef',ic:'ti-table',lb:'Planilha SIGEF (.ods)'},
-  {k:'gmaps',ic:'ti-current-location',lb:'Ponto do Maps'}
+  {k:'gmaps',ic:'ti-current-location',lb:'Ponto do Maps'},
+  {k:'monitor',ic:'ti-folder',lb:'Pastas para Monitor'}
 ];
 function rGeoFerramentasFixed(){
   const el=document.getElementById('ct');if(!el)return;
@@ -6731,11 +6732,13 @@ function rGeoFerramentasFixed(){
     +'<div id="geo-anuencia" style="display:none">'+geoAnuenciaHtml()+'</div>'
     +'<div id="geo-cad" style="display:none">'+geoCadHtml()+'</div>'
     +'<div id="geo-sigef" style="display:none">'+geoSigefHtml()+'</div>'
-    +'<div id="geo-gmaps" style="display:none">'+geoGmapsHtml()+'</div>';
+    +'<div id="geo-gmaps" style="display:none">'+geoGmapsHtml()+'</div>'
+    +'<div id="geo-monitor" style="display:none">'+geoMonitorHtml()+'</div>';
   coordUpdateUI();
   memorialInit();
   anuenciaInit();
   sigefInit();
+  monAtualizarUI();
 }
 pageMap.geoferramentas=rGeoFerramentasFixed;
 function geoTab(tab){
@@ -6743,6 +6746,129 @@ function geoTab(tab){
     document.getElementById('geo-'+t.k).style.display=t.k===tab?'':'none';
     document.getElementById('geo-tab-'+t.k).classList.toggle('active',t.k===tab);
   });
+}
+
+// ── Pastas para Monitor ──
+const MONITORES=[
+  {k:'jd',label:'John Deere (GS3 / GS4 / GS5)',tipo:'pasta',pasta:'GS3_2630',ext:['shp','shx','dbf'],nomeArq:true},
+  {k:'nh',label:'New Holland (IntelliView IV / V)',tipo:'pasta',pasta:'Shapefile',ext:['shp','shx','dbf'],nomeArq:true},
+  {k:'case',label:'Case IH (AFS Pro 700 / 1200)',tipo:'pasta',pasta:'Shapefile',ext:['shp','shx','dbf'],nomeArq:true},
+  {k:'agco',label:'AGCO Valtra / Massey Ferguson (Topcon C3000)',tipo:'raiz',ext:['shp','shx','dbf'],nomeArq:true},
+  {k:'precision',label:'Precision Planting',tipo:'raiz',ext:['shp','shx','dbf','prj'],nomeArq:true},
+  {k:'bosch',label:'Horsch / Bosch',tipo:'raiz',ext:['shp','shx','dbf','prj'],nomeArq:true},
+  {k:'stara4500',label:'Stara Topper 4500',tipo:'aninhada',caminho:['Dados','Talhoes','{talhao}'],ext:['shp','shx','dbf','prj'],tiposArq:[{v:'CURVA',l:'Linhas de plantio/pulverização (CURVA)'},{v:'LIMITE EXTERNO',l:'Limite da área (LIMITE EXTERNO)'}]},
+  {k:'stara5500',label:'Stara Topper 5500',tipo:'aninhada',caminho:['Dados','Talhoes','{talhao}'],ext:['shp','shx','dbf','prj'],tiposArq:[{v:'LIMITE EXTERNO',l:'Limite da área (LIMITE EXTERNO)'}]},
+  {k:'jacto',label:'Jacto Omni 700',tipo:'aninhada',caminho:['AgGPS','Data','{produtor}','{fazenda}','{talhao}'],ext:['shp','shx','dbf','prj'],tiposArq:[{v:'Boundary',l:'Limite da área (Boundary)'},{v:'LineFeature',l:'Linhas de plantio/pulverização (LineFeature)'}]},
+  {k:'trimble',label:'Trimble',tipo:'aninhada',caminho:['AgGPS','Data','{produtor}','{fazenda}','{talhao}'],ext:['shp','shx','prj'],tiposArq:[{v:'Boundary',l:'Limite da área (Boundary)'},{v:'LineFeature',l:'Linhas de plantio/pulverização (LineFeature)'}]}
+];
+var _monGeoJSON=null,_monInputExt='';
+function geoMonitorHtml(){
+  return '<div class="card mb1">'
+    +'<div class="st mb1"><i class="ti ti-folder" style="color:var(--brand)"></i>Pastas para Monitor</div>'
+    +'<div class="mu sm mb1" style="background:#F4F8FF;border-radius:8px;padding:.6rem .9rem;color:#185FA5"><i class="ti ti-info-circle"></i> Envie o desenho (linhas de plantio/pulverização ou limite da área) e escolha a marca/modelo do monitor: o sistema gera o .zip já com a pasta e os nomes de arquivo certos para copiar direto no pendrive.</div>'
+    +'<div class="fg mb1"><label class="fl">Arquivo de entrada (.kml, .zip de shapefile, .dxf)</label>'
+    +'<input class="fc" type="file" id="mon-file" accept=".kml,.zip,.dxf" onchange="monArquivoSelecionado(this)"></div>'
+    +'<div id="mon-info" class="mu sm mb1" style="display:none"></div>'
+    +'<div class="fg mb1"><label class="fl">Marca / Modelo do monitor</label><select class="fc" id="mon-modelo" onchange="monAtualizarUI()">'
+    +MONITORES.map(function(m){return '<option value="'+m.k+'">'+m.label+'</option>';}).join('')
+    +'</select></div>'
+    +'<div id="mon-campos"></div>'
+    +'<button class="btn bp2" id="mon-btn" onclick="monGerar()" disabled><i class="ti ti-download"></i> Gerar pasta e baixar</button>'
+    +'</div>';
+}
+function monAtualizarUI(){
+  const m=MONITORES.find(function(x){return x.k===document.getElementById('mon-modelo').value;});
+  const el=document.getElementById('mon-campos');if(!el)return;
+  let h='';
+  if(m.tipo==='aninhada'){
+    if(m.caminho.indexOf('{produtor}')>=0) h+='<div class="fg mb1"><label class="fl">Produtor</label><input class="fc" id="mon-produtor" placeholder="Nome do produtor"></div>';
+    if(m.caminho.indexOf('{fazenda}')>=0) h+='<div class="fg mb1"><label class="fl">Fazenda</label><input class="fc" id="mon-fazenda" placeholder="Nome da fazenda"></div>';
+    h+='<div class="fg mb1"><label class="fl">Talhão</label><input class="fc" id="mon-talhao" placeholder="Ex: TH-01" value="TH-01"></div>';
+    h+='<div class="fg mb1"><label class="fl">Tipo de dado</label><select class="fc" id="mon-tipoarq">'+m.tiposArq.map(function(t){return '<option value="'+t.v+'">'+t.l+'</option>';}).join('')+'</select></div>';
+  } else {
+    h+='<div class="fg mb1"><label class="fl">Nome do talhão (nome do arquivo)</label><input class="fc" id="mon-talhao" placeholder="Ex: TH-01" value="TH-01"></div>';
+  }
+  el.innerHTML=h;
+}
+async function monArquivoSelecionado(input){
+  const file=input.files[0];
+  document.getElementById('mon-btn').disabled=true;
+  _monGeoJSON=null;_monInputExt='';
+  const info=document.getElementById('mon-info');
+  if(!file){info.style.display='none';return;}
+  _monInputExt=file.name.toLowerCase().split('.').pop();
+  info.style.display='block';info.innerHTML='Lendo arquivo...';
+  try{
+    let gj;
+    if(_monInputExt==='kml'){
+      const text=await file.text();
+      const xml=new DOMParser().parseFromString(text,'text/xml');
+      gj=toGeoJSON.kml(xml);
+    } else if(_monInputExt==='zip'){
+      const buf=await file.arrayBuffer();
+      gj=await shp(buf);
+      if(Array.isArray(gj)) gj=gj[0];
+    } else if(_monInputExt==='dxf'){
+      const text=await file.text();
+      const parser=new DxfParser();
+      const dxf=parser.parse(text);
+      gj=dxfToGeoJSON(dxf);
+    } else {
+      throw new Error('Formato não suportado. Use .kml, .zip (shapefile) ou .dxf');
+    }
+    const nFeat=(gj.features||[]).length;
+    if(!nFeat) throw new Error('Nenhuma geometria encontrada no arquivo.');
+    validarCoordsWgs84(gj);
+    _monGeoJSON=gj;
+    info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> '+nFeat+' geometria(s) lida(s) com sucesso.</span>';
+    document.getElementById('mon-btn').disabled=false;
+  }catch(e){
+    info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Erro ao ler arquivo: '+e.message+'</span>';
+  }
+}
+async function monGerar(){
+  if(!_monGeoJSON){toast('Selecione um arquivo válido primeiro.',true);return;}
+  const m=MONITORES.find(function(x){return x.k===document.getElementById('mon-modelo').value;});
+  try{
+    const talhao=(document.getElementById('mon-talhao').value||'TH-01').trim();
+    if(!talhao) throw new Error('Informe o nome do talhão.');
+    const baseBlob=await shpwrite.zip(mergeLinhasParaShp(_monGeoJSON),{outputType:'blob'});
+    const baseZip=await JSZip.loadAsync(await baseBlob.arrayBuffer());
+    const buffers={};
+    for(const ext of m.ext){
+      const entry=Object.keys(baseZip.files).find(function(n){return n.toLowerCase().endsWith('.'+ext);});
+      if(entry) buffers[ext]=await baseZip.files[entry].async('arraybuffer');
+    }
+    if(!buffers.shp) throw new Error('Não foi possível gerar o shapefile a partir do desenho.');
+    const out=new JSZip();
+    let nomeBase,pastaDestino;
+    if(m.tipo==='raiz'){
+      pastaDestino=out;
+      nomeBase=talhao;
+    } else if(m.tipo==='pasta'){
+      pastaDestino=out.folder(m.pasta);
+      nomeBase=talhao;
+    } else {
+      const produtor=(document.getElementById('mon-produtor')?document.getElementById('mon-produtor').value:'').trim()||'PRODUTOR';
+      const fazenda=(document.getElementById('mon-fazenda')?document.getElementById('mon-fazenda').value:'').trim()||'FAZENDA';
+      const tipoArq=document.getElementById('mon-tipoarq').value;
+      let pasta=out;
+      m.caminho.forEach(function(seg){
+        const nome=seg.replace('{produtor}',produtor).replace('{fazenda}',fazenda).replace('{talhao}',talhao);
+        pasta=pasta.folder(nome);
+      });
+      pastaDestino=pasta;
+      nomeBase=tipoArq;
+    }
+    m.ext.forEach(function(ext){
+      if(buffers[ext]) pastaDestino.file(nomeBase+'.'+ext,buffers[ext]);
+    });
+    const finalBlob=await out.generateAsync({type:'blob'});
+    downloadBlobGeo(finalBlob,'monitor_'+m.k+'_'+talhao.replace(/[^a-zA-Z0-9-_]/g,'')+'.zip');
+    toast('Pasta gerada com sucesso! Extraia o .zip direto na raiz do pendrive.');
+  }catch(e){
+    toast('Erro ao gerar pasta: '+e.message,true);
+  }
 }
 
 // ── 1. Conversor de Arquivos ──
