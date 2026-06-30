@@ -7662,7 +7662,7 @@ async function anuenciaGerarDocx(){
     const buf=await resp.arrayBuffer();
     const zip=await JSZip.loadAsync(buf);
     let xml=await zip.file('word/document.xml').async('string');
-    xml=xml.replace(/(<w:tr\b[^>]*>[\s\S]*?Total:\s*\{\{TOTAL_MARCOS\}\})/,function(m){return linhasXml+m;});
+    xml=xml.replace(/(<w:tr\b(?:(?!<w:tr\b)[\s\S])*?\{\{TOTAL_MARCOS\}\}[\s\S]*?<\/w:tr>)/,function(m){return linhasXml+m;});
     xml=xml.replace(/(\{\{DATA_EXTENSO\}\}[\s\S]*?<\/w:p>)/,function(m){return m+assinaturas1Xml+assinaturas2Xml;});
     Object.keys(vals).forEach(function(k){
       const re=new RegExp('\\{\\{'+k+'\\}\\}','g');
