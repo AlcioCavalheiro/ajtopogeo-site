@@ -7831,6 +7831,194 @@ async function cadIncraDownUm(idx,fmt){
   }catch(e){toast('Erro: '+e.message,true);}
 }
 
+// ── Consulta ao SICAR (CAR) via proxy /api/car ──
+// Mesma lógica do INCRA: pega o retângulo visível na tela e busca os imóveis
+// do CAR contidos nele. Também permite buscar um imóvel específico por código.
+function cadCarApiBase(){
+  if(window.CAR_API_BASE) return window.CAR_API_BASE;
+  if(location.protocol==='http:'||location.protocol==='https:') return '/api/car';
+  return 'https://ajtopogeo.com.br/api/car'; // aberto via file:// → usa produção
+}
+async function cadConsultarCar(){
+  const res=document.getElementById('cad-car-result');
+  const bbox=cadViewBboxLonLat();
+  if(!bbox){ toast('Carregue um desenho (DXF/KML/planilha) para definir a área antes de consultar o CAR.',true); return; }
+  const dLon=bbox.maxLon-bbox.minLon, dLat=bbox.maxLat-bbox.minLat;
+  if(dLon>1||dLat>1){ toast('Área grande demais para o CAR. Dê mais zoom no desenho e consulte de novo.',true); return; }
+  const btn=document.getElementById('cad-btn-car');
+  if(btn) btn.disabled=true;
+  if(res){res.style.display='block';res.innerHTML='<span class="mu sm"><i class="ti ti-loader"></i> Consultando o SICAR…</span>';}
+  try{
+    const url=cadCarApiBase()+'?bbox='+[bbox.minLon,bbox.minLat,bbox.maxLon,bbox.maxLat].map(function(v){return v.toFixed(6);}).join(',')
+      +'&max=1000';
+    const r=await fetch(url);
+    let data; try{data=await r.json();}catch(e){throw new Error('Resposta inválida do servidor de consulta.');}
+    if(!r.ok||data.erro) throw new Error(data.erro||('Erro '+r.status));
+    cadCarAdicionarFeatures(data.features||[],'CAR · área visível'+((data.ufs||[]).length?' ('+data.ufs.join('/')+')':''),res,data);
+  }catch(e){
+    if(res) res.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> '+e.message+'</span>';
+    else toast('Erro ao consultar o CAR: '+e.message,true);
+  }finally{
+    if(btn) btn.disabled=false;
+  }
+}
+async function cadConsultarCarCodigo(){
+  const inp=document.getElementById('cad-car-cod');
+  const cod=inp?inp.value.trim():'';
+  if(!cod){ toast('Informe o código do imóvel do CAR.',true); return; }
+  const res=document.getElementById('cad-car-result');
+  const btn=document.getElementById('cad-btn-car-cod');
+  if(btn) btn.disabled=true;
+  if(res){res.style.display='block';res.innerHTML='<span class="mu sm"><i class="ti ti-loader"></i> Buscando imóvel '+cod+' no SICAR…</span>';}
+  try{
+    const url=cadCarApiBase()+'?cod='+encodeURIComponent(cod);
+    const r=await fetch(url);
+    let data; try{data=await r.json();}catch(e){throw new Error('Resposta inválida do servidor de consulta.');}
+    if(!r.ok||data.erro) throw new Error(data.erro||('Erro '+r.status));
+    const feats=data.features||[];
+    if(!feats.length){ if(res) res.innerHTML='<span class="mu sm">Imóvel não encontrado para o código “'+cod+'”.</span>'; return; }
+    cadCarAdicionarFeatures(feats,'CAR · '+cod,res,data);
+  }catch(e){
+    if(res) res.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> '+e.message+'</span>';
+    else toast('Erro ao consultar o CAR: '+e.message,true);
+  }finally{
+    if(btn) btn.disabled=false;
+  }
+}
+function cadCarAdicionarFeatures(feats,nomeCamada,res,data){
+  if(!feats.length){
+    if(res) res.innerHTML='<span class="mu sm">Nenhum imóvel encontrado nessa área.'+(data&&data.erros?(' ('+data.erros.join('; ')+')'):'')+'</span>';
+    return;
+  }
+  const layerId='car_'+Date.now();
+  if(!_cadGeoJSON) _cadGeoJSON={type:'FeatureCollection',features:[]};
+  let add=0;
+  feats.forEach(function(f,idx){
+    const geom=cadIncraGeomParaUtm(f.geometry);
+    if(!geom) return;
+    _cadGeoJSON.features.push({type:'Feature',properties:Object.assign({},f.properties,{layer:layerId,_car_idx:idx+1}),geometry:geom});
+    add++;
+  });
+  cadDerivarCamadas(_cadGeoJSON);
+  const cam=_cadCamadas.find(function(c){return c.id===layerId;});
+  if(cam){ cam.nome=nomeCamada+' · '+add; cam.origem='car'; }
+  cadRenderCamadas();
+  cadRenderSvg();
+  cadCarRenderResultado(feats,data,res);
+  toast(add+' imóvel(is) do CAR carregado(s) como camada de referência.');
+}
+var _cadCarFeats=[];
+function cadCarRenderResultado(feats,data,res){
+  if(!res) return;
+  _cadCarFeats=feats;
+  let html='<div style="display:flex;align-items:center;gap:6px;margin-bottom:.4rem;flex-wrap:wrap">'
+    +'<span class="mu sm" style="font-weight:600;flex:1">'+feats.length+' imóvel(is) do CAR'+((data&&data.ufs&&data.ufs.length)?' ('+data.ufs.join('/')+')':'')+'</span>'
+    +'<label style="display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer"><input type="checkbox" id="cad-car-all" onchange="cadCarToggleAll(this.checked)"> Todos</label>'
+    +'<select class="fc" id="cad-car-fmt" style="padding:2px 6px;font-size:11px;width:auto"><option value="shp">SHP (.zip)</option><option value="dxf">DXF</option><option value="csv">CSV vértices</option></select>'
+    +'<button class="btn bp2 bsm" onclick="cadCarDownSelected()"><i class="ti ti-download"></i> Baixar selecionados</button>'
+    +'</div>';
+  html+='<div style="max-height:200px;overflow:auto;border:1px solid var(--bor);border-radius:6px">';
+  feats.forEach(function(f,i){
+    const p=f.properties||{}, cod=p.cod_imovel;
+    const nome=p.municipio?(p.municipio+(p.uf?'/'+p.uf:'')):(cod||'(sem código)');
+    html+='<div style="padding:5px 8px;border-bottom:1px solid #f0f0f0;font-size:12px;display:flex;align-items:center;gap:6px">'
+      +'<input type="checkbox" class="cad-car-chk" data-idx="'+i+'" style="flex-shrink:0">'
+      +'<span style="min-width:18px;font-weight:700;color:var(--brand);font-size:11px">'+(i+1)+'</span>'
+      +'<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(cod||'')+' — '+nome+'">'+nome+(cod?' — '+cod:'')+'</span>'
+      +'<button class="btn bsm" style="padding:2px 6px;font-size:11px;flex-shrink:0" onclick="cadCarDetalhes('+i+')"><i class="ti ti-info-circle"></i></button>'
+      +'</div>';
+  });
+  html+='</div>';
+  if(data&&data.erros) html+='<div class="mu sm" style="color:#A32D2D;margin-top:4px">Avisos: '+data.erros.join('; ')+'</div>';
+  res.style.display='block';
+  res.innerHTML=html;
+}
+function cadCarToggleAll(on){
+  document.querySelectorAll('.cad-car-chk').forEach(function(c){c.checked=on;});
+}
+async function cadCarDownSelected(){
+  const checks=Array.from(document.querySelectorAll('.cad-car-chk:checked'));
+  if(!checks.length){toast('Selecione ao menos um imóvel.',true);return;}
+  const fmt=(document.getElementById('cad-car-fmt')||{value:'shp'}).value||'shp';
+  const idxs=checks.map(function(c){return parseInt(c.dataset.idx,10);});
+  const feats=idxs.map(function(i){return _cadCarFeats[i];}).filter(Boolean);
+  const nomes=feats.map(function(f){return (f.properties&&f.properties.cod_imovel)||'imovel';});
+  const baseName=(nomes.length===1?nomes[0]:'car_'+nomes.length+'_imoveis').replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,40);
+  const gj={type:'FeatureCollection',features:feats.map(function(f,i){return {type:'Feature',properties:Object.assign({},f.properties,{id:idxs[i]+1}),geometry:f.geometry};})};
+  try{
+    if(fmt==='dxf'){
+      const gjUtm={type:'FeatureCollection',features:gj.features.map(function(f){return {type:'Feature',properties:f.properties,geometry:cadIncraGeomParaUtm(f.geometry)||f.geometry};})};
+      const dxf=geojsonToDxf(gjUtm);
+      downloadBlobGeo(new Blob([dxf],{type:'application/dxf'}),baseName+'.dxf');
+    } else if(fmt==='csv'){
+      let csv='Imovel;Vertice;Longitude;Latitude\n';
+      feats.forEach(function(f,fi){
+        const cod=(f.properties&&f.properties.cod_imovel)||('I'+(idxs[fi]+1));
+        function processRing(ring){ring.forEach(function(c,vi){csv+=cod+';V'+(vi+1)+';'+c[0].toFixed(8)+';'+c[1].toFixed(8)+'\n';});}
+        const g=f.geometry;if(!g)return;
+        if(g.type==='Polygon')g.coordinates.forEach(processRing);
+        else if(g.type==='MultiPolygon')g.coordinates.forEach(function(poly){poly.forEach(processRing);});
+      });
+      downloadBlobGeo(new Blob([csv],{type:'text/csv'}),baseName+'.csv');
+    } else {
+      validarCoordsWgs84(gj);
+      const blob=await shpwrite.zip(mergeLinhasParaShp(gj),{outputType:'blob'});
+      downloadBlobGeo(blob,baseName+'.zip');
+    }
+    toast('Download gerado com sucesso!');
+  }catch(e){toast('Erro ao gerar arquivo: '+e.message,true);}
+}
+function cadCarDetalhes(idx){
+  const f=_cadCarFeats[idx];if(!f)return;
+  const p=f.properties||{};
+  const cod=p.cod_imovel||'—';
+  const label_map={cod_imovel:'Código do imóvel',status_imovel:'Status',condicao:'Condição',area:'Área (ha)',m_fiscal:'Módulos fiscais',municipio:'Município',uf:'UF',cod_municipio_ibge:'Cód. IBGE',tipo_imovel:'Tipo',dat_criacao:'Criação',data_atualizacao:'Atualização'};
+  const rows=Object.entries(p).filter(function(kv){return kv[0]!=='layer'&&kv[0]!=='_car_idx'&&kv[1]!==null&&kv[1]!==undefined&&String(kv[1]).trim()!=='';}).map(function(kv){
+    const label=label_map[kv[0]]||kv[0];
+    const val=kv[0]==='area'?Number(kv[1]).toFixed(4)+' ha':String(kv[1]);
+    return '<tr><td style="color:var(--mu);padding:5px 8px;font-size:11px;white-space:nowrap;border-bottom:.5px solid var(--bor)">'+label+'</td>'
+      +'<td style="padding:5px 8px;font-size:12px;word-break:break-all;border-bottom:.5px solid var(--bor)">'+val+'</td></tr>';
+  }).join('');
+  document.getElementById('mt').textContent='Imóvel CAR '+(idx+1)+' — '+cod;
+  document.getElementById('mb').innerHTML=
+    '<div style="display:flex;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap">'
+    +'<button class="btn bp2 bsm" onclick="cadCarDownUm('+idx+',\'shp\')"><i class="ti ti-download"></i> SHP</button>'
+    +'<button class="btn bsm" onclick="cadCarDownUm('+idx+',\'dxf\')"><i class="ti ti-download"></i> DXF</button>'
+    +'<button class="btn bsm" onclick="cadCarDownUm('+idx+',\'csv\')"><i class="ti ti-download"></i> CSV vértices</button>'
+    +'</div>'
+    +'<div style="overflow:auto;max-height:55vh"><table style="width:100%;border-collapse:collapse">'
+    +'<thead><tr><th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--mu);border-bottom:1px solid var(--bor)">Campo</th>'
+    +'<th style="text-align:left;padding:4px 8px;font-size:10px;color:var(--mu);border-bottom:1px solid var(--bor)">Valor</th></tr></thead>'
+    +'<tbody>'+rows+'</tbody></table></div>';
+  document.getElementById('mf').innerHTML='<button class="btn" onclick="closeModal()">Fechar</button>';
+  document.getElementById('ov').classList.add('open');
+}
+async function cadCarDownUm(idx,fmt){
+  const f=_cadCarFeats[idx];if(!f)return;
+  const p=f.properties||{};
+  const base=(p.cod_imovel||('imovel_'+(idx+1))).replace(/[^a-zA-Z0-9_-]+/g,'_').slice(0,40);
+  const gj={type:'FeatureCollection',features:[{type:'Feature',properties:p,geometry:f.geometry}]};
+  try{
+    if(fmt==='dxf'){
+      const gjUtm={type:'FeatureCollection',features:[{type:'Feature',properties:p,geometry:cadIncraGeomParaUtm(f.geometry)||f.geometry}]};
+      downloadBlobGeo(new Blob([geojsonToDxf(gjUtm)],{type:'application/dxf'}),base+'.dxf');
+    } else if(fmt==='csv'){
+      let csv='Vertice;Longitude;Latitude\n';
+      function processRing(ring){ring.forEach(function(c,vi){csv+='V'+(vi+1)+';'+c[0].toFixed(8)+';'+c[1].toFixed(8)+'\n';});}
+      const g=f.geometry;if(g){
+        if(g.type==='Polygon')g.coordinates.forEach(processRing);
+        else if(g.type==='MultiPolygon')g.coordinates.forEach(function(poly){poly.forEach(processRing);});
+      }
+      downloadBlobGeo(new Blob([csv],{type:'text/csv'}),base+'.csv');
+    } else {
+      validarCoordsWgs84(gj);
+      const blob=await shpwrite.zip(mergeLinhasParaShp(gj),{outputType:'blob'});
+      downloadBlobGeo(blob,base+'.zip');
+    }
+    toast('Download gerado!');
+  }catch(e){toast('Erro: '+e.message,true);}
+}
+
 function geoCadHtml(){
   return '<div class="card mb1">'
     +'<div class="st mb1"><i class="ti ti-stack-2" style="color:var(--brand)"></i>CAD — Camadas, Régua, Edição de Coordenadas e Navegação</div>'
@@ -7869,9 +8057,13 @@ function geoCadHtml(){
     +'<option value="quilombolas">Quilombolas</option>'
     +'<option value="parcelageo">Parcelas (parcelageo)</option>'
     +'</select>'
+    +'<button class="btn bsm" id="cad-btn-car" style="background:#7a4f1d;color:#fff;border-color:#7a4f1d" onclick="cadConsultarCar()" title="Buscar imóveis do CAR (SICAR) na área visível na tela"><i class="ti ti-tractor"></i> Consultar CAR</button>'
+    +'<input class="fc" id="cad-car-cod" placeholder="Código do imóvel CAR (UF-XXXXXXX-XXXX...)" style="width:230px;padding:2px 6px;font-size:12px">'
+    +'<button class="btn bsm" id="cad-btn-car-cod" onclick="cadConsultarCarCodigo()" title="Buscar um imóvel específico do CAR pelo código"><i class="ti ti-search"></i> Buscar código</button>'
     +'<button class="btn bsm" style="background:#003366;color:#fff;border-color:#003366" onclick="cadAbrirModalMapa()" title="Gerar Mapa de Perímetro PDF A3"><i class="ti ti-map-2"></i> Mapa PDF A3</button>'
     +'</div>'
     +'<div id="cad-incra-result" class="mb1" style="display:none"></div>'
+    +'<div id="cad-car-result" class="mb1" style="display:none"></div>'
     +'<div style="display:flex;gap:1rem;flex-wrap:wrap">'
     +'<div style="flex:2;min-width:320px;border:1px solid var(--bor);border-radius:8px;overflow:hidden">'
     +'<div id="cad-canvas-wrap" style="position:relative;width:100%;height:480px;background:#fafaf7">'
