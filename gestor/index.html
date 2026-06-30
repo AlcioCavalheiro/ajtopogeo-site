@@ -6190,7 +6190,7 @@ function _renderOSTabela(ors,q){
   if(tb)tb.innerHTML=tbody;
 }
 pageMap.ordens=async function rOSFixed(){
-  const{data}=await sb.from('ordens').select('*,clientes(nome)').order('updated_at',{ascending:true});
+  const{data}=await sb.from('ordens').select('*,clientes(nome)').order('created_at',{ascending:true});
   _osCache=data||[];
   // Mapear obras separadamente (evita depender de FK no PostgREST)
   const obraIds=[...new Set((_osCache||[]).map(o=>o.obra_id).filter(Boolean))];
