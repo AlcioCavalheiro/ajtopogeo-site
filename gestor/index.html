@@ -6138,7 +6138,7 @@ async function salvarRecOS(osId){
 
 // ─── rOS — exibir botão "Abrir OS" e suprimir botão "Nova OS" ──
 let _osCache=[];
-let _osFiltros={status:'__abertas',cliente:''};
+let _osFiltros={status:'__abertas',cliente:'',ordem:'padrao'};
 const _OS_STATUS_LISTA=['Agendada','Logística / Preparação','Em campo','Em andamento',
   'Processamento','Desenho','Revisão Técnica','Análise Jurídica','Pendência Documental',
   'Pronto para Protocolo','Protocolada',
@@ -6154,7 +6154,9 @@ function _renderOSTabela(ors,q){
     else{base=base.filter(o=>(o.status||'')===_osFiltros.status);}
   }
   if(_osFiltros.cliente)base=base.filter(o=>(o.clientes?.nome||'')===_osFiltros.cliente);
-  const t=q?base.filter(o=>{const s=_normOS((o.clientes?.nome||'')+(o.numero||'')+(o.tipo||'')+(o.responsavel||'')+(o.obras?.nome||''));return s.includes(_normOS(q));}):base;
+  let t=q?base.filter(o=>{const s=_normOS((o.clientes?.nome||'')+(o.numero||'')+(o.tipo||'')+(o.responsavel||'')+(o.obras?.nome||''));return s.includes(_normOS(q));}):base.slice();
+  if(_osFiltros.ordem==='criacao_desc')t.sort((a,b)=>(b.created_at||'').localeCompare(a.created_at||''));
+  else if(_osFiltros.ordem==='criacao_asc')t.sort((a,b)=>(a.created_at||'').localeCompare(b.created_at||''));
   const _cnt=document.getElementById('os-filtro-contador');
   if(_cnt)_cnt.textContent='Exibindo '+t.length+' de '+ors.length+' OS';
   const tbody=t.map(o=>'<tr>'
@@ -6223,6 +6225,12 @@ function _osFiltroBarHTML(ors){
     +'<div class="fg" style="margin:0;min-width:200px;flex:1"><label class="fl">Cliente</label>'
     +'<select class="fc" id="os-f-cliente" onchange="_setFiltroOS()">'
     +'<option value="">Todos os clientes</option>'+cliOpts+'</select></div>'
+    +'<div class="fg" style="margin:0;min-width:200px;flex:1"><label class="fl">Ordenar por</label>'
+    +'<select class="fc" id="os-f-ordem" onchange="_setFiltroOS()">'
+    +'<option value="padrao"'+(_osFiltros.ordem==='padrao'?' selected':'')+'>Última atualização</option>'
+    +'<option value="criacao_desc"'+(_osFiltros.ordem==='criacao_desc'?' selected':'')+'>Criação (mais recente)</option>'
+    +'<option value="criacao_asc"'+(_osFiltros.ordem==='criacao_asc'?' selected':'')+'>Criação (mais antiga)</option>'
+    +'</select></div>'
     +'<button class="btn bsm" onclick="_osSetFiltroRapido(\'__finalizadas\')" title="Ver somente OS concluídas"><i class="ti ti-checks"></i> Ver Concluídas</button>'
     +'<button class="btn bsm" onclick="_limparFiltrosOS()" title="Limpar filtros"><i class="ti ti-filter-off"></i> Limpar</button>'
     +'</div>'
@@ -6232,12 +6240,14 @@ function _osFiltroBarHTML(ors){
 function _setFiltroOS(){
   _osFiltros.status=document.getElementById('os-f-status')?.value||'';
   _osFiltros.cliente=document.getElementById('os-f-cliente')?.value||'';
+  _osFiltros.ordem=document.getElementById('os-f-ordem')?.value||'padrao';
   _renderOSTabela(_osCache,(document.getElementById('si')?.value||'').trim());
 }
 function _limparFiltrosOS(){
-  _osFiltros={status:'__abertas',cliente:''};
+  _osFiltros={status:'__abertas',cliente:'',ordem:'padrao'};
   const fs=document.getElementById('os-f-status');if(fs)fs.value='__abertas';
   const fc=document.getElementById('os-f-cliente');if(fc)fc.value='';
+  const fo=document.getElementById('os-f-ordem');if(fo)fo.value='padrao';
   const si=document.getElementById('si');if(si)si.value='';
   _renderOSTabela(_osCache,'');
 }
