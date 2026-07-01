@@ -5446,15 +5446,16 @@ async function gerarPDFMedicao(){
     const dataOS=os.data||'';
     const entry=orcItensMap[osNum]||null;
     const orcItens=entry?.itens||[];
-    if(!orcDescricao&&entry?.descricao) orcDescricao=entry.descricao;
+    const objetoOS=entry?.descricao||'';
+    if(!orcDescricao&&objetoOS) orcDescricao=objetoOS;
     if(orcItens.length){
       orcItens.forEach(it=>{
         itemCount++;
-        itens.push({item:'1.'+itemCount,desc:it.nome||'Serviço',subDesc:it.descricao||'',un:it.unidade||'Serv.',vlr:Number(it.valor_unitario||0),qtd:Number(it.quantidade||1),osNum,resp,data:dataOS});
+        itens.push({item:'1.'+itemCount,desc:it.nome||'Serviço',subDesc:objetoOS||it.descricao||'',un:it.unidade||'Serv.',vlr:Number(it.valor_unitario||0),qtd:Number(it.quantidade||1),osNum,resp,data:dataOS});
       });
     } else {
       itemCount++;
-      itens.push({item:'1.'+itemCount,desc:os.tipo||'Serviço de Topografia',subDesc:'',un:'Serv.',vlr:Number(os.valor||0),qtd:1,osNum,resp,data:dataOS});
+      itens.push({item:'1.'+itemCount,desc:os.tipo||'Serviço de Topografia',subDesc:objetoOS,un:'Serv.',vlr:Number(os.valor||0),qtd:1,osNum,resp,data:dataOS});
     }
   });
   const totalGeral=itens.reduce((s,i)=>s+(i.vlr*i.qtd),0);
