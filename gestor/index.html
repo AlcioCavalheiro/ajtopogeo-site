@@ -2454,16 +2454,20 @@ async function _criarRecebimentosMedicao(m){
 }
 
 async function editarMedicao(id){
-  const[{data:m},{data:todasOS},{data:medsAll},{data:clisM},{data:obrasM}]=await Promise.all([
+  const[{data:m},{data:todasOS},{data:medsAll},{data:clisM},{data:obrasM},{data:contratosM}]=await Promise.all([
     sb.from('medicoes').select('*').eq('id',id).single(),
     sb.from('ordens').select('*').order('numero'),
     sb.from('medicoes').select('os_ids').neq('id',id),
     sb.from('clientes').select('id,nome'),
-    sb.from('obras').select('id,nome,municipio'),
+    sb.from('obras').select('id,nome,municipio').order('nome'),
+    sb.from('contratos').select('id,numero,descricao').order('created_at',{ascending:false}),
   ]);
   if(!m){toast('Medição não encontrada!',true);return;}
   const cliById={};(clisM||[]).forEach(c=>cliById[c.id]=c.nome);
   const obraById={};(obrasM||[]).forEach(ob=>obraById[ob.id]=(ob.nome+(ob.municipio?' — '+ob.municipio:'')));
+  const obras=obrasM||[];
+  const contratos=contratosM||[];
+  const locM=parseMunicipio(m.municipio||'');
   // OS já usadas em OUTRAS medições
   const usedOsIds=new Set();
   (medsAll||[]).forEach(mx=>(mx.os_ids||[]).forEach(oid=>usedOsIds.add(oid)));
@@ -2485,6 +2489,21 @@ async function editarMedicao(id){
    +'<div class="fg"><label class="fl">Status</label><select class="fc" id="em-status">'
    +['Fechar Medição','Gerar NF','Falta Pagamento','Recebido'].map(s=>`<option ${m.status===s?'selected':''}>${s}</option>`).join('')
    +'</select></div>'
+   +'<div class="st mb1 mt1" style="font-size:12px;color:var(--mu)"><i class="ti ti-file-download"></i> Dados para o PDF de medição</div>'
+   +'<div class="g2 mb1">'
+   +'<div class="fg"><label class="fl">Nome da Obra</label>'
+   +'<select class="fc" id="em-obra">'
+   +'<option value="">— Selecione a obra —</option>'
+   +obras.map(o=>`<option value="${o.nome}" ${o.nome===(m.obra||'')?'selected':''}>${o.nome}${o.municipio?' — '+o.municipio:''}</option>`).join('')
+   +'</select></div>'
+   +'<div class="fg"><label class="fl">Contrato</label>'
+   +'<select class="fc" id="em-contrato">'
+   +'<option value="">— Selecione o contrato —</option>'
+   +contratos.map(c=>`<option value="${c.numero||c.id}" ${(c.numero||c.id)===(m.contrato||'')?'selected':''}>${c.numero||'S/N'}${c.descricao?' — '+c.descricao:''}</option>`).join('')
+   +'</select></div>'
+   +'</div>'
+   +buildLocalizacao('em-uf','em-municipio',locM.uf)
+   +'<div class="g3 mb1"><div class="fg"><label class="fl">Data início do período</label><input class="fc" type="date" id="em-data-ini" value="'+(m.data_ini||'')+'"></div><div class="fg"><label class="fl">Data fim do período</label><input class="fc" type="date" id="em-data-fim" value="'+(m.data_fim||'')+'"></div><div class="fg"><label class="fl">Data do documento</label><input class="fc" type="date" id="em-data-doc" value="'+(m.data_documento||'')+'"></div></div>'
    +'<div class="fg"><label class="fl">Observações</label><textarea class="fc" id="em-obs" rows="2">'+(m.obs||'')+'</textarea></div>'
    +'<div class="fg mt1"><label class="fl">OS vinculadas</label>'
    +'<div id="em-os-vinc" style="background:#f4f4f0;border-radius:8px;padding:.5rem;display:flex;flex-direction:column;gap:4px">'
@@ -2508,6 +2527,7 @@ async function editarMedicao(id){
     '<button class="btn" onclick="closeModal()">Cancelar</button>'
    +'<button class="btn bp2" onclick="salvarEdicaoMedicao(\''+id+'\')"><i class="ti ti-device-floppy"></i> Salvar</button>';
   document.getElementById('ov').classList.add('open');
+  if(locM.uf) await carregarMunicipios('em-uf','em-municipio',locM.mun);
 }
 
 async function emRemoverOS(osId, medId){
@@ -2548,6 +2568,12 @@ async function salvarEdicaoMedicao(id){
     periodo:document.getElementById('em-periodo')?.value||'',
     status:novoStatus,
     obs:document.getElementById('em-obs')?.value||'',
+    obra:document.getElementById('em-obra')?.value||'',
+    contrato:document.getElementById('em-contrato')?.value||'',
+    municipio:getMunicipio('em-uf','em-municipio')||'',
+    data_ini:document.getElementById('em-data-ini')?.value||null,
+    data_fim:document.getElementById('em-data-fim')?.value||null,
+    data_documento:document.getElementById('em-data-doc')?.value||null,
   };
   const{error}=await sb.from('medicoes').update(payload).eq('id',id);
   if(error){toast('Erro ao salvar: '+error.message,true);return;}
@@ -2650,14 +2676,17 @@ async function rMedicao(){
 }
 
 async function abrirNovaMedicaoModal(){
-  const[{data:todasOSModal},{data:meds},{data:clisMap},{data:obrasMap}]=await Promise.all([
+  const[{data:todasOSModal},{data:meds},{data:clisMap},{data:obrasMap},{data:contratosMap}]=await Promise.all([
     sb.from('ordens').select('*').order('numero'),
     sb.from('medicoes').select('os_ids'),
     sb.from('clientes').select('id,nome'),
-    sb.from('obras').select('id,nome,municipio'),
+    sb.from('obras').select('id,nome,municipio').order('nome'),
+    sb.from('contratos').select('id,numero,descricao').order('created_at',{ascending:false}),
   ]);
   const cliById={};(clisMap||[]).forEach(c=>cliById[c.id]=c.nome);
   const obraById={};(obrasMap||[]).forEach(ob=>obraById[ob.id]=ob.nome+(ob.municipio?' — '+ob.municipio:''));
+  const obras=obrasMap||[];
+  const contratos=contratosMap||[];
   const ossAptas=(todasOSModal||[]).filter(o=>{
     const s=(o.status||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
     return s.includes('encaminhada');
@@ -2668,14 +2697,29 @@ async function abrirNovaMedicaoModal(){
   document.getElementById('mt2').textContent='Nova Medição';
   document.getElementById('mb2').innerHTML=
     '<div class="fg"><label class="fl">Descrição *</label><input class="fc" id="nm-desc" placeholder="Ex: Medição 01 — Jardim Monaco Maio/2026"></div>'
-    +'<div class="g2"><div class="fg"><label class="fl">Medição Nº</label><input class="fc" id="nm-num" value="01"></div>'
+    +'<div class="g2"><div class="fg"><label class="fl">Medição Nº</label><input class="fc" id="nm-num" value="01" readonly placeholder="Selecione obra e OS..." style="background:#f0f7ff;font-weight:600;color:#0d4fa0" title="Gerado automaticamente por cliente + obra"></div>'
     +'<div class="fg"><label class="fl">Período</label><input class="fc" id="nm-periodo" placeholder="Maio/2026"></div></div>'
     +'<div class="fg"><label class="fl">Status</label><select class="fc" id="nm-status"><option>Fechar Medição</option><option>Gerar NF</option><option>Falta Pagamento</option><option>Recebido</option></select></div>'
+    +'<div class="st mb1 mt1" style="font-size:12px;color:var(--mu)"><i class="ti ti-file-download"></i> Dados para o PDF de medição</div>'
+    +'<div class="g2 mb1">'
+    +'<div class="fg"><label class="fl">Nome da Obra</label>'
+    +'<select class="fc" id="nm-obra" onchange="atualizarNumeroMedicao()">'
+    +'<option value="">— Selecione a obra —</option>'
+    +obras.map(o=>`<option value="${o.nome}">${o.nome}${o.municipio?' — '+o.municipio:''}</option>`).join('')
+    +'</select></div>'
+    +'<div class="fg"><label class="fl">Contrato</label>'
+    +'<select class="fc" id="nm-contrato">'
+    +'<option value="">— Selecione o contrato —</option>'
+    +contratos.map(c=>`<option value="${c.numero||c.id}">${c.numero||'S/N'}${c.descricao?' — '+c.descricao:''}</option>`).join('')
+    +'</select></div>'
+    +'</div>'
+    +buildLocalizacao('nm-uf','nm-municipio')
+    +'<div class="g3 mb1"><div class="fg"><label class="fl">Data início do período</label><input class="fc" type="date" id="nm-data-ini"></div><div class="fg"><label class="fl">Data fim do período</label><input class="fc" type="date" id="nm-data-fim"></div><div class="fg"><label class="fl">Data do documento</label><input class="fc" type="date" id="nm-data-doc" value="'+new Date().toISOString().split('T')[0]+'"></div></div>'
     +'<div class="fg"><label class="fl">Observações</label><textarea class="fc" id="nm-obs" rows="2"></textarea></div>'
     +'<div class="fg"><label class="fl">OS aptas para esta medição</label>'
     +(aptas.length
       ?'<div style="border:1px solid var(--bor);border-radius:8px;padding:.5rem;max-height:260px;overflow-y:auto" id="nm-os-box">'
-        +aptas.map(o=>`<label style="display:flex;align-items:center;gap:10px;padding:8px 6px;cursor:pointer;border-bottom:.5px solid var(--bor);transition:background .1s" onmouseover="this.style.background='#f4f4f0'" onmouseout="this.style.background=''"><input type="checkbox" class="nm-os-chk" value="${o.id}" data-num="${o.numero}" data-tipo="${o.tipo}" data-valor="${o.orcamento_valor||0}" data-resp="${o.responsavel||''}" data-cli="${o.cliente_nome||''}" data-cpf="${o.clientes?.cpfcnpj||''}" data-local="${o.local_endereco||''}" data-data="${o.data||''}" style="width:16px;height:16px;accent-color:var(--brand);flex-shrink:0" onchange="calcTotalNovaMed()"><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span class="w6" style="font-size:13px;color:var(--bd)">${o.numero}</span><span style="font-size:12px;font-weight:500;color:#444">${o.tipo||'—'}</span><span class="w6" style="font-size:13px;color:#854F0B;margin-left:auto">${fmt(o.orcamento_valor||0)}</span></div><div style="font-size:12px;color:var(--mu);margin-top:2px"><i class="ti ti-user" style="font-size:11px"></i> ${cliById[o.cliente_id]||o.cliente_nome||'—'}</div>${(obraById[o.obra_id]||o.local_endereco)?`<div style="font-size:11px;color:#999;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><i class="ti ti-map-pin" style="font-size:10px"></i> ${obraById[o.obra_id]||o.local_endereco}</div>`:''}</div></label>`).join('')
+        +aptas.map(o=>`<label style="display:flex;align-items:center;gap:10px;padding:8px 6px;cursor:pointer;border-bottom:.5px solid var(--bor);transition:background .1s" onmouseover="this.style.background='#f4f4f0'" onmouseout="this.style.background=''"><input type="checkbox" class="nm-os-chk" value="${o.id}" data-num="${o.numero}" data-tipo="${o.tipo}" data-valor="${o.orcamento_valor||0}" data-resp="${o.responsavel||''}" data-cli="${o.cliente_nome||''}" data-cpf="${o.clientes?.cpfcnpj||''}" data-local="${o.local_endereco||''}" data-data="${o.data||''}" style="width:16px;height:16px;accent-color:var(--brand);flex-shrink:0" onchange="calcTotalNovaMed();atualizarNumeroMedicao()"><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span class="w6" style="font-size:13px;color:var(--bd)">${o.numero}</span><span style="font-size:12px;font-weight:500;color:#444">${o.tipo||'—'}</span><span class="w6" style="font-size:13px;color:#854F0B;margin-left:auto">${fmt(o.orcamento_valor||0)}</span></div><div style="font-size:12px;color:var(--mu);margin-top:2px"><i class="ti ti-user" style="font-size:11px"></i> ${cliById[o.cliente_id]||o.cliente_nome||'—'}</div>${(obraById[o.obra_id]||o.local_endereco)?`<div style="font-size:11px;color:#999;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><i class="ti ti-map-pin" style="font-size:10px"></i> ${obraById[o.obra_id]||o.local_endereco}</div>`:''}</div></label>`).join('')
         +'</div>'
         +'<div class="fxb mt1"><span class="mu sm">Total selecionado:</span><span class="w7" id="nm-total" style="color:#0d4fa0">R$ 0,00</span></div>'
       :'<div style="padding:.75rem;background:#FAEEDA;border-radius:8px;font-size:13px;color:#854F0B"><i class="ti ti-info-circle"></i> Nenhuma OS com status "Encaminhada para Medição" disponível.</div>'
@@ -2690,6 +2734,20 @@ async function abrirNovaMedicaoModal(){
 function calcTotalNovaMed(){
   const total=[...document.querySelectorAll('.nm-os-chk:checked')].reduce((s,c)=>s+Number(c.dataset.valor||0),0);
   const el=document.getElementById('nm-total');if(el)el.textContent=fmt(total);
+}
+
+async function atualizarNumeroMedicao(){
+  const numEl=document.getElementById('nm-num');
+  if(!numEl) return;
+  const obra=(document.getElementById('nm-obra')?.value||'').trim();
+  const cliente=(document.querySelector('.nm-os-chk:checked')?.dataset.cli||'').trim();
+  if(!obra||!cliente){numEl.value='01';return;}
+  const{data}=await sb.from('medicoes').select('numero,obra,cliente_nome');
+  const nums=(data||[])
+    .filter(m=>(m.cliente_nome||'').trim().toLowerCase()===cliente.toLowerCase()&&(m.obra||'').trim().toLowerCase()===obra.toLowerCase())
+    .map(m=>parseInt(m.numero,10)||0);
+  const prox=(nums.length?Math.max(...nums):0)+1;
+  numEl.value=String(prox).padStart(2,'0');
 }
 
 async function salvarNovaMedicao(){
@@ -2708,6 +2766,12 @@ async function salvarNovaMedicao(){
     status:document.getElementById('nm-status')?.value||'Fechar Medição',
     obs:document.getElementById('nm-obs')?.value||'',
     os_ids,os_dados,valor,cliente_nome:cli_nome,
+    obra:document.getElementById('nm-obra')?.value||'',
+    contrato:document.getElementById('nm-contrato')?.value||'',
+    municipio:getMunicipio('nm-uf','nm-municipio')||'',
+    data_ini:document.getElementById('nm-data-ini')?.value||null,
+    data_fim:document.getElementById('nm-data-fim')?.value||null,
+    data_documento:document.getElementById('nm-data-doc')?.value||null,
   };
   const{error}=await sb.from('medicoes').insert(payload);
   if(error){toast('Erro ao salvar: '+error.message,true);return;}
@@ -5342,79 +5406,62 @@ async function excluirReg(tabela,id,desc){
 // INICIALIZAÇÃO
 // ═══════════════════════════════════════════════════════════
 
+let _medPdfMap={};
 async function abrirModalMedicaoPDF(){
-  const[{data:meds},{data:obrasLista},{data:contratosLista}]=await Promise.all([
-    sb.from('medicoes').select('id,descricao,numero,periodo,cliente_nome,os_dados,valor,status').order('created_at',{ascending:false}),
-    sb.from('obras').select('id,nome,municipio').order('nome'),
-    sb.from('contratos').select('id,numero,descricao').order('created_at',{ascending:false}),
-  ]);
+  const{data:meds}=await sb.from('medicoes').select('id,descricao,numero,periodo,cliente_nome,os_dados,valor,status,obra,contrato,municipio,data_ini,data_fim,data_documento').order('created_at',{ascending:false});
   const lista=meds||[];
-  const obras=obrasLista||[];
-  const contratos=contratosLista||[];
+  _medPdfMap={};lista.forEach(m=>_medPdfMap[m.id]=m);
   document.getElementById('mt2').textContent='Gerar PDF de Medição';
   document.getElementById('mb2').innerHTML=
     '<div class="fg mb1"><label class="fl">Escolha a medição</label>'
     +'<select class="fc" id="med-sel" onchange="preencherDadosMedicaoPDF()">'
     +'<option value="">— Selecione uma medição —</option>'
-    +lista.map(m=>`<option value="${m.id}" data-num="${m.numero||'01'}" data-periodo="${m.periodo||''}" data-cli="${m.cliente_nome||''}" data-dados='${JSON.stringify(m.os_dados||[]).replace(/'/g,'&apos;')}'>${m.descricao||'—'} · ${fmt(m.valor)}</option>`).join('')
+    +lista.map(m=>`<option value="${m.id}">${m.descricao||'—'} · ${fmt(m.valor)}</option>`).join('')
     +'</select></div>'
-    +'<div id="med-pdf-extra" style="display:none">'
-    +'<div class="g2 mb1">'
-    +'<div class="fg"><label class="fl">Nome da Obra</label>'
-    +'<select class="fc" id="med-obra">'
-    +'<option value="">— Selecione a obra —</option>'
-    +obras.map(o=>`<option value="${o.nome}">${o.nome}${o.municipio?' — '+o.municipio:''}</option>`).join('')
-    +'</select></div>'
-    +'<div class="fg"><label class="fl">Contrato</label>'
-    +'<select class="fc" id="med-contrato">'
-    +'<option value="">— Selecione o contrato —</option>'
-    +contratos.map(c=>`<option value="${c.numero||c.id}">${c.numero||'S/N'}${c.descricao?' — '+c.descricao:''}</option>`).join('')
-    +'</select></div>'
-    +'</div>'
-    +buildLocalizacao('med-uf','med-municipio')
-    +'<div class="g2 mb1"><div class="fg"><label class="fl">Medição Nº</label><input class="fc" id="med-num" value="01"></div><div class="fg"><label class="fl">Período (ex: Maio/2026)</label><input class="fc" id="med-periodo"></div></div>'
-    +'<div class="g3 mb1"><div class="fg"><label class="fl">Data início do período</label><input class="fc" type="date" id="med-data-ini"></div><div class="fg"><label class="fl">Data fim do período</label><input class="fc" type="date" id="med-data-fim"></div><div class="fg"><label class="fl">Data do documento</label><input class="fc" type="date" id="med-data" value="'+new Date().toISOString().split('T')[0]+'"></div></div>'
-    +'<div class="fg"><label class="fl" style="margin-bottom:6px">OS incluídas na medição</label><div id="med-os-preview" style="background:#f4f4f0;border-radius:8px;padding:.75rem;font-size:13px"></div></div>'
-    +'</div>';
+    +'<div id="med-pdf-preview" style="background:#f4f4f0;border-radius:8px;padding:.75rem;font-size:13px"></div>'
+    +'<p class="mu sm mt1"><i class="ti ti-info-circle"></i> Estes dados vêm da própria medição. Para corrigir algo, edite a medição.</p>';
   document.getElementById('mf2').innerHTML='<button class="btn" onclick="closeModal2()">Cancelar</button><button class="btn bp2" onclick="gerarPDFMedicao()"><i class="ti ti-file-download"></i> Gerar PDF</button>';
   document.getElementById('ov2').classList.add('open');
 }
 
 function preencherDadosMedicaoPDF(){
   const sel=document.getElementById('med-sel');
-  const opt=sel?.options[sel.selectedIndex];
-  const extra=document.getElementById('med-pdf-extra');
-  if(!opt||!opt.value){if(extra)extra.style.display='none';return;}
-  if(extra)extra.style.display='block';
-  const numEl=document.getElementById('med-num');if(numEl)numEl.value=opt.dataset.num||'01';
-  const perEl=document.getElementById('med-periodo');if(perEl)perEl.value=opt.dataset.periodo||'';
-  let dados=[];
-  try{dados=JSON.parse(opt.dataset.dados||'[]');}catch(e){}
-  const preview=document.getElementById('med-os-preview');
-  if(preview&&dados.length){
-    preview.innerHTML=dados.map(o=>`<div style="padding:5px 0;border-bottom:.5px solid var(--bor)"><span class="w6">${o.numero}</span> — ${o.tipo} <span class="mu sm">· ${fmt(o.valor||0)}</span><div class="mu sm">${o.cliente_nome||''} ${o.responsavel?'· '+o.responsavel:''}</div></div>`).join('');
-  }else if(preview){preview.innerHTML='<span class="mu sm">Nenhuma OS vinculada a esta medição.</span>';}
+  const preview=document.getElementById('med-pdf-preview');
+  const m=_medPdfMap[sel?.value];
+  if(!m){if(preview)preview.innerHTML='';return;}
+  const dados=m.os_dados||[];
+  const avisos=[];
+  if(!m.obra) avisos.push('Obra');
+  if(!m.municipio) avisos.push('Município');
+  let html='<div><b>Obra:</b> '+(m.obra||'—')+' &nbsp; <b>Município:</b> '+(m.municipio||'—')+'</div>'
+    +'<div><b>Medição Nº:</b> '+(m.numero||'01')+' &nbsp; <b>Período:</b> '+(m.periodo||'—')+(m.contrato?' &nbsp; <b>Contrato:</b> '+m.contrato:'')+'</div>'
+    +'<div><b>Data do documento:</b> '+fd(m.data_documento)+(m.data_ini&&m.data_fim?' &nbsp; <b>Período considerado:</b> '+fd(m.data_ini)+' a '+fd(m.data_fim):'')+'</div>';
+  if(avisos.length) html+='<div class="mu sm" style="color:#b0480a;margin-top:6px"><i class="ti ti-alert-triangle"></i> Faltando: '+avisos.join(', ')+'. Edite a medição para preencher antes de gerar o PDF.</div>';
+  html+='<div style="margin-top:8px">'+(dados.length
+    ? dados.map(o=>`<div style="padding:5px 0;border-bottom:.5px solid var(--bor)"><span class="w6">${o.numero}</span> — ${o.tipo} <span class="mu sm">· ${fmt(o.valor||0)}</span><div class="mu sm">${o.cliente_nome||''} ${o.responsavel?'· '+o.responsavel:''}</div></div>`).join('')
+    : '<span class="mu sm">Nenhuma OS vinculada a esta medição.</span>')+'</div>';
+  if(preview) preview.innerHTML=html;
 }
 
 async function gerarPDFMedicao(){
-  const obra=document.getElementById('med-obra')?.value||'';
-  const municipio=getMunicipio('med-uf','med-municipio')||'';
-  const numMed=document.getElementById('med-num')?.value||'01';
-  const periodo=document.getElementById('med-periodo')?.value||'';
-  const dataIni=document.getElementById('med-data-ini')?.value||'';
-  const dataFim=document.getElementById('med-data-fim')?.value||'';
-  const periodoRange=(dataIni&&dataFim)?('De '+new Date(dataIni+'T12:00').toLocaleDateString('pt-BR')+' a '+new Date(dataFim+'T12:00').toLocaleDateString('pt-BR')):(dataIni?'A partir de '+new Date(dataIni+'T12:00').toLocaleDateString('pt-BR'):'');
-  const dataMed=document.getElementById('med-data')?.value||'';
-  const contrato=document.getElementById('med-contrato')?.value||'';
-  if(!obra){toast('Informe o nome da obra!',true);return;}
-  // Usar OS da medição selecionada
   const sel=document.getElementById('med-sel');
-  const opt=sel?.options[sel?.selectedIndex];
-  let osDados=[];
-  if(opt&&opt.value){try{osDados=JSON.parse(opt.dataset.dados||'[]');}catch(e){}}
+  const m=_medPdfMap[sel?.value];
+  if(!m){toast('Selecione uma medição!',true);return;}
+  const obra=m.obra||'';
+  const municipio=m.municipio||'';
+  const numMed=m.numero||'01';
+  const periodo=m.periodo||'';
+  const dataIni=m.data_ini||'';
+  const dataFim=m.data_fim||'';
+  const periodoRange=(dataIni&&dataFim)?('De '+new Date(dataIni+'T12:00').toLocaleDateString('pt-BR')+' a '+new Date(dataFim+'T12:00').toLocaleDateString('pt-BR')):(dataIni?'A partir de '+new Date(dataIni+'T12:00').toLocaleDateString('pt-BR'):'');
+  const dataMed=m.data_documento||'';
+  const contrato=m.contrato||'';
+  if(!obra||!municipio){toast('Edite a medição e informe Obra e Município antes de gerar o PDF.',true);return;}
+  // Usar OS da medição selecionada
+  let osDados=m.os_dados||[];
   if(!osDados.length){toast('A medição selecionada não possui OS vinculadas.',true);return;}
   // Buscar cliente
-  let cliNomePDF=opt?.dataset?.cli||osDados[0]?.cliente_nome||'';
+  let cliNomePDF=m.cliente_nome||osDados[0]?.cliente_nome||'';
   // Buscar orçamentos pelo número da OS para pegar itens detalhados
   const osNums=osDados.map(o=>o.numero).filter(Boolean);
   let orcItensMap={};
