@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -181,32 +181,6 @@ select.fc{cursor:pointer}
 .file-preview-btn{background:none;border:none;cursor:pointer;color:#A32D2D;font-size:18px;padding:4px}
 .file-preview-btn:hover{color:#791F1F}
 
-/* ── MAPA GEO ────────────────────────────────────── */
-.geo-wrap{display:flex;gap:0;height:calc(100vh - 90px);min-height:500px;border-radius:12px;overflow:hidden;border:1px solid var(--bor);background:var(--sf)}
-.geo-left{flex:1;display:flex;flex-direction:column;min-width:0}
-.geo-list{max-height:210px;overflow-y:auto;border-bottom:1px solid var(--bor);padding:.6rem .75rem;background:#fafaf7}
-.geo-item{display:grid;grid-template-columns:22px 1fr auto;gap:6px;align-items:center;padding:7px 10px;border-radius:7px;margin-bottom:3px;cursor:pointer;border:1.5px solid var(--bor);background:var(--sf);transition:all .15s}
-.geo-item:hover{border-color:var(--brand);background:var(--bl)}
-.geo-item.sel{border-color:var(--brand);background:var(--bl);box-shadow:0 0 0 2px rgba(26,111,196,.15)}
-.geo-item .geo-cod{font-size:11px;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--tx)}
-.geo-item .geo-links{display:flex;gap:5px;flex-shrink:0;align-items:center}
-.geo-item .geo-links a{font-size:11px;color:var(--brand);text-decoration:none;font-weight:600;white-space:nowrap;padding:2px 5px;border-radius:4px;transition:background .12s}
-.geo-item .geo-links a:hover{background:var(--bl)}
-.geo-item .geo-links span{color:#ccc;font-size:10px}
-#geo-map{flex:1;min-height:300px}
-.geo-right{width:300px;border-left:1px solid var(--bor);padding:.9rem;overflow-y:auto;background:var(--sf);flex-shrink:0;display:flex;flex-direction:column;gap:.6rem}
-.geo-layer-row{display:flex;align-items:center;gap:8px;padding:5px 0}
-.geo-layer-row input[type=checkbox]{accent-color:var(--brand);width:15px;height:15px;cursor:pointer;flex-shrink:0}
-.geo-layer-swatch{width:18px;height:18px;border-radius:3px;flex-shrink:0;border:1px solid rgba(0,0,0,.15)}
-.geo-layer-label{font-size:12px;flex:1}
-.geo-layer-count{font-size:10px;color:var(--mu);margin-left:auto}
-.geo-pontos-table{width:100%;font-size:11px;border-collapse:collapse}
-.geo-pontos-table th{color:var(--mu);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.04em;padding:4px 4px;border-bottom:1px solid var(--bor);text-align:left}
-.geo-pontos-table td{padding:5px 4px;border-bottom:.5px solid var(--bor);font-family:monospace;font-size:11px}
-.geo-pontos-table td:first-child{font-family:inherit;font-weight:600;font-size:11px}
-.geo-pontos-table tr.pt-sel td{background:var(--bl)}
-.geo-hint{font-size:11px;color:var(--mu);padding:.5rem .6rem;background:#f4f4f0;border-radius:6px;text-align:center;line-height:1.4}
-
 /* ── MENU RETRÁTIL + MOBILE ───────────────────────── */
 :root{--sb:240px}
 .sb{transition:transform .25s cubic-bezier(.4,0,.2,1),width .25s}
@@ -377,7 +351,6 @@ select.fc{cursor:pointer}
       <div class="ni" onclick="nav('funcionarios')"><i class="ti ti-id-badge"></i>Funcionários</div>
       <div class="ni" onclick="nav('relatorios')"><i class="ti ti-printer"></i>Relatórios / PDF</div>
       <div class="ni" onclick="nav('config')"><i class="ti ti-settings"></i>Configuração</div>
-      <div class="ni" onclick="nav('mapageo')"><i class="ti ti-map-2"></i>Mapa Geo</div>
     </nav>
     <div class="sf2">
       <div class="fx g8"><div class="av" id="ua">AJ</div><div><div class="w6 sm" id="un">—</div><div class="mu" style="font-size:11px" id="ue">—</div></div><button class="blo" onclick="doLogout()"><i class="ti ti-logout"></i></button></div>
@@ -534,8 +507,7 @@ const PCFG={
   administrativo:{t:'Administrativo',tb:'documentos_empresa',a:'Novo Documento',h:function(o){return '<div class="fg"><label class="fl">Nome do documento *</label><input class="fc" id="f-nome" placeholder="Ex: Alvará de funcionamento..."></div><div class="g2"><div class="fg"><label class="fl">Categoria</label><select class="fc" id="f-categoria"><option>Licença</option><option>Certidão</option><option>Contrato</option><option>Certificado</option><option>Registro</option><option>Outro</option></select></div><div class="fg"><label class="fl">Número / Código</label><input class="fc" id="f-numero"></div></div><div class="g2"><div class="fg"><label class="fl">Data emissão</label><input class="fc" type="date" id="f-data_emissao"></div><div class="fg"><label class="fl">Validade</label><input class="fc" type="date" id="f-validade"></div></div><div class="fg"><label class="fl">Responsável</label><input class="fc" id="f-responsavel"></div><div class="fg"><label class="fl">Observações</label><textarea class="fc" id="f-obs" rows="2"></textarea></div><div class="fg"><label class="fl">Arquivo (PDF, imagem, Word, Excel)</label><div id="adm-upload-area" class="upload-area" onclick="document.getElementById(\'adm-file-input\').click()"><i class="ti ti-file-upload"></i><p>Clique ou arraste o arquivo aqui</p></div><div id="adm-file-preview" style="display:none"></div><input type="file" id="adm-file-input" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" style="display:none" onchange="handleFileSelect(this,\'adm\')"><input type="hidden" id="f-arquivo_url" value=""></div>';}},
   funcionarios:{t:'Novo Funcionário',tb:'funcionarios',a:'Novo Funcionário',h:function(o){return '<div class="fg"><label class="fl">Nome *</label><input class="fc" id="f-nome"></div><div class="g2"><div class="fg"><label class="fl">CPF</label><input class="fc" id="f-cpf"></div><div class="fg"><label class="fl">Cargo</label><input class="fc" id="f-cargo" placeholder="Ex: Técnico em Topografia"></div></div><div class="g2"><div class="fg"><label class="fl">Telefone</label><input class="fc" id="f-telefone"></div><div class="fg"><label class="fl">E-mail</label><input class="fc" type="email" id="f-email"></div></div><div class="g2"><div class="fg"><label class="fl">Valor hora (R$)</label><input class="fc" type="number" step="0.01" id="f-valor_hora"></div><div class="fg"><label class="fl">Valor diária (R$)</label><input class="fc" type="number" step="0.01" id="f-valor_diaria"></div></div><div class="g2"><div class="fg"><label class="fl">Data admissão</label><input class="fc" type="date" id="f-data_admissao"></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-ativo"><option value="true">Ativo</option><option value="false">Inativo</option></select></div></div>';}},
   relatorios:{t:'Relatórios / PDF',a:null},
-  config:{t:'Configuração',a:null},
-  mapageo:{t:'Mapa Geo',a:null}
+  config:{t:'Configuração',a:null}
 };
 // ── AUTH
 document.getElementById('lp').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
@@ -583,7 +555,7 @@ function nav(page){
   document.getElementById('pt').textContent=cfg.t;
   const ba=document.getElementById('ba');
   if(cfg.a){ba.style.display='flex';document.getElementById('bal').textContent=cfg.a;}else ba.style.display='none';
-  const _semBusca=new Set(['dashboard','agenda','dre','medicao','pipeline','pendencias','relatorios','config','geoferramentas','mapageo']);
+  const _semBusca=new Set(['dashboard','agenda','dre','medicao','pipeline','pendencias','relatorios','config','geoferramentas']);
   const siWrap=document.querySelector('.sb2');
   const si=document.getElementById('si');
   si.value='';
@@ -1749,6 +1721,14 @@ window.addEventListener('resize', function(){
     var mn = document.querySelector('.mn');
     if(mn && _sbVisible) mn.style.marginLeft = '';
   }
+  clearTimeout(window._cadResizeT);
+  window._cadResizeT = setTimeout(function(){
+    var cadTab = document.getElementById('geo-cad');
+    if(cadTab && cadTab.style.display !== 'none' && typeof _cadPontos !== 'undefined' && _cadPontos.length){
+      cadAjustarView();
+      cadRenderSvg();
+    }
+  }, 200);
 });
 // ═══════════════════════════════════════════════════════════
 // FUNÇÕES DE LISTAGEM — MÓDULOS DO SISTEMA
@@ -6754,6 +6734,9 @@ function geoTab(tab){
     document.getElementById('geo-'+t.k).style.display=t.k===tab?'':'none';
     document.getElementById('geo-tab-'+t.k).classList.toggle('active',t.k===tab);
   });
+  if(tab==='cad' && typeof _cadPontos!=='undefined' && _cadPontos.length){
+    setTimeout(function(){cadAjustarView();cadRenderSvg();},50);
+  }
 }
 
 // ── Pastas para Monitor ──
@@ -8154,7 +8137,9 @@ async function cadCarDownUm(idx,fmt){
 
 function geoCadHtml(){
   return '<div class="card mb1">'
-    +'<div class="st mb1"><i class="ti ti-stack-2" style="color:var(--brand)"></i>CAD — Camadas, Régua, Edição de Coordenadas e Navegação</div>'
+    +'<div class="fxb mb1"><div class="st" style="margin:0"><i class="ti ti-stack-2" style="color:var(--brand)"></i>CAD — Camadas, Régua, Edição de Coordenadas e Navegação</div>'
+    +'<button class="btn bxs" onclick="cadToggleImport()" id="cad-btn-toggle-import"><i class="ti ti-file-import"></i> Importar arquivo</button></div>'
+    +'<div id="cad-import-box" style="display:none">'
     +'<div class="mu sm mb1">Importe um DXF, KML ou Shapefile (.zip). Arraste para mover o desenho, use a roda do mouse para zoom, clique num ponto para selecioná-lo e dar um nome. Camadas do DXF são detectadas automaticamente; você também pode criar camadas manuais.</div>'
     +'<div class="fg mb1"><label class="fl">Arquivo (.dxf, .kml ou .zip)</label><input class="fc" type="file" id="cad-file" accept=".dxf,.kml,.zip" onchange="cadArquivoSelecionado(this)"></div>'
     +'<div id="cad-info" class="mu sm mb1" style="display:none"></div>'
@@ -8163,6 +8148,7 @@ function geoCadHtml(){
     +'<div class="fg mb1"><label class="fl">Importar pontos de arquivo de texto (.txt, .csv)</label><input class="fc" type="file" id="cad-txt-file" accept=".txt,.csv" onchange="cadImportarTxt(this)"></div>'
     +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:.4rem"><label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="cad-txt-criar-linha"> <span class="mu sm">Criar linha (polilinha) automaticamente na importação</span></label></div>'
     +'<div id="cad-txt-info" class="mu sm mb1" style="display:none"></div>'
+    +'</div>'
     +'<div class="mb1" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">'
     +'<button class="btn bsm bp2" id="cad-modo-select" onclick="cadSetModo(\'select\')"><i class="ti ti-pointer"></i> Selecionar</button>'
     +'<button class="btn bsm" id="cad-modo-medir" onclick="cadSetModo(\'medir\')"><i class="ti ti-ruler-2"></i> Régua</button>'
@@ -8199,7 +8185,7 @@ function geoCadHtml(){
     +'<div id="cad-car-result" class="mb1" style="display:none"></div>'
     +'<div style="display:flex;gap:1rem;flex-wrap:wrap">'
     +'<div style="flex:2;min-width:320px;border:1px solid var(--bor);border-radius:8px;overflow:hidden">'
-    +'<div id="cad-canvas-wrap" style="position:relative;width:100%;height:480px;background:#fafaf7">'
+    +'<div id="cad-canvas-wrap" style="position:relative;width:100%;height:calc(100vh - 260px);min-height:560px;background:#fafaf7">'
     +'<div id="cad-map-bg" style="position:absolute;inset:0;display:none;z-index:0"></div>'
     +'<svg id="cad-svg" viewBox="0 0 100 100" style="position:absolute;inset:0;width:100%;height:100%;cursor:crosshair;touch-action:none;background:transparent;z-index:10" onpointerdown="cadPointerDown(event)" onpointermove="cadPointerMove(event)" onpointerup="cadPointerUp(event)" onpointerleave="cadPointerUp(event)" onwheel="cadWheel(event)" onclick="cadSvgClick(event)"></svg>'
     +'</div>'
@@ -8218,6 +8204,14 @@ function geoCadHtml(){
     +'</div>'
     +'</div>'
     +'</div>';
+}
+function cadToggleImport(){
+  const box=document.getElementById('cad-import-box');
+  if(!box)return;
+  const aberto=box.style.display!=='none';
+  box.style.display=aberto?'none':'';
+  const btn=document.getElementById('cad-btn-toggle-import');
+  if(btn)btn.innerHTML=aberto?'<i class="ti ti-file-import"></i> Importar arquivo':'<i class="ti ti-x"></i> Fechar importação';
 }
 async function cadArquivoSelecionado(input){
   const file=input.files[0];if(!file)return;
@@ -11000,436 +10994,6 @@ function cadMpCarimbo(doc,d,cx,cy,cw,ch){
   doc.text('Alcio Marques Cavalheiro Junior',xSig+assinW/2,cy+ch-9,{align:'center'});
   doc.text('Técn. Agrimensura — CFT 0503712213-9',xSig+assinW/2,cy+ch-5,{align:'center'});
 }
-
-// ─── MAPA GEO ────────────────────────────────────────────────────────────────
-// SQL para criar a tabela (executar no Supabase SQL Editor se necessário):
-// create table if not exists parcelas_geo (
-//   id uuid default gen_random_uuid() primary key,
-//   cod_imovel text not null,
-//   nome text,
-//   municipio text,
-//   uf text,
-//   area_ha numeric,
-//   status text default 'Certificado',
-//   vertices jsonb default '[]',   -- [{nome,e,n,z}, ...]
-//   geojson jsonb,                 -- GeoJSON polygon em WGS84
-//   shp_url text,
-//   csv_url text,
-//   obs text,
-//   created_at timestamptz default now()
-// );
-
-let _gMap=null, _gLayers={}, _gSel=null, _gData=[], _gLayerWMS=null, _gLayerPts=null, _gPolyGroup=null;
-
-async function rMapaGeo(){
-  const el=document.getElementById('ct');if(!el)return;
-  el.innerHTML=`
-  <div style="margin-bottom:.75rem" class="fxb">
-    <div class="st" style="margin:0"><i class="ti ti-map-2" style="color:var(--brand)"></i>Mapa Geo — Parcelas Certificadas</div>
-    <button class="btn bp2 bsm" onclick="geoNovaParc()"><i class="ti ti-plus"></i> Nova Parcela</button>
-  </div>
-  <div class="geo-wrap">
-    <div class="geo-left">
-      <div class="geo-list" id="geo-list"><div class="ld"><div class="sp"></div>Carregando...</div></div>
-      <div id="geo-map"></div>
-    </div>
-    <div class="geo-right">
-      <div class="st" style="margin:0;font-size:13px"><i class="ti ti-layers" style="color:var(--brand)"></i>Camadas</div>
-      <div id="geo-layers-ctrl"></div>
-      <hr style="border:none;border-top:1px solid var(--bor);margin:0">
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="btn bsm" onclick="geoMaisNorte()" title="Ordenar vértices mais ao Norte primeiro"><i class="ti ti-arrow-up"></i>Mais ao Norte</button>
-        <button class="btn bsm" onclick="geoProximoHorario()" title="Próximo vértice no sentido horário"><i class="ti ti-rotate-clockwise"></i>Próximo (horário)</button>
-      </div>
-      <div id="geo-hint" class="geo-hint">Clique em um perímetro no mapa para selecioná-lo.</div>
-      <hr style="border:none;border-top:1px solid var(--bor);margin:0">
-      <div class="st" style="margin:0;font-size:13px"><i class="ti ti-map-pin" style="color:var(--brand)"></i>Pontos nomeados</div>
-      <div id="geo-pontos"><div class="mu sm" style="text-align:center;padding:.5rem">Selecione uma parcela.</div></div>
-    </div>
-  </div>`;
-
-  // Inicializa mapa após o DOM renderizar
-  setTimeout(async()=>{
-    if(_gMap){try{_gMap.remove();}catch(e){}_gMap=null;}
-    _gLayers={};_gSel=null;_gPolyGroup=null;
-
-    _gMap=L.map('geo-map',{zoomControl:true}).setView([-20.45,-54.65],11);
-
-    // Camada base OSM
-    const osmBase=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-      attribution:'© OpenStreetMap',maxZoom:20,opacity:.85
-    }).addTo(_gMap);
-
-    // Camada WMS INCRA SIGEF Certificado
-    _gLayerWMS=L.tileLayer.wms('https://geoserver.incra.gov.br/geoserver/ows',{
-      layers:'incra:SNS_Certificados_Particular',
-      format:'image/png',transparent:true,version:'1.1.1',
-      attribution:'INCRA/SIGEF',opacity:.7
-    }).addTo(_gMap);
-
-    _gPolyGroup=L.layerGroup().addTo(_gMap);
-    _gLayerPts=L.layerGroup().addTo(_gMap);
-
-    geoRenderLayersCtrl();
-
-    // Click no mapa
-    _gMap.on('click',function(e){geoMapClick(e.latlng);});
-
-    await geoCarregarParcelas();
-  },120);
-}
-
-async function geoCarregarParcelas(){
-  const{data,error}=await sb.from('parcelas_geo').select('*').order('created_at',{ascending:false});
-  _gData=data||[];
-  geoRenderList();
-  _gPolyGroup && _gPolyGroup.clearLayers();
-  _gLayerPts && _gLayerPts.clearLayers();
-  _gData.forEach(p=>geoDesenharParcela(p));
-  if(_gData.length>0){
-    const bounds=[];
-    _gData.forEach(p=>{if(_gLayers[p.id])try{bounds.push(..._gLayers[p.id].getBounds().toBBoxString().split(',').map(Number));}catch(e){}});
-    if(bounds.length)try{_gMap.fitBounds([[Math.min(...bounds.filter((_,i)=>i%2===1)),Math.min(...bounds.filter((_,i)=>i%2===0))],[Math.max(...bounds.filter((_,i)=>i%2===1)),Math.max(...bounds.filter((_,i)=>i%2===0))]],{padding:[30,30]});}catch(e){}
-  }
-  geoRenderPtsCamada();
-}
-
-function geoDesenharParcela(p){
-  if(!_gPolyGroup)return;
-  const geoj=p.geojson;
-  if(!geoj)return;
-  const layer=L.geoJSON(geoj,{
-    style:{color:'#1a6fc4',weight:2,fillColor:'#4a9fdf',fillOpacity:.18,dashArray:null},
-    onEachFeature:function(_,lay){
-      lay.on('click',function(e){
-        L.DomEvent.stopPropagation(e);
-        geoSelectParc(p.id);
-      });
-      lay.on('mouseover',function(){if(_gSel!==p.id)lay.setStyle({fillOpacity:.32,weight:3});});
-      lay.on('mouseout',function(){if(_gSel!==p.id)lay.setStyle({fillOpacity:.18,weight:2});});
-    }
-  }).addTo(_gPolyGroup);
-  _gLayers[p.id]=layer;
-}
-
-function geoRenderPtsCamada(){
-  if(!_gLayerPts)return;
-  _gLayerPts.clearLayers();
-  const icone=L.divIcon({className:'',html:'<div style="width:10px;height:10px;border-radius:50%;background:#1a6fc4;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>',iconSize:[10,10],iconAnchor:[5,5]});
-  _gData.forEach(p=>{
-    (p.vertices||[]).forEach(v=>{
-      if(!v.lat||!v.lng)return; // só plota se tiver lat/lng
-      const mk=L.marker([v.lat,v.lng],{icon:icone}).addTo(_gLayerPts);
-      mk.bindTooltip(v.nome||'',{permanent:true,direction:'top',className:'',offset:[0,-8]});
-      mk.on('click',function(e){L.DomEvent.stopPropagation(e);geoSelectParc(p.id);geoSelectPonto(v.nome);});
-    });
-  });
-}
-
-function geoRenderList(){
-  const el=document.getElementById('geo-list');if(!el)return;
-  if(!_gData.length){
-    el.innerHTML='<div style="text-align:center;padding:.75rem;font-size:13px;color:var(--mu)">Nenhuma parcela cadastrada. <button class="btn bsm bp2" style="margin-left:6px" onclick="geoNovaParc()"><i class="ti ti-plus"></i> Adicionar</button></div>';
-    return;
-  }
-  let h='<div style="margin-bottom:5px;display:flex;align-items:center;justify-content:space-between"><span class="mu sm">'+_gData.length+' parcela(s)</span></div>';
-  _gData.forEach((p,i)=>{
-    const sel=_gSel===p.id;
-    h+=`<div id="gitem-${p.id}" class="geo-item${sel?' sel':''}" onclick="geoSelectParc('${p.id}')">
-      <span style="font-size:11px;font-weight:700;color:var(--mu)">${i+1}.</span>
-      <span class="geo-cod" title="${p.cod_imovel||p.id}">${p.cod_imovel||p.id}</span>
-      <span class="geo-links">
-        <a href="javascript:void(0)" onclick="event.stopPropagation();geoDownSHP('${p.id}')">SHP</a>
-        <span>·</span>
-        <a href="javascript:void(0)" onclick="event.stopPropagation();geoDownCSV('${p.id}')">CSV vértices</a>
-        <span>·</span>
-        <a href="javascript:void(0)" onclick="event.stopPropagation();geoDetalhes('${p.id}')">detalhes</a>
-      </span>
-    </div>`;
-  });
-  el.innerHTML=h;
-}
-
-function geoSelectParc(id){
-  const prev=_gSel;
-  _gSel=id;
-  // Resetar estilo da anterior
-  if(prev&&_gLayers[prev])_gLayers[prev].setStyle({color:'#1a6fc4',weight:2,fillOpacity:.18});
-  // Destacar nova
-  if(_gLayers[id])_gLayers[id].setStyle({color:'#0d4fa0',weight:3.5,fillOpacity:.38});
-  // Centralizar mapa
-  if(_gLayers[id])try{_gMap.fitBounds(_gLayers[id].getBounds(),{padding:[60,60],maxZoom:15});}catch(e){}
-  // Atualizar lista
-  document.querySelectorAll('.geo-item').forEach(el=>el.classList.remove('sel'));
-  const item=document.getElementById('gitem-'+id);
-  if(item){item.classList.add('sel');item.scrollIntoView({behavior:'smooth',block:'nearest'});}
-  // Atualizar hint
-  const p=_gData.find(x=>x.id===id);
-  const hint=document.getElementById('geo-hint');
-  if(hint&&p)hint.innerHTML='<b style="color:var(--bd)">'+(p.nome||p.cod_imovel||'Parcela selecionada')+'</b><br><span style="font-size:10px;color:var(--mu)">'+(p.municipio?p.municipio+(p.uf?' — '+p.uf:''):'')+'</span>';
-  // Renderizar pontos nomeados
-  geoRenderPontos(id);
-}
-
-function geoRenderPontos(id){
-  const el=document.getElementById('geo-pontos');if(!el)return;
-  const p=_gData.find(x=>x.id===id);
-  const verts=p?.vertices||[];
-  if(!verts.length){el.innerHTML='<div class="mu sm" style="text-align:center;padding:.5rem">Sem vértices cadastrados.</div>';return;}
-  let h='<table class="geo-pontos-table"><thead><tr><th>NOME</th><th>E</th><th>N</th><th>Z</th><th></th></tr></thead><tbody>';
-  verts.forEach((v,i)=>{
-    h+=`<tr id="gpt-${v.nome||i}" class="geo-pt-row" onclick="geoSelectPonto('${v.nome||i}')">
-      <td>${v.nome||('V-'+String(i+1).padStart(4,'0'))}</td>
-      <td>${typeof v.e==='number'?v.e.toFixed(3):v.e||'—'}</td>
-      <td>${typeof v.n==='number'?v.n.toFixed(3):v.n||'—'}</td>
-      <td>${typeof v.z==='number'?v.z.toFixed(3):(v.z||'0.000')}</td>
-      <td><button onclick="event.stopPropagation();geoCentralizarPt(${i},'${id}')" style="background:none;border:none;cursor:pointer;color:var(--mu);font-size:14px;padding:2px" title="Centralizar"><i class="ti ti-crosshair"></i></button></td>
-    </tr>`;
-  });
-  h+='</tbody></table>';
-  el.innerHTML=h;
-}
-
-function geoSelectPonto(nome){
-  document.querySelectorAll('.geo-pt-row').forEach(r=>r.classList.remove('pt-sel'));
-  const row=document.getElementById('gpt-'+nome);
-  if(row){row.classList.add('pt-sel');row.scrollIntoView({behavior:'smooth',block:'nearest'});}
-}
-
-function geoCentralizarPt(idx,parcId){
-  const p=_gData.find(x=>x.id===parcId);
-  const v=p?.vertices?.[idx];
-  if(!v||!v.lat||!v.lng)return;
-  _gMap.setView([v.lat,v.lng],17);
-}
-
-function geoMapClick(latlng){
-  // Verificar se clicou dentro de algum polígono desenhado
-  let found=null;
-  _gData.forEach(p=>{
-    if(found||!_gLayers[p.id])return;
-    try{
-      const bounds=_gLayers[p.id].getBounds();
-      if(bounds.contains(latlng)){
-        // Verificação mais precisa usando ray-casting
-        _gLayers[p.id].eachLayer&&_gLayers[p.id].eachLayer(lay=>{
-          if(found)return;
-          if(lay.getBounds&&lay.getBounds().contains(latlng))found=p.id;
-        });
-        if(!found)found=p.id;
-      }
-    }catch(e){}
-  });
-  if(found)geoSelectParc(found);
-}
-
-function geoRenderLayersCtrl(){
-  const el=document.getElementById('geo-layers-ctrl');if(!el)return;
-  el.innerHTML=`
-  <div class="geo-layer-row">
-    <input type="checkbox" id="lyr-pts" checked onchange="geoTogglePts(this.checked)">
-    <div class="geo-layer-swatch" style="background:#1a6fc4"></div>
-    <label class="geo-layer-label" for="lyr-pts">PONTOS REMANESCENTE</label>
-    <span class="geo-layer-count" id="lyr-pts-cnt">0</span>
-  </div>
-  <div class="geo-layer-row">
-    <input type="checkbox" id="lyr-wms" checked onchange="geoToggleWMS(this.checked)">
-    <div class="geo-layer-swatch" style="background:#2d6a27"></div>
-    <label class="geo-layer-label" for="lyr-wms">INCRA · SIGEF Certificado — Particular (MS)</label>
-    <span class="geo-layer-count" id="lyr-wms-cnt">${_gData.length}</span>
-  </div>
-  <button class="btn bsm" style="margin-top:6px;width:100%" onclick="geoNovaParc()"><i class="ti ti-plus"></i> Nova camada / parcela</button>`;
-  // Atualizar contagens
-  const ptsEl=document.getElementById('lyr-pts-cnt');
-  if(ptsEl){const tot=_gData.reduce((a,p)=>a+(p.vertices||[]).length,0);ptsEl.textContent=tot;}
-}
-
-function geoToggleWMS(on){
-  if(!_gMap)return;
-  if(on){if(_gLayerWMS)_gLayerWMS.addTo(_gMap);}
-  else{if(_gLayerWMS)_gMap.removeLayer(_gLayerWMS);}
-}
-function geoTogglePts(on){
-  if(!_gMap)return;
-  if(on){if(_gLayerPts)_gLayerPts.addTo(_gMap);if(_gPolyGroup)_gPolyGroup.addTo(_gMap);}
-  else{if(_gLayerPts)_gMap.removeLayer(_gLayerPts);if(_gPolyGroup)_gMap.removeLayer(_gPolyGroup);}
-}
-
-function geoMaisNorte(){
-  // Reordena vértices da parcela selecionada pelo maior N (mais ao norte)
-  if(!_gSel){toast('Selecione uma parcela primeiro.',true);return;}
-  const p=_gData.find(x=>x.id===_gSel);
-  if(!p||!p.vertices?.length)return;
-  const sorted=[...p.vertices].sort((a,b)=>Number(b.n||0)-Number(a.n||0));
-  p.vertices=sorted;
-  geoRenderPontos(_gSel);
-  toast('Vértices ordenados do mais ao norte.');
-}
-function geoProximoHorario(){
-  // Destaca o próximo vértice no sentido horário
-  const rows=document.querySelectorAll('.geo-pt-row');
-  if(!rows.length)return;
-  let curIdx=-1;
-  rows.forEach((r,i)=>{if(r.classList.contains('pt-sel'))curIdx=i;});
-  const next=rows[(curIdx+1)%rows.length];
-  if(next){next.click();}
-}
-
-// ── Downloads ────────────────────────────────────────────────────────────────
-function geoDownSHP(id){
-  const p=_gData.find(x=>x.id===id);if(!p)return;
-  // 1. Se tiver URL no banco, baixar direto
-  if(p.shp_url){_dlUrl(p.shp_url,p.cod_imovel||'parcela','zip');return;}
-  // 2. Tentar URL pública INCRA com o cod_imovel
-  const cod=p.cod_imovel;
-  if(cod){
-    const url='https://certificacao.incra.gov.br/csv_shp/export_shp.py?IMOVEL='+encodeURIComponent(cod);
-    const a=document.createElement('a');a.href=url;a.download=cod+'.zip';a.target='_blank';document.body.appendChild(a);a.click();document.body.removeChild(a);
-    toast('Download SHP iniciado...');
-    return;
-  }
-  toast('SHP não disponível para esta parcela.',true);
-}
-
-function geoDownCSV(id){
-  const p=_gData.find(x=>x.id===id);if(!p)return;
-  // 1. URL no banco
-  if(p.csv_url){_dlUrl(p.csv_url,p.cod_imovel||'parcela','csv');return;}
-  // 2. Tentar URL pública INCRA
-  const cod=p.cod_imovel;
-  if(cod){
-    const url='https://certificacao.incra.gov.br/csv_shp/export_csv.py?IMOVEL='+encodeURIComponent(cod);
-    const a=document.createElement('a');a.href=url;a.download=cod+'.csv';a.target='_blank';document.body.appendChild(a);a.click();document.body.removeChild(a);
-    toast('Download CSV iniciado...');
-    return;
-  }
-  // 3. Gerar CSV a partir dos vértices armazenados
-  const verts=p.vertices||[];
-  if(verts.length){
-    let csv='NOME,E,N,Z\n';
-    verts.forEach(v=>{csv+=`${v.nome||''},${v.e||''},${v.n||''},${v.z||'0'}\n`;});
-    const blob=new Blob([csv],{type:'text/csv'});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');a.href=url;a.download=(p.cod_imovel||'vertices')+'.csv';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(url);document.body.removeChild(a);},2000);
-    toast('CSV de vértices baixado!');
-    return;
-  }
-  toast('Sem vértices para gerar CSV.',true);
-}
-
-function _dlUrl(url,nome,ext){
-  const a=document.createElement('a');a.href=url;a.download=nome+'.'+ext;a.target='_blank';document.body.appendChild(a);a.click();document.body.removeChild(a);
-}
-
-// ── Modal Detalhes ────────────────────────────────────────────────────────────
-function geoDetalhes(id){
-  const p=_gData.find(x=>x.id===id);if(!p)return;
-  const verts=p.vertices||[];
-  let vtab='<div class="mu sm" style="padding:.5rem 0">Sem vértices cadastrados.</div>';
-  if(verts.length){
-    vtab='<div class="tw" style="margin-top:.5rem"><table style="width:100%;border-collapse:collapse;font-size:12px"><thead><tr><th style="text-align:left;padding:6px 8px;border-bottom:2px solid var(--bor);color:var(--mu);font-size:10px;text-transform:uppercase">NOME</th><th style="text-align:right;padding:6px 8px;border-bottom:2px solid var(--bor);color:var(--mu);font-size:10px;text-transform:uppercase">E (m)</th><th style="text-align:right;padding:6px 8px;border-bottom:2px solid var(--bor);color:var(--mu);font-size:10px;text-transform:uppercase">N (m)</th><th style="text-align:right;padding:6px 8px;border-bottom:2px solid var(--bor);color:var(--mu);font-size:10px;text-transform:uppercase">Z (m)</th></tr></thead><tbody>';
-    verts.forEach(v=>{
-      vtab+=`<tr><td style="padding:5px 8px;border-bottom:1px solid var(--bor);font-weight:600">${v.nome||'—'}</td><td style="padding:5px 8px;border-bottom:1px solid var(--bor);text-align:right;font-family:monospace">${typeof v.e==='number'?v.e.toFixed(3):v.e||'—'}</td><td style="padding:5px 8px;border-bottom:1px solid var(--bor);text-align:right;font-family:monospace">${typeof v.n==='number'?v.n.toFixed(3):v.n||'—'}</td><td style="padding:5px 8px;border-bottom:1px solid var(--bor);text-align:right;font-family:monospace">${typeof v.z==='number'?v.z.toFixed(3):(v.z||'0.000')}</td></tr>`;
-    });
-    vtab+='</tbody></table></div>';
-  }
-  const rows=[
-    ['Código SIGEF (cod_imovel)',p.cod_imovel||'—'],
-    ['Nome do imóvel',p.nome||'—'],
-    ['Município',p.municipio||'—'],
-    ['UF',p.uf||'—'],
-    ['Área (ha)',p.area_ha!=null?Number(p.area_ha).toFixed(4)+' ha':'—'],
-    ['Situação',p.status||'—'],
-    ['Observações',p.obs||'—'],
-  ];
-  let info='<div class="g2" style="margin-bottom:1rem">';
-  rows.forEach(([k,v])=>{info+=`<div><div class="mu sm">${k}</div><div style="font-size:13px;font-weight:500;margin-top:2px">${v}</div></div>`;});
-  info+='</div>';
-  document.getElementById('mt').textContent='Detalhes da Parcela';
-  document.getElementById('mb').innerHTML=`
-    <div class="tabs" id="geo-det-tabs">
-      <div class="tab active" onclick="geoDetTab('info')">Informações</div>
-      <div class="tab" onclick="geoDetTab('vert')">Vértices (${verts.length})</div>
-    </div>
-    <div id="geo-det-info" class="tp active">${info}</div>
-    <div id="geo-det-vert" class="tp">${vtab}</div>`;
-  document.getElementById('mf').innerHTML=`
-    <button class="btn" onclick="closeModal()">Fechar</button>
-    <button class="btn" onclick="geoDownCSV('${id}')"><i class="ti ti-download"></i> CSV vértices</button>
-    <button class="btn bp2" onclick="geoDownSHP('${id}')"><i class="ti ti-download"></i> SHP</button>
-    <button class="btn bdr" onclick="geoExcluirParc('${id}')"><i class="ti ti-trash"></i></button>`;
-  document.getElementById('ov').classList.add('open');
-}
-
-function geoDetTab(t){
-  document.querySelectorAll('#geo-det-tabs .tab').forEach((el,i)=>{el.classList.toggle('active',i===(t==='info'?0:1));});
-  document.getElementById('geo-det-info').classList.toggle('active',t==='info');
-  document.getElementById('geo-det-vert').classList.toggle('active',t==='vert');
-}
-
-// ── Nova Parcela ──────────────────────────────────────────────────────────────
-function geoNovaParc(){
-  document.getElementById('mt').textContent='Nova Parcela';
-  document.getElementById('mb').innerHTML=`
-    <div class="fg"><label class="fl">Código SIGEF (cod_imovel) *</label><input class="fc" id="gf-cod" placeholder="Ex: MS-5001409-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
-    <div class="g2">
-      <div class="fg"><label class="fl">Nome do imóvel</label><input class="fc" id="gf-nome" placeholder="Ex: Fazenda Santa Rita"></div>
-      <div class="fg"><label class="fl">Situação</label><input class="fc" id="gf-status" value="Certificado"></div>
-    </div>
-    <div class="g2">
-      <div class="fg"><label class="fl">Município</label><input class="fc" id="gf-mun" placeholder="Ex: Campo Grande"></div>
-      <div class="fg"><label class="fl">UF</label><input class="fc" id="gf-uf" placeholder="MS" maxlength="2"></div>
-    </div>
-    <div class="g2">
-      <div class="fg"><label class="fl">Área (ha)</label><input class="fc" type="number" step="0.0001" id="gf-area" placeholder="Ex: 142.5000"></div>
-      <div class="fg"><label class="fl">Observações</label><input class="fc" id="gf-obs"></div>
-    </div>
-    <hr style="border:none;border-top:1px solid var(--bor);margin:.5rem 0">
-    <div class="fg" style="margin-bottom:4px"><label class="fl">Vértices (col: NOME, E, N, Z — cole do Excel ou CSV)</label>
-      <textarea class="fc" id="gf-verts" rows="6" placeholder="BBEE-M-0625\t752782.771\t7852565.082\t0.000\nBBEE-M-0624\t753057.743\t7852493.835\t0.000\n..."></textarea>
-    </div>
-    <div class="fg"><label class="fl">GeoJSON do polígono (WGS84) — opcional</label>
-      <textarea class="fc" id="gf-geojson" rows="3" placeholder='{"type":"Polygon","coordinates":[[[lon,lat],...]]}  ou cole o FeatureCollection'></textarea>
-    </div>`;
-  document.getElementById('mf').innerHTML='<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn bp2" onclick="geoSalvarParc()"><i class="ti ti-check"></i> Salvar</button>';
-  document.getElementById('ov').classList.add('open');
-}
-
-async function geoSalvarParc(){
-  const cod=document.getElementById('gf-cod')?.value?.trim();
-  if(!cod){toast('Informe o código SIGEF!',true);return;}
-  const vertsRaw=document.getElementById('gf-verts')?.value||'';
-  const vertices=vertsRaw.trim().split('\n').filter(l=>l.trim()).map(l=>{
-    const parts=l.trim().split(/[\t,;]+/);
-    return{nome:parts[0]||'',e:parseFloat(parts[1])||0,n:parseFloat(parts[2])||0,z:parseFloat(parts[3])||0};
-  }).filter(v=>v.nome||v.e||v.n);
-  let geojson=null;
-  try{const raw=document.getElementById('gf-geojson')?.value?.trim();if(raw){const g=JSON.parse(raw);geojson=g.type==='FeatureCollection'?g.features[0]?.geometry:g.type==='Feature'?g.geometry:g;}}catch(e){}
-  const payload={
-    cod_imovel:cod,
-    nome:document.getElementById('gf-nome')?.value||null,
-    municipio:document.getElementById('gf-mun')?.value||null,
-    uf:document.getElementById('gf-uf')?.value?.toUpperCase()||null,
-    area_ha:parseFloat(document.getElementById('gf-area')?.value)||null,
-    status:document.getElementById('gf-status')?.value||'Certificado',
-    obs:document.getElementById('gf-obs')?.value||null,
-    vertices,geojson,
-  };
-  const{error}=await sb.from('parcelas_geo').insert(payload);
-  if(error){toast('Erro ao salvar: '+error.message,true);return;}
-  toast('Parcela salva!');closeModal();
-  await geoCarregarParcelas();
-}
-
-async function geoExcluirParc(id){
-  if(!confirm('Excluir esta parcela?'))return;
-  await sb.from('parcelas_geo').delete().eq('id',id);
-  toast('Parcela excluída.');closeModal();
-  _gSel=null;
-  await geoCarregarParcelas();
-}
-
-pageMap.mapageo=rMapaGeo;
 
 </script>
 </body>
