@@ -18,7 +18,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
-<script src="gestor-assets.js" defer></script>
+<script>document.write('<script src="'+(location.protocol==='file:'?'gestor-assets.js':'/gestor/gestor-assets.js')+'" defer><\/script>');</script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--brand:#1a6fc4;--bl:#E8F0FB;--bd:#0d4fa0;--sb:230px;--bg:#f4f4f0;--sf:#fff;--bor:rgba(0,0,0,.1);--bor2:rgba(0,0,0,.18);--tx:#1a1a18;--mu:#666;--su:#aaa}
@@ -299,7 +299,7 @@ select.fc{cursor:pointer}
   .g4{grid-template-columns:1fr 1fr!important}
 }
 </style>
-<script src="pdf-lib.min.js"></script>
+<script>document.write('<script src="'+(location.protocol==='file:'?'pdf-lib.min.js':'/gestor/pdf-lib.min.js')+'"><\/script>');</script>
 </head>
 <body>
 <div id="ls">
