@@ -8898,6 +8898,7 @@ function cadAtualizarPainel(){
   const nav='<div class="mb1" style="display:flex;gap:.4rem;flex-wrap:wrap">'
     +'<button class="btn bxs" onclick="cadSelecionarMaisAoNorte()"><i class="ti ti-arrow-up"></i> Mais ao Norte</button>'
     +'<button class="btn bxs" onclick="cadProximoNaLinha()"><i class="ti ti-rotate-clockwise"></i> Próximo (horário)</button>'
+    +'<button class="btn bxs" onclick="cadOrdenarDoNorte()"><i class="ti ti-sort-ascending-2"></i> Ordenar do Norte (horário)</button>'
     +'</div>';
   if(_cadSelecionado===null){el.innerHTML=nav+'<div class="mu sm">Clique em um ponto no desenho para selecioná-lo.</div>';return;}
   const p=_cadPontos.find(function(p){return p.id===_cadSelecionado;});
@@ -9592,10 +9593,9 @@ function cadOrdemHorariaDoAnel(coords,closed){
   if(signedArea>0) return [unicos[0]].concat(unicos.slice(1).reverse());
   return unicos.slice();
 }
-function sigefCarregarDoCad(){
-  if(!_cadPontos.length){toast('Importe ou crie pontos na aba CAD primeiro.',true);return;}
+function cadPontosNomeadosEmOrdemHoraria(){
   const nomeados=_cadPontos.filter(function(pt){return pt.nome;});
-  if(!nomeados.length){toast('Nomeie os pontos do perímetro na aba "CAD" antes de usar (use o painel do ponto ou a lista de pontos nomeados).',true);return;}
+  if(!nomeados.length) return {ordenados:[],origem:''};
   function achar(x,y){return nomeados.find(function(pt){return Math.abs(pt.x-x)<1e-6&&Math.abs(pt.y-y)<1e-6;});}
   let melhorAnel=null,melhorCount=0;
   cadAneisDisponiveis().forEach(function(anel){
@@ -9621,6 +9621,23 @@ function sigefCarregarDoCad(){
     });
     if(idxNorte>0) ordenados=ordenados.slice(idxNorte).concat(ordenados.slice(0,idxNorte));
   }
+  return {ordenados:ordenados,origem:origem};
+}
+function cadOrdenarDoNorte(){
+  if(!_cadPontos.length){toast('Importe ou crie pontos primeiro.',true);return;}
+  const res=cadPontosNomeadosEmOrdemHoraria();
+  if(res.ordenados.length<2){toast('Nomeie ao menos 2 pontos para poder ordená-los.',true);return;}
+  res.ordenados.forEach(function(pt,i){pt.ordemNome=i+1;});
+  _cadOrdemContador=res.ordenados.length;
+  cadAtualizarLista();
+  if(_cadSelecionado!==null) cadAtualizarPainel();
+  toast(res.ordenados.length+' ponto(s) reordenados ('+res.origem+').');
+}
+function sigefCarregarDoCad(){
+  if(!_cadPontos.length){toast('Importe ou crie pontos na aba CAD primeiro.',true);return;}
+  const res=cadPontosNomeadosEmOrdemHoraria();
+  const ordenados=res.ordenados,origem=res.origem;
+  if(!ordenados.length){toast('Nomeie os pontos do perímetro na aba "CAD" antes de usar (use o painel do ponto ou a lista de pontos nomeados).',true);return;}
   const p=sigefPerimetroAtual();
   p.pontosOrigem=JSON.parse(JSON.stringify(ordenados));
   p.vertices=p.pontosOrigem.map(function(pt){return sigefNovoVertice(pt.nome,pt.x,pt.y,pt.z,pt.sigmaE,pt.sigmaN,pt.sigmaZ);});
