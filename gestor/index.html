@@ -8677,7 +8677,10 @@ async function cadImportarTxt(input){
     _cadGeoJSON.features.push({type:'Feature',properties:{layer:layerId},geometry:{type:'MultiPoint',coordinates:coords}});
     const criarLinha=document.getElementById('cad-txt-criar-linha')&&document.getElementById('cad-txt-criar-linha').checked;
     if(criarLinha&&coords.length>=2){
-      _cadGeoJSON.features.push({type:'Feature',properties:{layer:layerId},geometry:{type:'Polygon',coordinates:[coords]}});
+      const anel=coords.slice();
+      const first=anel[0],last=anel[anel.length-1];
+      if(first[0]!==last[0]||first[1]!==last[1]) anel.push(first);
+      _cadGeoJSON.features.push({type:'Feature',properties:{layer:layerId},geometry:{type:'Polygon',coordinates:[anel]}});
     }
     cadDerivarCamadas(_cadGeoJSON);
     const camada=_cadCamadas.find(function(c){return c.id===layerId;});
@@ -9548,11 +9551,13 @@ async function sigefCarregarModelo(input){
 }
 function sigefCarregarDoCad(){
   if(!_cadPontos.length){toast('Importe ou crie pontos na aba CAD primeiro.',true);return;}
+  const nomeados=_cadPontos.filter(function(pt){return pt.nome;}).sort(function(a,b){return (a.ordemNome||0)-(b.ordemNome||0);});
+  if(!nomeados.length){toast('Nomeie os pontos do perímetro na aba "CAD" antes de usar (use o painel do ponto ou a lista de pontos nomeados).',true);return;}
   const p=sigefPerimetroAtual();
-  p.pontosOrigem=JSON.parse(JSON.stringify(_cadPontos));
-  p.vertices=p.pontosOrigem.map(function(pt){return sigefNovoVertice(pt.nome||('V'+pt.id),pt.x,pt.y,pt.z,pt.sigmaE,pt.sigmaN,pt.sigmaZ);});
+  p.pontosOrigem=JSON.parse(JSON.stringify(nomeados));
+  p.vertices=p.pontosOrigem.map(function(pt){return sigefNovoVertice(pt.nome,pt.x,pt.y,pt.z,pt.sigmaE,pt.sigmaN,pt.sigmaZ);});
   sigefRenderVertices();
-  toast(p.vertices.length+' vértice(s) carregados da CAD.');
+  toast(p.vertices.length+' vértice(s) carregados da CAD (apenas os pontos nomeados, na ordem em que foram nomeados).');
 }
 function sigefImportarSigmasTxt(input){
   const file=input.files[0];if(!file)return;
