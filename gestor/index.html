@@ -8240,6 +8240,8 @@ function geoCadHtml(){
     +'<div class="fg mb1"><label class="fl">Importar pontos de arquivo de texto (.txt, .csv)</label><input class="fc" type="file" id="cad-txt-file" accept=".txt,.csv" onchange="cadImportarTxt(this)"></div>'
     +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:.4rem"><label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="cad-txt-criar-linha"> <span class="mu sm">Criar linha (polilinha) automaticamente na importação</span></label></div>'
     +'<div id="cad-txt-info" class="mu sm mb1" style="display:none"></div>'
+    +'<div class="fg mb1"><label class="fl">Importar pontos de Reporte HTML (Survey Master / receptor RTK)</label><input class="fc" type="file" id="cad-html-file" accept=".html,.htm" onchange="cadImportarHtmlLevantamento(this)"></div>'
+    +'<div id="cad-html-info" class="mu sm mb1" style="display:none"></div>'
     +'</div>'
     +'<div class="mb1" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">'
     +'<button class="btn bsm bp2" id="cad-modo-select" onclick="cadSetModo(\'select\')"><i class="ti ti-pointer"></i> Selecionar</button>'
@@ -8687,6 +8689,99 @@ async function cadImportarTxt(input){
     cadAtualizarLista();
     const msgLinha=criarLinha&&coords.length>=2?' + linha criada.':'';
     info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> '+pontosNovos.length+' ponto(s) importados'+msgLinha+'</span>';
+    input.value='';
+  }catch(e){
+    info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Erro: '+e.message+'</span>';
+  }
+}
+function cadHtmlTableToGrid(table){
+  const trs=Array.from(table.querySelectorAll('tr')).filter(function(tr){return !tr.querySelector('th');});
+  const grid=[];
+  const colTracker=[];
+  trs.forEach(function(tr,r){
+    grid[r]=[];
+    let c=0,ci=0;
+    const cells=Array.from(tr.children);
+    while(ci<cells.length||(colTracker[c]&&colTracker[c].remaining>0)){
+      if(colTracker[c]&&colTracker[c].remaining>0){
+        grid[r][c]=colTracker[c].text;
+        colTracker[c].remaining--;
+        c++;
+        continue;
+      }
+      if(ci>=cells.length) break;
+      const cell=cells[ci++];
+      const text=cell.textContent.replace(/\s+/g,' ').trim();
+      const rowspan=parseInt(cell.getAttribute('rowspan')||'1',10)||1;
+      const colspan=parseInt(cell.getAttribute('colspan')||'1',10)||1;
+      for(let k=0;k<colspan;k++){
+        grid[r][c]=text;
+        if(rowspan>1) colTracker[c]={text:text,remaining:rowspan-1};
+        c++;
+      }
+    }
+  });
+  return grid;
+}
+function cadHtmlExtrairPontos(grid){
+  const pontos=[];
+  const parseNum=function(s){if(s===undefined||s===null||s==='')return NaN;return parseFloat(String(s).replace(',','.'));};
+  let grupoInicio=0;
+  for(let r=1;r<=grid.length;r++){
+    if(r===grid.length||!grid[r]||!grid[grupoInicio]||grid[r][0]!==grid[grupoInicio][0]){
+      const grupo=grid.slice(grupoInicio,r);
+      if(grupo.length&&grupo[0]){
+        const nome=String(grupo[0][1]||'').trim();
+        const n=parseNum(grupo[0][2]);
+        const e=grupo[1]?parseNum(grupo[1][2]):NaN;
+        const ultimo=grupo[grupo.length-1];
+        const codigo=grupo.length>1&&ultimo?String(ultimo[1]||'').trim():'';
+        const z=grupo.length>2&&ultimo?parseNum(ultimo[2]):NaN;
+        const precN=parseNum(grupo[0][4]);
+        const precE=grupo[1]?parseNum(grupo[1][4]):NaN;
+        const precZ=grupo.length>2&&ultimo?parseNum(ultimo[4]):NaN;
+        if(!isNaN(n)&&!isNaN(e)){
+          pontos.push({nome:nome||codigo,n:n,e:e,z:isNaN(z)?0:z,sigmaN:isNaN(precN)?0:precN,sigmaE:isNaN(precE)?0:precE,sigmaZ:isNaN(precZ)?0:precZ});
+        }
+      }
+      grupoInicio=r;
+    }
+  }
+  return pontos;
+}
+async function cadImportarHtmlLevantamento(input){
+  const file=input.files[0];if(!file)return;
+  const info=document.getElementById('cad-html-info');
+  if(info){info.style.display='block';info.innerHTML='Lendo relatório...';}
+  try{
+    const texto=await file.text();
+    const doc=new DOMParser().parseFromString(texto,'text/html');
+    const tabelas=Array.from(doc.querySelectorAll('table.properties.list'));
+    if(!tabelas.length) throw new Error('Nenhuma tabela de pontos encontrada. Verifique se é um Reporte HTML do Survey Master (ou similar).');
+    let pontosExtraidos=[];
+    tabelas.forEach(function(tabela){
+      pontosExtraidos=pontosExtraidos.concat(cadHtmlExtrairPontos(cadHtmlTableToGrid(tabela)));
+    });
+    if(!pontosExtraidos.length) throw new Error('Nenhum ponto com coordenadas N/E válidas foi encontrado no relatório.');
+    const layerId='html_'+Date.now();
+    const pontosNovos=pontosExtraidos.map(function(p){
+      const pt={id:_cadNextId++,x:p.e,y:p.n,z:p.z||0,nome:p.nome||'',layerId:layerId,sigmaE:p.sigmaE||0,sigmaN:p.sigmaN||0,sigmaZ:p.sigmaZ||0,ordemNome:0};
+      if(pt.nome) pt.ordemNome=++_cadOrdemContador;
+      return pt;
+    });
+    _cadPontos=_cadPontos.concat(pontosNovos);
+    if(!_cadGeoJSON) _cadGeoJSON={type:'FeatureCollection',features:[]};
+    const coords=pontosNovos.map(function(p){return [p.x,p.y,p.z||0];});
+    _cadGeoJSON.features.push({type:'Feature',properties:{layer:layerId},geometry:{type:'MultiPoint',coordinates:coords}});
+    cadDerivarCamadas(_cadGeoJSON);
+    const camada=_cadCamadas.find(function(c){return c.id===layerId;});
+    if(camada) camada.nome=file.name.replace(/\.(html?|htm)$/i,'');
+    cadAjustarView();
+    cadRenderCamadas();
+    cadRenderSvg();
+    cadAtualizarPainel();
+    cadAtualizarLista();
+    info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> '+pontosNovos.length+' ponto(s) importados do relatório.</span>';
     input.value='';
   }catch(e){
     info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Erro: '+e.message+'</span>';
