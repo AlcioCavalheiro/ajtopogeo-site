@@ -9568,15 +9568,64 @@ async function sigefCarregarModelo(input){
     _sigefModeloZip=null;_sigefXmlDoc=null;
   }
 }
+function cadAneisDisponiveis(){
+  const aneis=[];
+  function fechado(coords){return coords.length>2&&Math.abs(coords[0][0]-coords[coords.length-1][0])<1e-6&&Math.abs(coords[0][1]-coords[coords.length-1][1])<1e-6;}
+  (_cadGeoJSON&&_cadGeoJSON.features||[]).forEach(function(f){
+    const g=f.geometry;if(!g) return;
+    if(g.type==='LineString') aneis.push({coords:g.coordinates,closed:fechado(g.coordinates)});
+    else if(g.type==='MultiLineString') g.coordinates.forEach(function(l){aneis.push({coords:l,closed:fechado(l)});});
+    else if(g.type==='Polygon') g.coordinates.forEach(function(r){aneis.push({coords:r,closed:true});});
+    else if(g.type==='MultiPolygon') g.coordinates.forEach(function(poly){poly.forEach(function(r){aneis.push({coords:r,closed:true});});});
+  });
+  return aneis;
+}
+function cadOrdemHorariaDoAnel(coords,closed){
+  const total=closed?coords.length-1:coords.length;
+  const unicos=coords.slice(0,total);
+  if(!closed||total<3) return unicos.slice();
+  let signedArea=0;
+  for(let i=0;i<total;i++){
+    const a=unicos[i],b=unicos[(i+1)%total];
+    signedArea+=a[0]*b[1]-b[0]*a[1];
+  }
+  if(signedArea>0) return [unicos[0]].concat(unicos.slice(1).reverse());
+  return unicos.slice();
+}
 function sigefCarregarDoCad(){
   if(!_cadPontos.length){toast('Importe ou crie pontos na aba CAD primeiro.',true);return;}
-  const nomeados=_cadPontos.filter(function(pt){return pt.nome;}).sort(function(a,b){return (a.ordemNome||0)-(b.ordemNome||0);});
+  const nomeados=_cadPontos.filter(function(pt){return pt.nome;});
   if(!nomeados.length){toast('Nomeie os pontos do perímetro na aba "CAD" antes de usar (use o painel do ponto ou a lista de pontos nomeados).',true);return;}
+  function achar(x,y){return nomeados.find(function(pt){return Math.abs(pt.x-x)<1e-6&&Math.abs(pt.y-y)<1e-6;});}
+  let melhorAnel=null,melhorCount=0;
+  cadAneisDisponiveis().forEach(function(anel){
+    const total=anel.closed?anel.coords.length-1:anel.coords.length;
+    let count=0;
+    for(let i=0;i<total;i++){ if(achar(anel.coords[i][0],anel.coords[i][1])) count++; }
+    if(count>melhorCount){melhorCount=count;melhorAnel=anel;}
+  });
+  let ordenados,origem;
+  if(melhorAnel&&melhorCount>=3){
+    const seq=cadOrdemHorariaDoAnel(melhorAnel.coords,melhorAnel.closed);
+    ordenados=seq.map(function(c){return achar(c[0],c[1]);}).filter(Boolean);
+    origem='a partir do ponto mais ao Norte, seguindo a linha/polígono da CAD no sentido horário';
+  } else {
+    ordenados=nomeados.slice().sort(function(a,b){return (a.ordemNome||0)-(b.ordemNome||0);});
+    origem='pela ordem em que foram nomeados (nenhuma linha/polígono com esses pontos foi encontrado na CAD)';
+  }
+  if(ordenados.length>1){
+    let idxNorte=0;
+    ordenados.forEach(function(pt,i){
+      const atual=ordenados[idxNorte];
+      if(pt.y>atual.y||(pt.y===atual.y&&pt.x<atual.x)) idxNorte=i;
+    });
+    if(idxNorte>0) ordenados=ordenados.slice(idxNorte).concat(ordenados.slice(0,idxNorte));
+  }
   const p=sigefPerimetroAtual();
-  p.pontosOrigem=JSON.parse(JSON.stringify(nomeados));
+  p.pontosOrigem=JSON.parse(JSON.stringify(ordenados));
   p.vertices=p.pontosOrigem.map(function(pt){return sigefNovoVertice(pt.nome,pt.x,pt.y,pt.z,pt.sigmaE,pt.sigmaN,pt.sigmaZ);});
   sigefRenderVertices();
-  toast(p.vertices.length+' vértice(s) carregados da CAD (apenas os pontos nomeados, na ordem em que foram nomeados).');
+  toast(p.vertices.length+' vértice(s) carregados da CAD ('+origem+').');
 }
 function sigefImportarSigmasTxt(input){
   const file=input.files[0];if(!file)return;
