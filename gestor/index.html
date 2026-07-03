@@ -6817,6 +6817,7 @@ function rGeoFerramentasFixed(){
   coordUpdateUI();
   memorialInit();
   anuenciaInit();
+  cadInit();
   sigefInit();
   monAtualizarUI();
 }
@@ -7764,6 +7765,7 @@ async function anuenciaGerarDocx(){
 var _cadGeoJSON=null,_cadPontos=[],_cadNextId=1,_cadCamadas=[],_cadSelecionado=null,_cadOrdemContador=0;
 var _cadView={cx:0,cy:0,w:100,h:100},_cadDragInicio=null,_cadDragMoveu=false,_cadDragPontoId=null;
 var _cadOrigin={x:0,y:0};
+var _cadClientes=[],_cadObras=[],_cadClienteId='',_cadObraId='',_cadSalvarTimer=null;
 var _cadMapBg=null,_cadMapAtivo=false,_cadUtmZona=21,_cadUtmSul=true,_cadTileLayer=null;
 function cadWorldToLocal(x,y){return {x:x-_cadOrigin.x,y:-(y-_cadOrigin.y)};}
 function cadLocalToWorld(x,y){return {x:x+_cadOrigin.x,y:_cadOrigin.y-y};}
@@ -8231,6 +8233,11 @@ function geoCadHtml(){
   return '<div class="card mb1">'
     +'<div class="fxb mb1"><div class="st" style="margin:0"><i class="ti ti-stack-2" style="color:var(--brand)"></i>CAD — Camadas, Régua, Edição de Coordenadas e Navegação</div>'
     +'<button class="btn bxs" onclick="cadToggleImport()" id="cad-btn-toggle-import"><i class="ti ti-file-import"></i> Importar arquivo</button></div>'
+    +'<div class="g2 mb1">'
+    +'<div class="fg"><label class="fl">Cliente</label><select class="fc" id="cad-cliente" onchange="cadClienteChange()"><option value="">Selecione...</option></select></div>'
+    +'<div class="fg"><label class="fl">Obra (vincule para salvar esta CAD automaticamente)</label><select class="fc" id="cad-obra" onchange="cadObraChange()"><option value="">Selecione o cliente primeiro</option></select></div>'
+    +'</div>'
+    +'<div class="fxb mb1"><div id="cad-obra-status" class="mu sm">Sem obra vinculada — os pontos ficam só nesta sessão do navegador.</div><button class="btn bxs" onclick="cadSalvarDados()"><i class="ti ti-device-floppy"></i> Salvar agora</button></div>'
     +'<div id="cad-import-box" style="display:none">'
     +'<div class="mu sm mb1">Importe um DXF, KML ou Shapefile (.zip). Arraste para mover o desenho, use a roda do mouse para zoom, clique num ponto para selecioná-lo e dar um nome. Camadas do DXF são detectadas automaticamente; você também pode criar camadas manuais.</div>'
     +'<div class="fg mb1"><label class="fl">Arquivo (.dxf, .kml ou .zip)</label><input class="fc" type="file" id="cad-file" accept=".dxf,.kml,.zip" onchange="cadArquivoSelecionado(this)"></div>'
@@ -8298,6 +8305,98 @@ function geoCadHtml(){
     +'</div>'
     +'</div>'
     +'</div>';
+}
+async function cadInit(){
+  cadRenderCamadas();
+  cadRenderSvg();
+  cadAtualizarLista();
+  if(_cadSelecionado!==null) cadAtualizarPainel();
+  const sel=document.getElementById('cad-cliente');
+  if(!sel) return;
+  try{
+    const {data}=await sb.from('clientes').select('*').eq('ativo',true).order('nome');
+    _cadClientes=data||[];
+    sel.innerHTML='<option value="">Selecione...</option>'+_cadClientes.map(function(c){return '<option value="'+c.id+'">'+c.nome+'</option>';}).join('');
+    if(_cadClienteId){
+      sel.value=_cadClienteId;
+      await cadClienteChange(true);
+    }
+  }catch(e){}
+}
+function cadMostrarSqlSetup(){
+  document.getElementById('mt').textContent='Configuração necessária';
+  document.getElementById('mb').innerHTML='<div class="mu sm mb1">É necessário adicionar 1 coluna na tabela <strong>obras</strong>. Execute uma vez no SQL Editor do Supabase:</div><pre style="background:#f4f4f0;border-radius:8px;padding:1rem;font-size:12px;overflow-x:auto">ALTER TABLE obras ADD COLUMN IF NOT EXISTS cad_dados JSONB;</pre>';
+  document.getElementById('mf').innerHTML='<button class="btn" onclick="closeModal()">Fechar</button>';
+  const ov=document.getElementById('ov');ov.style.zIndex='200';ov.classList.add('open');
+}
+async function cadClienteChange(manterObra){
+  const cid=document.getElementById('cad-cliente').value;
+  _cadClienteId=cid;
+  const selObra=document.getElementById('cad-obra');
+  if(!cid){selObra.innerHTML='<option value="">Selecione o cliente primeiro</option>';_cadObraId='';return;}
+  selObra.innerHTML='<option value="">Carregando...</option>';
+  const {data}=await sb.from('obras').select('id,nome').eq('cliente_id',cid).order('nome');
+  _cadObras=data||[];
+  selObra.innerHTML='<option value="">Selecione...</option>'+_cadObras.map(function(o){return '<option value="'+o.id+'">'+o.nome+'</option>';}).join('');
+  if(manterObra&&_cadObraId){
+    selObra.value=_cadObraId;
+  } else {
+    _cadObraId='';
+  }
+}
+async function cadObraChange(){
+  const oid=document.getElementById('cad-obra').value;
+  const statusEl=document.getElementById('cad-obra-status');
+  if(_cadObraId&&_cadObraId!==oid) await cadSalvarDados();
+  _cadObraId=oid;
+  if(!oid){ if(statusEl) statusEl.textContent='Sem obra vinculada — os pontos ficam só nesta sessão do navegador.'; return; }
+  if(statusEl) statusEl.textContent='Carregando dados da obra...';
+  try{
+    const {data,error}=await sb.from('obras').select('cad_dados').eq('id',oid).single();
+    if(error){
+      if(error.message&&error.message.toLowerCase().includes('column')){cadMostrarSqlSetup();return;}
+      toast('Erro ao carregar dados da obra: '+error.message,true);return;
+    }
+    const dados=data&&data.cad_dados;
+    if(dados&&(dados.pontos||[]).length){
+      _cadPontos=dados.pontos||[];
+      _cadGeoJSON=dados.geojson||null;
+      _cadCamadas=dados.camadas||[];
+      _cadNextId=dados.nextId||(Math.max.apply(null,_cadPontos.map(function(p){return p.id;}).concat([0]))+1);
+      _cadOrdemContador=dados.ordemContador||0;
+      _cadSelecionado=null;
+      cadAjustarView();
+      cadRenderCamadas();
+      cadRenderSvg();
+      cadAtualizarLista();
+      cadAtualizarPainel();
+      if(statusEl) statusEl.textContent='Dados carregados desta obra ('+_cadPontos.length+' ponto(s)).';
+    } else {
+      if(statusEl) statusEl.textContent='Obra sem dados de CAD salvos ainda — qualquer alteração feita agora é salva automaticamente aqui.';
+    }
+  }catch(e){
+    toast('Erro: '+e.message,true);
+  }
+}
+async function cadSalvarDados(){
+  if(!_cadObraId) return;
+  const statusEl=document.getElementById('cad-obra-status');
+  if(statusEl) statusEl.textContent='Salvando...';
+  const payload={pontos:_cadPontos,geojson:_cadGeoJSON,camadas:_cadCamadas,nextId:_cadNextId,ordemContador:_cadOrdemContador};
+  const {error}=await sb.from('obras').update({cad_dados:payload}).eq('id',_cadObraId);
+  if(error){
+    if(error.message&&error.message.toLowerCase().includes('column')){cadMostrarSqlSetup();return;}
+    if(statusEl) statusEl.textContent='Erro ao salvar: '+error.message;
+    return;
+  }
+  if(statusEl) statusEl.textContent='Salvo às '+new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'.';
+}
+function cadAgendarSalvamentoAuto(){
+  if(!_cadObraId) return;
+  clearTimeout(_cadSalvarTimer);
+  const statusEl=document.getElementById('cad-obra-status');
+  if(statusEl) statusEl.textContent='Alterações pendentes de salvar...';
+  _cadSalvarTimer=setTimeout(cadSalvarDados,1500);
 }
 function cadToggleImport(){
   const box=document.getElementById('cad-import-box');
@@ -8524,6 +8623,7 @@ function cadRenderSvg(){
     }
   }
   svg.innerHTML=geomSvg+pontosSvg+medicaoSvg+polilinhaSvg;
+  cadAgendarSalvamentoAuto();
 }
 function cadScreenToSvg(evt){
   const svg=document.getElementById('cad-svg');
