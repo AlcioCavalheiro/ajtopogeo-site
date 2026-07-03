@@ -8608,6 +8608,7 @@ function cadPointerMove(evt){
       if(pt){
         const snap=cadBuscarSnap(p);
         const alvo=snap||cadLocalToWorld(p.x,p.y);
+        cadAtualizarVerticeEmGeometrias(pt.x,pt.y,alvo.x,alvo.y,pt.z);
         pt.x=alvo.x;pt.y=alvo.y;
         cadRenderSvg();
         if(_cadSelecionado===pt.id) cadAtualizarPainel();
@@ -8926,6 +8927,7 @@ function cadAplicarEdicaoPonto(){
   const y=parseFloat(document.getElementById('cad-y-input').value);
   const z=parseFloat(document.getElementById('cad-z-input').value);
   if(isNaN(x)||isNaN(y)){toast('Coordenadas inválidas.',true);return;}
+  cadAtualizarVerticeEmGeometrias(p.x,p.y,x,y,isNaN(z)?0:z);
   p.x=x;p.y=y;p.z=isNaN(z)?0:z;
   p.sigmaE=parseFloat(document.getElementById('cad-sigmae-input').value)||0;
   p.sigmaN=parseFloat(document.getElementById('cad-sigman-input').value)||0;
@@ -8977,6 +8979,23 @@ function cadSelecionarMaisAoNorte(){
     if(p.y>melhor.y||(p.y===melhor.y&&p.x<melhor.x)) melhor=p;
   });
   cadFocarPonto(melhor.id);
+}
+function cadAtualizarVerticeEmGeometrias(oldX,oldY,novoX,novoY,novoZ){
+  if(!_cadGeoJSON||!_cadGeoJSON.features) return;
+  function ajustarAnel(coords){
+    coords.forEach(function(c){
+      if(Math.abs(c[0]-oldX)<1e-6&&Math.abs(c[1]-oldY)<1e-6){
+        c[0]=novoX;c[1]=novoY;
+        if(novoZ!==undefined&&novoZ!==null) c[2]=novoZ;
+      }
+    });
+  }
+  _cadGeoJSON.features.forEach(function(f){
+    const g=f.geometry;if(!g) return;
+    if(g.type==='LineString'||g.type==='MultiPoint') ajustarAnel(g.coordinates);
+    else if(g.type==='MultiLineString'||g.type==='Polygon') g.coordinates.forEach(ajustarAnel);
+    else if(g.type==='MultiPolygon') g.coordinates.forEach(function(poly){poly.forEach(ajustarAnel);});
+  });
 }
 function cadLocalizarVerticeNaLinha(p){
   let achado=null;
