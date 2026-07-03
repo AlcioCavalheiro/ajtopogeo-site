@@ -2582,6 +2582,45 @@ async function salvarEdicaoMedicao(id){
   }
   toast('Medição atualizada!');closeModal();rMedicao();
 }
+const MED_TABS=[
+  {k:'fechar',status:'Fechar Medição',ic:'ti-hourglass'},
+  {k:'nf',status:'Gerar NF',ic:'ti-receipt'},
+  {k:'pagamento',status:'Falta Pagamento',ic:'ti-cash-banknote'},
+  {k:'recebido',status:'Recebido',ic:'ti-checks'}
+];
+let _medAba='fechar';
+function medTab(tab){
+  _medAba=tab;
+  MED_TABS.forEach(function(t){
+    document.getElementById('med-tbl-'+t.k).style.display=t.k===tab?'':'none';
+    document.getElementById('med-tab-'+t.k).classList.toggle('active',t.k===tab);
+  });
+}
+function medTableHtml(list,nfOsIds){
+  return '<div class="tw"><table>'
+    +'<thead><tr><th>Descrição</th><th>Cliente</th><th>OS incluídas</th><th>Valor total</th><th>Status</th><th>Obs</th><th></th></tr></thead>'
+    +'<tbody>'+(list.map(function(m){
+      const temNF=(m.os_ids||[]).some(function(id){return nfOsIds.has(id);});
+      const nfStyle=temNF?'background:#E6F1FB;color:#0d4fa0;border-color:#bcd9f5':'background:#FFF8E7;color:#854F0B;border-color:#EED';
+      const nfTitle=temNF?'NF já lançada nesta medição':'Lançar Nota Fiscal desta medição';
+      const nfIcon=temNF?'ti-receipt-2':'ti-receipt';
+      return`<tr>
+      <td class="w5">${m.descricao||'—'}</td>
+      <td class="mu sm">${m.cliente_nome||(m.os_dados||[])[0]?.cliente_nome||'—'}</td>
+      <td class="mu sm">${(m.os_dados||[]).map(o=>o.numero).join(', ')||m.os_id||'—'}</td>
+      <td class="w6">${fmt(m.valor)}</td>
+      <td><select class="fc" onchange="updMedicao('${m.id}',this.value)" style="padding:3px 6px;font-size:11px">
+        ${['Fechar Medição','Gerar NF','Falta Pagamento','Recebido'].map(s=>`<option ${m.status===s?'selected':''}>${s}</option>`).join('')}
+      </select></td>
+      <td class="mu sm">${m.obs||'—'}</td>
+      <td class="fx g8">
+        <button class="btn bxs" style="background:#E6F1FB;color:#0d4fa0" onclick="editarMedicao('${m.id}')" title="Editar medição"><i class="ti ti-pencil"></i></button>
+        <button class="btn bxs" style="background:#EAF3DE;color:#27500A;border-color:#b5d98a" onclick="agendarRecebimentoMedicao('${m.id}')" title="Agendar recebimento na agenda"><i class="ti ti-calendar-dollar"></i></button>
+        <button class="btn bxs" style="${nfStyle}" onclick="abrirAddNFMedicao('${m.id}')" title="${nfTitle}"><i class="ti ${nfIcon}"></i></button>
+        <button class="btn bxs bdr" onclick="excluirReg('medicoes','${m.id}','${(m.descricao||'').replace(/'/g,'')}')" title="Excluir (OS volta à lista de aptas)"><i class="ti ti-trash"></i></button>
+      </td>
+    </tr>`;}).join('')||nd(7))+'</tbody></table></div>';
+}
 async function rMedicao(){
   const[{data:todasOS,error:errOS},{data:meds},{data:clisM},{data:obrasM},{data:nfs}]=await Promise.all([
     sb.from('ordens').select('*').order('numero'),
@@ -2632,30 +2671,13 @@ async function rMedicao(){
         <button class="btn bp2 bsm" onclick="abrirNovaMedicaoModal()"><i class="ti ti-plus"></i> Nova Medição</button>
       </div>
     </div>
-    <div class="tw"><table>
-      <thead><tr><th>Descrição</th><th>Cliente</th><th>OS incluídas</th><th>Valor total</th><th>Status</th><th>Obs</th><th></th></tr></thead>
-      <tbody>${ms.map(m=>{
-        const temNF=(m.os_ids||[]).some(id=>nfOsIds.has(id));
-        const nfStyle=temNF?'background:#E6F1FB;color:#0d4fa0;border-color:#bcd9f5':'background:#FFF8E7;color:#854F0B;border-color:#EED';
-        const nfTitle=temNF?'NF já lançada nesta medição':'Lançar Nota Fiscal desta medição';
-        const nfIcon=temNF?'ti-receipt-2':'ti-receipt';
-        return`<tr>
-        <td class="w5">${m.descricao||'—'}</td>
-        <td class="mu sm">${m.cliente_nome||(m.os_dados||[])[0]?.cliente_nome||'—'}</td>
-        <td class="mu sm">${(m.os_dados||[]).map(o=>o.numero).join(', ')||m.os_id||'—'}</td>
-        <td class="w6">${fmt(m.valor)}</td>
-        <td><select class="fc" onchange="updMedicao('${m.id}',this.value)" style="padding:3px 6px;font-size:11px">
-          ${['Fechar Medição','Gerar NF','Falta Pagamento','Recebido'].map(s=>`<option ${m.status===s?'selected':''}>${s}</option>`).join('')}
-        </select></td>
-        <td class="mu sm">${m.obs||'—'}</td>
-        <td class="fx g8">
-          <button class="btn bxs" style="background:#E6F1FB;color:#0d4fa0" onclick="editarMedicao('${m.id}')" title="Editar medição"><i class="ti ti-pencil"></i></button>
-          <button class="btn bxs" style="background:#EAF3DE;color:#27500A;border-color:#b5d98a" onclick="agendarRecebimentoMedicao('${m.id}')" title="Agendar recebimento na agenda"><i class="ti ti-calendar-dollar"></i></button>
-          <button class="btn bxs" style="${nfStyle}" onclick="abrirAddNFMedicao('${m.id}')" title="${nfTitle}"><i class="ti ${nfIcon}"></i></button>
-          <button class="btn bxs bdr" onclick="excluirReg('medicoes','${m.id}','${(m.descricao||'').replace(/'/g,'')}')" title="Excluir (OS volta à lista de aptas)"><i class="ti ti-trash"></i></button>
-        </td>
-      </tr>`;}).join('')||nd(7)}</tbody>
-    </table></div>
+    <div class="tabs" id="med-tabs" style="margin-bottom:1rem">
+      ${MED_TABS.map(t=>{
+        const cnt=ms.filter(m=>m.status===t.status).length;
+        return `<div class="tab${_medAba===t.k?' active':''}" onclick="medTab('${t.k}')" id="med-tab-${t.k}"><i class="ti ${t.ic}" style="font-size:13px"></i> ${t.status} (${cnt})</div>`;
+      }).join('')}
+    </div>
+    ${MED_TABS.map(t=>`<div id="med-tbl-${t.k}" style="display:${_medAba===t.k?'':'none'}">${medTableHtml(ms.filter(m=>m.status===t.status),nfOsIds)}</div>`).join('')}
   </div>
   ${aptas.length?`
   <div class="card mt1" style="border-left:4px solid #854F0B">
@@ -4446,7 +4468,7 @@ async function loadOSFin(osId){
     +((cu.data||[]).length?'<div class="w6 sm" style="margin-bottom:.5rem">Equipe</div><table style="font-size:12px;width:100%;border-collapse:collapse;margin-bottom:.5rem"><thead><tr><th style="text-align:left;padding:4px 8px;border-bottom:1px solid var(--bor)">Funcionário</th><th style="padding:4px 8px;border-bottom:1px solid var(--bor)">Tipo</th><th style="padding:4px 8px;border-bottom:1px solid var(--bor)">Total</th><th style="padding:4px 8px;border-bottom:1px solid var(--bor)"></th></tr></thead><tbody>'+(cu.data||[]).map(function(ct){
   return'<tr><td style="padding:4px 8px">'+(ct.funcionarios?.nome||'—')+'</td><td style="padding:4px 8px"><span style="font-size:11px;background:#f4f4f0;padding:2px 6px;border-radius:4px">'+ct.tipo_custo+'</span></td><td style="padding:4px 8px;font-weight:600">'+fmt(ct.valor_total)+'</td><td style="padding:4px 8px"><button class="btn bxs bdr" style="padding:2px 6px" onclick="excluirCustoOS(\''+ct.id+'\',\''+osId+'\')"><i class="ti ti-trash" style="font-size:11px"></i></button></td></tr>';
 }).join('')+'</tbody></table>':'')
-    +'<div class="fx g8" style="flex-wrap:wrap;margin-top:.5rem"><button class="btn bp2 bsm" onclick="addCustoOS(\''+osId+'\')"><i class="ti ti-plus"></i> Lançar custo</button><button class="btn bsm" onclick="abrirLancarRecebimento(\''+osId+'\',\''+osNumero+'\')"><i class="ti ti-plus"></i> Lançar recebimento</button><button class="btn bsm" onclick="abrirAddNFOS(\''+osId+'\',\''+osNumero+'\',\''+( osInfo?.cliente_id||'')+'\')"><i class="ti ti-receipt"></i> Nova NF</button></div>';
+    +'<div class="fx g8" style="flex-wrap:wrap;margin-top:.5rem"><button class="btn bp2 bsm" onclick="addCustoOS(\''+osId+'\')"><i class="ti ti-plus"></i> Lançar custo</button><button class="btn bsm" onclick="abrirLancarRecebimento(\''+osId+'\',\''+osNumero+'\','+(tRPend>0?tRPend:Math.max(orcaValor-tR,0))+')"><i class="ti ti-plus"></i> Lançar recebimento</button><button class="btn bsm" onclick="abrirAddNFOS(\''+osId+'\',\''+osNumero+'\',\''+( osInfo?.cliente_id||'')+'\')"><i class="ti ti-receipt"></i> Nova NF</button></div>';
 }
 
 async function saveOS(id){
@@ -5932,12 +5954,13 @@ function renderOrcaChecklist(){
 }
 
 // ─── LANÇAR RECEBIMENTO COM MODAL NA FRENTE ──────────────
-async function abrirLancarRecebimento(osId, osNumero){
+async function abrirLancarRecebimento(osId, osNumero, valorAberto){
   document.getElementById('mt').textContent='Lançar Recebimento — OS '+osNumero;
   CM='recebimentos';EID=null;
   document.getElementById('mb').innerHTML=
     '<div class="fg"><label class="fl">Descrição *</label><input class="fc" id="f-descricao" value="Recebimento OS '+osNumero+'" placeholder="Descrição..."></div>'
-    +'<div class="g2"><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor"></div>'
+    +(valorAberto>0?'<div class="mu sm" style="margin-bottom:6px">Valor em aberto: '+fmt(valorAberto)+'</div>':'')
+    +'<div class="g2"><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor" value="'+(valorAberto>0?valorAberto.toFixed(2):'')+'"></div>'
     +'<div class="fg"><label class="fl">Data recebimento</label><input class="fc" type="date" id="f-data_recebimento" value="'+new Date().toISOString().split('T')[0]+'"></div></div>'
     +'<div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option selected>Recebido</option><option>Pendente</option></select></div>'
     +'<input type="hidden" id="f-os_manual" value="'+osNumero+'">'
@@ -6193,6 +6216,23 @@ const _OS_STATUS_LISTA=['Agendada','Logística / Preparação','Em campo','Em an
   'Encaminhada para Medição','Medição Realizada','NF Gerada','Recebido',
   'Pronto para Enviar ao Cliente','Documentos Enviados ao Cliente',
   'Concluída','Cancelada'];
+function _osStatusTabsHTML(ors){
+  return '<div class="tabs" id="os-status-tabs" style="margin-bottom:1rem">'
+    +_OS_STATUS_LISTA.map(function(s){
+      const cnt=ors.filter(function(o){return(o.status||'')===s;}).length;
+      const active=_osFiltros.status===s;
+      const esc=s.replace(/"/g,'&quot;');
+      return '<div class="tab'+(active?' active':'')+'" data-status="'+esc+'" onclick="osStatusTab(\''+s.replace(/'/g,"\\'")+'\')">'+s+' ('+cnt+')</div>';
+    }).join('')
+    +'</div>';
+}
+function osStatusTab(status){
+  _osFiltros.status=status;
+  document.querySelectorAll('#os-status-tabs .tab').forEach(function(t){
+    t.classList.toggle('active',t.dataset.status===status);
+  });
+  _renderOSTabela(_osCache,(document.getElementById('si')?.value||'').trim());
+}
 function _normOS(s){return(s||'').trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');}
 function _renderOSTabela(ors,q){
   let base=ors;
@@ -6232,6 +6272,7 @@ pageMap.ordens=async function rOSFixed(){
     _osCache.forEach(o=>{o.obras=o.obra_id?obraMap[o.obra_id]||null:null;});
   }
   const ors=_osCache;
+  if(!_OS_STATUS_LISTA.includes(_osFiltros.status)) _osFiltros.status=_OS_STATUS_LISTA[0];
   const ba=document.getElementById('ba');
   if(ba)ba.style.display='none';
   document.getElementById('ct').innerHTML=
@@ -6246,7 +6287,9 @@ pageMap.ordens=async function rOSFixed(){
     +'<div class="mc"><div class="ml">Em Medição/NF</div><div class="mv" style="color:#854F0B">'+ors.filter(o=>['Encaminhada para Medição','Medição Realizada','NF Gerada'].includes(o.status)).length+'</div></div>'
     +'</div>'
     +_osFiltroBarHTML(ors)
-    +'<div class="card"><div class="tw"><table>'
+    +'<div class="card">'
+    +_osStatusTabsHTML(ors)
+    +'<div class="tw"><table>'
     +'<thead><tr><th>Número</th><th>Tipo</th><th>Cliente</th><th>Obra</th><th>Data</th><th>Status</th><th>Valor</th><th></th></tr></thead>'
     +'<tbody id="os-tbody"></tbody></table></div></div>';
   _renderOSTabela(ors,(document.getElementById('si')?.value||'').trim());
@@ -6256,20 +6299,11 @@ pageMap.ordens=async function rOSFixed(){
 
 // ─── Barra de filtros da página de OS ──────────────────────
 function _osFiltroBarHTML(ors){
-  // Status presentes nos dados, ordenados pela lista canônica
-  const statusPresentes=_OS_STATUS_LISTA.filter(s=>ors.some(o=>(o.status||'')===s));
-  const statusOpts=statusPresentes.map(s=>'<option value="'+s+'"'+(_osFiltros.status===s?' selected':'')+'>'+s+'</option>').join('');
   // Clientes únicos presentes nos dados
   const clientes=[...new Set(ors.map(o=>o.clientes?.nome).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
   const cliOpts=clientes.map(c=>'<option value="'+c.replace(/"/g,'&quot;')+'"'+(_osFiltros.cliente===c?' selected':'')+'>'+c+'</option>').join('');
   return '<div class="card mb1" style="padding:.75rem 1rem">'
     +'<div class="fx g12" style="flex-wrap:wrap;align-items:flex-end">'
-    +'<div class="fg" style="margin:0;min-width:200px;flex:1"><label class="fl">Status</label>'
-    +'<select class="fc" id="os-f-status" onchange="_setFiltroOS()">'
-    +'<option value="">Todos os status</option>'
-    +'<option value="__abertas"'+(_osFiltros.status==='__abertas'?' selected':'')+'>— Em aberto —</option>'
-    +'<option value="__finalizadas"'+(_osFiltros.status==='__finalizadas'?' selected':'')+'>— Finalizadas —</option>'
-    +statusOpts+'</select></div>'
     +'<div class="fg" style="margin:0;min-width:200px;flex:1"><label class="fl">Cliente</label>'
     +'<select class="fc" id="os-f-cliente" onchange="_setFiltroOS()">'
     +'<option value="">Todos os clientes</option>'+cliOpts+'</select></div>'
@@ -6286,22 +6320,21 @@ function _osFiltroBarHTML(ors){
     +'</div>';
 }
 function _setFiltroOS(){
-  _osFiltros.status=document.getElementById('os-f-status')?.value||'';
   _osFiltros.cliente=document.getElementById('os-f-cliente')?.value||'';
   _osFiltros.ordem=document.getElementById('os-f-ordem')?.value||'padrao';
   _renderOSTabela(_osCache,(document.getElementById('si')?.value||'').trim());
 }
 function _limparFiltrosOS(){
-  _osFiltros={status:'__abertas',cliente:'',ordem:'padrao'};
-  const fs=document.getElementById('os-f-status');if(fs)fs.value='__abertas';
+  _osFiltros={status:_OS_STATUS_LISTA.includes(_osFiltros.status)?_osFiltros.status:_OS_STATUS_LISTA[0],cliente:'',ordem:'padrao'};
   const fc=document.getElementById('os-f-cliente');if(fc)fc.value='';
   const fo=document.getElementById('os-f-ordem');if(fo)fo.value='padrao';
   const si=document.getElementById('si');if(si)si.value='';
+  document.querySelectorAll('#os-status-tabs .tab').forEach(function(t){t.classList.toggle('active',t.dataset.status===_osFiltros.status);});
   _renderOSTabela(_osCache,'');
 }
 function _osSetFiltroRapido(tipo){
   _osFiltros.status=tipo;
-  const fs=document.getElementById('os-f-status');if(fs)fs.value=tipo;
+  document.querySelectorAll('#os-status-tabs .tab').forEach(function(t){t.classList.remove('active');});
   _renderOSTabela(_osCache,(document.getElementById('si')?.value||'').trim());
 }
 
