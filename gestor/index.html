@@ -344,6 +344,7 @@ select.fc{cursor:pointer}
       <div class="ni" onclick="nav('nfe')"><i class="ti ti-receipt"></i>Notas Fiscais</div>
       <div class="ni" onclick="nav('dre')"><i class="ti ti-chart-bar"></i>DRE / Resultado</div>
       <div class="ni" onclick="nav('passivo')"><i class="ti ti-scale"></i>Passivo / Obrigações</div>
+      <div class="ni" onclick="nav('tributario')"><i class="ti ti-receipt-tax"></i>Controle Tributário</div>
       <div class="ng">Ferramentas</div>
       <div class="ni" onclick="nav('geoferramentas')"><i class="ti ti-map-2"></i>Ferramentas Geo</div>
       <div class="ng">Empresa</div>
@@ -508,7 +509,12 @@ const PCFG={
   administrativo:{t:'Administrativo',tb:'documentos_empresa',a:'Novo Documento',h:function(o){return '<div class="fg"><label class="fl">Nome do documento *</label><input class="fc" id="f-nome" placeholder="Ex: Alvará de funcionamento..."></div><div class="g2"><div class="fg"><label class="fl">Categoria</label><select class="fc" id="f-categoria"><option>Licença</option><option>Certidão</option><option>Contrato</option><option>Certificado</option><option>Registro</option><option>Outro</option></select></div><div class="fg"><label class="fl">Número / Código</label><input class="fc" id="f-numero"></div></div><div class="g2"><div class="fg"><label class="fl">Data emissão</label><input class="fc" type="date" id="f-data_emissao"></div><div class="fg"><label class="fl">Validade</label><input class="fc" type="date" id="f-validade"></div></div><div class="fg"><label class="fl">Responsável</label><input class="fc" id="f-responsavel"></div><div class="fg"><label class="fl">Observações</label><textarea class="fc" id="f-obs" rows="2"></textarea></div><div class="fg"><label class="fl">Arquivo (PDF, imagem, Word, Excel)</label><div id="adm-upload-area" class="upload-area" onclick="document.getElementById(\'adm-file-input\').click()"><i class="ti ti-file-upload"></i><p>Clique ou arraste o arquivo aqui</p></div><div id="adm-file-preview" style="display:none"></div><input type="file" id="adm-file-input" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" style="display:none" onchange="handleFileSelect(this,\'adm\')"><input type="hidden" id="f-arquivo_url" value=""></div>';}},
   funcionarios:{t:'Novo Funcionário',tb:'funcionarios',a:'Novo Funcionário',h:function(o){return '<div class="fg"><label class="fl">Nome *</label><input class="fc" id="f-nome"></div><div class="g2"><div class="fg"><label class="fl">CPF</label><input class="fc" id="f-cpf"></div><div class="fg"><label class="fl">Cargo</label><input class="fc" id="f-cargo" placeholder="Ex: Técnico em Topografia"></div></div><div class="g2"><div class="fg"><label class="fl">Telefone</label><input class="fc" id="f-telefone"></div><div class="fg"><label class="fl">E-mail</label><input class="fc" type="email" id="f-email"></div></div><div class="g2"><div class="fg"><label class="fl">Valor hora (R$)</label><input class="fc" type="number" step="0.01" id="f-valor_hora"></div><div class="fg"><label class="fl">Valor diária (R$)</label><input class="fc" type="number" step="0.01" id="f-valor_diaria"></div></div><div class="g2"><div class="fg"><label class="fl">Data admissão</label><input class="fc" type="date" id="f-data_admissao"></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-ativo"><option value="true">Ativo</option><option value="false">Inativo</option></select></div></div>';}},
   relatorios:{t:'Relatórios / PDF',a:null},
-  config:{t:'Configuração',a:null}
+  config:{t:'Configuração',a:null},
+  tributario:{t:'Controle Tributário',a:null},
+  socios:{t:'Sócio',tb:'socios',h:function(o){return '<div class="fg"><label class="fl">Nome *</label><input class="fc" id="f-nome"></div><div class="g2"><div class="fg"><label class="fl">Participação (%)</label><input class="fc" type="number" step="0.01" id="f-percentual_participacao"></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-ativo"><option value="true">Ativo</option><option value="false">Inativo</option></select></div></div>';}},
+  das_mensal:{t:'Registrar DAS',tb:'das_mensal',h:function(o){return '<div class="g2"><div class="fg"><label class="fl">Competência (AAAA-MM) *</label><input class="fc" id="f-competencia" placeholder="2026-07"></div><div class="fg"><label class="fl">Anexo aplicado</label><select class="fc" id="f-anexo_aplicado"><option>III</option><option>V</option></select></div></div><div class="g2"><div class="fg"><label class="fl">RBT12 (R$)</label><input class="fc" type="number" step="0.01" id="f-rbt12"></div><div class="fg"><label class="fl">Fator R (%)</label><input class="fc" type="number" step="0.01" id="f-fator_r"></div></div><div class="g2"><div class="fg"><label class="fl">Alíquota efetiva (%)</label><input class="fc" type="number" step="0.01" id="f-aliquota_efetiva"></div><div class="fg"><label class="fl">Valor DAS estimado (R$)</label><input class="fc" type="number" step="0.01" id="f-valor_das_estimado"></div></div><div class="fg"><label class="fl">Observação</label><input class="fc" id="f-observacao"></div>';}},
+  retencoes:{t:'Registrar Retenção',tb:'retencoes',h:function(o){return '<div class="g2"><div class="fg"><label class="fl">Tipo *</label><select class="fc" id="f-tipo"><option>INSS</option><option>ISS</option><option>IRRF</option></select></div><div class="fg"><label class="fl">Valor retido (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor_retido"></div></div><div class="fg"><label class="fl">Tomador do serviço</label><input class="fc" id="f-tomador" placeholder="Nome do órgão/empresa que reteve"></div><div class="g2"><div class="fg"><label class="fl">OS Vinculada</label><select class="fc" id="f-os_id"><option value="">Sem OS</option>'+o.oOpts+'</select></div><div class="fg"><label class="fl">Competência</label><input class="fc" id="f-competencia" placeholder="2026-07"></div></div><div class="fg"><label class="fl">Data</label><input class="fc" type="date" id="f-data"></div><div class="fg"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="f-compensado" style="width:14px;height:14px;accent-color:var(--brand)"> Já compensada na apuração</label></div><div class="fg"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="f-orgao_publico" style="width:14px;height:14px;accent-color:var(--brand)"> Tomador é órgão público</label></div><div class="fg"><label class="fl">Observação</label><input class="fc" id="f-observacao"></div>';}},
+  parametros_tributarios:{t:'Editar Faixa do Simples',tb:'parametros_tributarios',h:function(o){return '<div class="g2"><div class="fg"><label class="fl">Anexo</label><select class="fc" id="f-anexo"><option>III</option><option>V</option></select></div><div class="fg"><label class="fl">Faixa</label><input class="fc" type="number" id="f-faixa"></div></div><div class="g2"><div class="fg"><label class="fl">Receita de (R$)</label><input class="fc" type="number" step="0.01" id="f-receita_de"></div><div class="fg"><label class="fl">Receita até (R$)</label><input class="fc" type="number" step="0.01" id="f-receita_ate"></div></div><div class="g2"><div class="fg"><label class="fl">Alíquota (%)</label><input class="fc" type="number" step="0.01" id="f-aliquota"></div><div class="fg"><label class="fl">Valor a deduzir (R$)</label><input class="fc" type="number" step="0.01" id="f-valor_deduzir"></div></div><div class="g2"><div class="fg"><label class="fl">Vigência início</label><input class="fc" type="date" id="f-vigencia_inicio"></div><div class="fg"><label class="fl">Vigência fim</label><input class="fc" type="date" id="f-vigencia_fim"></div></div><div class="fg"><label class="fl">Observação</label><input class="fc" id="f-observacao"></div>';}}
 };
 // ── AUTH
 document.getElementById('lp').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
@@ -556,7 +562,7 @@ function nav(page){
   document.getElementById('pt').textContent=cfg.t;
   const ba=document.getElementById('ba');
   if(cfg.a){ba.style.display='flex';document.getElementById('bal').textContent=cfg.a;}else ba.style.display='none';
-  const _semBusca=new Set(['dashboard','agenda','dre','medicao','pipeline','pendencias','relatorios','config','geoferramentas']);
+  const _semBusca=new Set(['dashboard','agenda','dre','medicao','pipeline','pendencias','relatorios','config','geoferramentas','tributario']);
   const siWrap=document.querySelector('.sb2');
   const si=document.getElementById('si');
   si.value='';
@@ -4010,6 +4016,400 @@ async function rPassivo(){
   </div>`;
 }
 
+// ═══════════════════════════════════════════════════════════
+// CONTROLE TRIBUTÁRIO — Fator R, Simples Nacional, DAS, retenções
+// Estimativa de apoio à decisão — não substitui apuração do contador.
+// RBT12 é calculado por COMPETÊNCIA (data de emissão de NF), não por caixa —
+// não reaproveita a agregação de "recebimentos" que o DRE usa para outra finalidade.
+// ═══════════════════════════════════════════════════════════
+
+const FATOR_R_CATS=['Salário','Pró-labore','INSS Folha','FGTS Folha'];
+let _tribDados=null;
+
+async function _fetchDadosTributarios(){
+  const[{data:nfs},{data:pags},{data:paramsSimples},{data:paramsGerais},{data:socios},{data:dasHist},{data:retencoes}]=await Promise.all([
+    sb.from('notas_fiscais').select('valor,data_emissao,status'),
+    sb.from('pagamentos').select('valor,categoria,status,data_pagamento,vencimento,socio_id,descricao'),
+    sb.from('parametros_tributarios').select('*'),
+    sb.from('parametros_gerais').select('*'),
+    sb.from('socios').select('*').order('nome'),
+    sb.from('das_mensal').select('*').order('competencia'),
+    sb.from('retencoes').select('*').order('data',{ascending:false}),
+  ]);
+  return{nfs:nfs||[],pags:pags||[],paramsSimples:paramsSimples||[],paramsGerais:paramsGerais||[],socios:socios||[],dasHist:dasHist||[],retencoes:retencoes||[]};
+}
+
+function _mesRange(ano,mi){
+  const d1=`${ano}-${String(mi).padStart(2,'0')}-01`;
+  const d2=new Date(Number(ano),mi,0).toISOString().split('T')[0];
+  return[d1,d2];
+}
+
+// Série de 12 meses terminando em refDate (mais antigo primeiro): receita por
+// competência (NF emitida) e folha (salário/pró-labore/encargos pagos).
+function _serieTributaria12(dados,refDate){
+  const meses=[];
+  for(let k=11;k>=0;k--){
+    const d=new Date(refDate.getFullYear(),refDate.getMonth()-k,1);
+    const ano=d.getFullYear(),mi=d.getMonth()+1;
+    const[d1,d2]=_mesRange(ano,mi);
+    const receita=dados.nfs.filter(n=>n.status==='Emitida'&&n.data_emissao>=d1&&n.data_emissao<=d2).reduce((s,n)=>s+Number(n.valor),0);
+    const folha=dados.pags.filter(p=>p.status==='Pago'&&FATOR_R_CATS.includes(p.categoria)&&(p.data_pagamento||'')>=d1&&(p.data_pagamento||'')<=d2).reduce((s,p)=>s+Number(p.valor),0);
+    meses.push({ano,mi,ymKey:`${ano}-${String(mi).padStart(2,'0')}`,lbl:d.toLocaleDateString('pt-BR',{month:'short'}).replace('.',''),receita,folha});
+  }
+  return meses;
+}
+
+function calcRBT12(dados,refDate){return _serieTributaria12(dados,refDate).reduce((s,m)=>s+m.receita,0);}
+function calcFolha12(dados,refDate){return _serieTributaria12(dados,refDate).reduce((s,m)=>s+m.folha,0);}
+function calcFatorR(rbt12,folha12){return rbt12>0?folha12/rbt12:0;}
+function anexoPorFatorR(fatorR){return fatorR>=0.28?'III':'V';}
+
+function buscarFaixaVigente(paramsSimples,anexo,rbt12,dataRefStr){
+  return paramsSimples.find(p=>p.anexo===anexo&&rbt12>=Number(p.receita_de)&&rbt12<=Number(p.receita_ate)&&p.vigencia_inicio<=dataRefStr&&(!p.vigencia_fim||p.vigencia_fim>=dataRefStr));
+}
+function calcAliquotaEfetiva(rbt12,faixa){
+  if(!faixa||rbt12<=0)return 0;
+  return Math.max(0,((rbt12*Number(faixa.aliquota)/100)-Number(faixa.valor_deduzir))/rbt12);
+}
+function calcDASProjetado(receitaMes,aliquotaEfetiva){return receitaMes*aliquotaEfetiva;}
+
+function getParamGeral(dados,chave,fallback){
+  const p=dados.paramsGerais.find(x=>x.chave===chave);
+  return p?Number(p.valor):fallback;
+}
+
+function detectarSublimiteDegrau(rbt12){
+  const limites=[180000,360000,720000,1800000,3600000,4800000];
+  for(const lim of limites){
+    if(rbt12<=lim){
+      const distPct=(lim-rbt12)/lim*100;
+      return distPct<=5?{proximo:lim,distanciaPct:distPct}:null;
+    }
+  }
+  return null;
+}
+
+// Cálculo completo do mês de referência.
+function calcularTributarioMes(dados,refDate){
+  const serie=_serieTributaria12(dados,refDate);
+  const rbt12=serie.reduce((s,m)=>s+m.receita,0);
+  const folha12=serie.reduce((s,m)=>s+m.folha,0);
+  const fatorR=calcFatorR(rbt12,folha12);
+  const anexo=anexoPorFatorR(fatorR);
+  const dataRefStr=refDate.toISOString().split('T')[0];
+  const faixa=buscarFaixaVigente(dados.paramsSimples,anexo,rbt12,dataRefStr);
+  const aliquotaEfetiva=calcAliquotaEfetiva(rbt12,faixa);
+  const mesAtual=serie[serie.length-1];
+  const dasProjetado=calcDASProjetado(mesAtual.receita,aliquotaEfetiva);
+  return{serie,rbt12,folha12,fatorR,anexo,faixa,aliquotaEfetiva,receitaMesAtual:mesAtual.receita,dasProjetado,competencia:mesAtual.ymKey,sublimite:detectarSublimiteDegrau(rbt12)};
+}
+
+// Alíquota efetiva "no outro anexo", mesma RBT12 — usada no gráfico comparativo.
+function calcAliquotaOutroAnexo(dados,calc){
+  const anexoOutro=calc.anexo==='III'?'V':'III';
+  const dataRefStr=new Date().toISOString().split('T')[0];
+  const faixaOutro=buscarFaixaVigente(dados.paramsSimples,anexoOutro,calc.rbt12,dataRefStr);
+  return{anexo:anexoOutro,aliquota:calcAliquotaEfetiva(calc.rbt12,faixaOutro)};
+}
+
+// Simulador "e se": pró-labore hipotético adicional (valor mensal total, mantido nos 12 meses).
+function simularProLaboreAdicional(dados,refDate,valorAdicionalTotal){
+  const base=calcularTributarioMes(dados,refDate);
+  const folha12Novo=base.folha12+valorAdicionalTotal*12;
+  const fatorRNovo=calcFatorR(base.rbt12,folha12Novo);
+  const anexoNovo=anexoPorFatorR(fatorRNovo);
+  const dataRefStr=refDate.toISOString().split('T')[0];
+  const faixaNova=buscarFaixaVigente(dados.paramsSimples,anexoNovo,base.rbt12,dataRefStr);
+  const aliquotaNova=calcAliquotaEfetiva(base.rbt12,faixaNova);
+  const dasNovo=calcDASProjetado(base.receitaMesAtual,aliquotaNova);
+  const economiaDAS=base.dasProjetado-dasNovo;
+  const aliqInss=getParamGeral(dados,'aliquota_inss_prolabore',11)/100;
+  const tetoInss=getParamGeral(dados,'teto_inss_mensal',908.85);
+  const custoInssAdicional=Math.min(valorAdicionalTotal*aliqInss,tetoInss);
+  const economiaLiquida=economiaDAS-custoInssAdicional;
+  return{base,folha12Novo,fatorRNovo,anexoNovo,aliquotaNova,dasNovo,economiaDAS,custoInssAdicional,economiaLiquida};
+}
+
+// Alíquota efetiva histórica de um mês qualquer (gráfico de linha + regra de alerta 5).
+function _aliquotaHistorica(dados,refDate){
+  const serie=_serieTributaria12(dados,refDate);
+  const rbt12=serie.reduce((s,m)=>s+m.receita,0);
+  const folha12=serie.reduce((s,m)=>s+m.folha,0);
+  const fatorR=calcFatorR(rbt12,folha12);
+  const anexo=anexoPorFatorR(fatorR);
+  const faixa=buscarFaixaVigente(dados.paramsSimples,anexo,rbt12,refDate.toISOString().split('T')[0]);
+  return{rbt12,fatorR,anexo,aliquota:calcAliquotaEfetiva(rbt12,faixa)};
+}
+
+function gerarAlertasTributarios(dados,calc){
+  const alertas=[];
+  const fatorRPct=calc.fatorR*100;
+
+  if(fatorRPct>=24&&fatorRPct<28){
+    const delta=Math.max(0,(0.28*calc.rbt12-calc.folha12)/12);
+    const sim=delta>0?simularProLaboreAdicional(dados,new Date(),delta):null;
+    alertas.push({severidade:'media',titulo:'Fator R próximo de 28%',
+      descricao:`Fator R atual: ${fatorRPct.toFixed(1)}% (Anexo V). Um aumento de aproximadamente ${fmt(delta)}/mês no pró-labore total levaria ao Anexo III.`,
+      acao:sim?`Simulação: economia líquida estimada de ${fmt(sim.economiaLiquida)}/mês (já descontado o INSS adicional sobre o pró-labore).`:'',
+      requerAprovacaoSocios:true,simulavel:true,valorSugerido:delta});
+  }
+
+  const receitas=calc.serie.map(m=>m.receita).filter(r=>r>0);
+  const media=receitas.length?receitas.reduce((a,b)=>a+b,0)/receitas.length:0;
+  calc.serie.forEach(m=>{
+    if(media>0&&m.receita>0&&Math.abs(m.receita-media)/media>0.4){
+      alertas.push({severidade:'baixa',titulo:`Receita atípica — ${m.lbl}/${String(m.ano).slice(2)}`,
+        descricao:`${fmt(m.receita)} faturado vs. média de ${fmt(media)} nos 12 meses. Pode distorcer o RBT12 e a alíquota efetiva.`,
+        requerAprovacaoSocios:false});
+    }
+  });
+
+  const naoComp=dados.retencoes.filter(r=>!r.compensado);
+  if(naoComp.length){
+    const total=naoComp.reduce((s,r)=>s+Number(r.valor_retido||0),0);
+    alertas.push({severidade:'alta',titulo:'Retenções não compensadas',
+      descricao:`${naoComp.length} retenção(ões) de INSS/ISS/IRRF somando ${fmt(total)} ainda não foram marcadas como compensadas na apuração.`,
+      requerAprovacaoSocios:false});
+  }
+
+  const kwDedutivel=/combust|drone|diesel|gasolina|manuten|equipamento|receptor|esta[cç][aã]o total|gps|pneu|pe[cç]a/i;
+  const outrosGenericos=dados.pags.filter(p=>p.categoria==='Outros'&&kwDedutivel.test(p.descricao||''));
+  if(outrosGenericos.length){
+    alertas.push({severidade:'baixa',titulo:'Despesas dedutíveis mal categorizadas',
+      descricao:`${outrosGenericos.length} lançamento(s) em "Outros" parecem despesas específicas (combustível, equipamento, manutenção...). Recategorizar melhora a análise de custos.`,
+      requerAprovacaoSocios:false});
+  }
+
+  const hist=[];
+  for(let k=5;k>=0;k--){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-k);hist.push(_aliquotaHistorica(dados,d));}
+  let subindo=0;
+  for(let i=1;i<hist.length;i++){
+    if(hist[i].aliquota>hist[i-1].aliquota+0.0005)subindo++;else subindo=0;
+    if(subindo>=2){
+      alertas.push({severidade:'media',titulo:'Alíquota efetiva em alta',
+        descricao:'A alíquota efetiva do Simples vem subindo há pelo menos 2 meses seguidos — provavelmente por mudança de faixa de RBT12. Vale conferir se é sazonal ou uma tendência.',
+        requerAprovacaoSocios:false});
+      break;
+    }
+  }
+
+  if(calc.sublimite){
+    alertas.push({severidade:'alta',titulo:'RBT12 perto de um limite de faixa',
+      descricao:`RBT12 atual está a ${calc.sublimite.distanciaPct.toFixed(1)}% do limite de ${fmt(calc.sublimite.proximo)}. Ultrapassar esse valor muda a alíquota de forma desproporcional ("efeito degrau").`,
+      requerAprovacaoSocios:false});
+  }
+
+  const sevOrdem={alta:0,media:1,baixa:2};
+  return alertas.sort((a,b)=>sevOrdem[a.severidade]-sevOrdem[b.severidade]);
+}
+
+function _svgLinhaAliquota(serie){
+  const w=600,h=140,padL=26,padR=10,padT=14,padB=20;
+  const vals=serie.map(s=>s.aliq*100);
+  const maxV=Math.max(1,...vals);
+  const stepX=(w-padL-padR)/Math.max(1,serie.length-1);
+  const pts=serie.map((s,i)=>({x:padL+i*stepX,y:padT+(h-padT-padB)*(1-(s.aliq*100)/maxV),s}));
+  const line=pts.map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const dots=pts.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3" fill="#1a6fc4"/><text x="${p.x.toFixed(1)}" y="${(p.y-6).toFixed(1)}" font-size="9" text-anchor="middle" fill="#1a6fc4">${(p.s.aliq*100).toFixed(1)}</text>`).join('');
+  const labels=pts.map(p=>`<text x="${p.x.toFixed(1)}" y="${h-4}" font-size="9" text-anchor="middle" fill="#888">${p.s.lbl}</text>`).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto"><polyline points="${line}" fill="none" stroke="#1a6fc4" stroke-width="2"/>${dots}${labels}</svg>`;
+}
+
+function _svgBarrasComparativo(serie){
+  const chBase=130,chBW=10,chGap=3,chSlot=46,padL=8;
+  const maxM=Math.max(1,...serie.map(m=>Math.max(m.dasAtual,m.dasOutro)));
+  const w=padL+serie.length*chSlot+10,h=chBase+30;
+  const bars=serie.map((m,i)=>{
+    const x=padL+i*chSlot;
+    const ha=Math.round(m.dasAtual/maxM*chBase);
+    const ho=Math.round(m.dasOutro/maxM*chBase);
+    return `<g><rect x="${x}" y="${chBase-ha}" width="${chBW}" height="${ha}" rx="2" fill="#1a6fc4"/><rect x="${x+chBW+chGap}" y="${chBase-ho}" width="${chBW}" height="${ho}" rx="2" fill="#E24B4A"/><text x="${x+chBW}" y="${chBase+13}" text-anchor="middle" font-size="9" fill="#888">${m.lbl}</text></g>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto">${bars}</svg>`;
+}
+
+function _tabelaSocios(socios){
+  if(!socios.length)return '<div class="mu sm">Nenhum sócio cadastrado.</div>';
+  return `<div class="tw"><table><thead><tr><th>Nome</th><th>Participação</th><th>Status</th><th></th></tr></thead><tbody>
+    ${socios.map(s=>`<tr><td>${s.nome}</td><td>${s.percentual_participacao?s.percentual_participacao+'%':'—'}</td><td><span class="bd ${s.ativo?'bs':'bn'}">${s.ativo?'Ativo':'Inativo'}</span></td>
+      <td class="fx g8"><button class="btn bsm" onclick="editRecord('socios','${s.id}')"><i class="ti ti-edit"></i></button><button class="btn bxs bdr" onclick="excluirReg('socios','${s.id}','${(s.nome||'').replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button></td></tr>`).join('')}
+  </tbody></table></div>`;
+}
+
+function _tabelaRetencoes(retencoes){
+  if(!retencoes.length)return '<div class="mu sm">Nenhuma retenção registrada.</div>';
+  return `<div class="tw"><table><thead><tr><th>Tipo</th><th>Tomador</th><th>Valor</th><th>Data</th><th>Compensada</th><th></th></tr></thead><tbody>
+    ${retencoes.map(r=>`<tr><td><span class="bd bn">${r.tipo}</span></td><td>${r.tomador||'—'}${r.orgao_publico?' <span class="bd bi">Órgão público</span>':''}</td><td>${fmt(r.valor_retido)}</td><td>${fd(r.data)}</td><td><span class="bd ${r.compensado?'bs':'bw'}">${r.compensado?'Sim':'Não'}</span></td>
+      <td class="fx g8"><button class="btn bsm" onclick="editRecord('retencoes','${r.id}')"><i class="ti ti-edit"></i></button><button class="btn bxs bdr" onclick="excluirReg('retencoes','${r.id}','Retenção ${r.tipo}')"><i class="ti ti-trash"></i></button></td></tr>`).join('')}
+  </tbody></table></div>`;
+}
+
+function _tabelaDas(dasHist){
+  if(!dasHist.length)return '<div class="mu sm">Nenhum DAS registrado ainda. Use o botão "Registrar DAS" para guardar o cálculo do mês.</div>';
+  return `<div class="tw"><table><thead><tr><th>Competência</th><th>Anexo</th><th>Fator R</th><th>Alíquota</th><th>DAS estimado</th><th></th></tr></thead><tbody>
+    ${dasHist.slice().reverse().map(d=>`<tr><td>${d.competencia}</td><td>${d.anexo_aplicado||'—'}</td><td>${d.fator_r?Number(d.fator_r).toFixed(1)+'%':'—'}</td><td>${d.aliquota_efetiva?Number(d.aliquota_efetiva).toFixed(2)+'%':'—'}</td><td>${fmt(d.valor_das_estimado)}</td>
+      <td class="fx g8"><button class="btn bsm" onclick="editRecord('das_mensal','${d.id}')"><i class="ti ti-edit"></i></button><button class="btn bxs bdr" onclick="excluirReg('das_mensal','${d.id}','DAS ${d.competencia}')"><i class="ti ti-trash"></i></button></td></tr>`).join('')}
+  </tbody></table></div>`;
+}
+
+function _tabelaParametros(params){
+  const porAnexo=a=>params.filter(p=>p.anexo===a&&!p.vigencia_fim).sort((x,y)=>x.faixa-y.faixa);
+  const linhas=a=>porAnexo(a).map(p=>`<tr><td>${p.faixa}</td><td>${fmt(p.receita_de)} – ${fmt(p.receita_ate)}</td><td>${Number(p.aliquota).toFixed(2)}%</td><td>${fmt(p.valor_deduzir)}</td>
+    <td class="fx g8"><button class="btn bsm" onclick="editRecord('parametros_tributarios','${p.id}')"><i class="ti ti-edit"></i></button></td></tr>`).join('');
+  return `<div class="g2">
+    <div><div class="w6 sm mb1">Anexo III</div><div class="tw"><table><thead><tr><th>Faixa</th><th>Receita 12m</th><th>Alíquota</th><th>Deduzir</th><th></th></tr></thead><tbody>${linhas('III')}</tbody></table></div></div>
+    <div><div class="w6 sm mb1">Anexo V</div><div class="tw"><table><thead><tr><th>Faixa</th><th>Receita 12m</th><th>Alíquota</th><th>Deduzir</th><th></th></tr></thead><tbody>${linhas('V')}</tbody></table></div></div>
+  </div>`;
+}
+
+async function rTributario(){
+  const dados=await _fetchDadosTributarios();
+  _tribDados=dados;
+  const calc=calcularTributarioMes(dados,new Date());
+  const alertas=gerarAlertasTributarios(dados,calc);
+  const outroAnexo=calcAliquotaOutroAnexo(dados,calc);
+
+  const serieAliq=[];
+  for(let k=11;k>=0;k--){const d=new Date();d.setDate(1);d.setMonth(d.getMonth()-k);const h=_aliquotaHistorica(dados,d);serieAliq.push({lbl:d.toLocaleDateString('pt-BR',{month:'short'}).replace('.',''),aliq:h.aliquota});}
+
+  const serieComparativo=calc.serie.map(m=>{
+    const refD=new Date(m.ano,m.mi-1,1);
+    const rbtNoMes=calcRBT12(dados,refD);
+    const h=_aliquotaHistorica(dados,refD);
+    const outro=buscarFaixaVigente(dados.paramsSimples,h.anexo==='III'?'V':'III',rbtNoMes,`${m.ymKey}-01`);
+    const aliqOutro=calcAliquotaEfetiva(rbtNoMes,outro);
+    return{lbl:m.lbl,dasAtual:m.receita*h.aliquota,dasOutro:m.receita*aliqOutro};
+  });
+
+  const ult3=calc.serie.slice(-3).map(m=>m.receita);
+  const mediaUlt3=ult3.reduce((a,b)=>a+b,0)/(ult3.length||1);
+  const projecao=[1,2,3].map(i=>{
+    const d=new Date();d.setDate(1);d.setMonth(d.getMonth()+i);
+    return{lbl:d.toLocaleDateString('pt-BR',{month:'long',year:'numeric'}),receita:mediaUlt3,das:mediaUlt3*calc.aliquotaEfetiva};
+  });
+
+  document.getElementById('ct').innerHTML=`
+  <div class="card mb1" style="background:#FFF8E7;border-color:#eddca6">
+    <div class="fx g8" style="align-items:flex-start">
+      <i class="ti ti-alert-triangle" style="color:#854F0B;font-size:18px;margin-top:2px"></i>
+      <div>
+        <div class="w6" style="color:#854F0B">Estimativa para apoio à decisão</div>
+        <div class="mu sm">Os números desta página são calculados a partir dos lançamentos do sistema e das faixas do Simples Nacional cadastradas — não substituem a apuração oficial do contador. Qualquer alteração de pró-labore ou decisão tributária relevante exige aprovação de pelo menos 2 dos 3 sócios antes de ser executada.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="g3 mb1">
+    <div class="mc"><div class="ml">Anexo atual</div><div class="mv" style="color:var(--bd)">Anexo ${calc.anexo}</div><div class="ms">Fator R: ${(calc.fatorR*100).toFixed(1)}%</div></div>
+    <div class="mc"><div class="ml">Alíquota efetiva do mês</div><div class="mv" style="color:#854F0B">${(calc.aliquotaEfetiva*100).toFixed(2)}%</div><div class="ms">RBT12: ${fmt(calc.rbt12)}</div></div>
+    <div class="mc"><div class="ml">DAS projetado do mês</div><div class="mv" style="color:#A32D2D">${fmt(calc.dasProjetado)}</div><div class="ms">Sobre receita de ${fmt(calc.receitaMesAtual)}</div></div>
+  </div>
+
+  <div class="g2 mb1">
+    <div class="card">
+      <div class="fxb mb1"><div class="st" style="margin:0"><i class="ti ti-chart-line" style="color:var(--brand)"></i>Alíquota efetiva — 12 meses</div><button class="btn bsm" onclick="abrirModalDas()"><i class="ti ti-plus"></i> Registrar DAS</button></div>
+      ${_svgLinhaAliquota(serieAliq)}
+    </div>
+    <div class="card">
+      <div class="st mb1"><i class="ti ti-chart-bar" style="color:var(--brand)"></i>DAS: Anexo ${calc.anexo} × Anexo ${outroAnexo.anexo}</div>
+      ${_svgBarrasComparativo(serieComparativo)}
+      <div class="mu sm" style="margin-top:6px"><span style="color:#1a6fc4">■</span> Anexo ${calc.anexo} (aplicado) &nbsp; <span style="color:#E24B4A">■</span> Anexo ${outroAnexo.anexo} (hipotético)</div>
+    </div>
+  </div>
+
+  <div class="card mb1">
+    <div class="st mb1"><i class="ti ti-calendar-stats" style="color:var(--brand)"></i>Projeção de DAS — próximos 3 meses <span class="mu sm" style="font-weight:400">(média móvel dos últimos 3 meses × alíquota atual)</span></div>
+    <div class="g3">
+      ${projecao.map(p=>`<div class="mc"><div class="ml" style="text-transform:capitalize">${p.lbl}</div><div class="mv" style="color:#854F0B">${fmt(p.das)}</div><div class="ms">Receita estimada: ${fmt(p.receita)}</div></div>`).join('')}
+    </div>
+  </div>
+
+  <div class="card mb1">
+    <div class="st mb1"><i class="ti ti-bulb" style="color:var(--brand)"></i>Oportunidades e alertas</div>
+    ${alertas.length?alertas.map(a=>`
+      <div style="padding:10px 0;border-bottom:1px solid var(--bor)">
+        <div class="fxb"><div class="fx g8"><span class="bd ${a.severidade==='alta'?'br':a.severidade==='media'?'bw':'bn'}">${a.severidade}</span><span class="w6">${a.titulo}</span>${a.requerAprovacaoSocios?'<span class="bd bi">Requer aprovação de 2/3 sócios</span>':''}</div>
+        ${a.simulavel?`<button class="btn bxs" onclick="abrirSimuladorTributario(${a.valorSugerido||0})"><i class="ti ti-calculator"></i> Simular</button>`:''}</div>
+        <div class="mu sm" style="margin-top:4px">${a.descricao}</div>
+        ${a.acao?`<div class="sm" style="margin-top:2px;color:#0d4fa0">${a.acao}</div>`:''}
+      </div>`).join(''):'<div class="mu sm" style="padding:.5rem 0">Nenhum alerta no momento.</div>'}
+  </div>
+
+  <div class="card mb1" id="trib-simulador">
+    <div class="st mb1"><i class="ti ti-calculator" style="color:var(--brand)"></i>Simulador — pró-labore hipotético</div>
+    <div class="mu sm mb1">Informe um aumento mensal de pró-labore (total dos sócios) para ver o impacto no Fator R, no Anexo e no DAS. Não grava nada — é só simulação.</div>
+    <div class="g2">
+      <div class="fg"><label class="fl">Aumento mensal de pró-labore (R$, total)</label><input class="fc" type="number" step="0.01" id="tsim-valor" placeholder="0,00" oninput="calcularSimuladorTributario()"></div>
+      <div id="tsim-resultado" class="mu sm" style="align-self:center">Preencha um valor para simular.</div>
+    </div>
+  </div>
+
+  <div class="g2 mb1">
+    <div class="card">
+      <div class="fxb mb1"><div class="st" style="margin:0"><i class="ti ti-users" style="color:var(--brand)"></i>Sócios</div><button class="btn bsm" onclick="novoSocio()"><i class="ti ti-plus"></i></button></div>
+      ${_tabelaSocios(dados.socios)}
+    </div>
+    <div class="card">
+      <div class="fxb mb1"><div class="st" style="margin:0"><i class="ti ti-receipt-2" style="color:var(--brand)"></i>Retenções</div><button class="btn bsm" onclick="novaRetencao()"><i class="ti ti-plus"></i></button></div>
+      ${_tabelaRetencoes(dados.retencoes)}
+    </div>
+  </div>
+
+  <div class="card mb1">
+    <div class="fxb mb1"><div class="st" style="margin:0"><i class="ti ti-history" style="color:var(--brand)"></i>Histórico de DAS registrado</div><button class="btn bsm" onclick="abrirModalDas()"><i class="ti ti-plus"></i></button></div>
+    ${_tabelaDas(dados.dasHist)}
+  </div>
+
+  <div class="card">
+    <div class="st mb1"><i class="ti ti-settings" style="color:var(--brand)"></i>Parâmetros do Simples Nacional (Anexo III / V)</div>
+    <div class="mu sm mb1">Faixas vigentes usadas no cálculo. Quando o governo mudar as alíquotas, edite aqui em vez de no código — feche a vigência antiga e crie uma nova linha para preservar o histórico.</div>
+    ${_tabelaParametros(dados.paramsSimples)}
+  </div>`;
+}
+
+async function novoSocio(){
+  const prevPage=CP;CP='socios';EID=null;
+  await openModal();
+  CP=prevPage;
+}
+async function novaRetencao(){
+  const prevPage=CP;CP='retencoes';EID=null;
+  await openModal();
+  CP=prevPage;
+}
+async function abrirModalDas(){
+  const dados=_tribDados||await _fetchDadosTributarios();
+  const calc=calcularTributarioMes(dados,new Date());
+  const prevPage=CP;CP='das_mensal';EID=null;
+  await openModal();
+  CP=prevPage;
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v;};
+  set('f-competencia',calc.competencia);
+  set('f-anexo_aplicado',calc.anexo);
+  set('f-rbt12',calc.rbt12.toFixed(2));
+  set('f-fator_r',(calc.fatorR*100).toFixed(2));
+  set('f-aliquota_efetiva',(calc.aliquotaEfetiva*100).toFixed(2));
+  set('f-valor_das_estimado',calc.dasProjetado.toFixed(2));
+}
+
+function abrirSimuladorTributario(valorSugerido){
+  const el=document.getElementById('tsim-valor');
+  if(el){el.value=(valorSugerido||0).toFixed(2);calcularSimuladorTributario();}
+  document.getElementById('trib-simulador')?.scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+function calcularSimuladorTributario(){
+  const val=parseFloat(document.getElementById('tsim-valor')?.value)||0;
+  const res=document.getElementById('tsim-resultado');
+  if(!res)return;
+  if(!val||!_tribDados){res.innerHTML='Preencha um valor para simular.';return;}
+  const sim=simularProLaboreAdicional(_tribDados,new Date(),val);
+  res.innerHTML=`Novo Fator R: <strong>${(sim.fatorRNovo*100).toFixed(1)}%</strong> (Anexo ${sim.anexoNovo}) · Nova alíquota: <strong>${(sim.aliquotaNova*100).toFixed(2)}%</strong><br>
+    DAS novo: ${fmt(sim.dasNovo)} · INSS adicional sobre pró-labore: ${fmt(sim.custoInssAdicional)}<br>
+    <span style="color:${sim.economiaLiquida>=0?'#27500A':'#A32D2D'};font-weight:700">${sim.economiaLiquida>=0?'Economia líquida':'Custo líquido adicional'}: ${fmt(Math.abs(sim.economiaLiquida))}/mês</span>`;
+}
+
 async function gerarPDFPassivo(){
   toast('Gerando PDF do Passivo...');
   const{data:pend}=await sb.from('pagamentos').select('*').eq('status','Pendente').order('vencimento',{ascending:true});
@@ -4147,7 +4547,7 @@ Object.assign(pageMap, {
   recebimentos:rRec, pagamentos:rPag,
   impostos:rImpostos, medicao:rMedicao, nfe:rNFe, folha:rFolha, dre:rDRE, passivo:rPassivo,
   rotinas:rRotinas, administrativo:rAdm, funcionarios:rFunc,
-  relatorios:rRelatorios, config:rConfig,
+  relatorios:rRelatorios, config:rConfig, tributario:rTributario,
 });
 
 function calcISS(){const val=parseFloat(document.getElementById('f-valor')?.value)||0;const aliq=parseFloat(document.getElementById('f-aliquota_iss')?.value)||5;const el=document.getElementById('f-valor_iss');if(el)el.value=(val*aliq/100).toFixed(2);}
