@@ -18,6 +18,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@mapbox/shp-write@0.4.3/shpwrite.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-delaunay@6/dist/d3-delaunay.min.js"></script>
 <script>document.write('<script src="'+(location.protocol==='file:'?'gestor-assets.js':'/gestor/gestor-assets.js')+'" defer><\/script>');</script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -8176,6 +8177,7 @@ var _cadMapBg=null,_cadMapAtivo=false,_cadUtmZona=21,_cadUtmSul=true,_cadTileLay
 function cadWorldToLocal(x,y){return {x:x-_cadOrigin.x,y:-(y-_cadOrigin.y)};}
 function cadLocalToWorld(x,y){return {x:x+_cadOrigin.x,y:_cadOrigin.y-y};}
 var _cadModo='select',_cadMedicaoPontos=[],_cadPolilinhaPontos=[],_cadSnapAtivo=true,_cadSnapTolPx=12;
+var _cadCurvas=[],_cadCurvasVisivel=true,_cadCurvasIntervaloAtual=1;
 const CAD_PALETA=['#0D4FA0','#27500A','#A32D2D','#854F0B','#5B3A8E','#0E7C7B','#B5482A','#2D5F8A','#6B6B0F','#7A2E5C'];
 const CAD_BASEMAPS={
   'esri':{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',maxZoom:23,maxNativeZoom:19,crossOrigin:'anonymous',attribution:'Esri World Imagery'},
@@ -8638,7 +8640,19 @@ async function cadCarDownUm(idx,fmt){
 function geoCadHtml(){
   return '<div class="card mb1">'
     +'<div class="fxb mb1"><div class="st" style="margin:0"><i class="ti ti-stack-2" style="color:var(--brand)"></i>CAD — Camadas, Régua, Edição de Coordenadas e Navegação</div>'
-    +'<button class="btn bxs" onclick="cadToggleImport()" id="cad-btn-toggle-import"><i class="ti ti-file-import"></i> Importar arquivo</button></div>'
+    +'<div class="fx g8"><button class="btn bxs" onclick="cadToggleCurvas()" id="cad-btn-toggle-curvas"><i class="ti ti-topology-star-3"></i> Curvas de Nível</button>'
+    +'<button class="btn bxs" onclick="cadToggleImport()" id="cad-btn-toggle-import"><i class="ti ti-file-import"></i> Importar arquivo</button></div></div>'
+    +'<div id="cad-curvas-box" style="display:none" class="mb1">'
+    +'<div class="mu sm mb1">Gera curvas de nível por triangulação (TIN) a partir dos pontos com cota (Z) real desta CAD — normalmente os importados via <strong>TXT</strong> ou <strong>Reporte HTML de levantamento (RTK/GNSS)</strong>. Pontos criados manualmente ou vindos de memorial/perímetro costumam não ter Z real (ficam em 0) e não servem de base confiável.</div>'
+    +'<div class="g2 mb1"><div class="fg"><label class="fl">Fonte dos pontos</label><select class="fc" id="cad-curvas-camada"><option value="">Todas as camadas</option></select></div>'
+    +'<div class="fg"><label class="fl">Equidistância (m)</label><input class="fc" type="number" step="0.1" min="0.01" id="cad-curvas-intervalo" value="1"></div></div>'
+    +'<div class="fx g8 mb1" style="align-items:center">'
+    +'<button class="btn bp2 bsm" onclick="cadGerarCurvasNivel()"><i class="ti ti-topology-star-3"></i> Gerar curvas de nível</button>'
+    +'<button class="btn bsm" onclick="cadLimparCurvasNivel()"><i class="ti ti-x"></i> Limpar curvas</button>'
+    +'<label style="display:flex;align-items:center;gap:6px;margin-left:auto;cursor:pointer"><input type="checkbox" id="cad-curvas-visivel" checked onchange="cadToggleCurvasVisibilidade(this.checked)"> <span class="mu sm">Mostrar no desenho</span></label>'
+    +'</div>'
+    +'<div id="cad-curvas-info" class="mu sm"></div>'
+    +'</div>'
     +'<div class="g2 mb1">'
     +'<div class="fg"><label class="fl">Cliente</label><select class="fc" id="cad-cliente" onchange="cadClienteChange()"><option value="">Selecione...</option></select></div>'
     +'<div class="fg"><label class="fl">Obra (vincule para salvar esta CAD automaticamente)</label><select class="fc" id="cad-obra" onchange="cadObraChange()"><option value="">Selecione o cliente primeiro</option></select></div>'
@@ -8993,6 +9007,150 @@ function cadGeometriaSvg(f){
   if(g.type==='MultiPolygon') return g.coordinates.map(function(poly,pi){return cadGeometriaSvg({properties:Object.assign({},f.properties,{_incra_idx:pi===0?f.properties._incra_idx:null,_car_idx:pi===0?f.properties._car_idx:null}),geometry:{type:'Polygon',coordinates:poly}});}).join('');
   return '';
 }
+// ── Curvas de Nível (TIN: triangulação Delaunay + marching triangles) ──
+function cadToggleCurvas(){
+  const box=document.getElementById('cad-curvas-box');
+  if(!box) return;
+  const aberto=box.style.display!=='none';
+  box.style.display=aberto?'none':'';
+  const btn=document.getElementById('cad-btn-toggle-curvas');
+  if(btn) btn.innerHTML=aberto?'<i class="ti ti-topology-star-3"></i> Curvas de Nível':'<i class="ti ti-x"></i> Fechar curvas de nível';
+  if(!aberto) cadCurvasPopularCamadas();
+}
+function cadCurvasPopularCamadas(){
+  const sel=document.getElementById('cad-curvas-camada');
+  if(!sel) return;
+  const atual=sel.value;
+  sel.innerHTML='<option value="">Todas as camadas ('+_cadPontos.length+' ponto(s))</option>'+_cadCamadas.map(function(c){
+    const n=_cadPontos.filter(function(p){return p.layerId===c.id;}).length;
+    return '<option value="'+c.id+'">'+xmlEscapeGeo(c.nome)+' ('+n+' ponto(s))</option>';
+  }).join('');
+  if(atual&&_cadCamadas.some(function(c){return c.id===atual;})) sel.value=atual;
+}
+function _cadCurvasPontosCandidatos(){
+  const camadaSel=(document.getElementById('cad-curvas-camada')||{}).value||'';
+  return camadaSel?_cadPontos.filter(function(p){return p.layerId===camadaSel;}):_cadPontos.slice();
+}
+// Interpola, dentro de um triângulo (a,b,c), o(s) segmento(s) onde a superfície cruza a cota z.
+// Cada aresta é testada com uma regra assimétrica (< / >=) para não duplicar cruzamento quando
+// um vértice cai exatamente sobre o nível — resultado esperado: 0 ou 2 pontos por triângulo.
+function _cadMarchingTriangleSegmento(a,b,c,z){
+  const arestas=[[a,b],[b,c],[c,a]];
+  const pts=[];
+  arestas.forEach(function(e){
+    const z1=e[0].z||0,z2=e[1].z||0;
+    if((z1<z&&z2>=z)||(z2<z&&z1>=z)){
+      const t=(z-z1)/(z2-z1);
+      pts.push([e[0].x+(e[1].x-e[0].x)*t,e[0].y+(e[1].y-e[0].y)*t]);
+    }
+  });
+  return pts.length===2?pts:null;
+}
+// Encadeia segmentos soltos (arestas de triângulos vizinhos que compartilham a mesma
+// interpolação) em polilinhas contínuas, casando as pontas por coordenada arredondada.
+function _cadEncadearSegmentos(segmentos){
+  function key(pt){return pt[0].toFixed(4)+'_'+pt[1].toFixed(4);}
+  const usados=new Array(segmentos.length).fill(false);
+  const porPonta={};
+  segmentos.forEach(function(s,i){
+    [0,1].forEach(function(k){
+      const kk=key(s[k]);
+      (porPonta[kk]=porPonta[kk]||[]).push({idx:i,ponta:k});
+    });
+  });
+  const linhas=[];
+  for(let i=0;i<segmentos.length;i++){
+    if(usados[i]) continue;
+    usados[i]=true;
+    const linha=segmentos[i].slice();
+    let estendeu=true;
+    while(estendeu){
+      estendeu=false;
+      const kk=key(linha[linha.length-1]);
+      const cand=(porPonta[kk]||[]).find(function(c){return !usados[c.idx];});
+      if(cand){
+        usados[cand.idx]=true;
+        const seg=segmentos[cand.idx];
+        linha.push(cand.ponta===0?seg[1]:seg[0]);
+        estendeu=true;
+      }
+    }
+    estendeu=true;
+    while(estendeu){
+      estendeu=false;
+      const kk=key(linha[0]);
+      const cand=(porPonta[kk]||[]).find(function(c){return !usados[c.idx];});
+      if(cand){
+        usados[cand.idx]=true;
+        const seg=segmentos[cand.idx];
+        linha.unshift(cand.ponta===0?seg[1]:seg[0]);
+        estendeu=true;
+      }
+    }
+    linhas.push(linha);
+  }
+  return linhas;
+}
+function cadGerarCurvasNivel(){
+  const info=document.getElementById('cad-curvas-info');
+  function setInfo(html,erro){ if(info) info.innerHTML='<span style="color:'+(erro?'#A32D2D':'#27500A')+'"><i class="ti '+(erro?'ti-alert-circle':'ti-check')+'"></i> '+html+'</span>'; }
+  const intervalo=parseFloat((document.getElementById('cad-curvas-intervalo')||{}).value)||0;
+  if(!(intervalo>0)){ setInfo('Informe uma equidistância maior que zero.',true); return; }
+  const candidatos=_cadCurvasPontosCandidatos();
+  if(candidatos.length<3){ setInfo('Selecione ao menos 3 pontos para gerar curvas de nível (encontrados: '+candidatos.length+').',true); return; }
+  const zs=candidatos.map(function(p){return p.z||0;});
+  const zMin=Math.min.apply(null,zs),zMax=Math.max.apply(null,zs);
+  if(zMax-zMin<1e-6){
+    setInfo('Os pontos selecionados não têm variação de cota (Z) — confira se foram importados de um arquivo com cota real (TXT ou Reporte HTML de levantamento). Pontos criados manualmente na CAD ou vindos só do perímetro/memorial costumam ficar com Z=0.',true);
+    return;
+  }
+  if(zMax-zMin<intervalo){
+    setInfo('A amplitude de cota dos pontos selecionados ('+(zMax-zMin).toFixed(2)+' m, de '+zMin.toFixed(2)+' a '+zMax.toFixed(2)+') é menor que a equidistância escolhida ('+intervalo+' m) — nenhuma curva seria gerada. Reduza a equidistância.',true);
+    return;
+  }
+  if(typeof d3==='undefined'||!d3.Delaunay){ setInfo('Biblioteca de triangulação (d3-delaunay) não carregou — verifique sua conexão e recarregue a página.',true); return; }
+  let delaunay,tri;
+  try{
+    const coordsFlat=[];
+    candidatos.forEach(function(p){coordsFlat.push(p.x,p.y);});
+    delaunay=new d3.Delaunay(Float64Array.from(coordsFlat));
+    tri=delaunay.triangles;
+  }catch(e){
+    setInfo('Erro ao triangular os pontos: '+e.message,true);
+    return;
+  }
+  if(!tri||tri.length<3){ setInfo('Não foi possível formar nenhum triângulo — verifique se os pontos selecionados não estão todos alinhados (colineares) ou sobrepostos.',true); return; }
+  const niveis=[];
+  const primeiro=Math.ceil(zMin/intervalo)*intervalo;
+  for(let z=primeiro; z<zMax-1e-9; z+=intervalo) niveis.push(Math.round(z*1e6)/1e6);
+  const curvas=[];
+  niveis.forEach(function(z){
+    const segmentos=[];
+    for(let t=0;t<tri.length;t+=3){
+      const seg=_cadMarchingTriangleSegmento(candidatos[tri[t]],candidatos[tri[t+1]],candidatos[tri[t+2]],z);
+      if(seg) segmentos.push(seg);
+    }
+    if(!segmentos.length) return;
+    _cadEncadearSegmentos(segmentos).forEach(function(path){ curvas.push({z:z,path:path}); });
+  });
+  if(!curvas.length){ setInfo('Triangulação concluída ('+(tri.length/3)+' triângulo(s)), mas nenhuma curva cruzou os triângulos formados — tente uma equidistância menor.',true); return; }
+  _cadCurvas=curvas;
+  _cadCurvasVisivel=true;
+  _cadCurvasIntervaloAtual=intervalo;
+  const chk=document.getElementById('cad-curvas-visivel'); if(chk) chk.checked=true;
+  cadRenderSvg();
+  setInfo(curvas.length+' linha(s) de curva de nível geradas, de '+zMin.toFixed(2)+' m a '+zMax.toFixed(2)+' m (equidistância '+intervalo+' m), a partir de '+candidatos.length+' ponto(s) ('+(tri.length/3)+' triângulo(s)).',false);
+}
+function cadLimparCurvasNivel(){
+  _cadCurvas=[];
+  cadRenderSvg();
+  const info=document.getElementById('cad-curvas-info');
+  if(info) info.innerHTML='';
+}
+function cadToggleCurvasVisibilidade(v){
+  _cadCurvasVisivel=v;
+  cadRenderSvg();
+}
 function cadRenderSvg(){
   const svg=document.getElementById('cad-svg');
   if(!svg) return;
@@ -9028,7 +9186,23 @@ function cadRenderSvg(){
       polilinhaSvg+='<polyline points="'+pts+'" fill="none" stroke="#0D4FA0" stroke-width="'+(r*0.4)+'" stroke-dasharray="'+(r*0.6)+','+(r*0.4)+'"/>';
     }
   }
-  svg.innerHTML=geomSvg+pontosSvg+medicaoSvg+polilinhaSvg;
+  let curvasSvg='';
+  if(_cadCurvasVisivel&&_cadCurvas.length){
+    const corCurva='#8E44AD';
+    curvasSvg=_cadCurvas.map(function(cv){
+      const idx=Math.round(cv.z/_cadCurvasIntervaloAtual);
+      const mestra=(idx%5===0);
+      const pts=cv.path.map(function(pt){const l=cadWorldToLocal(pt[0],pt[1]);return l.x+','+l.y;}).join(' ');
+      let s='<polyline points="'+pts+'" fill="none" stroke="'+corCurva+'" stroke-width="'+(r*(mestra?0.5:0.25))+'" opacity="'+(mestra?0.95:0.6)+'"/>';
+      if(mestra&&cv.path.length){
+        const meio=cv.path[Math.floor(cv.path.length/2)];
+        const l=cadWorldToLocal(meio[0],meio[1]);
+        s+='<text x="'+l.x+'" y="'+l.y+'" font-size="'+(r*1.8)+'" fill="'+corCurva+'" style="pointer-events:none;user-select:none;font-weight:600">'+cv.z.toFixed(2)+'</text>';
+      }
+      return s;
+    }).join('');
+  }
+  svg.innerHTML=geomSvg+pontosSvg+medicaoSvg+polilinhaSvg+curvasSvg;
   cadAgendarSalvamentoAuto();
 }
 function cadScreenToSvg(evt){
