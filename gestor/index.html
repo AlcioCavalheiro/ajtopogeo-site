@@ -8199,6 +8199,7 @@ function cadWorldToLocal(x,y){return {x:x-_cadOrigin.x,y:-(y-_cadOrigin.y)};}
 function cadLocalToWorld(x,y){return {x:x+_cadOrigin.x,y:_cadOrigin.y-y};}
 var _cadModo='select',_cadMedicaoPontos=[],_cadPolilinhaPontos=[],_cadSnapAtivo=true,_cadSnapTolPx=12;
 var _cadCurvas=[],_cadCurvasVisivel=true,_cadCurvasIntervaloAtual=1;
+var _cadTin=null,_cadTinVisivel=false,_cadTinSel=null,_cadTinAddAtivo=false,_cadTinAddPts=[];
 const CAD_PALETA=['#0D4FA0','#27500A','#A32D2D','#854F0B','#5B3A8E','#0E7C7B','#B5482A','#2D5F8A','#6B6B0F','#7A2E5C'];
 const CAD_BASEMAPS={
   'esri':{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',maxZoom:23,maxNativeZoom:19,crossOrigin:'anonymous',attribution:'Esri World Imagery'},
@@ -8664,13 +8665,15 @@ function geoCadHtml(){
     +'<div class="fx g8"><button class="btn bxs" onclick="cadToggleCurvas()" id="cad-btn-toggle-curvas"><i class="ti ti-topology-star-3"></i> Curvas de Nível</button>'
     +'<button class="btn bxs" onclick="cadToggleImport()" id="cad-btn-toggle-import"><i class="ti ti-file-import"></i> Importar arquivo</button></div></div>'
     +'<div id="cad-curvas-box" style="display:none" class="mb1">'
-    +'<div class="mu sm mb1">Gera curvas de nível por triangulação (TIN) a partir dos pontos com cota (Z) real desta CAD — normalmente os importados via <strong>TXT</strong> ou <strong>Reporte HTML de levantamento (RTK/GNSS)</strong>. Pontos criados manualmente ou vindos de memorial/perímetro costumam não ter Z real (ficam em 0) e não servem de base confiável.</div>'
+    +'<div class="mu sm mb1">Gera curvas de nível por triangulação (TIN) a partir dos pontos com cota (Z) real desta CAD — normalmente os importados via <strong>TXT</strong> ou <strong>Reporte HTML de levantamento (RTK/GNSS)</strong>. Pontos criados manualmente ou vindos de memorial/perímetro costumam não ter Z real (ficam em 0) e não servem de base confiável. Após gerar, a malha triangular pode ser vista e editada (excluir, trocar diagonal e adicionar linhas) — as curvas são recalculadas automaticamente a cada alteração.</div>'
     +'<div class="g2 mb1"><div class="fg"><label class="fl">Fonte dos pontos</label><select class="fc" id="cad-curvas-camada"><option value="">Todas as camadas</option></select></div>'
     +'<div class="fg"><label class="fl">Equidistância (m)</label><input class="fc" type="number" step="0.1" min="0.01" id="cad-curvas-intervalo" value="1"></div></div>'
     +'<div class="fx g8 mb1" style="align-items:center">'
     +'<button class="btn bp2 bsm" onclick="cadGerarCurvasNivel()"><i class="ti ti-topology-star-3"></i> Gerar curvas de nível</button>'
     +'<button class="btn bsm" onclick="cadLimparCurvasNivel()"><i class="ti ti-x"></i> Limpar curvas</button>'
-    +'<label style="display:flex;align-items:center;gap:6px;margin-left:auto;cursor:pointer"><input type="checkbox" id="cad-curvas-visivel" checked onchange="cadToggleCurvasVisibilidade(this.checked)"> <span class="mu sm">Mostrar no desenho</span></label>'
+    +'<button class="btn bsm" id="cad-modo-malha" onclick="cadSetModo(\'malha\')"><i class="ti ti-vector-triangle"></i> Editar malha (TIN)</button>'
+    +'<label style="display:flex;align-items:center;gap:6px;margin-left:auto;cursor:pointer"><input type="checkbox" id="cad-curvas-visivel" checked onchange="cadToggleCurvasVisibilidade(this.checked)"> <span class="mu sm">Mostrar curvas</span></label>'
+    +'<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="cad-tin-visivel" onchange="cadToggleTinVisibilidade(this.checked)"> <span class="mu sm">Mostrar malha (TIN)</span></label>'
     +'</div>'
     +'<div id="cad-curvas-info" class="mu sm"></div>'
     +'</div>'
@@ -8739,6 +8742,7 @@ function geoCadHtml(){
     +'<div class="card mb1" id="cad-painel" style="background:#F4F8FF"><div class="mu sm">Clique em um ponto no desenho para selecioná-lo.</div></div>'
     +'<div id="cad-medicao-info" class="card mb1" style="display:none;background:#FFF8E6"></div>'
     +'<div id="cad-polilinha-info" class="card mb1" style="display:none;background:#E8F4FF"></div>'
+    +'<div id="cad-malha-info" class="card mb1" style="display:none;background:#F6EFFF"></div>'
     +'<div class="st mb1" style="font-size:13px">Pontos nomeados</div>'
     +'<div id="cad-lista" class="mb1"><div class="mu sm">Nenhum ponto nomeado ainda.</div></div>'
     +'<button class="btn bsm mb1" onclick="cadExportarTxt()"><i class="ti ti-file-text"></i> Exportar TXT</button> '
@@ -8806,6 +8810,15 @@ async function cadObraChange(){
       _cadNextId=dados.nextId||(Math.max.apply(null,_cadPontos.map(function(p){return p.id;}).concat([0]))+1);
       _cadOrdemContador=dados.ordemContador||0;
       _cadSelecionado=null;
+      _cadTin=(dados.tin&&dados.tin.tris&&dados.tin.tris.length)?dados.tin:null;
+      _cadTinSel=null;_cadTinAddAtivo=false;_cadTinAddPts=[];
+      if(dados.curvasIntervalo){
+        _cadCurvasIntervaloAtual=dados.curvasIntervalo;
+        const intEl=document.getElementById('cad-curvas-intervalo');
+        if(intEl) intEl.value=dados.curvasIntervalo;
+      }
+      if(_cadTin) cadRecalcularCurvasDaMalha(); else _cadCurvas=[];
+      cadRenderMalhaInfo();
       cadAjustarView();
       cadRenderCamadas();
       cadRenderSvg();
@@ -8823,7 +8836,7 @@ async function cadSalvarDados(){
   if(!_cadObraId) return;
   const statusEl=document.getElementById('cad-obra-status');
   if(statusEl) statusEl.textContent='Salvando...';
-  const payload={pontos:_cadPontos,geojson:_cadGeoJSON,camadas:_cadCamadas,nextId:_cadNextId,ordemContador:_cadOrdemContador};
+  const payload={pontos:_cadPontos,geojson:_cadGeoJSON,camadas:_cadCamadas,nextId:_cadNextId,ordemContador:_cadOrdemContador,tin:_cadTin,curvasIntervalo:_cadCurvasIntervaloAtual};
   const {error}=await sb.from('obras').update({cad_dados:payload}).eq('id',_cadObraId);
   if(error){
     if(error.message&&error.message.toLowerCase().includes('column')){cadMostrarSqlSetup();return;}
@@ -9141,29 +9154,56 @@ function cadGerarCurvasNivel(){
     return;
   }
   if(!tri||tri.length<3){ setInfo('Não foi possível formar nenhum triângulo — verifique se os pontos selecionados não estão todos alinhados (colineares) ou sobrepostos.',true); return; }
+  const trisIds=[];
+  for(let t=0;t<tri.length;t+=3) trisIds.push([candidatos[tri[t]].id,candidatos[tri[t+1]].id,candidatos[tri[t+2]].id]);
+  _cadTin={tris:trisIds};
+  _cadTinSel=null;_cadTinAddAtivo=false;_cadTinAddPts=[];
+  _cadCurvasIntervaloAtual=intervalo;
+  _cadCurvasVisivel=true;
+  const chk=document.getElementById('cad-curvas-visivel'); if(chk) chk.checked=true;
+  const n=cadRecalcularCurvasDaMalha();
+  cadRenderMalhaInfo();
+  if(!n){ setInfo('Triangulação concluída ('+trisIds.length+' triângulo(s)), mas nenhuma curva cruzou os triângulos formados — tente uma equidistância menor.',true); return; }
+  setInfo(n+' linha(s) de curva de nível geradas, de '+zMin.toFixed(2)+' m a '+zMax.toFixed(2)+' m (equidistância '+intervalo+' m), a partir de '+candidatos.length+' ponto(s) ('+trisIds.length+' triângulo(s)). Marque "Mostrar malha (TIN)" para ver a triangulação ou clique em "Editar malha (TIN)" para ajustá-la.',false);
+}
+// Recalcula as curvas de nível a partir da malha TIN atual (_cadTin, triângulos por id de ponto).
+// Retorna o nº de linhas de curva geradas.
+function cadRecalcularCurvasDaMalha(){
+  if(!_cadTin||!_cadTin.tris.length){ _cadCurvas=[]; cadRenderSvg(); return 0; }
+  const byId=_cadTinMapa();
+  _cadTin.tris=_cadTin.tris.filter(function(t){return byId[t[0]]&&byId[t[1]]&&byId[t[2]];});
+  const intervalo=_cadCurvasIntervaloAtual||1;
+  let zMin=Infinity,zMax=-Infinity;
+  const vistos={};
+  _cadTin.tris.forEach(function(t){t.forEach(function(id){
+    if(vistos[id])return;vistos[id]=true;
+    const z=byId[id].z||0;
+    if(z<zMin)zMin=z;if(z>zMax)zMax=z;
+  });});
   const niveis=[];
-  const primeiro=Math.ceil(zMin/intervalo)*intervalo;
-  for(let z=primeiro; z<zMax-1e-9; z+=intervalo) niveis.push(Math.round(z*1e6)/1e6);
+  if(zMax-zMin>1e-9){
+    const primeiro=Math.ceil(zMin/intervalo)*intervalo;
+    for(let z=primeiro; z<zMax-1e-9; z+=intervalo) niveis.push(Math.round(z*1e6)/1e6);
+  }
   const curvas=[];
   niveis.forEach(function(z){
     const segmentos=[];
-    for(let t=0;t<tri.length;t+=3){
-      const seg=_cadMarchingTriangleSegmento(candidatos[tri[t]],candidatos[tri[t+1]],candidatos[tri[t+2]],z);
+    _cadTin.tris.forEach(function(t){
+      const seg=_cadMarchingTriangleSegmento(byId[t[0]],byId[t[1]],byId[t[2]],z);
       if(seg) segmentos.push(seg);
-    }
+    });
     if(!segmentos.length) return;
     _cadEncadearSegmentos(segmentos).forEach(function(path){ curvas.push({z:z,path:path}); });
   });
-  if(!curvas.length){ setInfo('Triangulação concluída ('+(tri.length/3)+' triângulo(s)), mas nenhuma curva cruzou os triângulos formados — tente uma equidistância menor.',true); return; }
   _cadCurvas=curvas;
-  _cadCurvasVisivel=true;
-  _cadCurvasIntervaloAtual=intervalo;
-  const chk=document.getElementById('cad-curvas-visivel'); if(chk) chk.checked=true;
   cadRenderSvg();
-  setInfo(curvas.length+' linha(s) de curva de nível geradas, de '+zMin.toFixed(2)+' m a '+zMax.toFixed(2)+' m (equidistância '+intervalo+' m), a partir de '+candidatos.length+' ponto(s) ('+(tri.length/3)+' triângulo(s)).',false);
+  return curvas.length;
 }
 function cadLimparCurvasNivel(){
   _cadCurvas=[];
+  _cadTin=null;_cadTinSel=null;_cadTinAddAtivo=false;_cadTinAddPts=[];
+  if(_cadModo==='malha') cadSetModo('select');
+  cadRenderMalhaInfo();
   cadRenderSvg();
   const info=document.getElementById('cad-curvas-info');
   if(info) info.innerHTML='';
@@ -9171,6 +9211,298 @@ function cadLimparCurvasNivel(){
 function cadToggleCurvasVisibilidade(v){
   _cadCurvasVisivel=v;
   cadRenderSvg();
+}
+function cadToggleTinVisibilidade(v){
+  _cadTinVisivel=v;
+  cadRenderSvg();
+}
+// ── Edição da malha TIN ──
+function _cadTinMapa(){
+  const m={};
+  _cadPontos.forEach(function(p){m[p.id]=p;});
+  return m;
+}
+// Lista de arestas únicas da malha: {a,b} com a<b e índices dos triângulos vizinhos.
+function _cadTinArestas(){
+  if(!_cadTin) return [];
+  const m={},lista=[];
+  _cadTin.tris.forEach(function(t,i){
+    [[t[0],t[1]],[t[1],t[2]],[t[2],t[0]]].forEach(function(e){
+      const a=Math.min(e[0],e[1]),b=Math.max(e[0],e[1]),k=a+'_'+b;
+      if(!m[k]){m[k]={a:a,b:b,tris:[]};lista.push(m[k]);}
+      m[k].tris.push(i);
+    });
+  });
+  return lista;
+}
+function _cadTinOrient(a,b,c){return (b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);}
+// Cruzamento próprio (estrito) entre os segmentos p1-p2 e p3-p4 — pontas encostadas não contam.
+function _cadTinCruzaProprio(p1,p2,p3,p4){
+  const d1=_cadTinOrient(p3,p4,p1),d2=_cadTinOrient(p3,p4,p2),d3=_cadTinOrient(p1,p2,p3),d4=_cadTinOrient(p1,p2,p4);
+  return ((d1>0&&d2<0)||(d1<0&&d2>0))&&((d3>0&&d4<0)||(d3<0&&d4>0));
+}
+// d está dentro do circuncírculo de a,b,c? (funciona para qualquer orientação de abc)
+function _cadTinNoCircuncirculo(a,b,c,d){
+  const ax=a.x-d.x,ay=a.y-d.y,bx=b.x-d.x,by=b.y-d.y,cx=c.x-d.x,cy=c.y-d.y;
+  const det=(ax*ax+ay*ay)*(bx*cy-cx*by)-(bx*bx+by*by)*(ax*cy-cx*ay)+(cx*cx+cy*cy)*(ax*by-bx*ay);
+  return _cadTinOrient(a,b,c)>0?det>0:det<0;
+}
+function _cadDistPontoSegmento(p,a,b){
+  const dx=b.x-a.x,dy=b.y-a.y;
+  const l2=dx*dx+dy*dy;
+  if(l2<=0) return Math.hypot(p.x-a.x,p.y-a.y);
+  let t=((p.x-a.x)*dx+(p.y-a.y)*dy)/l2;
+  t=Math.max(0,Math.min(1,t));
+  return Math.hypot(p.x-(a.x+t*dx),p.y-(a.y+t*dy));
+}
+// Aresta da malha mais próxima do clique (coordenadas locais do SVG), dentro da tolerância.
+function cadHitTestArestaTin(svgPt){
+  if(!_cadTin) return null;
+  const byId=_cadTinMapa();
+  const tol=Math.max(cadSnapTolSvg(),Math.max(_cadView.w,_cadView.h)*0.006);
+  let melhor=null,melhorD=tol;
+  _cadTinArestas().forEach(function(e){
+    const p1=byId[e.a],p2=byId[e.b];
+    if(!p1||!p2) return;
+    const l1=cadWorldToLocal(p1.x,p1.y),l2=cadWorldToLocal(p2.x,p2.y);
+    const d=_cadDistPontoSegmento(svgPt,l1,l2);
+    if(d<melhorD){melhorD=d;melhor=e;}
+  });
+  return melhor;
+}
+// Vértice da malha mais próximo do clique (só pontos que participam de algum triângulo).
+function cadHitTestPontoTin(svgPt){
+  if(!_cadTin) return null;
+  const ids={};
+  _cadTin.tris.forEach(function(t){t.forEach(function(id){ids[id]=true;});});
+  const r=Math.max(_cadView.w,_cadView.h)*0.006*2.5;
+  let melhor=null,melhorD=r;
+  _cadPontos.forEach(function(p){
+    if(!ids[p.id]) return;
+    const loc=cadWorldToLocal(p.x,p.y);
+    const d=Math.hypot(loc.x-svgPt.x,loc.y-svgPt.y);
+    if(d<melhorD){melhorD=d;melhor=p;}
+  });
+  return melhor;
+}
+function _cadTinNomePonto(p){return p.nome?xmlEscapeGeo(p.nome):('ponto #'+p.id);}
+function cadRenderMalhaInfo(){
+  const el=document.getElementById('cad-malha-info');
+  if(!el) return;
+  if(_cadModo!=='malha'){el.style.display='none';return;}
+  el.style.display='block';
+  const nTris=_cadTin?_cadTin.tris.length:0;
+  let html='<div class="st" style="font-size:13px">Edição da malha triangular (TIN)</div>'
+    +'<div class="mu sm mb1">'+nTris+' triângulo(s) na malha. As curvas de nível são recalculadas a cada alteração.</div>';
+  if(_cadTinAddAtivo){
+    html+='<div class="mu sm mb1"><strong>Adicionar linha:</strong> clique no '+(_cadTinAddPts.length?'2º':'1º')+' ponto (vértice da malha). Se a nova linha cruzar triângulos existentes, eles são retriangulados respeitando a linha; se ligar dois pontos ao redor de um buraco, os triângulos são recriados.</div>'
+      +'<button class="btn bxs bdr" onclick="cadTinCancelarAdicao()"><i class="ti ti-x"></i> Cancelar</button>';
+  } else if(_cadTinSel){
+    const byId=_cadTinMapa();
+    const p1=byId[_cadTinSel.a],p2=byId[_cadTinSel.b];
+    if(!p1||!p2){
+      _cadTinSel=null;
+      html+='<div class="mu sm">Clique sobre uma linha da malha para selecioná-la.</div>';
+    } else {
+      const nAdj=_cadTin?_cadTin.tris.filter(function(t){return t.indexOf(_cadTinSel.a)>=0&&t.indexOf(_cadTinSel.b)>=0;}).length:0;
+      html+='<div class="mu sm mb1">Linha selecionada: <strong>'+_cadTinNomePonto(p1)+'</strong> (Z '+(p1.z||0).toFixed(2)+') ↔ <strong>'+_cadTinNomePonto(p2)+'</strong> (Z '+(p2.z||0).toFixed(2)+') — '+cadDistancia(p1,p2).toFixed(2)+' m, '+nAdj+' triângulo(s) vizinho(s).</div>'
+        +'<div style="display:flex;gap:.4rem;flex-wrap:wrap">'
+        +'<button class="btn bxs bp2"'+(nAdj===2?'':' disabled')+' onclick="cadTinTrocarDiagonal()" title="Substitui esta linha pela outra diagonal do quadrilátero formado pelos 2 triângulos vizinhos"><i class="ti ti-switch-2"></i> Trocar diagonal</button>'
+        +'<button class="btn bxs bdr" onclick="cadTinExcluirLinha()" title="Remove os triângulos que usam esta linha"><i class="ti ti-trash"></i> Excluir linha</button>'
+        +'<button class="btn bxs" onclick="cadTinIniciarAdicao()"><i class="ti ti-plus"></i> Adicionar linha</button>'
+        +'<button class="btn bxs" onclick="_cadTinSel=null;cadRenderMalhaInfo();cadRenderSvg();"><i class="ti ti-x"></i> Limpar seleção</button>'
+        +'</div>';
+    }
+  } else {
+    html+='<div class="mu sm mb1">Clique sobre uma linha da malha para selecioná-la (excluir ou trocar a diagonal), ou adicione uma linha nova entre dois pontos.</div>'
+      +'<button class="btn bxs" onclick="cadTinIniciarAdicao()"><i class="ti ti-plus"></i> Adicionar linha</button>';
+  }
+  el.innerHTML=html;
+}
+function cadTinIniciarAdicao(){
+  _cadTinAddAtivo=true;_cadTinAddPts=[];_cadTinSel=null;
+  cadRenderMalhaInfo();cadRenderSvg();
+}
+function cadTinCancelarAdicao(){
+  _cadTinAddAtivo=false;_cadTinAddPts=[];
+  cadRenderMalhaInfo();cadRenderSvg();
+}
+function cadTinExcluirLinha(){
+  if(!_cadTin||!_cadTinSel) return;
+  const a=_cadTinSel.a,b=_cadTinSel.b;
+  const antes=_cadTin.tris.length;
+  _cadTin.tris=_cadTin.tris.filter(function(t){return !(t.indexOf(a)>=0&&t.indexOf(b)>=0);});
+  const removidos=antes-_cadTin.tris.length;
+  _cadTinSel=null;
+  cadRecalcularCurvasDaMalha();
+  cadRenderMalhaInfo();
+  toast('Linha excluída ('+removidos+' triângulo(s) removido(s)) — curvas recalculadas.');
+}
+function cadTinTrocarDiagonal(){
+  if(!_cadTin||!_cadTinSel) return;
+  const a=_cadTinSel.a,b=_cadTinSel.b;
+  const adj=_cadTin.tris.filter(function(t){return t.indexOf(a)>=0&&t.indexOf(b)>=0;});
+  if(adj.length!==2){toast('A troca de diagonal só é possível quando a linha tem exatamente 2 triângulos vizinhos.',true);return;}
+  const c=adj[0].filter(function(id){return id!==a&&id!==b;})[0];
+  const d=adj[1].filter(function(id){return id!==a&&id!==b;})[0];
+  const byId=_cadTinMapa();
+  if(byId[c]===undefined||byId[d]===undefined||!byId[a]||!byId[b]) return;
+  if(!_cadTinCruzaProprio(byId[a],byId[b],byId[c],byId[d])){toast('Não é possível trocar: o quadrilátero formado pelos 2 triângulos não é convexo (a nova diagonal cairia fora dele).',true);return;}
+  _cadTin.tris=_cadTin.tris.filter(function(t){return adj.indexOf(t)<0;});
+  _cadTin.tris.push([c,d,a],[c,d,b]);
+  _cadTinSel={a:Math.min(c,d),b:Math.max(c,d)};
+  cadRecalcularCurvasDaMalha();
+  cadRenderMalhaInfo();
+  toast('Diagonal trocada — curvas recalculadas.');
+}
+// Adiciona a aresta idA-idB à malha. Se cruzar triângulos, remove-os e retriangula as duas
+// cavidades respeitando a nova linha (inserção com restrição, algoritmo de Anglada). Se não
+// cruzar nada (buraco), recria triângulos com os vizinhos comuns aos dois pontos.
+function cadTinAdicionarLinha(idA,idB){
+  if(!_cadTin) return;
+  const byId=_cadTinMapa();
+  const A=byId[idA],B=byId[idB];
+  if(!A||!B) return;
+  if(_cadTin.tris.some(function(t){return t.indexOf(idA)>=0&&t.indexOf(idB)>=0;})){
+    _cadTinSel={a:Math.min(idA,idB),b:Math.max(idA,idB)};
+    toast('Essa linha já existe na malha.');
+    cadRenderMalhaInfo();cadRenderSvg();
+    return;
+  }
+  const idsMalha={};
+  _cadTin.tris.forEach(function(t){t.forEach(function(id){idsMalha[id]=true;});});
+  for(const idStr in idsMalha){
+    const id=+idStr;
+    if(id===idA||id===idB) continue;
+    const P=byId[id];
+    if(!P) continue;
+    const dx=B.x-A.x,dy=B.y-A.y,l2=dx*dx+dy*dy;
+    const t=l2>0?((P.x-A.x)*dx+(P.y-A.y)*dy)/l2:0;
+    if(t>1e-9&&t<1-1e-9&&_cadDistPontoSegmento(P,A,B)<1e-6){
+      toast('A linha passa exatamente sobre o ponto '+_cadTinNomePonto(P)+' — adicione a linha em dois trechos, passando por ele.',true);
+      return;
+    }
+  }
+  const cruzados=[];
+  _cadTin.tris.forEach(function(t,i){
+    const v=[byId[t[0]],byId[t[1]],byId[t[2]]];
+    if([[0,1],[1,2],[2,0]].some(function(e){return _cadTinCruzaProprio(A,B,v[e[0]],v[e[1]]);})) cruzados.push(i);
+  });
+  if(!cruzados.length){
+    // Buraco: cria triângulos com um terceiro ponto "visível" pelos dois extremos
+    // (os lados do triângulo novo não podem cruzar arestas existentes nem cobrir vértices).
+    const arestasLista=_cadTinArestas();
+    const temAresta={};
+    arestasLista.forEach(function(e){temAresta[e.a+'_'+e.b]=true;});
+    function arestaExiste(x,y){return !!temAresta[Math.min(x,y)+'_'+Math.max(x,y)];}
+    function sobreSegmento(V,P,Q){
+      const dx=Q.x-P.x,dy=Q.y-P.y,l2=dx*dx+dy*dy;
+      const t=l2>0?((V.x-P.x)*dx+(V.y-P.y)*dy)/l2:0;
+      return t>1e-9&&t<1-1e-9&&_cadDistPontoSegmento(V,P,Q)<1e-6;
+    }
+    function segmentoLivre(P,Q,ignorar){
+      for(let i=0;i<arestasLista.length;i++){
+        const e1=byId[arestasLista[i].a],e2=byId[arestasLista[i].b];
+        if(e1&&e2&&_cadTinCruzaProprio(P,Q,e1,e2)) return false;
+      }
+      for(const vStr in idsMalha){
+        const v=+vStr;
+        if(ignorar.indexOf(v)>=0) continue;
+        const V=byId[v];
+        if(V&&sobreSegmento(V,P,Q)) return false;
+      }
+      return true;
+    }
+    function dentroTri(P,a,b,c){
+      const d1=_cadTinOrient(a,b,P),d2=_cadTinOrient(b,c,P),d3=_cadTinOrient(c,a,P);
+      return !(((d1<0)||(d2<0)||(d3<0))&&((d1>0)||(d2>0)||(d3>0)));
+    }
+    const porLado={};
+    for(const idStr in idsMalha){
+      const id=+idStr;
+      if(id===idA||id===idB) continue;
+      const C=byId[id];
+      if(!C||Math.abs(_cadTinOrient(A,B,C))<1e-9) continue;
+      if(!arestaExiste(id,idA)&&!segmentoLivre(A,C,[idA,id])) continue;
+      if(!arestaExiste(id,idB)&&!segmentoLivre(B,C,[idB,id])) continue;
+      let cobreVertice=false;
+      for(const outroStr in idsMalha){
+        const outro=+outroStr;
+        if(outro===idA||outro===idB||outro===id) continue;
+        const P=byId[outro];
+        if(P&&dentroTri(P,A,B,C)){cobreVertice=true;break;}
+      }
+      if(cobreVertice) continue;
+      const lado=_cadTinOrient(A,B,C)>0?'esq':'dir';
+      const dist=_cadDistPontoSegmento(C,A,B);
+      if(!porLado[lado]||dist<porLado[lado].dist) porLado[lado]={id:id,dist:dist};
+    }
+    const novos=Object.keys(porLado).map(function(l){return [idA,idB,porLado[l].id];});
+    if(!novos.length){
+      toast('Não foi possível adicionar: nenhum terceiro ponto forma triângulo válido com essa linha (sem cruzar a malha existente).',true);
+      return;
+    }
+    novos.forEach(function(t){_cadTin.tris.push(t);});
+    _cadTinSel={a:Math.min(idA,idB),b:Math.max(idA,idB)};
+    cadRecalcularCurvasDaMalha();
+    cadRenderMalhaInfo();
+    toast('Linha adicionada ('+novos.length+' triângulo(s) criado(s)) — curvas recalculadas.');
+    return;
+  }
+  try{
+    const removidos=cruzados.map(function(i){return _cadTin.tris[i];});
+    const cont={};
+    removidos.forEach(function(t){
+      [[t[0],t[1]],[t[1],t[2]],[t[2],t[0]]].forEach(function(e){
+        const k=Math.min(e[0],e[1])+'_'+Math.max(e[0],e[1]);
+        cont[k]=(cont[k]||0)+1;
+      });
+    });
+    // Bordas da cavidade = arestas que pertencem a só 1 triângulo removido.
+    const viz={};
+    Object.keys(cont).forEach(function(k){
+      if(cont[k]!==1) return;
+      const ids=k.split('_').map(Number);
+      (viz[ids[0]]=viz[ids[0]]||[]).push(ids[1]);
+      (viz[ids[1]]=viz[ids[1]]||[]).push(ids[0]);
+    });
+    if(!viz[idA]||viz[idA].length!==2||!viz[idB]) throw new Error('cavidade aberta');
+    function cadeia(inicio){
+      const chain=[idA,inicio];
+      let guarda=0;
+      while(chain[chain.length-1]!==idB){
+        if(++guarda>5000) throw new Error('cavidade sem fim');
+        const atual=chain[chain.length-1],ant=chain[chain.length-2];
+        const ns=(viz[atual]||[]).filter(function(n){return n!==ant;});
+        if(ns.length!==1) throw new Error('cavidade ramificada');
+        chain.push(ns[0]);
+      }
+      return chain;
+    }
+    const c1=cadeia(viz[idA][0]),c2=cadeia(viz[idA][1]);
+    const novos=[];
+    function triangula(chain){
+      if(chain.length<3) return;
+      const a=chain[0],b=chain[chain.length-1];
+      let ci=1;
+      for(let i=2;i<chain.length-1;i++){
+        if(_cadTinNoCircuncirculo(byId[a],byId[b],byId[chain[ci]],byId[chain[i]])) ci=i;
+      }
+      triangula(chain.slice(0,ci+1));
+      triangula(chain.slice(ci));
+      novos.push([a,chain[ci],b]);
+    }
+    triangula(c1);
+    triangula(c2);
+    _cadTin.tris=_cadTin.tris.filter(function(t,i){return cruzados.indexOf(i)<0;});
+    novos.forEach(function(t){_cadTin.tris.push(t);});
+    _cadTinSel={a:Math.min(idA,idB),b:Math.max(idA,idB)};
+    cadRecalcularCurvasDaMalha();
+    cadRenderMalhaInfo();
+    toast('Linha adicionada ('+removidos.length+' triângulo(s) retriangulado(s)) — curvas recalculadas.');
+  }catch(e){
+    toast('Não foi possível inserir a linha aqui ('+e.message+'). Tente excluir as linhas no caminho e adicionar por trechos.',true);
+  }
 }
 function cadRenderSvg(){
   const svg=document.getElementById('cad-svg');
@@ -9207,6 +9539,22 @@ function cadRenderSvg(){
       polilinhaSvg+='<polyline points="'+pts+'" fill="none" stroke="#0D4FA0" stroke-width="'+(r*0.4)+'" stroke-dasharray="'+(r*0.6)+','+(r*0.4)+'"/>';
     }
   }
+  let malhaSvg='';
+  if(_cadTinVisivel&&_cadTin&&_cadTin.tris.length){
+    const corTin='#3A7CA5';
+    const byId=_cadTinMapa();
+    malhaSvg=_cadTinArestas().map(function(e){
+      const p1=byId[e.a],p2=byId[e.b];
+      if(!p1||!p2) return '';
+      const sel=_cadTinSel&&_cadTinSel.a===e.a&&_cadTinSel.b===e.b;
+      const l1=cadWorldToLocal(p1.x,p1.y),l2=cadWorldToLocal(p2.x,p2.y);
+      return '<line x1="'+l1.x+'" y1="'+l1.y+'" x2="'+l2.x+'" y2="'+l2.y+'" stroke="'+(sel?'#E24B4A':corTin)+'" stroke-width="'+(r*(sel?0.5:0.15))+'" opacity="'+(sel?1:0.55)+'"/>';
+    }).join('');
+    if(_cadTinAddAtivo&&_cadTinAddPts.length){
+      const p=byId[_cadTinAddPts[0]];
+      if(p){const l=cadWorldToLocal(p.x,p.y);malhaSvg+='<circle cx="'+l.x+'" cy="'+l.y+'" r="'+(r*1.6)+'" fill="none" stroke="#E24B4A" stroke-width="'+(r*0.3)+'"/>';}
+    }
+  }
   let curvasSvg='';
   if(_cadCurvasVisivel&&_cadCurvas.length){
     const corCurva='#8E44AD';
@@ -9223,7 +9571,7 @@ function cadRenderSvg(){
       return s;
     }).join('');
   }
-  svg.innerHTML=geomSvg+pontosSvg+medicaoSvg+polilinhaSvg+curvasSvg;
+  svg.innerHTML=geomSvg+malhaSvg+pontosSvg+medicaoSvg+polilinhaSvg+curvasSvg;
   cadAgendarSalvamentoAuto();
 }
 function cadScreenToSvg(evt){
@@ -9276,10 +9624,17 @@ function cadHitTestPonto(svgPt){
   return melhor;
 }
 function cadSetModo(modo){
+  if(modo==='malha'&&(!_cadTin||!_cadTin.tris.length)){toast('Gere as curvas de nível primeiro — a malha triangular é criada junto com elas.',true);return;}
   _cadModo=modo;
   _cadMedicaoPontos=[];
   _cadPolilinhaPontos=[];
-  const map={select:'cad-modo-select',medir:'cad-modo-medir','criar-ponto':'cad-modo-criar',polilinha:'cad-modo-polilinha'};
+  _cadTinSel=null;_cadTinAddAtivo=false;_cadTinAddPts=[];
+  if(modo==='malha'&&!_cadTinVisivel){
+    _cadTinVisivel=true;
+    const chk=document.getElementById('cad-tin-visivel');
+    if(chk) chk.checked=true;
+  }
+  const map={select:'cad-modo-select',medir:'cad-modo-medir','criar-ponto':'cad-modo-criar',polilinha:'cad-modo-polilinha',malha:'cad-modo-malha'};
   Object.keys(map).forEach(function(m){
     const btn=document.getElementById(map[m]);
     if(btn) btn.classList.toggle('bp2',m===modo);
@@ -9287,6 +9642,7 @@ function cadSetModo(modo){
   const info=document.getElementById('cad-medicao-info');
   if(info) info.style.display='none';
   cadRenderPolilinhaInfo();
+  cadRenderMalhaInfo();
   cadRenderSvg();
 }
 function cadPointerDown(evt){
@@ -9321,7 +9677,12 @@ function cadPointerMove(evt){
     _cadDragInicio=cadScreenToSvg(evt);
   }
 }
-function cadPointerUp(evt){_cadDragInicio=null;_cadDragPontoId=null;cadSyncLeaflet();}
+function cadPointerUp(evt){
+  const arrastouPontoDaMalha=_cadDragMoveu&&_cadDragPontoId!=null&&_cadTin&&_cadTin.tris.some(function(t){return t.indexOf(_cadDragPontoId)>=0;});
+  _cadDragInicio=null;_cadDragPontoId=null;
+  cadSyncLeaflet();
+  if(arrastouPontoDaMalha) cadRecalcularCurvasDaMalha();
+}
 function cadWheel(evt){
   if(!_cadGeoJSON&&!_cadPontos.length) return;
   evt.preventDefault();
@@ -9512,6 +9873,27 @@ function cadSvgClick(evt){
     cadRenderPolilinhaInfo();
     return;
   }
+  if(_cadModo==='malha'){
+    if(_cadTinAddAtivo){
+      const hit=cadHitTestPontoTin(p);
+      if(!hit){toast('Clique em um ponto da malha (vértice da triangulação).',true);return;}
+      if(_cadTinAddPts.length&&_cadTinAddPts[0]===hit.id){toast('Escolha um segundo ponto diferente do primeiro.',true);return;}
+      _cadTinAddPts.push(hit.id);
+      if(_cadTinAddPts.length===2){
+        const a=_cadTinAddPts[0],b=_cadTinAddPts[1];
+        _cadTinAddPts=[];_cadTinAddAtivo=false;
+        cadTinAdicionarLinha(a,b);
+      }
+      cadRenderMalhaInfo();
+      cadRenderSvg();
+      return;
+    }
+    const aresta=cadHitTestArestaTin(p);
+    _cadTinSel=aresta?{a:aresta.a,b:aresta.b}:null;
+    cadRenderMalhaInfo();
+    cadRenderSvg();
+    return;
+  }
   if(_cadModo==='criar-ponto'){
     const snap=cadBuscarSnap(p);
     const pt=snap||cadLocalToWorld(p.x,p.y);
@@ -9642,6 +10024,7 @@ function cadAplicarEdicaoPonto(){
   cadRenderCamadas();
   cadRenderSvg();
   cadAtualizarLista();
+  if(_cadTin&&_cadTin.tris.some(function(t){return t.indexOf(p.id)>=0;})) cadRecalcularCurvasDaMalha();
   toast('Ponto atualizado.');
 }
 function cadAtualizarLista(){
