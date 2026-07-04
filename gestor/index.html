@@ -8077,7 +8077,7 @@ function anuenciaRenderMarcos(){
 }
 function anuenciaMarcarTodos(v){document.querySelectorAll('.anu-marco-chk').forEach(function(c){c.checked=v;});}
 function anuenciaAtualizarBotao(){
-  const ok=!!_anuObra&&_anuVizinhoIdx!==null&&_anuMarcosBase.length>0;
+  const ok=_anuMarcosBase.length>0;
   const btn=document.getElementById('anu-btn-gerar');
   if(btn) btn.disabled=!ok;
 }
@@ -8113,25 +8113,24 @@ function xmlRunsFromText(text){
   return '<w:r><w:t xml:space="preserve">'+xmlEscapeGeo(text)+'</w:t></w:r>';
 }
 async function anuenciaGerarDocx(){
-  if(!_anuObra||_anuVizinhoIdx===null){toast('Selecione a obra e o vizinho.',true);return;}
   const art=document.getElementById('anu-art').value;
   if(!art){toast('Informe o número do RT/ART antes de gerar.',true);return;}
   const propsSelecionados=[];
   document.querySelectorAll('.anu-prop-chk').forEach(function(c){if(c.checked)propsSelecionados.push(_anuObra.proprietarios[parseInt(c.dataset.i,10)]);});
-  if(!propsSelecionados.length){toast('Selecione ao menos um proprietário.',true);return;}
-  const vizinho=_anuObra.vizinhos[_anuVizinhoIdx];
-  if(!vizinho.pessoas||!vizinho.pessoas.length){toast('Este vizinho não tem pessoas cadastradas.',true);return;}
+  if(_anuObra&&!propsSelecionados.length){toast('Selecione ao menos um proprietário.',true);return;}
+  const vizinho=(_anuObra&&_anuVizinhoIdx!==null)?_anuObra.vizinhos[_anuVizinhoIdx]:null;
+  if(vizinho&&(!vizinho.pessoas||!vizinho.pessoas.length)){toast('Este vizinho não tem pessoas cadastradas.',true);return;}
   const marcosSelecionados=[];
   document.querySelectorAll('.anu-marco-chk').forEach(function(c){if(c.checked)marcosSelecionados.push(_anuMarcosBase[parseInt(c.dataset.i,10)]);});
   if(!marcosSelecionados.length){toast('Selecione ao menos um marco.',true);return;}
   try{
-    const loc1=parseMunicipio(_anuObra.municipio);
-    const quali1Texto=anuenciaMontarQualificacao(propsSelecionados,_anuObra.nome,_anuObra.ccir,loc1.mun,_incraHeader.codigoIncra);
-    const quali2Texto=anuenciaMontarQualificacao(vizinho.pessoas,vizinho.nomeImovel,vizinho.matricula,vizinho.comarca,vizinho.codigoIncra);
+    const loc1=parseMunicipio(_anuObra?_anuObra.municipio:'');
+    const quali1Texto=(_anuObra&&propsSelecionados.length)?anuenciaMontarQualificacao(propsSelecionados,_anuObra.nome,_anuObra.ccir,loc1.mun,_incraHeader.codigoIncra):'';
+    const quali2Texto=(vizinho&&vizinho.pessoas&&vizinho.pessoas.length)?anuenciaMontarQualificacao(vizinho.pessoas,vizinho.nomeImovel,vizinho.matricula,vizinho.comarca,vizinho.codigoIncra):'';
     const linhasXml=marcosSelecionados.map(function(v){return anuenciaLinhaTabelaXml(v.codigo,v.vante,v.azimute,v.dist,v.lon,v.lat,v.alt);}).join('');
     const somaDist=marcosSelecionados.reduce(function(s,v){return s+(v.distDec||0);},0);
     const assinaturas1Xml=propsSelecionados.map(function(p){return anuenciaAssinaturaXml(p,'(proprietário(a) Imóvel 1'+(p.percentual?' – '+p.percentual+'%':'')+')');}).join('');
-    const assinaturas2Xml=vizinho.pessoas.map(function(p){return anuenciaAssinaturaXml(p,'(proprietário(a) Imóvel 2'+(p.percentual?' – '+p.percentual+'%':'')+')');}).join('');
+    const assinaturas2Xml=vizinho?vizinho.pessoas.map(function(p){return anuenciaAssinaturaXml(p,'(proprietário(a) Imóvel 2'+(p.percentual?' – '+p.percentual+'%':'')+')');}).join(''):'';
     const zonaEl=document.getElementById('incra-zona'),hemisEl=document.getElementById('incra-hemis');
     const zonaSgl=zonaEl?('SIRGAS 2000 Fuso '+zonaEl.value+(hemisEl.value==='S'?'S':'N')):'SIRGAS 2000';
     const meses=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
@@ -8161,7 +8160,7 @@ async function anuenciaGerarDocx(){
     xml=xml.replace('{{QUALIFICACAO_IMOVEL2_XML}}',function(){return xmlRunsFromText(quali2Texto);});
     zip.file('word/document.xml',xml);
     const blob=await zip.generateAsync({type:'blob'});
-    downloadBlobGeo(blob,'Anuencia_'+(_anuObra.nome||'obra').replace(/[^a-zA-Z0-9_-]+/g,'_')+'.docx');
+    downloadBlobGeo(blob,'Anuencia_'+((_anuObra&&_anuObra.nome)||'obra').replace(/[^a-zA-Z0-9_-]+/g,'_')+'.docx');
     toast('Anuência gerada com sucesso!');
   }catch(e){
     toast('Erro ao gerar anuência: '+e.message,true);
