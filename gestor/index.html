@@ -7947,6 +7947,9 @@ function incraGerarDxf(){
   }
 }
 function incraIrParaAnuencia(){
+  const sel=incraSelecionados();
+  if(!sel.length){toast('Selecione ao menos um marco (checkbox da tabela) antes de usar na anuência.',true);return;}
+  _anuMarcosBase=sel;
   _incraHeader.rt=document.getElementById('incra-rt').value;
   _incraHeader.credenciamento=document.getElementById('incra-credenciamento').value;
   _incraHeader.tecnico=document.getElementById('incra-tecnico').value;
@@ -8002,7 +8005,7 @@ function incraIrParaMemorial(idx){
 }
 
 // ── 8. Anuência de Limites ──
-var _anuObra=null,_anuVizinhoIdx=null;
+var _anuObra=null,_anuVizinhoIdx=null,_anuMarcosBase=[];
 function geoAnuenciaHtml(){
   return '<div class="card mb1">'
     +'<div class="st mb1"><i class="ti ti-signature" style="color:var(--brand)"></i>Anuência de Limites</div>'
@@ -8024,6 +8027,7 @@ async function anuenciaInit(){
   sel.dataset.loaded='1';
   const{data}=await sb.from('obras').select('id,nome').order('nome');
   sel.innerHTML='<option value="">Selecione...</option>'+(data||[]).map(function(o){return '<option value="'+o.id+'">'+o.nome+'</option>';}).join('');
+  if(!_anuMarcosBase.length&&_incraVertices.length) _anuMarcosBase=_incraVertices.slice();
   anuenciaRenderMarcos();
 }
 async function anuenciaObraChange(){
@@ -8062,15 +8066,17 @@ function anuenciaCarregarDoMemorial(){
   anuenciaAtualizarBotao();
 }
 function anuenciaRenderMarcos(){
-  if(!_incraVertices.length){document.getElementById('anu-marcos-wrap').innerHTML='<div class="mu sm">Nenhum marco importado ainda — use a aba "Importar Memorial INCRA".</div>';return;}
-  const rows=_incraVertices.map(function(v,i){
+  if(!_anuMarcosBase.length){document.getElementById('anu-marcos-wrap').innerHTML='<div class="mu sm">Nenhum marco importado ainda — use a aba "Importar Memorial INCRA" (selecione os marcos desejados e clique em "Usar na Anuência de Limites").</div>';return;}
+  const rows=_anuMarcosBase.map(function(v,i){
     return '<tr><td><input type="checkbox" class="anu-marco-chk" data-i="'+i+'" checked></td><td>'+v.codigo+'</td><td>'+v.vante+'</td><td>'+v.azimute+'</td><td>'+v.dist+'</td></tr>';
   }).join('');
-  document.getElementById('anu-marcos-wrap').innerHTML='<div class="fl mb1">Marcos a incluir na anuência (trecho de confrontação com o vizinho)</div>'
+  document.getElementById('anu-marcos-wrap').innerHTML='<div class="fxb mb1"><div class="fl" style="margin:0">Marcos a incluir na anuência (trecho de confrontação com o vizinho)</div>'
+    +'<div class="fx g8"><button class="btn bxs" onclick="anuenciaMarcarTodos(true)">Marcar todos</button><button class="btn bxs" onclick="anuenciaMarcarTodos(false)">Desmarcar todos</button></div></div>'
     +'<div class="tw"><table><thead><tr><th></th><th>De</th><th>Para</th><th>Azimute</th><th>Dist(m)</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
 }
+function anuenciaMarcarTodos(v){document.querySelectorAll('.anu-marco-chk').forEach(function(c){c.checked=v;});}
 function anuenciaAtualizarBotao(){
-  const ok=!!_anuObra&&_anuVizinhoIdx!==null&&_incraVertices.length>0;
+  const ok=!!_anuObra&&_anuVizinhoIdx!==null&&_anuMarcosBase.length>0;
   const btn=document.getElementById('anu-btn-gerar');
   if(btn) btn.disabled=!ok;
 }
@@ -8115,7 +8121,7 @@ async function anuenciaGerarDocx(){
   const vizinho=_anuObra.vizinhos[_anuVizinhoIdx];
   if(!vizinho.pessoas||!vizinho.pessoas.length){toast('Este vizinho não tem pessoas cadastradas.',true);return;}
   const marcosSelecionados=[];
-  document.querySelectorAll('.anu-marco-chk').forEach(function(c){if(c.checked)marcosSelecionados.push(_incraVertices[parseInt(c.dataset.i,10)]);});
+  document.querySelectorAll('.anu-marco-chk').forEach(function(c){if(c.checked)marcosSelecionados.push(_anuMarcosBase[parseInt(c.dataset.i,10)]);});
   if(!marcosSelecionados.length){toast('Selecione ao menos um marco.',true);return;}
   try{
     const loc1=parseMunicipio(_anuObra.municipio);
