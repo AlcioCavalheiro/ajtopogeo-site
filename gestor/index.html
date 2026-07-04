@@ -8200,7 +8200,7 @@ function cadLocalToWorld(x,y){return {x:x+_cadOrigin.x,y:_cadOrigin.y-y};}
 var _cadModo='select',_cadMedicaoPontos=[],_cadPolilinhaPontos=[],_cadSnapAtivo=true,_cadSnapTolPx=12;
 var _cadCurvas=[],_cadCurvasVisivel=true,_cadCurvasIntervaloAtual=1;
 var _cadTin=null,_cadTinVisivel=false,_cadTinSel=null,_cadTinAddAtivo=false,_cadTinAddPts=[];
-var _cadCurvasSuavizacao=2;
+var _cadCurvasSuavizacao=2,_cadCurvasRotulo='todas';
 const CAD_PALETA=['#0D4FA0','#27500A','#A32D2D','#854F0B','#5B3A8E','#0E7C7B','#B5482A','#2D5F8A','#6B6B0F','#7A2E5C'];
 const CAD_BASEMAPS={
   'esri':{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',maxZoom:23,maxNativeZoom:19,crossOrigin:'anonymous',attribution:'Esri World Imagery'},
@@ -8669,7 +8669,8 @@ function geoCadHtml(){
     +'<div class="mu sm mb1">Gera curvas de nível por triangulação (TIN) a partir dos pontos com cota (Z) real desta CAD — normalmente os importados via <strong>TXT</strong> ou <strong>Reporte HTML de levantamento (RTK/GNSS)</strong>. Pontos criados manualmente ou vindos de memorial/perímetro costumam não ter Z real (ficam em 0) e não servem de base confiável. Após gerar, a malha triangular pode ser vista e editada (excluir, trocar diagonal e adicionar linhas) — as curvas são recalculadas automaticamente a cada alteração.</div>'
     +'<div class="g3 mb1"><div class="fg"><label class="fl">Fonte dos pontos</label><select class="fc" id="cad-curvas-camada"><option value="">Todas as camadas</option></select></div>'
     +'<div class="fg"><label class="fl">Equidistância (m)</label><input class="fc" type="number" step="0.1" min="0.01" id="cad-curvas-intervalo" value="1"></div>'
-    +'<div class="fg"><label class="fl">Suavização</label><select class="fc" id="cad-curvas-suavizacao" onchange="cadMudarSuavizacao(this.value)"><option value="0">Nenhuma (retas)</option><option value="1">Leve</option><option value="2" selected>Média</option><option value="3">Forte</option></select></div></div>'
+    +'<div class="fg"><label class="fl">Suavização</label><select class="fc" id="cad-curvas-suavizacao" onchange="cadMudarSuavizacao(this.value)"><option value="0">Nenhuma (retas)</option><option value="1">Leve</option><option value="2" selected>Média</option><option value="3">Forte</option></select></div>'
+    +'<div class="fg"><label class="fl">Cotas nas curvas</label><select class="fc" id="cad-curvas-rotulo" onchange="cadMudarRotuloCurvas(this.value)"><option value="todas" selected>Todas as curvas</option><option value="mestras">Só curvas mestras</option><option value="nenhum">Nenhuma</option></select></div></div>'
     +'<div class="fx g8 mb1" style="align-items:center">'
     +'<button class="btn bp2 bsm" onclick="cadGerarCurvasNivel()"><i class="ti ti-topology-star-3"></i> Gerar curvas de nível</button>'
     +'<button class="btn bsm" onclick="cadLimparCurvasNivel()"><i class="ti ti-x"></i> Limpar curvas</button>'
@@ -8826,6 +8827,11 @@ async function cadObraChange(){
         const suaEl=document.getElementById('cad-curvas-suavizacao');
         if(suaEl) suaEl.value=String(dados.curvasSuavizacao);
       }
+      if(dados.curvasRotulo){
+        _cadCurvasRotulo=dados.curvasRotulo;
+        const rotEl=document.getElementById('cad-curvas-rotulo');
+        if(rotEl) rotEl.value=dados.curvasRotulo;
+      }
       if(_cadTin) cadRecalcularCurvasDaMalha(); else _cadCurvas=[];
       cadRenderMalhaInfo();
       cadAjustarView();
@@ -8845,7 +8851,7 @@ async function cadSalvarDados(){
   if(!_cadObraId) return;
   const statusEl=document.getElementById('cad-obra-status');
   if(statusEl) statusEl.textContent='Salvando...';
-  const payload={pontos:_cadPontos,geojson:_cadGeoJSON,camadas:_cadCamadas,nextId:_cadNextId,ordemContador:_cadOrdemContador,tin:_cadTin,curvasIntervalo:_cadCurvasIntervaloAtual,curvasSuavizacao:_cadCurvasSuavizacao};
+  const payload={pontos:_cadPontos,geojson:_cadGeoJSON,camadas:_cadCamadas,nextId:_cadNextId,ordemContador:_cadOrdemContador,tin:_cadTin,curvasIntervalo:_cadCurvasIntervaloAtual,curvasSuavizacao:_cadCurvasSuavizacao,curvasRotulo:_cadCurvasRotulo};
   const {error}=await sb.from('obras').update({cad_dados:payload}).eq('id',_cadObraId);
   if(error){
     if(error.message&&error.message.toLowerCase().includes('column')){cadMostrarSqlSetup();return;}
@@ -9241,10 +9247,46 @@ function cadMudarSuavizacao(v){
   _cadCurvasSuavizacao=parseInt(v,10)||0;
   if(_cadTin&&_cadTin.tris.length) cadRecalcularCurvasDaMalha();
 }
+function cadMudarRotuloCurvas(v){
+  _cadCurvasRotulo=v;
+  cadRenderSvg();
+}
+// Pontos de rótulo ao longo de uma curva: posição (mundo), ângulo do segmento local e
+// distâncias-alvo espaçadas (uma no meio se a curva for curta). Usado na tela e no DXF.
+function _cadCurvaPontosRotulo(path,espacamento){
+  const acc=[0];
+  let total=0;
+  for(let i=1;i<path.length;i++){
+    total+=Math.hypot(path[i][0]-path[i-1][0],path[i][1]-path[i-1][1]);
+    acc.push(total);
+  }
+  if(total<=0) return [];
+  const alvos=[];
+  if(!(espacamento>0)||total<espacamento) alvos.push(total/2);
+  else for(let d=espacamento/2;d<total;d+=espacamento) alvos.push(d);
+  return alvos.slice(0,60).map(function(d){
+    let i=1;
+    while(i<acc.length-1&&acc[i]<d) i++;
+    const t=(d-acc[i-1])/((acc[i]-acc[i-1])||1);
+    return {
+      x:path[i-1][0]+(path[i][0]-path[i-1][0])*t,
+      y:path[i-1][1]+(path[i][1]-path[i-1][1])*t,
+      dx:path[i][0]-path[i-1][0],
+      dy:path[i][1]-path[i-1][1]
+    };
+  });
+}
 // Exporta as curvas como polilinhas 3D em DXF (R12): cada curva na elevação da sua cota,
 // camadas CURVAS (intermediárias) e CURVAS_MESTRAS (múltiplas de 5x a equidistância).
 function cadExportarCurvasDxf(){
   if(!_cadCurvas.length){toast('Gere as curvas de nível antes de exportar.',true);return;}
+  // altura do texto de cota proporcional à extensão do desenho (1%), entre 0,3 m e 10 m
+  let xmin=Infinity,ymin=Infinity,xmax=-Infinity,ymax=-Infinity;
+  _cadCurvas.forEach(function(cv){cv.path.forEach(function(c){
+    if(c[0]<xmin)xmin=c[0];if(c[0]>xmax)xmax=c[0];
+    if(c[1]<ymin)ymin=c[1];if(c[1]>ymax)ymax=c[1];
+  });});
+  const alturaTexto=Math.min(10,Math.max(0.3,Math.max(xmax-xmin,ymax-ymin)*0.01));
   let entities='';
   _cadCurvas.forEach(function(cv){
     const mestra=(Math.round(cv.z/_cadCurvasIntervaloAtual)%5===0);
@@ -9254,10 +9296,18 @@ function cadExportarCurvasDxf(){
     entities+='0\nPOLYLINE\n8\n'+layer+'\n66\n1\n70\n'+(fechada?9:8)+'\n';
     pts.forEach(function(c){entities+='0\nVERTEX\n8\n'+layer+'\n10\n'+c[0].toFixed(3)+'\n20\n'+c[1].toFixed(3)+'\n30\n'+cv.z.toFixed(3)+'\n70\n32\n';});
     entities+='0\nSEQEND\n';
+    if(_cadCurvasRotulo!=='nenhum'&&(_cadCurvasRotulo==='todas'||mestra)&&cv.path.length>1){
+      _cadCurvaPontosRotulo(cv.path,0).forEach(function(pr){
+        let ang=Math.atan2(pr.dy,pr.dx)*180/Math.PI;
+        if(ang>90) ang-=180;
+        if(ang<-90) ang+=180;
+        entities+='0\nTEXT\n8\nCURVAS_COTAS\n10\n'+pr.x.toFixed(3)+'\n20\n'+pr.y.toFixed(3)+'\n30\n'+cv.z.toFixed(3)+'\n40\n'+alturaTexto.toFixed(2)+'\n50\n'+ang.toFixed(1)+'\n1\n'+cv.z.toFixed(2)+'\n';
+      });
+    }
   });
   const dxf='0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n'+entities+'0\nENDSEC\n0\nEOF\n';
   downloadBlobGeo(new Blob([dxf],{type:'application/dxf'}),'curvas_nivel.dxf');
-  toast(_cadCurvas.length+' curva(s) exportadas em DXF (polilinhas 3D, camadas CURVAS e CURVAS_MESTRAS).');
+  toast(_cadCurvas.length+' curva(s) exportadas em DXF (polilinhas 3D nas camadas CURVAS e CURVAS_MESTRAS; cotas na camada CURVAS_COTAS).');
 }
 // Gera os arquivos de um shapefile PolylineZ (tipo 13) das curvas, um registro por curva
 // com atributo COTA no .dbf e .prj em SIRGAS 2000 / UTM (zona atual da CAD). Escrito à mão
@@ -9722,10 +9772,15 @@ function cadRenderSvg(){
       const mestra=(idx%5===0);
       const pts=cv.path.map(function(pt){const l=cadWorldToLocal(pt[0],pt[1]);return l.x+','+l.y;}).join(' ');
       let s='<polyline points="'+pts+'" fill="none" stroke="'+corCurva+'" stroke-width="'+(r*(mestra?0.5:0.25))+'" opacity="'+(mestra?0.95:0.6)+'"/>';
-      if(mestra&&cv.path.length){
-        const meio=cv.path[Math.floor(cv.path.length/2)];
-        const l=cadWorldToLocal(meio[0],meio[1]);
-        s+='<text x="'+l.x+'" y="'+l.y+'" font-size="'+(r*1.8)+'" fill="'+corCurva+'" style="pointer-events:none;user-select:none;font-weight:600">'+cv.z.toFixed(2)+'</text>';
+      if(_cadCurvasRotulo!=='nenhum'&&(_cadCurvasRotulo==='todas'||mestra)&&cv.path.length>1){
+        const fs=r*1.8;
+        _cadCurvaPontosRotulo(cv.path,Math.max(_cadView.w,_cadView.h)*0.35).forEach(function(pr){
+          const l=cadWorldToLocal(pr.x,pr.y);
+          let ang=Math.atan2(-pr.dy,pr.dx)*180/Math.PI;
+          if(ang>90) ang-=180;
+          if(ang<-90) ang+=180;
+          s+='<text x="'+l.x+'" y="'+l.y+'" font-size="'+fs+'" fill="'+corCurva+'" text-anchor="middle" dominant-baseline="middle" transform="rotate('+ang.toFixed(1)+' '+l.x+' '+l.y+')" style="pointer-events:none;user-select:none;font-weight:600;paint-order:stroke;stroke:#fafaf7;stroke-width:'+(fs*0.28)+'px">'+cv.z.toFixed(2)+'</text>';
+        });
       }
       return s;
     }).join('');
