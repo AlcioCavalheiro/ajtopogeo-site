@@ -8200,6 +8200,7 @@ function cadLocalToWorld(x,y){return {x:x+_cadOrigin.x,y:_cadOrigin.y-y};}
 var _cadModo='select',_cadMedicaoPontos=[],_cadPolilinhaPontos=[],_cadSnapAtivo=true,_cadSnapTolPx=12;
 var _cadCurvas=[],_cadCurvasVisivel=true,_cadCurvasIntervaloAtual=1;
 var _cadTin=null,_cadTinVisivel=false,_cadTinSel=null,_cadTinAddAtivo=false,_cadTinAddPts=[];
+var _cadCurvasSuavizacao=2;
 const CAD_PALETA=['#0D4FA0','#27500A','#A32D2D','#854F0B','#5B3A8E','#0E7C7B','#B5482A','#2D5F8A','#6B6B0F','#7A2E5C'];
 const CAD_BASEMAPS={
   'esri':{url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',maxZoom:23,maxNativeZoom:19,crossOrigin:'anonymous',attribution:'Esri World Imagery'},
@@ -8666,12 +8667,15 @@ function geoCadHtml(){
     +'<button class="btn bxs" onclick="cadToggleImport()" id="cad-btn-toggle-import"><i class="ti ti-file-import"></i> Importar arquivo</button></div></div>'
     +'<div id="cad-curvas-box" style="display:none" class="mb1">'
     +'<div class="mu sm mb1">Gera curvas de nível por triangulação (TIN) a partir dos pontos com cota (Z) real desta CAD — normalmente os importados via <strong>TXT</strong> ou <strong>Reporte HTML de levantamento (RTK/GNSS)</strong>. Pontos criados manualmente ou vindos de memorial/perímetro costumam não ter Z real (ficam em 0) e não servem de base confiável. Após gerar, a malha triangular pode ser vista e editada (excluir, trocar diagonal e adicionar linhas) — as curvas são recalculadas automaticamente a cada alteração.</div>'
-    +'<div class="g2 mb1"><div class="fg"><label class="fl">Fonte dos pontos</label><select class="fc" id="cad-curvas-camada"><option value="">Todas as camadas</option></select></div>'
-    +'<div class="fg"><label class="fl">Equidistância (m)</label><input class="fc" type="number" step="0.1" min="0.01" id="cad-curvas-intervalo" value="1"></div></div>'
+    +'<div class="g3 mb1"><div class="fg"><label class="fl">Fonte dos pontos</label><select class="fc" id="cad-curvas-camada"><option value="">Todas as camadas</option></select></div>'
+    +'<div class="fg"><label class="fl">Equidistância (m)</label><input class="fc" type="number" step="0.1" min="0.01" id="cad-curvas-intervalo" value="1"></div>'
+    +'<div class="fg"><label class="fl">Suavização</label><select class="fc" id="cad-curvas-suavizacao" onchange="cadMudarSuavizacao(this.value)"><option value="0">Nenhuma (retas)</option><option value="1">Leve</option><option value="2" selected>Média</option><option value="3">Forte</option></select></div></div>'
     +'<div class="fx g8 mb1" style="align-items:center">'
     +'<button class="btn bp2 bsm" onclick="cadGerarCurvasNivel()"><i class="ti ti-topology-star-3"></i> Gerar curvas de nível</button>'
     +'<button class="btn bsm" onclick="cadLimparCurvasNivel()"><i class="ti ti-x"></i> Limpar curvas</button>'
     +'<button class="btn bsm" id="cad-modo-malha" onclick="cadSetModo(\'malha\')"><i class="ti ti-vector-triangle"></i> Editar malha (TIN)</button>'
+    +'<button class="btn bsm" onclick="cadExportarCurvasDxf()" title="Polilinhas 3D na cota de cada curva, camadas CURVAS e CURVAS_MESTRAS"><i class="ti ti-file-export"></i> Baixar DXF</button>'
+    +'<button class="btn bsm" onclick="cadExportarCurvasShp()" title="Shapefile de linhas 3D (PolylineZ) com atributo COTA, em SIRGAS 2000 / UTM"><i class="ti ti-file-zip"></i> Baixar Shapefile</button>'
     +'<label style="display:flex;align-items:center;gap:6px;margin-left:auto;cursor:pointer"><input type="checkbox" id="cad-curvas-visivel" checked onchange="cadToggleCurvasVisibilidade(this.checked)"> <span class="mu sm">Mostrar curvas</span></label>'
     +'<label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="cad-tin-visivel" onchange="cadToggleTinVisibilidade(this.checked)"> <span class="mu sm">Mostrar malha (TIN)</span></label>'
     +'</div>'
@@ -8817,6 +8821,11 @@ async function cadObraChange(){
         const intEl=document.getElementById('cad-curvas-intervalo');
         if(intEl) intEl.value=dados.curvasIntervalo;
       }
+      if(dados.curvasSuavizacao!==undefined){
+        _cadCurvasSuavizacao=dados.curvasSuavizacao;
+        const suaEl=document.getElementById('cad-curvas-suavizacao');
+        if(suaEl) suaEl.value=String(dados.curvasSuavizacao);
+      }
       if(_cadTin) cadRecalcularCurvasDaMalha(); else _cadCurvas=[];
       cadRenderMalhaInfo();
       cadAjustarView();
@@ -8836,7 +8845,7 @@ async function cadSalvarDados(){
   if(!_cadObraId) return;
   const statusEl=document.getElementById('cad-obra-status');
   if(statusEl) statusEl.textContent='Salvando...';
-  const payload={pontos:_cadPontos,geojson:_cadGeoJSON,camadas:_cadCamadas,nextId:_cadNextId,ordemContador:_cadOrdemContador,tin:_cadTin,curvasIntervalo:_cadCurvasIntervaloAtual};
+  const payload={pontos:_cadPontos,geojson:_cadGeoJSON,camadas:_cadCamadas,nextId:_cadNextId,ordemContador:_cadOrdemContador,tin:_cadTin,curvasIntervalo:_cadCurvasIntervaloAtual,curvasSuavizacao:_cadCurvasSuavizacao};
   const {error}=await sb.from('obras').update({cad_dados:payload}).eq('id',_cadObraId);
   if(error){
     if(error.message&&error.message.toLowerCase().includes('column')){cadMostrarSqlSetup();return;}
@@ -9193,11 +9202,161 @@ function cadRecalcularCurvasDaMalha(){
       if(seg) segmentos.push(seg);
     });
     if(!segmentos.length) return;
-    _cadEncadearSegmentos(segmentos).forEach(function(path){ curvas.push({z:z,path:path}); });
+    _cadEncadearSegmentos(segmentos).forEach(function(path){ curvas.push({z:z,path:_cadSuavizarCurva(path,_cadCurvasSuavizacao)}); });
   });
   _cadCurvas=curvas;
   cadRenderSvg();
   return curvas.length;
+}
+// Suaviza uma polilinha por corte de cantos (Chaikin). Curvas fechadas (1º ponto = último)
+// são tratadas como anel, sem emenda; as pontas de curvas abertas ficam fixas.
+function _cadSuavizarCurva(path,iteracoes){
+  if(!iteracoes||path.length<3) return path;
+  const fechada=Math.abs(path[0][0]-path[path.length-1][0])<1e-9&&Math.abs(path[0][1]-path[path.length-1][1])<1e-9;
+  let pts=fechada?path.slice(0,-1):path.slice();
+  for(let k=0;k<iteracoes;k++){
+    const out=[];
+    const n=pts.length;
+    if(fechada){
+      for(let i=0;i<n;i++){
+        const a=pts[i],b=pts[(i+1)%n];
+        out.push([a[0]*0.75+b[0]*0.25,a[1]*0.75+b[1]*0.25]);
+        out.push([a[0]*0.25+b[0]*0.75,a[1]*0.25+b[1]*0.75]);
+      }
+    } else {
+      out.push(pts[0]);
+      for(let i=0;i<n-1;i++){
+        const a=pts[i],b=pts[i+1];
+        out.push([a[0]*0.75+b[0]*0.25,a[1]*0.75+b[1]*0.25]);
+        out.push([a[0]*0.25+b[0]*0.75,a[1]*0.25+b[1]*0.75]);
+      }
+      out.push(pts[n-1]);
+    }
+    pts=out;
+  }
+  if(fechada&&pts.length) pts.push(pts[0].slice());
+  return pts;
+}
+function cadMudarSuavizacao(v){
+  _cadCurvasSuavizacao=parseInt(v,10)||0;
+  if(_cadTin&&_cadTin.tris.length) cadRecalcularCurvasDaMalha();
+}
+// Exporta as curvas como polilinhas 3D em DXF (R12): cada curva na elevação da sua cota,
+// camadas CURVAS (intermediárias) e CURVAS_MESTRAS (múltiplas de 5x a equidistância).
+function cadExportarCurvasDxf(){
+  if(!_cadCurvas.length){toast('Gere as curvas de nível antes de exportar.',true);return;}
+  let entities='';
+  _cadCurvas.forEach(function(cv){
+    const mestra=(Math.round(cv.z/_cadCurvasIntervaloAtual)%5===0);
+    const layer=mestra?'CURVAS_MESTRAS':'CURVAS';
+    const fechada=cv.path.length>2&&Math.abs(cv.path[0][0]-cv.path[cv.path.length-1][0])<1e-9&&Math.abs(cv.path[0][1]-cv.path[cv.path.length-1][1])<1e-9;
+    const pts=fechada?cv.path.slice(0,-1):cv.path;
+    entities+='0\nPOLYLINE\n8\n'+layer+'\n66\n1\n70\n'+(fechada?9:8)+'\n';
+    pts.forEach(function(c){entities+='0\nVERTEX\n8\n'+layer+'\n10\n'+c[0].toFixed(3)+'\n20\n'+c[1].toFixed(3)+'\n30\n'+cv.z.toFixed(3)+'\n70\n32\n';});
+    entities+='0\nSEQEND\n';
+  });
+  const dxf='0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n'+entities+'0\nENDSEC\n0\nEOF\n';
+  downloadBlobGeo(new Blob([dxf],{type:'application/dxf'}),'curvas_nivel.dxf');
+  toast(_cadCurvas.length+' curva(s) exportadas em DXF (polilinhas 3D, camadas CURVAS e CURVAS_MESTRAS).');
+}
+// Gera os arquivos de um shapefile PolylineZ (tipo 13) das curvas, um registro por curva
+// com atributo COTA no .dbf e .prj em SIRGAS 2000 / UTM (zona atual da CAD). Escrito à mão
+// porque a shp-write funde as linhas em uma feição só e perderia a cota individual.
+function _cadCurvasShpArquivos(curvas){
+  const n=curvas.length;
+  let xmin=Infinity,ymin=Infinity,xmax=-Infinity,ymax=-Infinity,zminG=Infinity,zmaxG=-Infinity;
+  let totalShp=100;
+  const infos=curvas.map(function(cv){
+    let bx1=Infinity,by1=Infinity,bx2=-Infinity,by2=-Infinity;
+    cv.path.forEach(function(c){
+      if(c[0]<bx1)bx1=c[0];if(c[0]>bx2)bx2=c[0];
+      if(c[1]<by1)by1=c[1];if(c[1]>by2)by2=c[1];
+    });
+    xmin=Math.min(xmin,bx1);ymin=Math.min(ymin,by1);xmax=Math.max(xmax,bx2);ymax=Math.max(ymax,by2);
+    zminG=Math.min(zminG,cv.z);zmaxG=Math.max(zmaxG,cv.z);
+    const np=cv.path.length;
+    const contBytes=80+32*np;
+    totalShp+=8+contBytes;
+    return {cv:cv,box:[bx1,by1,bx2,by2],np:np,contBytes:contBytes};
+  });
+  const shp=new DataView(new ArrayBuffer(totalShp));
+  const shx=new DataView(new ArrayBuffer(100+8*n));
+  function cabecalho(dv,fileWords){
+    dv.setInt32(0,9994,false);
+    dv.setInt32(24,fileWords,false);
+    dv.setInt32(28,1000,true);
+    dv.setInt32(32,13,true);
+    dv.setFloat64(36,xmin,true);dv.setFloat64(44,ymin,true);
+    dv.setFloat64(52,xmax,true);dv.setFloat64(60,ymax,true);
+    dv.setFloat64(68,zminG,true);dv.setFloat64(76,zmaxG,true);
+    dv.setFloat64(84,0,true);dv.setFloat64(92,0,true);
+  }
+  cabecalho(shp,totalShp/2);
+  cabecalho(shx,(100+8*n)/2);
+  let off=100;
+  infos.forEach(function(inf,i){
+    shx.setInt32(100+8*i,off/2,false);
+    shx.setInt32(100+8*i+4,inf.contBytes/2,false);
+    shp.setInt32(off,i+1,false);
+    shp.setInt32(off+4,inf.contBytes/2,false);
+    let p=off+8;
+    shp.setInt32(p,13,true);p+=4;
+    shp.setFloat64(p,inf.box[0],true);p+=8;
+    shp.setFloat64(p,inf.box[1],true);p+=8;
+    shp.setFloat64(p,inf.box[2],true);p+=8;
+    shp.setFloat64(p,inf.box[3],true);p+=8;
+    shp.setInt32(p,1,true);p+=4;
+    shp.setInt32(p,inf.np,true);p+=4;
+    shp.setInt32(p,0,true);p+=4;
+    inf.cv.path.forEach(function(c){shp.setFloat64(p,c[0],true);p+=8;shp.setFloat64(p,c[1],true);p+=8;});
+    shp.setFloat64(p,inf.cv.z,true);p+=8;
+    shp.setFloat64(p,inf.cv.z,true);p+=8;
+    inf.cv.path.forEach(function(){shp.setFloat64(p,inf.cv.z,true);p+=8;});
+    shp.setFloat64(p,0,true);p+=8;
+    shp.setFloat64(p,0,true);p+=8;
+    inf.cv.path.forEach(function(){shp.setFloat64(p,0,true);p+=8;});
+    off+=8+inf.contBytes;
+  });
+  const recSize=13,headerSize=65;
+  const dbf=new Uint8Array(headerSize+recSize*n+1);
+  const dvD=new DataView(dbf.buffer);
+  dbf[0]=0x03;
+  const agora=new Date();
+  dbf[1]=agora.getFullYear()-1900;dbf[2]=agora.getMonth()+1;dbf[3]=agora.getDate();
+  dvD.setUint32(4,n,true);
+  dvD.setUint16(8,headerSize,true);
+  dvD.setUint16(10,recSize,true);
+  'COTA'.split('').forEach(function(ch,i){dbf[32+i]=ch.charCodeAt(0);});
+  dbf[32+11]=0x4E;
+  dbf[32+16]=12;
+  dbf[32+17]=2;
+  dbf[64]=0x0D;
+  curvas.forEach(function(cv,i){
+    const base=headerSize+recSize*i;
+    dbf[base]=0x20;
+    let txt=cv.z.toFixed(2);
+    if(txt.length>12) txt=txt.slice(0,12);
+    const pad=' '.repeat(12-txt.length)+txt;
+    for(let k=0;k<12;k++) dbf[base+1+k]=pad.charCodeAt(k);
+  });
+  dbf[dbf.length-1]=0x1A;
+  const mc=_cadUtmZona*6-183;
+  const prj='PROJCS["SIRGAS 2000 / UTM zone '+_cadUtmZona+(_cadUtmSul?'S':'N')+'",GEOGCS["SIRGAS 2000",DATUM["Sistema_de_Referencia_Geocentrico_para_las_AmericaS_2000",SPHEROID["GRS 1980",6378137,298.257222101]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",'+mc+'],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",'+(_cadUtmSul?10000000:0)+'],UNIT["metre",1]]';
+  return {shp:shp.buffer,shx:shx.buffer,dbf:dbf.buffer,prj:prj};
+}
+async function cadExportarCurvasShp(){
+  if(!_cadCurvas.length){toast('Gere as curvas de nível antes de exportar.',true);return;}
+  try{
+    const arq=_cadCurvasShpArquivos(_cadCurvas);
+    const zip=new JSZip();
+    zip.file('curvas_nivel.shp',arq.shp);
+    zip.file('curvas_nivel.shx',arq.shx);
+    zip.file('curvas_nivel.dbf',arq.dbf);
+    zip.file('curvas_nivel.prj',arq.prj);
+    const blob=await zip.generateAsync({type:'blob'});
+    downloadBlobGeo(blob,'curvas_nivel_shp.zip');
+    toast(_cadCurvas.length+' curva(s) exportadas em Shapefile (PolylineZ, atributo COTA, SIRGAS 2000 / UTM '+_cadUtmZona+(_cadUtmSul?'S':'N')+').');
+  }catch(e){toast('Erro ao gerar shapefile: '+e.message,true);}
 }
 function cadLimparCurvasNivel(){
   _cadCurvas=[];
