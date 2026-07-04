@@ -8081,9 +8081,10 @@ function anuenciaAtualizarBotao(){
   const btn=document.getElementById('anu-btn-gerar');
   if(btn) btn.disabled=!ok;
 }
+function anuBold(texto){return ''+texto+'';}
 function anuenciaPessoaFrase(p,idx,total){
   let s=idx===0?'Eu, ':(idx===total-1&&total>1?'e Eu, ':'Eu, ');
-  s+=p.nome+', '+(p.nacionalidade||'brasileiro(a)')+', '+(p.profissao||'')+', portador(a) da '+(p.docTipo==='CNH'?'CNH':p.docTipo==='CI'?'Carteira de Identidade':'Cédula de Identidade R.G.')+' n° '+(p.docNumero||'')+(p.docOrgao?' ('+p.docOrgao+')':'')+', inscrito(a) no CPF sob o n° '+(p.cpf||'')+', '+(p.estadoCivil||'solteiro(a)');
+  s+=anuBold(p.nome)+', '+(p.nacionalidade||'brasileiro(a)')+', '+(p.profissao||'')+', portador(a) da '+(p.docTipo==='CNH'?'CNH':p.docTipo==='CI'?'Carteira de Identidade':'Cédula de Identidade R.G.')+' n° '+(p.docNumero||'')+(p.docOrgao?' ('+p.docOrgao+')':'')+', inscrito(a) no CPF sob o n° '+(p.cpf||'')+', '+(p.estadoCivil||'solteiro(a)');
   if(p.estadoCivil==='casado(a)'&&p.conjuge){
     s+=(p.regimeBens?' pelo regime de '+p.regimeBens:'')+' com '+p.conjuge.nome+', '+(p.conjuge.nacionalidade||'brasileiro(a)')+', '+(p.conjuge.profissao||'')+', inscrito(a) no CPF sob o n° '+(p.conjuge.cpf||'')+' e portador(a) de documento de identidade n° '+(p.conjuge.docNumero||'')+(p.conjuge.docOrgao?', '+p.conjuge.docOrgao:'');
   }
@@ -8093,7 +8094,7 @@ function anuenciaPessoaFrase(p,idx,total){
 function anuenciaMontarQualificacao(pessoas,nomeImovel,matricula,comarca,codigoIncra){
   const corpo=pessoas.map(function(p,i){return anuenciaPessoaFrase(p,i,pessoas.length);}).join('; ');
   const plural=pessoas.length>1;
-  return corpo+', '+(plural?'proprietários':'proprietário(a)')+' do imóvel denominado '+nomeImovel+', da matrícula n° '+(matricula||'—')+', da comarca de '+(comarca||'—')+(codigoIncra?', cadastrado no INCRA sob o código n° '+codigoIncra:'')+'.';
+  return corpo+', '+(plural?'proprietários':'proprietário(a)')+' do imóvel denominado '+anuBold(nomeImovel)+', da matrícula n° '+anuBold(matricula||'—')+', da comarca de '+(comarca||'—')+(codigoIncra?', cadastrado no INCRA sob o código n° '+codigoIncra:'')+'.';
 }
 function anuenciaLinhaTabelaXml(de,para,az,dist,lon,lat,alt){
   function tc(text,bold){
@@ -8109,8 +8110,28 @@ function anuenciaAssinaturaXml(pessoa,rotulo){
     +'<w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:t>'+xmlEscapeGeo(rotulo)+'</w:t></w:r></w:p>'
     +'<w:p><w:pPr><w:jc w:val="center"/></w:pPr></w:p>';
 }
-function xmlRunsFromText(text){
-  return '<w:r><w:t xml:space="preserve">'+xmlEscapeGeo(text)+'</w:t></w:r>';
+function anuenciaRunsFromMarcado(texto){
+  return texto.split(/([\s\S]*?)/).map(function(parte){
+    if(!parte) return '';
+    const bold=parte.charCodeAt(0)===1&&parte.charCodeAt(parte.length-1)===2;
+    const t=bold?parte.slice(1,-1):parte;
+    if(!t) return '';
+    const rPr=bold?'<w:rPr><w:b/><w:bCs/></w:rPr>':'';
+    return '<w:r>'+rPr+'<w:t xml:space="preserve">'+xmlEscapeGeo(t)+'</w:t></w:r>';
+  }).join('');
+}
+function anuenciaSubstituirQualificacao(xml,tag,texto){
+  const marker='{{'+tag+'}}';
+  const idx=xml.indexOf(marker);
+  if(idx===-1) return xml;
+  if(texto){
+    const rStart=xml.lastIndexOf('<w:r>',idx);
+    const rEnd=xml.indexOf('</w:r>',idx)+'</w:r>'.length;
+    return xml.slice(0,rStart)+anuenciaRunsFromMarcado(texto)+xml.slice(rEnd);
+  }
+  const start=Math.max(xml.lastIndexOf('<w:p ',idx),xml.lastIndexOf('<w:p>',idx));
+  const end=xml.indexOf('</w:p>',idx)+'</w:p>'.length;
+  return xml.slice(0,start)+xml.slice(end);
 }
 async function anuenciaGerarDocx(){
   const art=document.getElementById('anu-art').value;
@@ -8156,8 +8177,8 @@ async function anuenciaGerarDocx(){
       const re=new RegExp('\\{\\{'+k+'\\}\\}','g');
       xml=xml.replace(re,function(){return xmlEscapeGeo(vals[k]);});
     });
-    xml=xml.replace('{{QUALIFICACAO_IMOVEL1_XML}}',function(){return xmlRunsFromText(quali1Texto);});
-    xml=xml.replace('{{QUALIFICACAO_IMOVEL2_XML}}',function(){return xmlRunsFromText(quali2Texto);});
+    xml=anuenciaSubstituirQualificacao(xml,'QUALIFICACAO_IMOVEL1_XML',quali1Texto);
+    xml=anuenciaSubstituirQualificacao(xml,'QUALIFICACAO_IMOVEL2_XML',quali2Texto);
     zip.file('word/document.xml',xml);
     const blob=await zip.generateAsync({type:'blob'});
     downloadBlobGeo(blob,'Anuencia_'+((_anuObra&&_anuObra.nome)||'obra').replace(/[^a-zA-Z0-9_-]+/g,'_')+'.docx');
