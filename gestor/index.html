@@ -8146,8 +8146,9 @@ async function anuenciaGerarDocx(){
   if(!marcosSelecionados.length){toast('Selecione ao menos um marco.',true);return;}
   try{
     const loc1=parseMunicipio(_anuObra?_anuObra.municipio:'');
-    const quali1Texto=(_anuObra&&propsSelecionados.length)?anuenciaMontarQualificacao(propsSelecionados,_anuObra.nome,_anuObra.ccir,loc1.mun,_incraHeader.codigoIncra):'';
-    const quali2Texto=(vizinho&&vizinho.pessoas&&vizinho.pessoas.length)?anuenciaMontarQualificacao(vizinho.pessoas,vizinho.nomeImovel,vizinho.matricula,vizinho.comarca,vizinho.codigoIncra):'';
+    const QUALI_MODELO_VAZIO='Eu, [Nome Completo], [nacionalidade], , portador(a) da Cédula de Identidade R.G. n° [RG] SSP/[UF], inscrito(a) no CPF sob o n° [NÚMERO CPF], [ESTADO CIVIL] proprietário(a) do imóvel denominado [Nome do Imóvel], da matrícula n° [Numero da Matrícula], da comarca de [Comarca], cadastrado no INCRA sob o código n° [Código Incra].';
+    const quali1Texto=(_anuObra&&propsSelecionados.length)?anuenciaMontarQualificacao(propsSelecionados,_anuObra.nome,_anuObra.ccir,loc1.mun,_incraHeader.codigoIncra):QUALI_MODELO_VAZIO;
+    const quali2Texto=(vizinho&&vizinho.pessoas&&vizinho.pessoas.length)?anuenciaMontarQualificacao(vizinho.pessoas,vizinho.nomeImovel,vizinho.matricula,vizinho.comarca,vizinho.codigoIncra):QUALI_MODELO_VAZIO;
     const linhasXml=marcosSelecionados.map(function(v){return anuenciaLinhaTabelaXml(v.codigo,v.vante,v.azimute,v.dist,v.lon,v.lat,v.alt);}).join('');
     const somaDist=marcosSelecionados.reduce(function(s,v){return s+(v.distDec||0);},0);
     const assinaturas1Xml=propsSelecionados.map(function(p){return anuenciaAssinaturaXml(p,'(proprietário(a) Imóvel 1'+(p.percentual?' – '+p.percentual+'%':'')+')');}).join('');
