@@ -7193,6 +7193,7 @@ const GEO_TABS=[
   {k:'carshp',ic:'ti-leaf',lb:'Shape para CAR'},
   {k:'incra',ic:'ti-file-upload',lb:'Importar Memorial INCRA'},
   {k:'anuencia',ic:'ti-signature',lb:'Anuência de Limites'},
+  {k:'req',ic:'ti-file-text',lb:'Requerimentos'},
   {k:'cad',ic:'ti-stack-2',lb:'CAD'},
   {k:'sigef',ic:'ti-table',lb:'Planilha SIGEF (.ods)'},
   {k:'gmaps',ic:'ti-current-location',lb:'Ponto do Maps'},
@@ -7211,6 +7212,7 @@ function rGeoFerramentasFixed(){
     +'<div id="geo-carshp" style="display:none">'+geoCarShpHtml()+'</div>'
     +'<div id="geo-incra" style="display:none">'+geoIncraHtml()+'</div>'
     +'<div id="geo-anuencia" style="display:none">'+geoAnuenciaHtml()+'</div>'
+    +'<div id="geo-req" style="display:none">'+geoReqHtml()+'</div>'
     +'<div id="geo-cad" style="display:none">'+geoCadHtml()+'</div>'
     +'<div id="geo-sigef" style="display:none">'+geoSigefHtml()+'</div>'
     +'<div id="geo-gmaps" style="display:none">'+geoGmapsHtml()+'</div>'
@@ -7218,6 +7220,7 @@ function rGeoFerramentasFixed(){
   coordUpdateUI();
   memorialInit();
   anuenciaInit();
+  reqInit();
   cadInit();
   sigefInit();
   monAtualizarUI();
@@ -8186,6 +8189,198 @@ async function anuenciaGerarDocx(){
     toast('Anuência gerada com sucesso!');
   }catch(e){
     toast('Erro ao gerar anuência: '+e.message,true);
+  }
+}
+
+// ── 8b. Requerimentos — documentos a partir dos dados da obra (templates em gestor/templates/) ──
+var _reqObra=null,_reqCerts=[];
+const REQ_TIPOS={
+  anuencia:{lb:'Solicitação de Anuência',arquivo:'requerimento_anuencia_modelo.docx',quali:'QUALIFICACAO_XML',certs:false,cartorio:false,cancel:false},
+  cartorio:{lb:'Requerimento ao Cartório (averbação do georreferenciamento)',arquivo:'requerimento_cartorio_modelo.docx',quali:'QUALIFICACAO_XML',certs:true,cartorio:true,cancel:false},
+  cancelamento:{lb:'Cancelamento de Georreferenciamento (INCRA)',arquivo:'requerimento_cancelamento_modelo.docx',quali:'QUALIFICACAO_PESSOAS_XML',certs:true,cartorio:false,cancel:true}
+};
+function reqEsc(s){return xmlEscapeGeo(s).replace(/"/g,'&quot;');}
+function geoReqHtml(){
+  return '<div class="card mb1">'
+    +'<div class="st mb1"><i class="ti ti-file-text" style="color:var(--brand)"></i>Requerimentos</div>'
+    +'<div class="mu sm mb1">Os proprietários vêm do cadastro da obra (botão "Vizinhos" na lista de Obras). Se importar o memorial na aba "Importar Memorial INCRA", o código INCRA, o credenciado e o RT são sugeridos automaticamente.</div>'
+    +'<div class="g2 mb1"><div class="fg"><label class="fl">Tipo de requerimento</label><select class="fc" id="rq-tipo" onchange="reqTipoChange()">'
+    +Object.keys(REQ_TIPOS).map(function(k){return '<option value="'+k+'">'+REQ_TIPOS[k].lb+'</option>';}).join('')
+    +'</select></div>'
+    +'<div class="fg"><label class="fl">Obra</label><select class="fc" id="rq-obra" onchange="reqObraChange()"><option value="">Selecione...</option></select></div></div>'
+    +'<div id="rq-proprietarios" class="mb1"></div>'
+    +'<div class="g2 mb1"><div class="fg"><label class="fl">Matrícula</label><input class="fc" id="rq-matricula"></div>'
+    +'<div class="fg"><label class="fl">Código INCRA/SNCR</label><input class="fc" id="rq-codincra" placeholder="000.000.000.000-0"></div></div>'
+    +'<div class="g2 mb1"><div class="fg"><label class="fl">Município/Comarca</label><input class="fc" id="rq-municipio" placeholder="Ex: Sidrolândia - MS"></div>'
+    +'<div class="fg"><label class="fl">Local/UF (para a data)</label><input class="fc" id="rq-localuf" placeholder="Ex: Sidrolândia - MS"></div></div>'
+    +'<div id="rq-sec-cartorio" class="mb1" style="display:none"><div class="fg"><label class="fl">Cartório de Registro de Imóveis de (cabeçalho)</label><input class="fc" id="rq-cartorio-local" placeholder="Ex: SIDROLÂNDIA MS"></div></div>'
+    +'<div id="rq-sec-certs" class="mb1" style="display:none"></div>'
+    +'<div id="rq-sec-cancel" class="mb1" style="display:none">'
+    +'<div class="fg mb1"><label class="fl">Solicitação (resumo do pedido)</label><textarea class="fc" id="rq-solicitacao" rows="3" placeholder="Se vazio, é gerado um texto padrão com a área da certificação para completar à mão."></textarea></div>'
+    +'<div class="fg"><label class="fl">Exposição de motivos</label><textarea class="fc" id="rq-motivos" rows="5" placeholder="Descreva os motivos técnicos do cancelamento. Se vazio, sai um espaço para preencher à mão."></textarea></div>'
+    +'</div>'
+    +'<button class="btn bp2" onclick="reqGerarDocx()"><i class="ti ti-file-download"></i> Gerar Requerimento (.docx)</button>'
+    +'</div>';
+}
+async function reqInit(){
+  const sel=document.getElementById('rq-obra');
+  if(!sel||sel.dataset.loaded) return;
+  sel.dataset.loaded='1';
+  const{data}=await sb.from('obras').select('id,nome').order('nome');
+  sel.innerHTML='<option value="">Selecione...</option>'+(data||[]).map(function(o){return '<option value="'+o.id+'">'+o.nome+'</option>';}).join('');
+  reqTipoChange();
+}
+function reqTipoChange(){
+  const cfg=REQ_TIPOS[document.getElementById('rq-tipo').value];
+  document.getElementById('rq-sec-cartorio').style.display=cfg.cartorio?'':'none';
+  document.getElementById('rq-sec-certs').style.display=cfg.certs?'':'none';
+  document.getElementById('rq-sec-cancel').style.display=cfg.cancel?'':'none';
+  if(cfg.certs){if(!_reqCerts.length)_reqCerts.push(reqCertNova());reqRenderCerts();}
+}
+async function reqObraChange(){
+  const oid=document.getElementById('rq-obra').value;
+  _reqObra=null;
+  document.getElementById('rq-proprietarios').innerHTML='';
+  if(!oid) return;
+  const{data,error}=await sb.from('obras').select('id,nome,ccir,municipio,proprietarios').eq('id',oid).single();
+  if(error){toast('Erro ao carregar obra: '+error.message,true);return;}
+  _reqObra=data;
+  document.getElementById('rq-matricula').value=data.ccir||'';
+  document.getElementById('rq-municipio').value=data.municipio||'';
+  document.getElementById('rq-localuf').value=data.municipio||'';
+  document.getElementById('rq-cartorio-local').value=(data.municipio||'').toUpperCase().replace(/\s*[-\/]\s*/g,' ');
+  if(_incraHeader.codigoIncra) document.getElementById('rq-codincra').value=_incraHeader.codigoIncra;
+  _reqCerts.forEach(function(c){if(!c.nome)c.nome=data.nome;});
+  reqRenderProprietarios();
+  reqRenderCerts();
+}
+function reqRenderProprietarios(){
+  const lista=(_reqObra&&_reqObra.proprietarios)||[];
+  if(!lista.length){document.getElementById('rq-proprietarios').innerHTML='<div class="mu sm" style="color:#A32D2D">Esta obra não tem proprietários cadastrados. Use o botão "Vizinhos" na lista de Obras para cadastrar.</div>';return;}
+  document.getElementById('rq-proprietarios').innerHTML='<div class="fl mb1">Proprietário(s) — marque quem entra na qualificação e quem assina</div>'
+    +lista.map(function(p,i){
+      return '<div style="display:flex;align-items:center;gap:16px;margin-bottom:6px;flex-wrap:wrap"><strong style="min-width:200px">'+p.nome+'</strong>'
+        +'<label style="display:flex;align-items:center;gap:6px"><input type="checkbox" class="rq-prop-chk" data-i="'+i+'" checked> Qualificação</label>'
+        +'<label style="display:flex;align-items:center;gap:6px"><input type="checkbox" class="rq-ass-chk" data-i="'+i+'" checked> Assina</label></div>';
+    }).join('');
+}
+function reqCertNova(){
+  return {nome:(_reqObra&&_reqObra.nome)||'',codigo:'',area:'',data:'',
+    credenciado:_incraHeader.tecnico||'ALCIO MARQUES CAVALHEIRO JUNIOR',
+    rt:_incraHeader.rt||'CFT2404157156 - MS'};
+}
+function reqAddCert(){_reqCerts.push(reqCertNova());reqRenderCerts();}
+function reqDelCert(i){_reqCerts.splice(i,1);reqRenderCerts();}
+function reqCertCampo(i,campo,v){_reqCerts[i][campo]=v;}
+function reqRenderCerts(){
+  const el=document.getElementById('rq-sec-certs');if(!el)return;
+  el.innerHTML='<div class="fxb mb1"><div class="fl" style="margin:0">Certificações (uma por imóvel certificado)</div><button class="btn bxs" onclick="reqAddCert()"><i class="ti ti-plus"></i> Adicionar</button></div>'
+    +_reqCerts.map(function(c,i){
+      return '<div class="card mb1" style="padding:.75rem">'
+        +'<div class="g2 mb1"><div class="fg"><label class="fl">Imóvel</label><input class="fc" value="'+reqEsc(c.nome)+'" onchange="reqCertCampo('+i+',\'nome\',this.value)"></div>'
+        +'<div class="fg"><label class="fl">Código da certificação (SIGEF)</label><input class="fc" value="'+reqEsc(c.codigo)+'" placeholder="ex: 6d2e1eaf-99d5-4d26-82a9-1739d3fe7dda" onchange="reqCertCampo('+i+',\'codigo\',this.value)"></div></div>'
+        +'<div class="g2 mb1"><div class="fg"><label class="fl">Área (hectares)</label><input class="fc" value="'+reqEsc(c.area)+'" placeholder="ex: 70,5241" onchange="reqCertCampo('+i+',\'area\',this.value)"></div>'
+        +'<div class="fg"><label class="fl">Data da certificação</label><input class="fc" value="'+reqEsc(c.data)+'" placeholder="ex: 18/03/2025" onchange="reqCertCampo('+i+',\'data\',this.value)"></div></div>'
+        +'<div class="g2"><div class="fg"><label class="fl">Credenciado</label><input class="fc" value="'+reqEsc(c.credenciado)+'" onchange="reqCertCampo('+i+',\'credenciado\',this.value)"></div>'
+        +'<div class="fg"><label class="fl">RT</label><input class="fc" value="'+reqEsc(c.rt)+'" onchange="reqCertCampo('+i+',\'rt\',this.value)"></div></div>'
+        +(_reqCerts.length>1?'<div style="text-align:right;margin-top:6px"><button class="btn bxs" onclick="reqDelCert('+i+')"><i class="ti ti-trash"></i> Remover</button></div>':'')
+        +'</div>';
+    }).join('');
+}
+function reqMontarQualificacao(pessoas,nomeImovel,matricula,municipio,codigoIncra){
+  const corpo=pessoas.map(function(p,i){return anuenciaPessoaFrase(p,i,pessoas.length);}).join('; ');
+  const plural=pessoas.length>1;
+  return corpo+', '+(plural?'proprietários':'proprietário(a)')+' do imóvel rural denominado '+anuBold(nomeImovel)+', matrícula n° '+anuBold(matricula||'—')+' de '+(municipio||'—')+(codigoIncra?', cadastrado no INCRA sob o código n° '+anuBold(codigoIncra):'')+'.';
+}
+function reqCertParagrafoXml(c){
+  const rprB='<w:rPr><w:rFonts w:cs="Arial"/><w:b/><w:bCs/></w:rPr>';
+  const rprU='<w:rPr><w:rFonts w:cs="Arial"/><w:u w:val="single"/></w:rPr>';
+  const rpr='<w:rPr><w:rFonts w:cs="Arial"/></w:rPr>';
+  return '<w:p><w:pPr><w:spacing w:line="276" w:lineRule="auto"/><w:ind w:firstLine="708"/><w:jc w:val="both"/></w:pPr>'
+    +'<w:r>'+rprB+'<w:t>•</w:t><w:tab/></w:r>'
+    +'<w:r>'+rprU+'<w:t xml:space="preserve">'+xmlEscapeGeo(c.nome)+'</w:t></w:r>'
+    +'<w:r>'+rprB+'<w:t xml:space="preserve">, '+xmlEscapeGeo(c.codigo)+', </w:t></w:r>'
+    +'<w:r>'+rpr+'<w:t xml:space="preserve">com área de '+xmlEscapeGeo(c.area)+' hectares. Certificada em '+xmlEscapeGeo(c.data)+' pelo credenciado '+xmlEscapeGeo(c.credenciado)+', RT '+xmlEscapeGeo(c.rt)+'</w:t></w:r>'
+    +'<w:r>'+rprB+'<w:t>;</w:t></w:r></w:p>';
+}
+function reqCertsXml(){
+  return _reqCerts.map(reqCertParagrafoXml).join('<w:p><w:pPr><w:spacing w:line="276" w:lineRule="auto"/></w:pPr></w:p>');
+}
+function reqSubstituirParagrafo(xml,tag,conteudoXml){
+  const marker='{{'+tag+'}}';
+  const idx=xml.indexOf(marker);
+  if(idx===-1) return xml;
+  const start=Math.max(xml.lastIndexOf('<w:p ',idx),xml.lastIndexOf('<w:p>',idx));
+  const end=xml.indexOf('</w:p>',idx)+'</w:p>'.length;
+  return xml.slice(0,start)+conteudoXml+xml.slice(end);
+}
+function reqSubstituirTexto(xml,tag,texto){
+  const marker='{{'+tag+'}}';
+  const idx=xml.indexOf(marker);
+  if(idx===-1) return xml;
+  const rStart=xml.lastIndexOf('<w:r>',idx);
+  const rEnd=xml.indexOf('</w:r>',idx)+'</w:r>'.length;
+  const runs=String(texto||'').split(/\r?\n/).map(function(lin){return anuenciaRunsFromMarcado(lin);}).join('<w:r><w:br/></w:r>');
+  return xml.slice(0,rStart)+runs+xml.slice(rEnd);
+}
+async function reqGerarDocx(){
+  const tipo=document.getElementById('rq-tipo').value,cfg=REQ_TIPOS[tipo];
+  if(!_reqObra){toast('Selecione a obra.',true);return;}
+  const props=[],assinantes=[];
+  document.querySelectorAll('.rq-prop-chk').forEach(function(c){if(c.checked)props.push(_reqObra.proprietarios[parseInt(c.dataset.i,10)]);});
+  document.querySelectorAll('.rq-ass-chk').forEach(function(c){if(c.checked)assinantes.push(_reqObra.proprietarios[parseInt(c.dataset.i,10)]);});
+  if(!props.length){toast('Marque ao menos um proprietário na qualificação.',true);return;}
+  if(!assinantes.length){toast('Marque ao menos um proprietário que assina.',true);return;}
+  if(cfg.certs){
+    for(let ci=0;ci<_reqCerts.length;ci++){
+      const c=_reqCerts[ci];
+      if(!c.nome||!c.codigo||!c.area||!c.data){toast('Preencha imóvel, código, área e data da certificação '+(ci+1)+'.',true);return;}
+    }
+  }
+  try{
+    const matricula=document.getElementById('rq-matricula').value,codincra=document.getElementById('rq-codincra').value,municipio=document.getElementById('rq-municipio').value;
+    const meses=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+    const d=new Date();
+    const vals={
+      LOCAL_UF:document.getElementById('rq-localuf').value||municipio,
+      DATA_EXTENSO:d.getDate()+' de '+meses[d.getMonth()]+' de '+d.getFullYear(),
+      CARTORIO_LOCAL:document.getElementById('rq-cartorio-local').value,
+      MUNICIPIO_UF:municipio,
+      CODIGO_INCRA:codincra||'—',
+      MATRICULA:matricula||'—',
+      COMARCA:municipio
+    };
+    const quali=cfg.cancel
+      ?props.map(function(p,i){return anuenciaPessoaFrase(p,i,props.length);}).join('; ')
+      :reqMontarQualificacao(props,_reqObra.nome,matricula,municipio,codincra);
+    const resp=await fetch('/gestor/templates/'+cfg.arquivo);
+    if(!resp.ok) throw new Error('Template não encontrado (templates/'+cfg.arquivo+').');
+    const buf=await resp.arrayBuffer();
+    const zip=await JSZip.loadAsync(buf);
+    let xml=await zip.file('word/document.xml').async('string');
+    const assinaturasXml=assinantes.map(function(p){return anuenciaAssinaturaXml(p,'CPF n° '+(p.cpf||'—'));}).join('');
+    xml=xml.replace(/(\{\{DATA_EXTENSO\}\}[\s\S]*?<\/w:p>)/,function(m){return m+assinaturasXml;});
+    xml=anuenciaSubstituirQualificacao(xml,cfg.quali,quali);
+    if(cfg.certs) xml=reqSubstituirParagrafo(xml,'CERTIFICACOES_XML',reqCertsXml());
+    if(cfg.cancel){
+      const c0=_reqCerts[0]||{};
+      const solicitacao=document.getElementById('rq-solicitacao').value
+        ||'A solicitação para o cancelamento da área "'+(c0.nome||'')+'" com '+(c0.area||'—')+' hectares está sendo realizada para [DESCREVER O MOTIVO].';
+      const motivos=document.getElementById('rq-motivos').value||'[DESCREVER A EXPOSIÇÃO DE MOTIVOS].';
+      xml=reqSubstituirTexto(xml,'SOLICITACAO_TEXTO',solicitacao);
+      xml=reqSubstituirTexto(xml,'MOTIVOS_TEXTO',motivos);
+    }
+    Object.keys(vals).forEach(function(k){
+      const re=new RegExp('\\{\\{'+k+'\\}\\}','g');
+      xml=xml.replace(re,function(){return xmlEscapeGeo(vals[k]);});
+    });
+    zip.file('word/document.xml',xml);
+    const blob=await zip.generateAsync({type:'blob'});
+    const nomes={anuencia:'Solicitacao_Anuencia',cartorio:'Requerimento_Cartorio',cancelamento:'Requerimento_Cancelamento'};
+    downloadBlobGeo(blob,nomes[tipo]+'_'+((_reqObra&&_reqObra.nome)||'obra').replace(/[^a-zA-Z0-9_-]+/g,'_')+'.docx');
+    toast('Requerimento gerado com sucesso!');
+  }catch(e){
+    toast('Erro ao gerar requerimento: '+e.message,true);
   }
 }
 
