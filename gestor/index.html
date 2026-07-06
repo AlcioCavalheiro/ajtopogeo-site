@@ -8197,8 +8197,11 @@ var _reqObra=null,_reqCerts=[];
 const REQ_TIPOS={
   anuencia:{lb:'Solicitação de Anuência',arquivo:'requerimento_anuencia_modelo.docx',quali:'QUALIFICACAO_XML',certs:false,cartorio:false,cancel:false},
   cartorio:{lb:'Requerimento ao Cartório (averbação do georreferenciamento)',arquivo:'requerimento_cartorio_modelo.docx',quali:'QUALIFICACAO_XML',certs:true,cartorio:true,cancel:false},
-  cancelamento:{lb:'Cancelamento de Georreferenciamento (INCRA)',arquivo:'requerimento_cancelamento_modelo.docx',quali:'QUALIFICACAO_PESSOAS_XML',certs:true,cartorio:false,cancel:true}
+  cancelamento:{lb:'Cancelamento de Georreferenciamento (INCRA)',arquivo:'requerimento_cancelamento_modelo.docx',quali:'QUALIFICACAO_PESSOAS_XML',certs:true,cartorio:false,cancel:true},
+  procuracao:{lb:'Procuração Particular (CCIR/INCRA)',arquivo:'procuracao_ccir_modelo.docx',quali:'OUTORGANTE_XML',certs:false,cartorio:false,cancel:false,proc:true}
 };
+const REQ_PROC_OUTORGADO_PADRAO='ALCIO MARQUES CAVALHEIRO JUNIOR (outorgado), inscrito no CPF sob o n° 050.371.221-39, portador da Cédula de Identidade R.G. n° 001.664.097 SSP/MS, brasileiro, técnico em Agrimensura, casado em comunhão parcial de bens, residente e domiciliado na Rua Hibisco, 82, Cidade Jardim, Campo Grande - MS';
+const REQ_PROC_ENDNOTIF_PADRAO='Rua Hibisco, 82, Cidade Jardim, Campo Grande - MS';
 function reqEsc(s){return xmlEscapeGeo(s).replace(/"/g,'&quot;');}
 function geoReqHtml(){
   return '<div class="card mb1">'
@@ -8219,6 +8222,15 @@ function geoReqHtml(){
     +'<div class="fg mb1"><label class="fl">Solicitação (resumo do pedido)</label><textarea class="fc" id="rq-solicitacao" rows="3" placeholder="Se vazio, é gerado um texto padrão com a área da certificação para completar à mão."></textarea></div>'
     +'<div class="fg"><label class="fl">Exposição de motivos</label><textarea class="fc" id="rq-motivos" rows="5" placeholder="Descreva os motivos técnicos do cancelamento. Se vazio, sai um espaço para preencher à mão."></textarea></div>'
     +'</div>'
+    +'<div id="rq-sec-proc" class="mb1" style="display:none">'
+    +'<div class="g2 mb1"><div class="fg"><label class="fl">Imóvel (nome no documento)</label><input class="fc" id="rq-proc-imovel"></div>'
+    +'<div class="fg"><label class="fl">Prazo de validade (meses)</label><input class="fc" id="rq-proc-prazo" value="12"></div></div>'
+    +'<div class="fg mb1"><label class="fl">Outorgante — deixe vazio para usar os proprietários marcados na qualificação (use para pessoa jurídica)</label><textarea class="fc" id="rq-proc-outorgante" rows="3" placeholder="Ex: EMPRESA LTDA, pessoa jurídica de direito privado, inscrita no CNPJ nº ..., com sede na ..., neste ato representada por seu administrador legal, SR. FULANO, brasileiro, ..., RG nº ... e CPF nº ..."></textarea></div>'
+    +'<div class="fg mb1"><label class="fl">Procurador (outorgado)</label><textarea class="fc" id="rq-proc-outorgado" rows="3">'+REQ_PROC_OUTORGADO_PADRAO+'</textarea></div>'
+    +'<div class="fg mb1"><label class="fl">Endereço para notificações</label><input class="fc" id="rq-proc-endnotif" value="'+REQ_PROC_ENDNOTIF_PADRAO+'"></div>'
+    +'<div class="g2 mb1"><div class="fg"><label class="fl">Assinante — nome (deixe vazio para usar os proprietários que assinam)</label><input class="fc" id="rq-proc-assnome" placeholder="Ex: representante da pessoa jurídica"></div>'
+    +'<div class="fg"><label class="fl">Assinante — CPF</label><input class="fc" id="rq-proc-asscpf"></div></div>'
+    +'</div>'
     +'<button class="btn bp2" onclick="reqGerarDocx()"><i class="ti ti-file-download"></i> Gerar Requerimento (.docx)</button>'
     +'</div>';
 }
@@ -8235,6 +8247,7 @@ function reqTipoChange(){
   document.getElementById('rq-sec-cartorio').style.display=cfg.cartorio?'':'none';
   document.getElementById('rq-sec-certs').style.display=cfg.certs?'':'none';
   document.getElementById('rq-sec-cancel').style.display=cfg.cancel?'':'none';
+  document.getElementById('rq-sec-proc').style.display=cfg.proc?'':'none';
   if(cfg.certs){if(!_reqCerts.length)_reqCerts.push(reqCertNova());reqRenderCerts();}
 }
 async function reqObraChange(){
@@ -8250,6 +8263,7 @@ async function reqObraChange(){
   document.getElementById('rq-localuf').value=data.municipio||'';
   document.getElementById('rq-cartorio-local').value=(data.municipio||'').toUpperCase().replace(/\s*[-\/]\s*/g,' ');
   if(_incraHeader.codigoIncra) document.getElementById('rq-codincra').value=_incraHeader.codigoIncra;
+  document.getElementById('rq-proc-imovel').value=data.nome||'';
   _reqCerts.forEach(function(c){if(!c.nome)c.nome=data.nome;});
   reqRenderProprietarios();
   reqRenderCerts();
@@ -8325,12 +8339,17 @@ function reqSubstituirTexto(xml,tag,texto){
 }
 async function reqGerarDocx(){
   const tipo=document.getElementById('rq-tipo').value,cfg=REQ_TIPOS[tipo];
-  if(!_reqObra){toast('Selecione a obra.',true);return;}
+  const procOutorgante=cfg.proc?document.getElementById('rq-proc-outorgante').value.trim():'';
+  const procAssNome=cfg.proc?document.getElementById('rq-proc-assnome').value.trim():'';
+  if(!_reqObra&&!(cfg.proc&&procOutorgante)){toast('Selecione a obra.',true);return;}
   const props=[],assinantes=[];
-  document.querySelectorAll('.rq-prop-chk').forEach(function(c){if(c.checked)props.push(_reqObra.proprietarios[parseInt(c.dataset.i,10)]);});
-  document.querySelectorAll('.rq-ass-chk').forEach(function(c){if(c.checked)assinantes.push(_reqObra.proprietarios[parseInt(c.dataset.i,10)]);});
-  if(!props.length){toast('Marque ao menos um proprietário na qualificação.',true);return;}
-  if(!assinantes.length){toast('Marque ao menos um proprietário que assina.',true);return;}
+  if(_reqObra){
+    document.querySelectorAll('.rq-prop-chk').forEach(function(c){if(c.checked)props.push(_reqObra.proprietarios[parseInt(c.dataset.i,10)]);});
+    document.querySelectorAll('.rq-ass-chk').forEach(function(c){if(c.checked)assinantes.push(_reqObra.proprietarios[parseInt(c.dataset.i,10)]);});
+  }
+  if(!props.length&&!procOutorgante){toast('Marque ao menos um proprietário na qualificação'+(cfg.proc?' ou preencha o campo Outorgante':'')+'.',true);return;}
+  if(!assinantes.length&&!procAssNome){toast('Marque ao menos um proprietário que assina'+(cfg.proc?' ou preencha o campo Assinante':'')+'.',true);return;}
+  if(cfg.proc&&!document.getElementById('rq-proc-outorgado').value.trim()){toast('Preencha o procurador (outorgado).',true);return;}
   if(cfg.certs){
     for(let ci=0;ci<_reqCerts.length;ci++){
       const c=_reqCerts[ci];
@@ -8348,19 +8367,27 @@ async function reqGerarDocx(){
       MUNICIPIO_UF:municipio,
       CODIGO_INCRA:codincra||'—',
       MATRICULA:matricula||'—',
-      COMARCA:municipio
+      COMARCA:municipio,
+      IMOVEL_NOME:cfg.proc?(document.getElementById('rq-proc-imovel').value||(_reqObra&&_reqObra.nome)||'—'):'',
+      ENDERECO_NOTIFICACAO:cfg.proc?document.getElementById('rq-proc-endnotif').value:'',
+      PRAZO_MESES:cfg.proc?(document.getElementById('rq-proc-prazo').value||'12'):''
     };
-    const quali=cfg.cancel
-      ?props.map(function(p,i){return anuenciaPessoaFrase(p,i,props.length);}).join('; ')
-      :reqMontarQualificacao(props,_reqObra.nome,matricula,municipio,codincra);
+    const pessoasFrase=props.map(function(p,i){return anuenciaPessoaFrase(p,i,props.length);}).join('; ');
+    const quali=cfg.proc
+      ?(procOutorgante||pessoasFrase)
+      :cfg.cancel
+        ?pessoasFrase
+        :reqMontarQualificacao(props,_reqObra.nome,matricula,municipio,codincra);
     const resp=await fetch('/gestor/templates/'+cfg.arquivo);
     if(!resp.ok) throw new Error('Template não encontrado (templates/'+cfg.arquivo+').');
     const buf=await resp.arrayBuffer();
     const zip=await JSZip.loadAsync(buf);
     let xml=await zip.file('word/document.xml').async('string');
-    const assinaturasXml=assinantes.map(function(p){return anuenciaAssinaturaXml(p,'CPF n° '+(p.cpf||'—'));}).join('');
+    const quemAssina=procAssNome?[{nome:procAssNome,cpf:document.getElementById('rq-proc-asscpf').value}]:assinantes;
+    const assinaturasXml=quemAssina.map(function(p){return anuenciaAssinaturaXml(p,'CPF n° '+(p.cpf||'—'));}).join('');
     xml=xml.replace(/(\{\{DATA_EXTENSO\}\}[\s\S]*?<\/w:p>)/,function(m){return m+assinaturasXml;});
     xml=anuenciaSubstituirQualificacao(xml,cfg.quali,quali);
+    if(cfg.proc) xml=reqSubstituirTexto(xml,'OUTORGADO_XML',document.getElementById('rq-proc-outorgado').value);
     if(cfg.certs) xml=reqSubstituirParagrafo(xml,'CERTIFICACOES_XML',reqCertsXml());
     if(cfg.cancel){
       const c0=_reqCerts[0]||{};
@@ -8376,8 +8403,9 @@ async function reqGerarDocx(){
     });
     zip.file('word/document.xml',xml);
     const blob=await zip.generateAsync({type:'blob'});
-    const nomes={anuencia:'Solicitacao_Anuencia',cartorio:'Requerimento_Cartorio',cancelamento:'Requerimento_Cancelamento'};
-    downloadBlobGeo(blob,nomes[tipo]+'_'+((_reqObra&&_reqObra.nome)||'obra').replace(/[^a-zA-Z0-9_-]+/g,'_')+'.docx');
+    const nomes={anuencia:'Solicitacao_Anuencia',cartorio:'Requerimento_Cartorio',cancelamento:'Requerimento_Cancelamento',procuracao:'Procuracao_CCIR'};
+    const nomeBase=(_reqObra&&_reqObra.nome)||(cfg.proc&&vals.IMOVEL_NOME!=='—'?vals.IMOVEL_NOME:'')||'obra';
+    downloadBlobGeo(blob,nomes[tipo]+'_'+nomeBase.replace(/[^a-zA-Z0-9_-]+/g,'_')+'.docx');
     toast('Requerimento gerado com sucesso!');
   }catch(e){
     toast('Erro ao gerar requerimento: '+e.message,true);
