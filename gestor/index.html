@@ -9099,6 +9099,35 @@ function cadToggleImport(){
   const btn=document.getElementById('cad-btn-toggle-import');
   if(btn)btn.innerHTML=aberto?'<i class="ti ti-file-import"></i> Importar arquivo':'<i class="ti ti-x"></i> Fechar importação';
 }
+// Percorre todas as coordenadas [x,y,(z)] de um GeoJSON chamando fn(c) em cada uma (mutável).
+function cadGjCadaCoord(gj,fn){
+  ((gj&&gj.features)||[]).forEach(function(f){
+    const g=f.geometry;if(!g||!g.coordinates)return;
+    (function walk(c){ if(typeof c[0]==='number'){fn(c);} else {c.forEach(walk);} })(g.coordinates);
+  });
+}
+// KML e shapefile (shpjs reprojeta pelo .prj) entregam lon/lat em graus; o CAD trabalha em metros UTM.
+function cadGjEhGeografico(gj){
+  let n=0,geo=true;
+  cadGjCadaCoord(gj,function(c){n++;if(!isFinite(c[0])||!isFinite(c[1])||Math.abs(c[0])>180||Math.abs(c[1])>90) geo=false;});
+  return n>0&&geo;
+}
+// Converte um GeoJSON geográfico (graus) para UTM SIRGAS 2000. Se o CAD já tem desenho,
+// usa a zona de trabalho atual (para alinhar com o que está na tela); senão adota a zona
+// do centro do arquivo e ajusta os seletores de zona/hemisfério.
+function cadGjParaUtm(gj){
+  let sLon=0,sLat=0,n=0;
+  cadGjCadaCoord(gj,function(c){sLon+=c[0];sLat+=c[1];n++;});
+  if(!n) return;
+  if(!_cadPontos.length){
+    _cadUtmZona=Math.floor((sLon/n+180)/6)+1;
+    _cadUtmSul=(sLat/n)<0;
+    const selZ=document.getElementById('cad-zona-utm');if(selZ)selZ.value=String(_cadUtmZona);
+    const selH=document.getElementById('cad-hemis-utm');if(selH)selH.value=_cadUtmSul?'S':'N';
+  }
+  const origem=projDef('SIRGAS2000',null),destino=projDef('SIRGAS2000',_cadUtmZona,_cadUtmSul);
+  cadGjCadaCoord(gj,function(c){const p=proj4(origem,destino,[c[0],c[1]]);c[0]=p[0];c[1]=p[1];});
+}
 async function cadArquivoSelecionado(input){
   const file=input.files[0];if(!file)return;
   const info=document.getElementById('cad-info');
@@ -9120,8 +9149,11 @@ async function cadArquivoSelecionado(input){
     } else {
       throw new Error('Formato não suportado. Use .dxf, .kml ou .zip (shapefile).');
     }
+    let convGeo=false;
+    if((ext==='kml'||ext==='zip')&&cadGjEhGeografico(gj)){cadGjParaUtm(gj);convGeo=true;}
     cadImportarGeoJSON(gj);
-    info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> '+_cadPontos.length+' ponto(s) encontrados em '+_cadCamadas.length+' camada(s).</span>';
+    info.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> '+_cadPontos.length+' ponto(s) encontrados em '+_cadCamadas.length+' camada(s).'
+      +(convGeo?' Coordenadas geográficas convertidas para UTM SIRGAS 2000, zona '+_cadUtmZona+(_cadUtmSul?'S':'N')+'.':'')+'</span>';
   }catch(e){
     info.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Erro: '+e.message+'</span>';
   }
