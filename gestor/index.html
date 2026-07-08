@@ -6905,12 +6905,12 @@ function vizGetPessoasArray(ctx,vizIdx){
 }
 function vizListaPessoasHtml(lista,ctx,vizIdx){
   const rows=lista.map(function(p,i){
-    return '<div class="card mb1" style="padding:.6rem .9rem"><div class="fxb"><div><strong>'+(p.nome||'(sem nome)')+'</strong><div class="mu sm">'+(p.profissao||'')+' · CPF '+(p.cpf||'—')+(p.percentual?' · '+p.percentual+'%':'')+'</div></div>'
+    return '<div class="card mb1" style="padding:.6rem .9rem"><div class="fxb"><div><strong>'+(p.nome||'(sem nome)')+'</strong>'+(p.tipo==='PJ'?' <span class="bd" style="background:#0D4FA01a;color:#0D4FA0;border:1px solid #0D4FA055;font-size:10px;padding:1px 7px;border-radius:99px">PJ</span>':'')+'<div class="mu sm">'+(p.tipo==='PJ'?('CNPJ '+(p.cnpj||'—')+(p.representante&&p.representante.nome?' · rep.: '+p.representante.nome:'')):((p.profissao||'')+' · CPF '+(p.cpf||'—')))+(p.percentual?' · '+p.percentual+'%':'')+'</div></div>'
       +'<div class="fx g8"><button class="btn bsm" onclick="vizEditarPessoa(\''+ctx+'\','+(vizIdx===null?'null':vizIdx)+','+i+')"><i class="ti ti-edit"></i></button><button class="btn bxs bdr" onclick="vizRemoverPessoa(\''+ctx+'\','+(vizIdx===null?'null':vizIdx)+','+i+')"><i class="ti ti-trash"></i></button></div></div></div>';
   }).join('')||'<div class="mu sm mb1">Nenhuma pessoa cadastrada ainda.</div>';
   return rows+'<button class="btn bp2 bsm" onclick="vizAdicionarPessoa(\''+ctx+'\','+(vizIdx===null?'null':vizIdx)+')"><i class="ti ti-plus"></i> Adicionar pessoa</button>';
 }
-function vizPessoaVazia(){return {nome:'',nacionalidade:'brasileiro(a)',profissao:'',docTipo:'RG',docNumero:'',docOrgao:'',cpf:'',estadoCivil:'solteiro(a)',regimeBens:'',percentual:'',endereco:'',conjuge:null};}
+function vizPessoaVazia(){return {tipo:'PF',nome:'',nacionalidade:'brasileiro(a)',profissao:'',docTipo:'RG',docNumero:'',docOrgao:'',cpf:'',cnpj:'',estadoCivil:'solteiro(a)',regimeBens:'',percentual:'',endereco:'',conjuge:null,representante:null};}
 function vizAdicionarPessoa(ctx,vizIdx){
   const arr=vizGetPessoasArray(ctx,vizIdx);
   arr.push(vizPessoaVazia());
@@ -6933,26 +6933,38 @@ function vizRemoverPessoa(ctx,vizIdx,i){
   vizGetPessoasArray(ctx,vizIdx).splice(i,1);
   vizCancelarPessoa(ctx,vizIdx);
 }
+function vizTipoPessoaChange(v){
+  document.getElementById('vp-pf-box').style.display=v==='PJ'?'none':'';
+  document.getElementById('vp-pj-box').style.display=v==='PJ'?'':'none';
+  document.getElementById('vp-nome-label').textContent=v==='PJ'?'Razão social':'Nome completo';
+  document.getElementById('vp-endereco-label').textContent=v==='PJ'?'Endereço da sede':'Endereço completo';
+}
 function vizPessoaFormHtml(p){
+  const tipoPJ=p.tipo==='PJ';
   const temConj=!!p.conjuge;
   const c=p.conjuge||{nome:'',nacionalidade:'brasileiro(a)',profissao:'',docNumero:'',docOrgao:'',cpf:''};
+  const r=p.representante||{cargo:'',nome:'',nacionalidade:'brasileiro(a)',profissao:'',cpf:'',docNumero:'',docOrgao:''};
   const estCivis=['solteiro(a)','casado(a)','divorciado(a)','viúvo(a)','separado(a) judicialmente'];
   return '<div class="g3 mb1">'
-    +'<div class="fg"><label class="fl">Nome completo</label><input class="fc" id="vp-nome" value="'+(p.nome||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Tipo de pessoa</label><select class="fc" id="vp-tipo" onchange="vizTipoPessoaChange(this.value)"><option value="PF"'+(tipoPJ?'':' selected')+'>Pessoa Física</option><option value="PJ"'+(tipoPJ?' selected':'')+'>Pessoa Jurídica</option></select></div>'
+    +'<div class="fg"><label class="fl" id="vp-nome-label">'+(tipoPJ?'Razão social':'Nome completo')+'</label><input class="fc" id="vp-nome" value="'+(p.nome||'')+'"></div>'
+    +'<div class="fg"><label class="fl">% de propriedade (opcional)</label><input class="fc" type="number" step="0.01" id="vp-perc" value="'+(p.percentual||'')+'"></div>'
+    +'</div>'
+    +'<div id="vp-pf-box" style="display:'+(tipoPJ?'none':'')+'">'
+    +'<div class="g3 mb1">'
     +'<div class="fg"><label class="fl">Nacionalidade</label><input class="fc" id="vp-nac" value="'+(p.nacionalidade||'brasileiro(a)')+'"></div>'
     +'<div class="fg"><label class="fl">Profissão</label><input class="fc" id="vp-prof" value="'+(p.profissao||'')+'"></div>'
+    +'<div class="fg"><label class="fl">CPF</label><input class="fc" id="vp-cpf" value="'+(p.cpf||'')+'"></div>'
     +'</div>'
     +'<div class="g3 mb1">'
     +'<div class="fg"><label class="fl">Tipo de doc.</label><select class="fc" id="vp-doctipo">'+['RG','CNH','CI'].map(function(t){return '<option'+(p.docTipo===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div>'
     +'<div class="fg"><label class="fl">Nº do documento</label><input class="fc" id="vp-docnum" value="'+(p.docNumero||'')+'"></div>'
     +'<div class="fg"><label class="fl">Órgão emissor</label><input class="fc" id="vp-docorgao" value="'+(p.docOrgao||'')+'" placeholder="Ex: SSP/MS"></div>'
     +'</div>'
-    +'<div class="g3 mb1">'
-    +'<div class="fg"><label class="fl">CPF</label><input class="fc" id="vp-cpf" value="'+(p.cpf||'')+'"></div>'
+    +'<div class="g2 mb1">'
     +'<div class="fg"><label class="fl">Estado civil</label><select class="fc" id="vp-estcivil" onchange="document.getElementById(\'vp-conjuge-box\').style.display=(this.value===\'casado(a)\')?\'\':\'none\'">'+estCivis.map(function(t){return '<option'+(p.estadoCivil===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div>'
-    +'<div class="fg"><label class="fl">% de propriedade (opcional)</label><input class="fc" type="number" step="0.01" id="vp-perc" value="'+(p.percentual||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Regime de bens (se casado)</label><input class="fc" id="vp-regime" value="'+(p.regimeBens||'')+'" placeholder="Ex: comunhão parcial de bens, após a vigência da Lei nº 6.515/77"></div>'
     +'</div>'
-    +'<div class="fg mb1"><label class="fl">Regime de bens (se casado)</label><input class="fc" id="vp-regime" value="'+(p.regimeBens||'')+'" placeholder="Ex: comunhão parcial de bens, após a vigência da Lei nº 6.515/77"></div>'
     +'<label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:.75rem"><input type="checkbox" id="vp-temconj" '+(temConj?'checked':'')+' onchange="document.getElementById(\'vp-conjuge-box\').style.display=this.checked?\'\':\'none\'" style="width:16px;height:16px;accent-color:var(--brand)"> <span class="fl" style="margin:0">Possui cônjuge (qualificação conjunta)</span></label>'
     +'<div id="vp-conjuge-box" class="card mb1" style="background:#F4F8FF;display:'+(temConj?'':'none')+'">'
     +'<div class="g3 mb1">'
@@ -6964,12 +6976,53 @@ function vizPessoaFormHtml(p){
     +'<div class="fg"><label class="fl">Órgão emissor</label><input class="fc" id="vp-c-docorgao" value="'+(c.docOrgao||'')+'"></div>'
     +'<div class="fg"><label class="fl">CPF</label><input class="fc" id="vp-c-cpf" value="'+(c.cpf||'')+'"></div></div>'
     +'</div>'
-    +'<div class="fg mb1"><label class="fl">Endereço completo</label><input class="fc" id="vp-endereco" value="'+(p.endereco||'')+'"></div>';
+    +'</div>'
+    +'<div id="vp-pj-box" style="display:'+(tipoPJ?'':'none')+'">'
+    +'<div class="g2 mb1">'
+    +'<div class="fg"><label class="fl">CNPJ</label><input class="fc" id="vp-cnpj" value="'+(p.cnpj||'')+'" placeholder="00.000.000/0000-00"></div>'
+    +'<div class="fg"><label class="fl">Cargo do representante legal</label><input class="fc" id="vp-r-cargo" value="'+(r.cargo||'')+'" placeholder="Ex: administrador(a), sócio(a) administrador(a)"></div>'
+    +'</div>'
+    +'<div class="card mb1" style="background:#F4F8FF">'
+    +'<div class="fl mb1" style="margin-bottom:.5rem">Representante legal (quem assina pela empresa)</div>'
+    +'<div class="g3 mb1">'
+    +'<div class="fg"><label class="fl">Nome completo</label><input class="fc" id="vp-r-nome" value="'+(r.nome||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Nacionalidade</label><input class="fc" id="vp-r-nac" value="'+(r.nacionalidade||'brasileiro(a)')+'"></div>'
+    +'<div class="fg"><label class="fl">Profissão</label><input class="fc" id="vp-r-prof" value="'+(r.profissao||'')+'"></div>'
+    +'</div>'
+    +'<div class="g3"><div class="fg"><label class="fl">CPF</label><input class="fc" id="vp-r-cpf" value="'+(r.cpf||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Nº do documento (RG)</label><input class="fc" id="vp-r-docnum" value="'+(r.docNumero||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Órgão emissor</label><input class="fc" id="vp-r-docorgao" value="'+(r.docOrgao||'')+'" placeholder="Ex: SSP/MS"></div></div>'
+    +'</div>'
+    +'</div>'
+    +'<div class="fg mb1"><label class="fl" id="vp-endereco-label">'+(tipoPJ?'Endereço da sede':'Endereço completo')+'</label><input class="fc" id="vp-endereco" value="'+(p.endereco||'')+'"></div>';
 }
 function vizSalvarPessoa(ctx,vizIdx,i){
   const arr=vizGetPessoasArray(ctx,vizIdx);
+  const tipo=document.getElementById('vp-tipo').value;
+  if(tipo==='PJ'){
+    arr[i]={
+      tipo:'PJ',
+      nome:document.getElementById('vp-nome').value,
+      cnpj:document.getElementById('vp-cnpj').value,
+      percentual:document.getElementById('vp-perc').value,
+      endereco:document.getElementById('vp-endereco').value,
+      conjuge:null,
+      representante:{
+        cargo:document.getElementById('vp-r-cargo').value,
+        nome:document.getElementById('vp-r-nome').value,
+        nacionalidade:document.getElementById('vp-r-nac').value,
+        profissao:document.getElementById('vp-r-prof').value,
+        cpf:document.getElementById('vp-r-cpf').value,
+        docNumero:document.getElementById('vp-r-docnum').value,
+        docOrgao:document.getElementById('vp-r-docorgao').value
+      }
+    };
+    vizCancelarPessoa(ctx,vizIdx);
+    return;
+  }
   const temConj=document.getElementById('vp-temconj').checked;
   arr[i]={
+    tipo:'PF',
     nome:document.getElementById('vp-nome').value,
     nacionalidade:document.getElementById('vp-nac').value,
     profissao:document.getElementById('vp-prof').value,
@@ -8115,6 +8168,17 @@ function anuenciaAtualizarBotao(){
 }
 function anuBold(texto){return ''+texto+'';}
 function anuenciaPessoaFrase(p,idx,total){
+  if(p.tipo==='PJ'){
+    let s=anuBold(p.nome)+', pessoa jurídica de direito privado, inscrita no CNPJ sob o n° '+(p.cnpj||'—');
+    if(p.endereco) s+=', com sede em '+p.endereco;
+    const r=p.representante;
+    if(r&&r.nome){
+      s+=', neste ato representada por seu(sua) '+(r.cargo||'representante legal')+', '+anuBold(r.nome)+', '+(r.nacionalidade||'brasileiro(a)')+(r.profissao?', '+r.profissao:'');
+      if(r.docNumero) s+=', portador(a) da Cédula de Identidade R.G. n° '+r.docNumero+(r.docOrgao?' ('+r.docOrgao+')':'');
+      if(r.cpf) s+=', inscrito(a) no CPF sob o n° '+r.cpf;
+    }
+    return s;
+  }
   let s=idx===0?'Eu, ':(idx===total-1&&total>1?'e Eu, ':'Eu, ');
   s+=anuBold(p.nome)+', '+(p.nacionalidade||'brasileiro(a)')+', '+(p.profissao||'')+', portador(a) da '+(p.docTipo==='CNH'?'CNH':p.docTipo==='CI'?'Carteira de Identidade':'Cédula de Identidade R.G.')+' n° '+(p.docNumero||'')+(p.docOrgao?' ('+p.docOrgao+')':'')+', inscrito(a) no CPF sob o n° '+(p.cpf||'')+', '+(p.estadoCivil||'solteiro(a)');
   if(p.estadoCivil==='casado(a)'&&p.conjuge){
@@ -8419,7 +8483,7 @@ async function reqGerarDocx(){
     const zip=await JSZip.loadAsync(buf);
     let xml=await zip.file('word/document.xml').async('string');
     const quemAssina=procAssNome?[{nome:procAssNome,cpf:document.getElementById('rq-proc-asscpf').value}]:assinantes;
-    const assinaturasXml=quemAssina.map(function(p){return anuenciaAssinaturaXml(p,'CPF n° '+(p.cpf||'—'));}).join('');
+    const assinaturasXml=quemAssina.map(function(p){return anuenciaAssinaturaXml(p,p.tipo==='PJ'?'CNPJ n° '+(p.cnpj||'—')+(p.representante&&p.representante.nome?' — rep.: '+p.representante.nome:''):'CPF n° '+(p.cpf||'—'));}).join('');
     xml=xml.replace(/(\{\{DATA_EXTENSO\}\}[\s\S]*?<\/w:p>)/,function(m){return m+assinaturasXml;});
     xml=anuenciaSubstituirQualificacao(xml,cfg.quali,quali);
     if(cfg.proc) xml=reqSubstituirTexto(xml,'OUTORGADO_XML',document.getElementById('rq-proc-outorgado').value);
@@ -12473,7 +12537,7 @@ function mmapCarregarObra(sel){
   const cli=obra.clientes;
   if(props.length){
     document.getElementById('mmap-prop').value=props[0].nome||'';
-    document.getElementById('mmap-cpf').value=props[0].cpf||'';
+    document.getElementById('mmap-cpf').value=props[0].cpf||props[0].cnpj||'';
   } else if(cli){
     document.getElementById('mmap-prop').value=cli.nome||'';
     document.getElementById('mmap-cpf').value=cli.cpfcnpj||'';
