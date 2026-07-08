@@ -4559,7 +4559,7 @@ function ovClick(e){
 }
 
 function closeModal(){const ov=document.getElementById('ov');ov.classList.remove('open');ov.style.zIndex='';EID=null;_uploadFiles={};if(MAP){try{MAP.remove();}catch(e){}MAP=null;MKR=null;}}
-function closeModal2(){document.getElementById('ov2').classList.remove('open');}
+function closeModal2(){const o2=document.getElementById('ov2');o2.classList.remove('open');o2.style.zIndex='';}
 
 async function openModal(){
   if(!CP)return;
@@ -6812,7 +6812,7 @@ function _renderObrasTabela(ob,q){
 }
 
 // ── Vizinhos e Proprietários da Obra (qualificação para Anuência de Limites) ──
-var _vizObraId=null,_vizProprietarios=[],_vizVizinhos=[],_vizAbaAtiva='prop',_vizVizinhoEditando=null;
+var _vizObraId=null,_vizProprietarios=[],_vizVizinhos=[],_vizAbaAtiva='prop',_vizVizinhoEditando=null,_vizDadosEditando=null,_vizPessoaEditando=null;
 function vizMostrarSqlSetup(){
   document.getElementById('mt').textContent='Configuração necessária';
   document.getElementById('mb').innerHTML='<div class="mu sm mb1">É necessário adicionar 2 colunas na tabela <strong>obras</strong>. Execute uma vez no SQL Editor do Supabase:</div><pre style="background:#f4f4f0;border-radius:8px;padding:1rem;font-size:12px;overflow-x:auto">ALTER TABLE obras ADD COLUMN IF NOT EXISTS proprietarios JSONB DEFAULT \'[]\'::jsonb;\nALTER TABLE obras ADD COLUMN IF NOT EXISTS vizinhos JSONB DEFAULT \'[]\'::jsonb;</pre>';
@@ -6828,7 +6828,7 @@ async function abrirVizinhosObra(obraId){
   _vizObraId=obraId;
   _vizProprietarios=obra.proprietarios||[];
   _vizVizinhos=obra.vizinhos||[];
-  _vizAbaAtiva='prop';_vizVizinhoEditando=null;
+  _vizAbaAtiva='prop';_vizVizinhoEditando=null;_vizDadosEditando=null;_vizPessoaEditando=null;
   document.getElementById('mt').textContent='Vizinhos e Proprietários — '+obra.nome;
   document.getElementById('mb').innerHTML=vizModalHtml();
   document.getElementById('mf').innerHTML='<button class="btn" onclick="closeModal()">Fechar</button><button class="btn bp2" onclick="vizSalvar()"><i class="ti ti-device-floppy"></i> Salvar</button>';
@@ -6841,7 +6841,7 @@ function vizModalHtml(){
     +'</div>'
     +'<div id="viz-conteudo">'+vizConteudoHtml()+'</div>';
 }
-function vizMudarAba(aba){_vizAbaAtiva=aba;_vizVizinhoEditando=null;document.getElementById('mb').innerHTML=vizModalHtml();}
+function vizMudarAba(aba){_vizAbaAtiva=aba;_vizVizinhoEditando=null;_vizDadosEditando=null;_vizPessoaEditando=null;document.getElementById('mb').innerHTML=vizModalHtml();}
 function vizConteudoHtml(){
   if(_vizAbaAtiva==='prop') return vizListaPessoasHtml(_vizProprietarios,'prop',null);
   if(_vizVizinhoEditando!==null){
@@ -6869,8 +6869,9 @@ function vizRemoverVizinho(i){
   document.getElementById('viz-conteudo').innerHTML=vizConteudoHtml();
 }
 function vizEditarVizinhos(i){_vizVizinhoEditando=i;document.getElementById('viz-conteudo').innerHTML=vizConteudoHtml();}
-function vizVoltarVizinhos(){_vizVizinhoEditando=null;document.getElementById('viz-conteudo').innerHTML=vizConteudoHtml();}
+function vizVoltarVizinhos(){_vizVizinhoEditando=null;_vizDadosEditando=null;document.getElementById('viz-conteudo').innerHTML=vizConteudoHtml();}
 function vizEditarDadosVizinho(i){
+  _vizDadosEditando=i;
   const v=_vizVizinhos[i];
   document.getElementById('viz-conteudo').innerHTML=
     '<div class="g2 mb1"><div class="fg"><label class="fl">Nome do imóvel</label><input class="fc" id="vz-nome" value="'+(v.nomeImovel||'')+'"></div>'
@@ -6906,6 +6907,7 @@ function vizAdicionarPessoa(ctx,vizIdx){
   vizEditarPessoa(ctx,vizIdx,arr.length-1);
 }
 function vizEditarPessoa(ctx,vizIdx,i){
+  _vizPessoaEditando={ctx:ctx,vizIdx:vizIdx,i:i};
   const arr=vizGetPessoasArray(ctx,vizIdx);
   const p=arr[i];
   document.getElementById('viz-conteudo').innerHTML=vizPessoaFormHtml(p)
@@ -6913,6 +6915,7 @@ function vizEditarPessoa(ctx,vizIdx,i){
     +' <button class="btn bsm" onclick="vizCancelarPessoa(\''+ctx+'\','+(vizIdx===null?'null':vizIdx)+')">Cancelar</button>';
 }
 function vizCancelarPessoa(ctx,vizIdx){
+  _vizPessoaEditando=null;
   document.getElementById('viz-conteudo').innerHTML = ctx==='prop'? vizListaPessoasHtml(_vizProprietarios,'prop',null) : ('<button class="btn bsm mb1" onclick="vizVoltarVizinhos()"><i class="ti ti-arrow-left"></i> Voltar</button>'+vizListaPessoasHtml(_vizVizinhos[vizIdx].pessoas,'viz',vizIdx));
 }
 function vizRemoverPessoa(ctx,vizIdx,i){
@@ -6979,14 +6982,28 @@ function vizSalvarPessoa(ctx,vizIdx,i){
   };
   vizCancelarPessoa(ctx,vizIdx);
 }
+// Confirma automaticamente um formulário de vizinho/pessoa deixado aberto sem clicar em "Confirmar"
+function vizAplicarFormAberto(){
+  if(_vizPessoaEditando&&document.getElementById('vp-nome'))vizSalvarPessoa(_vizPessoaEditando.ctx,_vizPessoaEditando.vizIdx,_vizPessoaEditando.i);
+  if(_vizDadosEditando!==null&&document.getElementById('vz-nome'))vizSalvarDadosVizinho(_vizDadosEditando);
+}
 async function vizSalvar(){
-  const{error}=await sb.from('obras').update({proprietarios:_vizProprietarios,vizinhos:_vizVizinhos}).eq('id',_vizObraId);
+  vizAplicarFormAberto();
+  const{data,error}=await sb.from('obras').update({proprietarios:_vizProprietarios,vizinhos:_vizVizinhos}).eq('id',_vizObraId).select('id');
   if(error){
     if(error.message&&error.message.toLowerCase().includes('column')){vizMostrarSqlSetup();return;}
     toast('Erro ao salvar: '+error.message,true);return;
   }
+  // Update sem erro mas com 0 linhas afetadas = política RLS de UPDATE bloqueando silenciosamente
+  if(!data||!data.length){vizMostrarRlsUpdate();return;}
   toast('Vizinhos e proprietários salvos!');
   closeModal();
+}
+function vizMostrarRlsUpdate(){
+  document.getElementById('mt2').textContent='Permissão de gravação necessária';
+  document.getElementById('mb2').innerHTML='<div class="mu sm mb1">O Supabase aceitou o pedido mas <strong>nenhuma linha foi alterada</strong>: a política RLS de UPDATE da tabela <strong>obras</strong> está bloqueando a gravação desta obra. Execute uma vez no SQL Editor do Supabase:</div><pre style="background:#f4f4f0;border-radius:8px;padding:1rem;font-size:12px;overflow-x:auto">DROP POLICY IF EXISTS "allow_update" ON obras;\nCREATE POLICY "allow_update" ON obras FOR UPDATE TO authenticated\n  USING (true) WITH CHECK (true);</pre><div class="mu sm">Os dados digitados continuam no modal atrás — depois de executar o SQL, clique em Salvar novamente.</div>';
+  document.getElementById('mf2').innerHTML='<button class="btn" onclick="closeModal2()">Fechar</button>';
+  const o2=document.getElementById('ov2');o2.style.zIndex='300';o2.classList.add('open');
 }
 async function rObras(){
   const{data,error}=await sb.from('obras').select('*,clientes(nome)').order('nome');
