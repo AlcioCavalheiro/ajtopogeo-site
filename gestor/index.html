@@ -344,6 +344,7 @@ select.fc{cursor:pointer}
       <div class="ni" onclick="nav('medicao')"><i class="ti ti-checkup-list"></i>Medições</div>
       <div class="ni" onclick="nav('nfe')"><i class="ti ti-receipt"></i>Notas Fiscais</div>
       <div class="ni" onclick="nav('dre')"><i class="ti ti-chart-bar"></i>DRE / Resultado</div>
+      <div class="ni" onclick="nav('acompanhamento')"><i class="ti ti-target-arrow"></i>Acompanham. por Obra</div>
       <div class="ni" onclick="nav('passivo')"><i class="ti ti-scale"></i>Passivo / Obrigações</div>
       <div class="ni" onclick="nav('tributario')"><i class="ti ti-receipt-tax"></i>Controle Tributário</div>
       <div class="ng">Ferramentas</div>
@@ -502,6 +503,7 @@ const PCFG={
   nfe:{t:'Nova Nota Fiscal',tb:'notas_fiscais',h:function(o){return '<div class="g2"><div class="fg"><label class="fl">Número NF *</label><input class="fc" id="f-numero" placeholder="Ex: 240"></div><div class="fg"><label class="fl">Cliente</label><select class="fc" id="f-cliente_id"><option value="">Selecione...</option>'+o.cOpts+'</select></div></div><div class="g2"><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor" oninput="calcISS()"></div><div class="fg"><label class="fl">Alíq. ISS (%)</label><input class="fc" type="number" step="0.01" id="f-aliquota_iss" value="5" oninput="calcISS()"></div></div><div class="g2"><div class="fg"><label class="fl">Valor ISS (R$)</label><input class="fc" type="number" step="0.01" id="f-valor_iss" readonly style="background:#f4f4f0"></div><div class="fg"><label class="fl">OS Vinculada</label><select class="fc" id="f-os_id"><option value="">Sem OS</option>'+o.oOpts+'</select></div></div><div class="g2"><div class="fg"><label class="fl">Data emissão</label><input class="fc" type="date" id="f-data_emissao"></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option>Pendente</option><option>Emitida</option><option>Cancelada</option></select></div></div><div class="fg"><label class="fl">PDF da NF</label><div id="nf-upload-area" class="upload-area" onclick="document.getElementById(\'nf-file-input\').click()"><i class="ti ti-file-upload"></i><p>Clique ou arraste o PDF da NF aqui</p></div><div id="nf-file-preview" style="display:none"></div><input type="file" id="nf-file-input" accept=".pdf" style="display:none" onchange="handleFileSelect(this,\'nf\')"><input type="hidden" id="f-arquivo_url" value=""></div>';}},
   geoferramentas:{t:'Ferramentas Geo',a:null},
   dre:{t:'DRE / Resultado',a:null},
+  acompanhamento:{t:'Acompanhamento por Obra',a:null},
   passivo:{t:'Passivo / Obrigações',a:null},
   folha:{t:'Folha / Pró-labore',a:'Lançar Pró-labore'},
   pipeline:{t:'Pipeline de Projetos',a:null},
@@ -895,10 +897,10 @@ async function sincAgendaOS(osId, osNumero, osStatus, osData, clienteNome, osTip
 }
 
 async function rDash(){
-  const[ctrs,ors,recs,pags,imps,custosDash,orcasAprov,osDeOrcas,recsOS]=await Promise.all([
+  const[ctrs,ors,recs,pags,imps,custosDash,orcasAprov,osDeOrcas,recsOS,agRecDash]=await Promise.all([
     sb.from('contratos').select('valor,status'),
     sb.from('ordens').select('status,numero,tipo,data,orcamento_valor'),
-    sb.from('recebimentos').select('valor,status,data_recebimento,created_at'),
+    sb.from('recebimentos').select('valor,status,data_recebimento,vencimento,created_at'),
     sb.from('pagamentos').select('valor,status,categoria,data_pagamento,vencimento,created_at'),
     sb.from('impostos').select('valor,data,created_at'),
     sb.from('custos_os').select('valor_total,data,created_at'),
@@ -907,6 +909,8 @@ async function rDash(){
     sb.from('ordens').select('id,orcamento_id').not('orcamento_id','is',null),
     // Todos os recebimentos com status Recebido que tenham os_id (pagamentos parciais ou totais)
     sb.from('recebimentos').select('os_id,valor').eq('status','Recebido').not('os_id','is',null),
+    // Previsões de recebimento (agenda) para sinalizar vencidos no card "A Receber"
+    sb.from('agenda').select('data,concluida,concluido').eq('tipo','Recebimento'),
   ]);
   const co=ctrs.data||[],or=ors.data||[],re=recs.data||[],pa=pags.data||[],im=imps.data||[],cu=custosDash.data||[];
   // ── Filtro: mês corrente (DRE do dashboard) ──────────────
@@ -969,6 +973,18 @@ async function rDash(){
     const pendente=Math.max(0,Number(orca.valor_total||0)-jaRecebido);
     if(pendente>0){aR+=pendente;aRcount++;}
   });
+  // Previsões de recebimento vencidas (agenda tipo Recebimento, não concluída, data passada)
+  const _hojeDStr=_hojeD.toISOString().slice(0,10);
+  const vencR=(agRecDash.data||[]).filter(a=>!a.concluida&&!a.concluido&&a.data&&a.data<_hojeDStr).length;
+  // ── Fluxo de caixa previsto: 30 / 60 / 90 dias ──────────────
+  const _addD=n=>{const d=new Date(_hojeD);d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);};
+  const _d30=_addD(30),_d60=_addD(60),_d90=_addD(90);
+  const _bkt=v=>{if(!v||v<_hojeDStr)return null;if(v<=_d30)return 30;if(v<=_d60)return 60;if(v<=_d90)return 90;return null;};
+  const fluxo={30:{in:0,out:0},60:{in:0,out:0},90:{in:0,out:0}};
+  (pa||[]).filter(p=>p.status==='Pendente').forEach(p=>{const b=_bkt(p.vencimento);if(b)fluxo[b].out+=Number(p.valor||0);});
+  (re||[]).filter(r=>r.status==='Pendente').forEach(r=>{const b=_bkt(r.vencimento);if(b)fluxo[b].in+=Number(r.valor||0);});
+  const fluxoOutVenc=(pa||[]).filter(p=>p.status==='Pendente'&&p.vencimento&&p.vencimento<_hojeDStr).reduce((s,p)=>s+Number(p.valor||0),0);
+  const fluxoTemDados=fluxo[30].in||fluxo[30].out||fluxo[60].in||fluxo[60].out||fluxo[90].in||fluxo[90].out||fluxoOutVenc;
   // Agrupar OS por status dinamicamente
   const statusCorMap={'Agendada':'#666','Logística / Preparação':'#854F0B','Em campo':'#1a6fc4',
     'Em andamento':'#1a6fc4','Processamento':'#3C3489','Desenho':'#3C3489','Revisão Técnica':'#3C3489',
@@ -1013,10 +1029,23 @@ async function rDash(){
     <div class="mc"><div class="ml">Receita do mês</div><div class="mv" style="color:var(--bd)">${fmt(tR)}</div><div class="ms" style="text-transform:capitalize">${mesLabelD}</div></div>
     <div class="mc"><div class="ml">Despesas + Impostos</div><div class="mv" style="color:#A32D2D">${fmt(tP+tI+tC)}</div><div class="ms">No mês · pessoal, campo e adm.</div></div>
     <div class="${lu<0?'ln2':'lc2'}"><div class="ml">Resultado do mês</div><div class="mv" style="color:${lu>=0?'#0d4fa0':'#A32D2D'}">${fmt(lu)}</div><div class="ms">${lu>=0?'Lucro':'Prejuízo'} · ${mgLiq}% margem</div></div>
-    <div class="mc" style="border-left:3px solid #BA7517;border-radius:0 10px 10px 0;cursor:pointer" onclick="nav('recebimentos')"><div class="ml">A Receber</div><div class="mv" style="color:#BA7517">${fmt(aR)}</div><div class="ms">${aRcount} pendente${aRcount===1?'':'s'} · acumulado</div></div>
+    <div class="mc" style="border-left:3px solid #BA7517;border-radius:0 10px 10px 0;cursor:pointer" onclick="nav('recebimentos')"><div class="ml">A Receber</div><div class="mv" style="color:#BA7517">${fmt(aR)}</div><div class="ms">${aRcount} em aberto${vencR?` · <span style="color:#A32D2D;font-weight:700">${vencR} vencida${vencR===1?'':'s'}</span>`:''}</div></div>
     <div class="mc" style="border-left:3px solid #A32D2D;border-radius:0 10px 10px 0;cursor:pointer" onclick="nav('pagamentos')"><div class="ml">A Pagar</div><div class="mv" style="color:#A32D2D">${fmt(aPag)}</div><div class="ms">${aPagList.length} pendente${aPagList.length===1?'':'s'} · acumulado</div></div>
   </div>
 
+  ${fluxoTemDados?`<div class="card mb1">
+    <div class="st mb1"><i class="ti ti-calendar-dollar" style="color:var(--brand)"></i>Fluxo de caixa previsto — próximos 90 dias</div>
+    <div class="tw"><table>
+      <thead><tr><th></th><th style="text-align:right">Até 30 dias</th><th style="text-align:right">31–60 dias</th><th style="text-align:right">61–90 dias</th></tr></thead>
+      <tbody>
+        <tr><td class="w6" style="color:#27500A">Entradas previstas</td><td style="text-align:right;color:#27500A">${fmt(fluxo[30].in)}</td><td style="text-align:right;color:#27500A">${fmt(fluxo[60].in)}</td><td style="text-align:right;color:#27500A">${fmt(fluxo[90].in)}</td></tr>
+        <tr><td class="w6" style="color:#A32D2D">Saídas previstas</td><td style="text-align:right;color:#A32D2D">${fmt(fluxo[30].out)}</td><td style="text-align:right;color:#A32D2D">${fmt(fluxo[60].out)}</td><td style="text-align:right;color:#A32D2D">${fmt(fluxo[90].out)}</td></tr>
+        <tr style="border-top:1px solid var(--bor)"><td class="w6">Saldo do período</td>${[30,60,90].map(b=>{const s=fluxo[b].in-fluxo[b].out;return `<td style="text-align:right;font-weight:700;color:${s>=0?'#27500A':'#A32D2D'}">${fmt(s)}</td>`;}).join('')}</tr>
+      </tbody>
+    </table></div>
+    ${fluxoOutVenc>0?`<div class="mu sm" style="margin-top:8px;color:#A32D2D"><i class="ti ti-alert-triangle"></i> Contas a pagar já vencidas: <strong>${fmt(fluxoOutVenc)}</strong></div>`:''}
+    <div class="mu sm" style="margin-top:4px">Baseado em vencimentos de contas a pagar e recebimentos previstos (pendentes com data lançada).</div>
+  </div>`:''}
   <!-- RESUMO DO DRE -->
   <div class="card mb1">
     <div class="fxb mb1">
@@ -2003,9 +2032,36 @@ async function updOrca(id,status){
   await sb.from('orcamentos').update({status}).eq('id',id);
   if(status==='Aprovado'){
     const{data:o}=await sb.from('orcamentos').select('*').eq('id',id).single();
-    if(o) await sincPipelineOrçamento(o,id);
+    if(o){ await sincPipelineOrçamento(o,id); await gerarPrevisaoRecebimento(o); }
   }
   toast('Status atualizado!');closeModal2();rOrcamentos();
+}
+
+// Gera previsões de recebimento (pendentes, datadas) ao aprovar um orçamento.
+// Alimenta o fluxo de caixa previsto e as datas do "A Receber". Idempotente por orçamento.
+async function gerarPrevisaoRecebimento(o){
+  if(!o)return;
+  const total=Number(o.valor_total||0);
+  if(!(total>0))return;
+  const marca='Previsão — Orç '+(o.numero||o.id);
+  // Evita duplicar se já foi gerada antes
+  const{data:existing}=await sb.from('recebimentos').select('id').ilike('descricao',marca+'%').limit(1);
+  if(existing&&existing.length)return;
+  let parc=1;
+  try{const pg=typeof o.pagamento==='string'?JSON.parse(o.pagamento):o.pagamento;parc=Math.max(1,Math.min(60,parseInt(pg?.parcelas)||1));}catch(e){}
+  const base=new Date();
+  const valorParc=Math.floor(total/parc*100)/100;
+  const rows=[];let acc=0;
+  for(let i=0;i<parc;i++){
+    const d=new Date(base.getFullYear(),base.getMonth(),base.getDate());
+    d.setMonth(d.getMonth()+i+1); // 1ª parcela ~30 dias após a aprovação, depois mensal
+    const venc=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    let v=valorParc; if(i===parc-1)v=Math.round((total-acc)*100)/100; // última absorve arredondamento
+    acc+=valorParc;
+    rows.push({descricao:marca+(parc>1?' ('+(i+1)+'/'+parc+')':''),valor:v,vencimento:venc,status:'Pendente',cliente_id:o.cliente_id||null});
+  }
+  const{error}=await sb.from('recebimentos').insert(rows);
+  if(!error)toast(parc>1?parc+' previsões de recebimento geradas.':'Previsão de recebimento gerada.');
 }
 
 async function verOrca(id){
@@ -2267,22 +2323,248 @@ function _renderRecTabela(re,q){
   });
   tb.innerHTML=html;
 }
-async function rRec(){
-  const{data}=await sb.from('recebimentos').select('*').eq('status','Recebido').order('data_recebimento',{ascending:false});
-  _recCache=data||[];
-  const total=_recCache.reduce((s,r)=>s+Number(r.valor),0);
-  document.getElementById('ct').innerHTML=`
-  <div class="g2 mb1" style="max-width:480px">
-    <div class="mc"><div class="ml">Total recebido</div><div class="mv" style="color:#27500A">${fmt(total)}</div></div>
-    <div class="mc"><div class="ml">Lançamentos</div><div class="mv">${_recCache.length}</div></div>
-  </div>
-  <div class="card"><div class="tw"><table>
-    <thead><tr><th>Descrição</th><th>OS</th><th>Valor</th><th>Forma</th><th>Data recebimento</th><th></th></tr></thead>
-    <tbody id="rec-tbody"></tbody>
-  </table></div></div>`;
-  _renderRecTabela(_recCache,'');
+// ─── RECEBIMENTOS — abas "A Receber" (previsto) e "Recebidos" (realizado) ──
+let _recTab='areceber';
+let _arRows=[];      // saldo em aberto por orçamento aprovado (mesma base do card do Dashboard)
+let _arAvulsos=[];   // recebimentos previstos (Pendente) fora de orçamento aprovado
+let _arPrevisoes=[]; // parcelas previstas geradas na aprovação do orçamento
+let _arCount=0;
+
+async function rRec(tab){
+  if(tab)_recTab=tab;
+  const hoje=new Date().toISOString().slice(0,10);
+  const[orcA,osOrc,recAll,agRec]=await Promise.all([
+    sb.from('orcamentos').select('id,numero,valor_total,cliente_nome,cliente_id').eq('status','Aprovado'),
+    sb.from('ordens').select('id,numero,orcamento_id,clientes(nome)').not('orcamento_id','is',null),
+    sb.from('recebimentos').select('*').order('data_recebimento',{ascending:false}),
+    sb.from('agenda').select('data,os_id,concluida,concluido').eq('tipo','Recebimento'),
+  ]);
+  const orcas=orcA.data||[],oss=osOrc.data||[],recs=recAll.data||[],ags=agRec.data||[];
+  _recCache=recs.filter(r=>r.status==='Recebido');
+  const pend=recs.filter(r=>r.status==='Pendente');
+  // total recebido por OS
+  const recPorOs={};
+  recs.forEach(r=>{if(r.status==='Recebido'&&r.os_id)recPorOs[r.os_id]=(recPorOs[r.os_id]||0)+Number(r.valor||0);});
+  // OS por orçamento
+  const osPorOrc={};
+  oss.forEach(o=>{(osPorOrc[o.orcamento_id]=osPorOrc[o.orcamento_id]||[]).push(o);});
+  const osIdSet=new Set(oss.map(o=>o.id));
+  // vencimento previsto por OS (agenda tipo Recebimento não concluída — data mais próxima)
+  const duePorOs={};
+  ags.forEach(a=>{if(a.concluida||a.concluido||!a.os_id||!a.data)return;if(!duePorOs[a.os_id]||a.data<duePorOs[a.os_id])duePorOs[a.os_id]=a.data;});
+  const diasEntre=d=>Math.round((new Date(hoje)-new Date(d))/86400000);
+  const isPrevisao=r=>(r.descricao||'').startsWith('Previsão — Orç ');
+  // menor vencimento de previsão por número de orçamento (para datar as linhas por obra)
+  const prevVencPorOrc={};
+  pend.filter(isPrevisao).forEach(r=>{
+    const m=(r.descricao||'').match(/Previsão — Orç (\S+)/);
+    if(!m||!r.vencimento)return;const num=m[1];
+    if(!prevVencPorOrc[num]||r.vencimento<prevVencPorOrc[num])prevVencPorOrc[num]=r.vencimento;
+  });
+  // Linhas "A Receber" por obra (orçamento aprovado − recebido)
+  _arRows=[];
+  orcas.forEach(o=>{
+    const lst=osPorOrc[o.id]||[];
+    const contratado=Number(o.valor_total||0);
+    const recebido=lst.reduce((s,x)=>s+(recPorOs[x.id]||0),0);
+    const aberto=Math.round((contratado-recebido)*100)/100;
+    if(!(aberto>0.01))return;
+    const cliente=o.cliente_nome||lst[0]?.clientes?.nome||'—';
+    const osNums=lst.map(x=>x.numero).filter(Boolean).join(', ')||'—';
+    const primaryOs=lst[0]?.id||null;
+    let due=null;lst.forEach(x=>{const d=duePorOs[x.id];if(d&&(!due||d<due))due=d;});
+    const pv=prevVencPorOrc[o.numero];if(pv&&(!due||pv<due))due=pv;
+    let status='semprev',dias=0;
+    if(due){dias=diasEntre(due);status=due<hoje?'vencido':'avencer';}
+    const pct=contratado>0?Math.min(100,Math.round(recebido/contratado*100)):0;
+    _arRows.push({numero:o.numero||'—',cliente,osNums,primaryOs,contratado,recebido,aberto,due,status,dias:Math.abs(dias),pct});
+  });
+  _arRows.sort((a,b)=>{const r={vencido:0,avencer:1,semprev:2};return(r[a.status]-r[b.status])||(b.aberto-a.aberto);});
+  // Previsões de recebimento (geradas na aprovação do orçamento) — compõem o saldo em aberto
+  _arPrevisoes=pend.filter(isPrevisao).map(r=>{
+    const venc=r.vencimento||null;const vencido=!!(venc&&venc<hoje);
+    return{...r,venc,vencido,dias:venc?Math.abs(diasEntre(venc)):0};
+  }).sort((a,b)=>(b.vencido-a.vencido)||((a.venc||'').localeCompare(b.venc||'')));
+  // Avulsos: recebimentos Pendente fora das OS de orçamentos aprovados (excluindo previsões)
+  _arAvulsos=pend.filter(r=>!isPrevisao(r)&&(!r.os_id||!osIdSet.has(r.os_id))).map(r=>{
+    const venc=r.vencimento||null;const vencido=!!(venc&&venc<hoje);
+    return{...r,venc,vencido,dias:venc?Math.abs(diasEntre(venc)):0};
+  }).sort((a,b)=>(b.vencido-a.vencido)||((a.venc||'').localeCompare(b.venc||'')));
+  _arCount=_arRows.length+_arAvulsos.length+_arPrevisoes.length;
+
+  document.getElementById('ct').innerHTML=`<div id="rec-tabs" class="fx g8 mb1" style="flex-wrap:wrap"></div><div id="rec-body"></div>`;
+  _recPaint('');
   const si=document.getElementById('si');
-  si.oninput=function(){if(CP==='recebimentos')_renderRecTabela(_recCache,this.value.trim());};
+  if(si){si.value='';si.oninput=function(){if(CP==='recebimentos')_recPaint(this.value.trim());};}
+}
+
+function recTab(t){_recTab=t;const si=document.getElementById('si');_recPaint(si?si.value.trim():'');}
+
+function _recTabsBar(){
+  const mk=(id,ic,lbl,badge)=>`<button onclick="recTab('${id}')" style="display:flex;align-items:center;gap:6px;padding:8px 15px;border-radius:10px;border:1px solid ${_recTab===id?'var(--brand)':'var(--bor)'};background:${_recTab===id?'var(--brand)':'transparent'};color:${_recTab===id?'#fff':'var(--mu)'};font-size:13px;font-weight:600;cursor:pointer"><i class="ti ti-${ic}"></i> ${lbl}<span style="background:${_recTab===id?'rgba(255,255,255,.22)':'var(--bg)'};border-radius:99px;padding:1px 8px;font-size:11px">${badge}</span></button>`;
+  return mk('areceber','clock-dollar','A Receber',_arCount)+mk('recebidos','cash','Recebidos',_recCache.length);
+}
+
+function _recPaint(q){
+  q=q||'';
+  const tb=document.getElementById('rec-tabs');if(tb)tb.innerHTML=_recTabsBar();
+  const body=document.getElementById('rec-body');if(!body)return;
+  if(_recTab==='recebidos'){
+    const total=_recCache.reduce((s,r)=>s+Number(r.valor),0);
+    body.innerHTML=`
+    <div class="g2 mb1" style="max-width:480px">
+      <div class="mc"><div class="ml">Total recebido</div><div class="mv" style="color:#27500A">${fmt(total)}</div></div>
+      <div class="mc"><div class="ml">Lançamentos</div><div class="mv">${_recCache.length}</div></div>
+    </div>
+    <div class="card"><div class="tw"><table>
+      <thead><tr><th>Descrição</th><th>OS</th><th>Valor</th><th>Forma</th><th>Data recebimento</th><th></th></tr></thead>
+      <tbody id="rec-tbody"></tbody>
+    </table></div></div>`;
+    _renderRecTabela(_recCache,q);
+  }else{
+    body.innerHTML=_recRenderAReceber(q);
+  }
+}
+
+function _recRenderAReceber(q){
+  const nq=_normOS(q);
+  const rows=q?_arRows.filter(r=>_normOS(r.cliente+r.osNums+r.numero).includes(nq)):_arRows;
+  const avs=q?_arAvulsos.filter(r=>_normOS((r.descricao||'')+(r.os_manual||'')).includes(nq)):_arAvulsos;
+  const prevs=q?_arPrevisoes.filter(r=>_normOS(r.descricao||'').includes(nq)):_arPrevisoes;
+  const totAberto=rows.reduce((s,r)=>s+r.aberto,0)+avs.reduce((s,r)=>s+Number(r.valor||0),0);
+  const totVenc=rows.filter(r=>r.status==='vencido').reduce((s,r)=>s+r.aberto,0)+avs.filter(r=>r.vencido).reduce((s,r)=>s+Number(r.valor||0),0);
+  const nVenc=rows.filter(r=>r.status==='vencido').length+avs.filter(r=>r.vencido).length;
+  const cards=`<div class="g3 mb1">
+    <div class="mc" style="border-left:3px solid #BA7517"><div class="ml">A Receber (saldo em aberto)</div><div class="mv" style="color:#BA7517">${fmt(totAberto)}</div><div class="ms">${rows.length+avs.length} item(ns)</div></div>
+    <div class="mc" style="border-left:3px solid ${nVenc?'#A32D2D':'var(--bor)'}"><div class="ml">Vencido</div><div class="mv" style="color:${nVenc?'#A32D2D':'#999'}">${fmt(totVenc)}</div><div class="ms">${nVenc} vencido(s)</div></div>
+    <div class="mc"><div class="ml">Recebido (histórico)</div><div class="mv" style="color:#27500A">${fmt(_recCache.reduce((s,r)=>s+Number(r.valor),0))}</div><div class="ms">${_recCache.length} lançamento(s)</div></div>
+  </div>`;
+  let obras='';
+  if(rows.length){
+    obras=`<div class="fxb mb1"><div class="st" style="margin:0"><i class="ti ti-building-community" style="color:var(--brand)"></i>Por obra — orçamentos aprovados</div></div>`
+    +rows.map(r=>{
+      const badge=r.status==='vencido'?`<span class="bd br"><i class="ti ti-alert-triangle"></i> Vencido há ${r.dias}d</span>`
+        :r.status==='avencer'?`<span class="bd bw"><i class="ti ti-clock"></i> Vence em ${r.dias}d</span>`
+        :`<span class="bd bn">Sem previsão</span>`;
+      const bc=r.status==='vencido'?'#A32D2D':(r.status==='avencer'?'#EF9F27':'#BA7517');
+      const osEsc=(r.osNums||'').split(',')[0].trim().replace(/'/g,"\\'");
+      return `<div style="background:var(--sf);border:1px solid var(--bor);border-left:4px solid ${bc};border-radius:10px;padding:.8rem 1rem;margin-bottom:.55rem">
+        <div class="fxb" style="align-items:flex-start;gap:10px">
+          <div style="flex:1;min-width:0"><div class="w6" style="font-size:14px">${r.cliente}</div>
+          <div class="mu sm">OS ${r.osNums} · Orç. ${r.numero}${r.due?` · previsto ${fd(r.due)}`:''}</div></div>
+          ${badge}
+        </div>
+        <div class="fx g12" style="margin-top:.45rem;flex-wrap:wrap;font-size:12px">
+          <span class="mu">Contratado <strong style="color:var(--tx)">${fmt(r.contratado)}</strong></span>
+          <span class="mu">Recebido <strong style="color:#27500A">${fmt(r.recebido)}</strong></span>
+          <span class="mu">Em aberto <strong style="color:#854F0B">${fmt(r.aberto)}</strong></span>
+        </div>
+        <div style="background:var(--bg);border-radius:6px;height:7px;margin-top:.5rem;overflow:hidden"><div style="width:${r.pct}%;height:100%;background:#1a6fc4;border-radius:6px"></div></div>
+        <div class="fxb" style="margin-top:.5rem;align-items:center">
+          <span class="mu sm">${r.pct}% recebido</span>
+          <div class="fx g8">
+            ${r.primaryOs?`<button class="btn bxs bp2" onclick="abrirLancarRecebimento('${r.primaryOs}','${osEsc}',${r.aberto})"><i class="ti ti-plus"></i> Receber</button>
+            <button class="btn bxs" onclick="receberTotalOS('${r.primaryOs}','${osEsc}',${r.aberto})" title="Marcar todo o saldo em aberto como recebido hoje"><i class="ti ti-check"></i> Quitar</button>
+            <button class="btn bxs" onclick="abrirOS('${r.primaryOs}')" title="Abrir OS"><i class="ti ti-external-link"></i></button>`
+            :`<span class="mu sm">sem OS vinculada</span>`}
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  let avulsos='';
+  if(avs.length){
+    avulsos=`<div class="fxb mb1" style="margin-top:1rem"><div class="st" style="margin:0"><i class="ti ti-clock-dollar" style="color:#854F0B"></i>Outros recebimentos previstos</div></div>
+    <div class="card"><div class="tw"><table>
+      <thead><tr><th>Descrição</th><th>OS</th><th>Vencimento</th><th>Valor</th><th>Status</th><th></th></tr></thead>
+      <tbody>${avs.map(r=>`<tr${r.vencido?' style="background:rgba(163,45,45,.06)"':''}>
+        <td>${r.descricao||'—'}</td><td class="mu sm">${r.os_manual||'—'}</td>
+        <td>${fd(r.venc)}</td><td class="w6">${fmt(r.valor)}</td>
+        <td>${r.vencido?`<span class="bd br">Vencido há ${r.dias}d</span>`:`<span class="bd bw">A receber</span>`}</td>
+        <td class="fx g8">
+          <button class="btn bxs bp2" onclick="receberAvulso('${r.id}')" title="Marcar como recebido hoje"><i class="ti ti-check"></i> Receber</button>
+          <button class="btn bsm" onclick="editRecord('recebimentos','${r.id}')"><i class="ti ti-edit"></i></button>
+          <button class="btn bxs bdr" onclick="excluirReg('recebimentos','${r.id}','${(r.descricao||'').replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button>
+        </td></tr>`).join('')}</tbody>
+    </table></div></div>`;
+  }
+  let previsoes='';
+  if(prevs.length){
+    previsoes=`<div class="fxb mb1" style="margin-top:1rem"><div class="st" style="margin:0"><i class="ti ti-calendar-dollar" style="color:#0d4fa0"></i>Parcelas previstas <span class="mu sm" style="font-weight:400">— geradas na aprovação; compõem o saldo em aberto acima</span></div></div>
+    <div class="card"><div class="tw"><table>
+      <thead><tr><th>Descrição</th><th>Vencimento</th><th>Valor</th><th>Status</th><th></th></tr></thead>
+      <tbody>${prevs.map(r=>`<tr${r.vencido?' style="background:rgba(163,45,45,.06)"':''}>
+        <td>${r.descricao||'—'}</td><td>${fd(r.venc)}</td><td class="w6">${fmt(r.valor)}</td>
+        <td>${r.vencido?`<span class="bd br">Vencido há ${r.dias}d</span>`:`<span class="bd bw">Previsto</span>`}</td>
+        <td class="fx g8">
+          <button class="btn bsm" onclick="editRecord('recebimentos','${r.id}')" title="Ajustar valor/vencimento"><i class="ti ti-edit"></i></button>
+          <button class="btn bxs bdr" onclick="excluirReg('recebimentos','${r.id}','${(r.descricao||'').replace(/'/g,"\\'")}')" title="Remover previsão"><i class="ti ti-trash"></i></button>
+        </td></tr>`).join('')}</tbody>
+    </table></div></div>`;
+  }
+  if(!rows.length&&!avs.length&&!prevs.length){
+    return cards+`<div class="card" style="text-align:center;color:var(--mu);padding:2.5rem"><i class="ti ti-checks" style="font-size:30px;display:block;margin-bottom:.5rem;opacity:.4"></i>${q?'Nada encontrado para "'+q+'".':'Nenhum valor a receber em aberto. Tudo em dia! 🎉'}</div>`;
+  }
+  return cards+obras+avulsos+previsoes;
+}
+
+// Marca todo o saldo em aberto de uma OS como recebido hoje (1 clique)
+async function receberTotalOS(osId,osNum,aberto){
+  if(!osId||!(aberto>0)){toast('Sem saldo em aberto.',true);return;}
+  if(!confirm('Marcar '+fmt(aberto)+' como RECEBIDO hoje? (OS '+osNum+')'))return;
+  const hoje=new Date().toISOString().split('T')[0];
+  const{error}=await sb.from('recebimentos').insert({descricao:'Recebimento OS '+osNum,valor:aberto,data_recebimento:hoje,vencimento:hoje,status:'Recebido',os_id:osId,os_manual:osNum});
+  if(error){toast('Erro: '+error.message,true);return;}
+  await sb.from('recebimentos').delete().eq('os_id',osId).eq('status','Pendente').like('descricao','Saldo pendente%');
+  // Saldo quitado: reconcilia as previsões do orçamento (aqui zera → remove todas)
+  const{data:osrow}=await sb.from('ordens').select('orcamento_numero').eq('id',osId).single();
+  await reconciliarPrevisoes(osrow?.orcamento_numero);
+  toast('Recebido '+fmt(aberto)+' — OS '+osNum+'!');
+  rRec();
+}
+
+// Confirma um recebimento previsto avulso como recebido hoje (1 clique)
+async function receberAvulso(recId){
+  if(!confirm('Marcar este recebimento como recebido hoje?'))return;
+  const hoje=new Date().toISOString().split('T')[0];
+  const{error}=await sb.from('recebimentos').update({status:'Recebido',data_recebimento:hoje}).eq('id',recId);
+  if(error){toast('Erro: '+error.message,true);return;}
+  toast('Recebimento confirmado!');rRec();
+}
+
+// Reconciliação: apara as previsões pendentes de um orçamento para não excederem
+// o saldo em aberto (recebido parcial ou total). Consome as parcelas mais antigas
+// primeiro; a parcela que cruza a fronteira é reduzida; as posteriores são removidas.
+async function reconciliarPrevisoes(orcNum){
+  if(!orcNum)return;
+  const marca='Previsão — Orç '+orcNum;
+  const{data:prevs}=await sb.from('recebimentos').select('id,valor').eq('status','Pendente').ilike('descricao',marca+'%').order('vencimento',{ascending:true});
+  if(!prevs||!prevs.length)return;
+  const{data:orcs}=await sb.from('orcamentos').select('id,valor_total').eq('numero',orcNum).limit(1);
+  const orc=(orcs||[])[0];
+  if(!orc)return; // sem orçamento não dá pra calcular o saldo — mantém as previsões
+  const contratado=Number(orc.valor_total||0);
+  const[r1,r2]=await Promise.all([
+    sb.from('ordens').select('id').eq('orcamento_id',orc.id),
+    sb.from('ordens').select('id').eq('orcamento_numero',orcNum),
+  ]);
+  const osIds=[...new Set([...(r1.data||[]),...(r2.data||[])].map(o=>o.id))];
+  let recebido=0;
+  if(osIds.length){
+    const{data:recs}=await sb.from('recebimentos').select('valor').eq('status','Recebido').in('os_id',osIds);
+    recebido=(recs||[]).reduce((s,r)=>s+Number(r.valor||0),0);
+  }
+  const aberto=Math.max(0,Math.round((contratado-recebido)*100)/100);
+  const toDelete=[],toUpdate=[];let acc=0;
+  for(const p of prevs){
+    const v=Number(p.valor||0);
+    if(acc>=aberto-0.005){toDelete.push(p.id);continue;}      // saldo já coberto: remove
+    if(acc+v<=aberto+0.005){acc+=v;continue;}                 // cabe inteira: mantém
+    const novo=Math.round((aberto-acc)*100)/100;acc=aberto;   // parcela de fronteira: reduz
+    if(novo<=0.01)toDelete.push(p.id);else toUpdate.push({id:p.id,valor:novo});
+  }
+  if(toDelete.length)await sb.from('recebimentos').delete().in('id',toDelete);
+  for(const u of toUpdate)await sb.from('recebimentos').update({valor:u.valor}).eq('id',u.id);
 }
 
 let _pagCache=[];
@@ -2297,6 +2579,8 @@ function _renderPagTabela(pa,q){
     if(!vb)return 1;
     return vb.localeCompare(va);
   });
+  const hoje=new Date().toISOString().slice(0,10);
+  const diasDe=d=>Math.round((new Date(hoje)-new Date(d))/86400000);
   let html='';let lastMes=null;
   sorted.forEach(p=>{
     const mes=(p.vencimento||'').slice(0,7);
@@ -2305,29 +2589,45 @@ function _renderPagTabela(pa,q){
       const sub=sorted.filter(x=>(x.vencimento||'').slice(0,7)===mes).reduce((s,x)=>s+Number(x.valor||0),0);
       html+=_mesHeaderRow(p.vencimento,sub,8,'#A32D2D');
     }
-    html+=`<tr>
+    const vencido=p.status==='Pendente'&&p.vencimento&&p.vencimento<hoje;
+    const diasV=vencido?diasDe(p.vencimento):0;
+    html+=`<tr${vencido?' style="background:rgba(163,45,45,.06)"':''}>
       <td>${p.descricao||'—'}${p.recorrencia_id?' <span class="bd bn" title="Pagamento recorrente"><i class="ti ti-repeat" style="font-size:10px"></i></span>':''}</td><td><span class="bd bn">${p.categoria||'—'}</span></td>
       <td class="mu sm">${p.os_manual||'—'}</td><td class="w6">${fmt(p.valor)}${Number(p.juros||0)>0?`<br><span style="font-size:10px;color:#854F0B" title="Juros/multa por atraso">+${fmt(Number(p.juros))} juros</span>`:''}</td>
-      <td>${fd(p.vencimento)}</td><td>${fd(p.data_pagamento)}</td>
-      <td><span class="bd ${p.status==='Pago'?'bs':'bw'}">${p.status}</span></td>
+      <td${vencido?' style="color:#A32D2D;font-weight:600"':''}>${fd(p.vencimento)}</td><td>${fd(p.data_pagamento)}</td>
+      <td>${vencido?`<span class="bd br" title="Vencida há ${diasV} dia(s)"><i class="ti ti-alert-triangle"></i> Vencida ${diasV}d</span>`:`<span class="bd ${p.status==='Pago'?'bs':'bw'}">${p.status}</span>`}</td>
       <td class="fx g8">
+        ${p.status==='Pendente'?`<button class="btn bxs bp2" onclick="pagarPagamento('${p.id}')" title="Marcar como pago hoje"><i class="ti ti-check"></i></button>`:''}
         ${p.arquivo_url?`<button class="btn bsm" style="background:#E6F1FB;color:#0d4fa0" onclick="window.open('${p.arquivo_url}','_blank')" title="Ver boleto/comprovante"><i class="ti ti-paperclip"></i></button>`:''}
         <button class="btn bsm" onclick="editRecord('pagamentos','${p.id}')"><i class="ti ti-edit"></i></button>
-        <button class="btn bxs bdr" onclick="excluirReg('pagamentos','${p.id}','${p.descricao}')"><i class="ti ti-trash"></i></button>
+        <button class="btn bxs bdr" onclick="excluirReg('pagamentos','${p.id}','${(p.descricao||'').replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button>
       </td>
     </tr>`;
   });
   tb.innerHTML=html;
 }
+// Marca um pagamento como pago hoje (1 clique)
+async function pagarPagamento(id){
+  const p=_pagCache.find(x=>x.id===id);
+  if(!confirm('Marcar '+(p?fmt(p.valor):'este pagamento')+' como PAGO hoje?'))return;
+  const hoje=new Date().toISOString().split('T')[0];
+  const{error}=await sb.from('pagamentos').update({status:'Pago',data_pagamento:hoje}).eq('id',id);
+  if(error){toast('Erro: '+error.message,true);return;}
+  toast('Pagamento confirmado!');rPag();
+}
 async function rPag(){
   const{data}=await sb.from('pagamentos').select('*').order('vencimento',{ascending:false});
   _pagCache=data||[];
+  const hojeP=new Date().toISOString().slice(0,10);
   const pago=_pagCache.filter(p=>p.status==='Pago').reduce((s,p)=>s+Number(p.valor)+Number(p.juros||0),0);
   const pendente=_pagCache.filter(p=>p.status==='Pendente').reduce((s,p)=>s+Number(p.valor),0);
+  const vencidasArr=_pagCache.filter(p=>p.status==='Pendente'&&p.vencimento&&p.vencimento<hojeP);
+  const vencidas=vencidasArr.reduce((s,p)=>s+Number(p.valor),0);
   document.getElementById('ct').innerHTML=`
-  <div class="g3 mb1">
+  <div class="g4 mb1">
     <div class="mc"><div class="ml">Pago</div><div class="mv" style="color:#A32D2D">${fmt(pago)}</div></div>
     <div class="mc"><div class="ml">A pagar</div><div class="mv" style="color:#854F0B">${fmt(pendente)}</div></div>
+    <div class="mc" style="border-left:3px solid ${vencidasArr.length?'#A32D2D':'var(--bor)'}"><div class="ml">Vencidas</div><div class="mv" style="color:${vencidasArr.length?'#A32D2D':'#999'}">${fmt(vencidas)}</div><div class="ms">${vencidasArr.length} conta(s)</div></div>
     <div class="mc"><div class="ml">Total</div><div class="mv">${fmt(pago+pendente)}</div></div>
   </div>
   <div class="card"><div class="fxb mb1">
@@ -2344,6 +2644,84 @@ async function rPag(){
   _renderPagTabela(_pagCache,'');
   const si=document.getElementById('si');
   si.oninput=function(){if(CP==='pagamentos')_renderPagTabela(_pagCache,this.value.trim());};
+}
+
+// ═══ ACOMPANHAMENTO POR OBRA — consolidado financeiro por OS ═══
+let _acompRows=[];
+async function rAcompObras(){
+  const hoje=new Date().toISOString().slice(0,10);
+  const[orRes,reRes,paRes,cuRes,imRes,agRes]=await Promise.all([
+    sb.from('ordens').select('id,numero,tipo,status,orcamento_valor,orcamento_numero,clientes(nome)'),
+    sb.from('recebimentos').select('os_id,valor,status'),
+    sb.from('pagamentos').select('os_id,valor,status'),
+    sb.from('custos_os').select('os_id,valor_total'),
+    sb.from('impostos').select('os_id,valor'),
+    sb.from('agenda').select('data,os_id,concluida,concluido').eq('tipo','Recebimento'),
+  ]);
+  const oss=orRes.data||[],re=reRes.data||[],pa=paRes.data||[],cu=cuRes.data||[],im=imRes.data||[],ag=agRes.data||[];
+  const sumBy=(arr,osId,field,cond)=>arr.reduce((s,x)=>s+((x.os_id===osId&&(!cond||cond(x)))?Number(x[field]||0):0),0);
+  const duePorOs={};
+  ag.forEach(a=>{if(a.concluida||a.concluido||!a.os_id||!a.data)return;if(!duePorOs[a.os_id]||a.data<duePorOs[a.os_id])duePorOs[a.os_id]=a.data;});
+  const diasEntre=d=>Math.round((new Date(hoje)-new Date(d))/86400000);
+  _acompRows=oss.map(o=>{
+    const contratado=Number(o.orcamento_valor||0);
+    const recebido=sumBy(re,o.id,'valor',x=>x.status==='Recebido');
+    const custos=sumBy(pa,o.id,'valor',x=>x.status==='Pago')+sumBy(cu,o.id,'valor_total')+sumBy(im,o.id,'valor');
+    const resultado=recebido-custos;
+    const aberto=Math.max(0,Math.round((contratado-recebido)*100)/100);
+    const pct=contratado>0?Math.min(100,Math.round(recebido/contratado*100)):(recebido>0?100:0);
+    const due=duePorOs[o.id]||null;
+    let status='semprev',dias=0;
+    if(aberto<=0.01&&(contratado>0||recebido>0))status='quitado';
+    else if(due){dias=diasEntre(due);status=due<hoje?'vencido':'avencer';}
+    return{id:o.id,numero:o.numero||'—',tipo:o.tipo||'',cliente:o.clientes?.nome||'—',status_os:o.status||'',contratado,recebido,custos,resultado,aberto,pct,due,status,dias:Math.abs(dias)};
+  }).filter(r=>r.contratado>0||r.recebido>0||r.custos>0);
+  _acompRows.sort((a,b)=>{const r={vencido:0,avencer:1,semprev:2,quitado:3};return(r[a.status]-r[b.status])||(b.aberto-a.aberto);});
+  document.getElementById('ct').innerHTML=`<div id="acomp-body"></div>`;
+  _acompRender('');
+  const si=document.getElementById('si');
+  if(si){si.value='';si.oninput=function(){if(CP==='acompanhamento')_acompRender(this.value.trim());};}
+}
+function _acompRender(q){
+  const nq=_normOS(q);
+  const rows=q?_acompRows.filter(r=>_normOS(r.cliente+r.numero+r.tipo).includes(nq)):_acompRows;
+  const tot=rows.reduce((a,r)=>({c:a.c+r.contratado,rec:a.rec+r.recebido,ab:a.ab+r.aberto,lu:a.lu+r.resultado,vasc:a.vasc+(r.status==='vencido'?r.aberto:0),nv:a.nv+(r.status==='vencido'?1:0)}),{c:0,rec:0,ab:0,lu:0,vasc:0,nv:0});
+  const cards=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:1rem">
+    <div class="mc"><div class="ml">Contratado</div><div class="mv" style="color:#0d4fa0">${fmt(tot.c)}</div><div class="ms">${rows.length} obra(s)</div></div>
+    <div class="mc"><div class="ml">Recebido</div><div class="mv" style="color:#27500A">${fmt(tot.rec)}</div></div>
+    <div class="mc" style="border-left:3px solid #BA7517"><div class="ml">Em aberto</div><div class="mv" style="color:#BA7517">${fmt(tot.ab)}</div></div>
+    <div class="mc" style="border-left:3px solid ${tot.nv?'#A32D2D':'var(--bor)'}"><div class="ml">Vencido</div><div class="mv" style="color:${tot.nv?'#A32D2D':'#999'}">${fmt(tot.vasc)}</div><div class="ms">${tot.nv} obra(s)</div></div>
+    <div class="mc"><div class="ml">Resultado</div><div class="mv" style="color:${tot.lu>=0?'#27500A':'#A32D2D'}">${fmt(tot.lu)}</div><div class="ms">recebido − custos</div></div>
+  </div>`;
+  const body=document.getElementById('acomp-body');if(!body)return;
+  if(!rows.length){body.innerHTML=cards+`<div class="card" style="text-align:center;color:var(--mu);padding:2.5rem"><i class="ti ti-inbox" style="font-size:30px;display:block;margin-bottom:.5rem;opacity:.4"></i>${q?'Nada encontrado para "'+q+'".':'Nenhuma obra com movimento financeiro.'}</div>`;return;}
+  const list=rows.map(r=>{
+    const badge=r.status==='quitado'?`<span class="bd bs"><i class="ti ti-check"></i> Quitado</span>`
+      :r.status==='vencido'?`<span class="bd br"><i class="ti ti-alert-triangle"></i> Vencido há ${r.dias}d</span>`
+      :r.status==='avencer'?`<span class="bd bw"><i class="ti ti-clock"></i> Vence em ${r.dias}d</span>`
+      :`<span class="bd bn">Em aberto</span>`;
+    const bc=r.status==='vencido'?'#A32D2D':(r.status==='quitado'?'#27500A':(r.status==='avencer'?'#EF9F27':'#BA7517'));
+    return `<div style="background:var(--sf);border:1px solid var(--bor);border-left:4px solid ${bc};border-radius:10px;padding:.8rem 1rem;margin-bottom:.55rem">
+      <div class="fxb" style="align-items:flex-start;gap:10px">
+        <div style="flex:1;min-width:0"><div class="w6" style="font-size:14px">${r.cliente}</div>
+        <div class="mu sm">OS ${r.numero}${r.tipo?' · '+r.tipo:''}${r.status_os?' · '+r.status_os:''}${r.due?' · previsto '+fd(r.due):''}</div></div>
+        ${badge}
+      </div>
+      <div class="fx g12" style="margin-top:.45rem;flex-wrap:wrap;font-size:12px">
+        <span class="mu">Contratado <strong style="color:var(--tx)">${fmt(r.contratado)}</strong></span>
+        <span class="mu">Recebido <strong style="color:#27500A">${fmt(r.recebido)}</strong></span>
+        <span class="mu">Em aberto <strong style="color:#854F0B">${fmt(r.aberto)}</strong></span>
+        <span class="mu">Custos <strong style="color:#A32D2D">${fmt(r.custos)}</strong></span>
+        <span class="mu">Resultado <strong style="color:${r.resultado>=0?'#27500A':'#A32D2D'}">${fmt(r.resultado)}</strong></span>
+      </div>
+      <div style="background:var(--bg);border-radius:6px;height:7px;margin-top:.5rem;overflow:hidden"><div style="width:${r.pct}%;height:100%;background:#1a6fc4;border-radius:6px"></div></div>
+      <div class="fxb" style="margin-top:.5rem;align-items:center">
+        <span class="mu sm">${r.pct}% recebido</span>
+        <button class="btn bxs" onclick="abrirOS('${r.id}')" title="Abrir OS"><i class="ti ti-external-link"></i> Abrir OS</button>
+      </div>
+    </div>`;
+  }).join('');
+  body.innerHTML=cards+`<div class="st mb1"><i class="ti ti-building-community" style="color:var(--brand)"></i>Obras / OS</div>`+list;
 }
 
 let _impostosCache=[];
@@ -4546,7 +4924,7 @@ Object.assign(pageMap, {
   pendencias:rPendencias, ordens:rOS,
   clientes:rClientes, servicos:rServicos, orcamentos:rOrcamentos, contratos:rContratos,
   recebimentos:rRec, pagamentos:rPag,
-  impostos:rImpostos, medicao:rMedicao, nfe:rNFe, folha:rFolha, dre:rDRE, passivo:rPassivo,
+  impostos:rImpostos, medicao:rMedicao, nfe:rNFe, folha:rFolha, dre:rDRE, acompanhamento:rAcompObras, passivo:rPassivo,
   rotinas:rRotinas, administrativo:rAdm, funcionarios:rFunc,
   relatorios:rRelatorios, config:rConfig, tributario:rTributario,
 });
@@ -6584,7 +6962,7 @@ async function salvarRecOS(osId){
   // Se recebido, verifica saldo pendente
   if(status==='Recebido'){
     const[osRes,recRes]=await Promise.all([
-      sb.from('ordens').select('orcamento_valor').eq('id',osId).single(),
+      sb.from('ordens').select('orcamento_valor,orcamento_numero').eq('id',osId).single(),
       sb.from('recebimentos').select('valor,status,descricao').eq('os_id',osId),
     ]);
     const totalOS=Number(osRes.data?.orcamento_valor||0);
@@ -6606,11 +6984,13 @@ async function salvarRecOS(osId){
     } else {
       toast('Recebimento de '+fmt(valor)+' lançado!');
     }
+    // Reconcilia previsões do orçamento com o novo saldo em aberto (recebido parcial/total)
+    await reconciliarPrevisoes(osRes.data?.orcamento_numero);
   } else {
     toast('Recebimento de '+fmt(valor)+' lançado!');
   }
   fecharModalRec();
-  loadOSFin(osId);
+  if(CP==='recebimentos') rRec(); else loadOSFin(osId);
 }
 
 // ─── rOS — exibir botão "Abrir OS" e suprimir botão "Nova OS" ──
