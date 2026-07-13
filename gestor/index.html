@@ -469,6 +469,10 @@ function parseMunicipio(val){
 }
 const fmt=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fd=d=>d?new Date(d+'T12:00').toLocaleDateString('pt-BR'):'—';
+// Data/mês em horário LOCAL (não UTC). toISOString() converte p/ UTC e, no Brasil (UTC-3),
+// à noite "hoje" viraria amanhã — jogando lançamentos e o DRE no mês errado. Sempre usar estes.
+const hojeLocal=d=>{d=d||new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
+const mesLocal=d=>hojeLocal(d).slice(0,7);
 const ini=n=>(n||'?').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
 const nd=(c,m='Nenhum registro')=>`<tr><td colspan="${c}" style="text-align:center;color:var(--mu);padding:2.5rem;font-size:13px"><i class="ti ti-inbox" style="font-size:28px;display:block;margin-bottom:.5rem;opacity:.4"></i>${m}</td></tr>`;
 const bos=s=>{const m={
@@ -720,7 +724,7 @@ async function toggleComissaoTalmom(ativo, osId){
     valor_unit:comissaoVal,
     valor_total:comissaoVal,
     obs:'Comissão Talmom 30% — '+statusComissao,
-    data:new Date().toISOString().split('T')[0],
+    data:hojeLocal(),
   });
 
   if(error){toast('Erro ao lançar comissão: '+error.message,true);return;}
@@ -751,7 +755,7 @@ async function registrarOSRecebida(osId, payload, osData){
       cliente_id:os.cliente_id,
       cliente_nome:os.clientes?.nome||'',
       data_execucao:os.data,
-      data_recebimento:new Date().toISOString().split('T')[0],
+      data_recebimento:hojeLocal(),
       valor_orcado:Number(os.orcamento_valor||0),
       valor_recebido:totalRecebido||Number(os.orcamento_valor||0),
       responsavel:os.responsavel||'',
@@ -915,8 +919,8 @@ async function rDash(){
   const co=ctrs.data||[],or=ors.data||[],re=recs.data||[],pa=pags.data||[],im=imps.data||[],cu=custosDash.data||[];
   // ── Filtro: mês corrente (DRE do dashboard) ──────────────
   const _hojeD=new Date();
-  const mesIniD=_hojeD.toISOString().slice(0,7)+'-01';
-  const mesFimD=new Date(_hojeD.getFullYear(),_hojeD.getMonth()+1,0).toISOString().split('T')[0];
+  const mesIniD=mesLocal(_hojeD)+'-01';
+  const mesFimD=hojeLocal(new Date(_hojeD.getFullYear(),_hojeD.getMonth()+1,0));
   const mesLabelD=_hojeD.toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
   const noMesD=(d,fb)=>{const v=d||fb||'';return v>=mesIniD&&v<=mesFimD;};
   const reM=re.filter(r=>noMesD(r.data_recebimento,r.created_at?.slice(0,10)));
@@ -974,10 +978,10 @@ async function rDash(){
     if(pendente>0){aR+=pendente;aRcount++;}
   });
   // Previsões de recebimento vencidas (agenda tipo Recebimento, não concluída, data passada)
-  const _hojeDStr=_hojeD.toISOString().slice(0,10);
+  const _hojeDStr=hojeLocal(_hojeD);
   const vencR=(agRecDash.data||[]).filter(a=>!a.concluida&&!a.concluido&&a.data&&a.data<_hojeDStr).length;
   // ── Fluxo de caixa previsto: 30 / 60 / 90 dias ──────────────
-  const _addD=n=>{const d=new Date(_hojeD);d.setDate(d.getDate()+n);return d.toISOString().slice(0,10);};
+  const _addD=n=>{const d=new Date(_hojeD);d.setDate(d.getDate()+n);return hojeLocal(d);};
   const _d30=_addD(30),_d60=_addD(60),_d90=_addD(90);
   const _bkt=v=>{if(!v||v<_hojeDStr)return null;if(v<=_d30)return 30;if(v<=_d60)return 60;if(v<=_d90)return 90;return null;};
   const fluxo={30:{in:0,out:0},60:{in:0,out:0},90:{in:0,out:0}};
@@ -1094,7 +1098,7 @@ async function rDash(){
     <div class="fxb mb1"><div class="st" style="margin-bottom:0"><i class="ti ti-calendar" style="color:var(--brand)"></i>Próximos agendamentos</div><button class="btn bsm" onclick="nav('agenda')">Agenda completa</button></div>
     <div id="da"></div>
   </div>`;
-  const hoje=new Date().toISOString().split('T')[0];
+  const hoje=hojeLocal();
   const[{data:agRaw},{data:agAtrasRaw},{data:rotsDash}]=await Promise.all([
     sb.from('agenda').select('*').gte('data',hoje).order('data'),
     sb.from('agenda').select('*').lt('data',hoje).or('concluido.eq.false,concluido.is.null').order('data'),
@@ -1159,7 +1163,7 @@ async function rAgenda(){
     os_numero:p.os_manual||'', concluido:false, concluida:false,
   }));
   // Converte rotinas recorrentes em eventos virtuais (na próxima execução)
-  const _hjAg=new Date().toISOString().split('T')[0];
+  const _hjAg=hojeLocal();
   const rotEvts=(rots||[]).map(r=>{
     const feita=!!r.concluida_hoje&&r.proxima_data>_hjAg;
     return{
@@ -1183,7 +1187,7 @@ async function rAgenda(){
         <button class="btn bxs bp2" onclick="gerarPDFAgenda()" title="Gerar PDF da agenda"><i class="ti ti-file-download"></i> PDF</button>
       </div>
       <div id="al" style="max-height:70vh;overflow-y:auto">${(()=>{
-        const hj=new Date().toISOString().split('T')[0];
+        const hj=hojeLocal();
         const lista=todos.filter(a=>!(a.concluido||a.concluida)).sort((a,b)=>(a.data||'').localeCompare(b.data||''));
         return lista.map(a=>{
           const atrasado=a.data&&a.data<hj;
@@ -1250,7 +1254,7 @@ async function concluirAgenda(id){
 async function viewAgenda(id){
   const{data:a}=await sb.from('agenda').select('*').eq('id',id).single();
   if(!a)return;
-  const hj=new Date().toISOString().split('T')[0];
+  const hj=hojeLocal();
   const atrasado=!a.concluido&&a.data<hj;
   const statusBd=a.concluido?'bs':atrasado?'br':'bn';
   const statusTx=a.concluido?'Concluído':atrasado?'Atrasado':'Pendente';
@@ -1556,7 +1560,7 @@ async function distribuirImpostoNasOS(impostoId, valorTotal, competencia){
       descricao:'Distribuição de imposto ('+competencia+') — rateio entre '+oss.length+' OS',
       os_id:os.id,
       valor:valorPorOS,
-      data:new Date().toISOString().split('T')[0],
+      data:hojeLocal(),
       periodo_ref:competencia,
     });
     if(!error) distribuidos++;
@@ -2332,7 +2336,7 @@ let _arCount=0;
 
 async function rRec(tab){
   if(tab)_recTab=tab;
-  const hoje=new Date().toISOString().slice(0,10);
+  const hoje=hojeLocal();
   const[orcA,osOrc,recAll,agRec]=await Promise.all([
     sb.from('orcamentos').select('id,numero,valor_total,cliente_nome,cliente_id').eq('status','Aprovado'),
     sb.from('ordens').select('id,numero,orcamento_id,clientes(nome)').not('orcamento_id','is',null),
@@ -2512,7 +2516,7 @@ function _recRenderAReceber(q){
 async function receberTotalOS(osId,osNum,aberto){
   if(!osId||!(aberto>0)){toast('Sem saldo em aberto.',true);return;}
   if(!confirm('Marcar '+fmt(aberto)+' como RECEBIDO hoje? (OS '+osNum+')'))return;
-  const hoje=new Date().toISOString().split('T')[0];
+  const hoje=hojeLocal();
   const{error}=await sb.from('recebimentos').insert({descricao:'Recebimento OS '+osNum,valor:aberto,data_recebimento:hoje,vencimento:hoje,status:'Recebido',os_id:osId,os_manual:osNum});
   if(error){toast('Erro: '+error.message,true);return;}
   await sb.from('recebimentos').delete().eq('os_id',osId).eq('status','Pendente').like('descricao','Saldo pendente%');
@@ -2526,7 +2530,7 @@ async function receberTotalOS(osId,osNum,aberto){
 // Confirma um recebimento previsto avulso como recebido hoje (1 clique)
 async function receberAvulso(recId){
   if(!confirm('Marcar este recebimento como recebido hoje?'))return;
-  const hoje=new Date().toISOString().split('T')[0];
+  const hoje=hojeLocal();
   const{error}=await sb.from('recebimentos').update({status:'Recebido',data_recebimento:hoje}).eq('id',recId);
   if(error){toast('Erro: '+error.message,true);return;}
   toast('Recebimento confirmado!');rRec();
@@ -2579,7 +2583,7 @@ function _renderPagTabela(pa,q){
     if(!vb)return 1;
     return vb.localeCompare(va);
   });
-  const hoje=new Date().toISOString().slice(0,10);
+  const hoje=hojeLocal();
   const diasDe=d=>Math.round((new Date(hoje)-new Date(d))/86400000);
   let html='';let lastMes=null;
   sorted.forEach(p=>{
@@ -2610,7 +2614,7 @@ function _renderPagTabela(pa,q){
 async function pagarPagamento(id){
   const p=_pagCache.find(x=>x.id===id);
   if(!confirm('Marcar '+(p?fmt(p.valor):'este pagamento')+' como PAGO hoje?'))return;
-  const hoje=new Date().toISOString().split('T')[0];
+  const hoje=hojeLocal();
   const{error}=await sb.from('pagamentos').update({status:'Pago',data_pagamento:hoje}).eq('id',id);
   if(error){toast('Erro: '+error.message,true);return;}
   toast('Pagamento confirmado!');rPag();
@@ -2618,7 +2622,7 @@ async function pagarPagamento(id){
 async function rPag(){
   const{data}=await sb.from('pagamentos').select('*').order('vencimento',{ascending:false});
   _pagCache=data||[];
-  const hojeP=new Date().toISOString().slice(0,10);
+  const hojeP=hojeLocal();
   const pago=_pagCache.filter(p=>p.status==='Pago').reduce((s,p)=>s+Number(p.valor)+Number(p.juros||0),0);
   const pendente=_pagCache.filter(p=>p.status==='Pendente').reduce((s,p)=>s+Number(p.valor),0);
   const vencidasArr=_pagCache.filter(p=>p.status==='Pendente'&&p.vencimento&&p.vencimento<hojeP);
@@ -2649,7 +2653,7 @@ async function rPag(){
 // ═══ ACOMPANHAMENTO POR OBRA — consolidado financeiro por OS ═══
 let _acompRows=[];
 async function rAcompObras(){
-  const hoje=new Date().toISOString().slice(0,10);
+  const hoje=hojeLocal();
   const[orRes,reRes,paRes,cuRes,imRes,agRes]=await Promise.all([
     sb.from('ordens').select('id,numero,tipo,status,orcamento_valor,orcamento_numero,clientes(nome)'),
     sb.from('recebimentos').select('os_id,valor,status'),
@@ -2819,7 +2823,7 @@ async function updMedicao(id,status){
 async function _criarRecebimentosMedicao(m){
   if(!m) return;
   const osDados=m.os_dados||[];
-  const hoje=new Date().toISOString().split('T')[0];
+  const hoje=hojeLocal();
   const desc='Medição Nº '+(m.numero||'—')+' — '+(m.descricao||'');
   if(osDados.length){
     const osIds=osDados.map(o=>o.id);
@@ -3122,7 +3126,7 @@ async function abrirNovaMedicaoModal(){
     +'</select></div>'
     +'</div>'
     +buildLocalizacao('nm-uf','nm-municipio')
-    +'<div class="g3 mb1"><div class="fg"><label class="fl">Data início do período</label><input class="fc" type="date" id="nm-data-ini"></div><div class="fg"><label class="fl">Data fim do período</label><input class="fc" type="date" id="nm-data-fim"></div><div class="fg"><label class="fl">Data do documento</label><input class="fc" type="date" id="nm-data-doc" value="'+new Date().toISOString().split('T')[0]+'"></div></div>'
+    +'<div class="g3 mb1"><div class="fg"><label class="fl">Data início do período</label><input class="fc" type="date" id="nm-data-ini"></div><div class="fg"><label class="fl">Data fim do período</label><input class="fc" type="date" id="nm-data-fim"></div><div class="fg"><label class="fl">Data do documento</label><input class="fc" type="date" id="nm-data-doc" value="'+hojeLocal()+'"></div></div>'
     +'<div class="fg"><label class="fl">Observações</label><textarea class="fc" id="nm-obs" rows="2"></textarea></div>'
     +'<div class="fg"><label class="fl">OS aptas para esta medição</label>'
     +(aptas.length
@@ -3247,11 +3251,11 @@ async function rFolha(){
 }
 
 // ─── DRE ────────────────────────────────────────────────────
-let _dreMes=new Date().toISOString().slice(0,7); // YYYY-MM
+let _dreMes=mesLocal(); // YYYY-MM
 
 async function rDRE(){
   const now=new Date();
-  const mesVal=_dreMes||now.toISOString().slice(0,7);
+  const mesVal=_dreMes||mesLocal(now);
   const [ano,mes]=mesVal.split('-');
   const de=`${ano}-${mes}-01`;
   const ate=new Date(Number(ano),Number(mes),0).toISOString().split('T')[0];
@@ -3470,7 +3474,7 @@ async function rDRE(){
 }
 
 async function gerarPDFDRE(){
-  const mesVal=_dreMes||new Date().toISOString().slice(0,7);
+  const mesVal=_dreMes||mesLocal();
   const [ano,mes]=mesVal.split('-');
   const de=`${ano}-${mes}-01`;
   const ate=new Date(Number(ano),Number(mes),0).toISOString().split('T')[0];
@@ -3648,13 +3652,13 @@ async function rRotinas(){
   const{data}=await sb.from('rotinas').select('*').order('proxima_data');
   _rotinasCache=data||[];const hj=new Date();
   // Atrasada = data de execução já passou (independe da flag concluida_hoje antiga)
-  const _hjStr=hj.toISOString().split('T')[0];
+  const _hjStr=hojeLocal(hj);
   const vencidas=_rotinasCache.filter(r=>r.proxima_data&&r.proxima_data<_hjStr);
   document.getElementById('ct').innerHTML=`
   <div class="g3 mb1">
     <div class="mc"><div class="ml">Total</div><div class="mv">${_rotinasCache.length}</div></div>
     <div class="mc" style="${vencidas.length?'border-left:3px solid #A32D2D;border-radius:0 10px 10px 0':''}"><div class="ml">Atrasadas</div><div class="mv" style="color:${vencidas.length?'#A32D2D':'inherit'}">${vencidas.length}</div></div>
-    <div class="mc"><div class="ml">Para hoje</div><div class="mv" style="color:#185FA5">${_rotinasCache.filter(r=>r.proxima_data===hj.toISOString().split('T')[0]).length}</div></div>
+    <div class="mc"><div class="ml">Para hoje</div><div class="mv" style="color:#185FA5">${_rotinasCache.filter(r=>r.proxima_data===hojeLocal(hj)).length}</div></div>
   </div>
   <div class="card"><div class="fxb mb1">
     <div class="st" style="margin:0"><i class="ti ti-rotate" style="color:#1a6fc4"></i>Rotinas recorrentes</div>
@@ -3676,11 +3680,11 @@ async function concluirRotina(id,val){
     const freq={'Diária':1,'Semanal':7,'Quinzenal':15,'Mensal':30,'Trimestral':90,'Anual':365}[r.frequencia]||7;
     // Avança a partir da maior data entre proxima_data e hoje (rotinas atrasadas
     // não devem continuar atrasadas após serem marcadas como feitas)
-    const hojeStr=new Date().toISOString().split('T')[0];
+    const hojeStr=hojeLocal();
     const base=r.proxima_data>hojeStr?new Date(r.proxima_data):new Date(hojeStr);
     base.setDate(base.getDate()+freq);proxima=base.toISOString().split('T')[0];
   }
-  await sb.from('rotinas').update({concluida_hoje:val,proxima_data:proxima||r.proxima_data,ultima_execucao:val?new Date().toISOString().split('T')[0]:r.ultima_execucao}).eq('id',id);
+  await sb.from('rotinas').update({concluida_hoje:val,proxima_data:proxima||r.proxima_data,ultima_execucao:val?hojeLocal():r.ultima_execucao}).eq('id',id);
   toast(val?'Rotina concluída! Próxima data atualizada.':'Marcada como pendente.');
   renderPage();checkPendencias();
 }
@@ -3795,7 +3799,7 @@ async function addCustoOS(osId){
     +'<div class="fg"><label class="fl">Valor unitário (R$)</label><input class="fc" type="number" id="f-valor_unit" step="0.01" oninput="autoCalcCusto()"></div>'
     +'<div class="fg"><label class="fl">Total (R$)</label><input class="fc" type="number" id="f-valor_total" readonly style="background:#f4f4f0"></div>'
     +'</div>'
-    +'<div class="fg"><label class="fl">Data</label><input class="fc" type="date" id="f-data" value="'+new Date().toISOString().split('T')[0]+'"></div>'
+    +'<div class="fg"><label class="fl">Data</label><input class="fc" type="date" id="f-data" value="'+hojeLocal()+'"></div>'
     +'<div class="fg"><label class="fl">Observação</label><input class="fc" id="f-obs" placeholder="Observação opcional..."></div>'
     +'<input type="hidden" id="f-os_id" value="'+osId+'">'
     +'</div>'
@@ -3822,7 +3826,7 @@ async function addCustoOS(osId){
     +'<div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="desp-valor" placeholder="0,00"></div>'
     +'</div>'
     +'<div class="g2">'
-    +'<div class="fg"><label class="fl">Data</label><input class="fc" type="date" id="desp-data" value="'+new Date().toISOString().split('T')[0]+'"></div>'
+    +'<div class="fg"><label class="fl">Data</label><input class="fc" type="date" id="desp-data" value="'+hojeLocal()+'"></div>'
     +'<div class="fg"><label class="fl">Forma de pgto</label>'
     +'<select class="fc" id="desp-forma"><option>PIX</option><option>Dinheiro</option><option>Cartão</option><option>Transferência</option></select>'
     +'</div></div>'
@@ -3889,7 +3893,7 @@ async function salvarCustoOS(osId){
     const forma=document.getElementById('desp-forma')?.value;
     const obs=document.getElementById('desp-obs')?.value||null;
     const statusDesp=document.getElementById('desp-status')?.value||'Pago';
-    const vencimentoDesp=document.getElementById('desp-vencimento')?.value||data||new Date().toISOString().split('T')[0];
+    const vencimentoDesp=document.getElementById('desp-vencimento')?.value||data||hojeLocal();
     if(!descricao){toast('Informe a descrição da despesa!',true);return;}
     if(!valor){toast('Informe o valor!',true);return;}
     // Buscar número da OS para referência
@@ -3994,7 +3998,7 @@ function kbCard(p){
 }
 
 async function rPendencias(){
-  const hj=new Date().toISOString().split('T')[0];
+  const hj=hojeLocal();
   const[{data:todos},{data:agendaAtrasada},{data:pagAtrasados},{data:rotinasTodas}]=await Promise.all([
     sb.from('projetos').select('id,nome,etapa,pendencias,clientes(nome)'),
     sb.from('agenda').select('*').lt('data',hj).or('concluido.eq.false,concluido.is.null').order('data'),
@@ -4301,7 +4305,7 @@ async function abrirCustosFixos() {
   document.getElementById('ov2').classList.add('open');
 }
 async function gerarPagamentoFixo(rotinaId, nome, valor) {
-  const hoje = new Date().toISOString().split('T')[0];
+  const hoje = hojeLocal();
   const { error } = await sb.from('pagamentos').insert({ descricao: nome, categoria: 'Custo Fixo', valor: valor, vencimento: hoje, status: 'Pendente', obs: 'Gerado de rotina recorrente' });
   if (error) { toast('Erro: ' + error.message, true); return; }
   toast('Pagamento lançado: ' + nome); closeModal2(); rPag();
@@ -4487,7 +4491,7 @@ function calcularTributarioMes(dados,refDate){
 // Alíquota efetiva "no outro anexo", mesma RBT12 — usada no gráfico comparativo.
 function calcAliquotaOutroAnexo(dados,calc){
   const anexoOutro=calc.anexo==='III'?'V':'III';
-  const dataRefStr=new Date().toISOString().split('T')[0];
+  const dataRefStr=hojeLocal();
   const faixaOutro=buscarFaixaVigente(dados.paramsSimples,anexoOutro,calc.rbt12,dataRefStr);
   return{anexo:anexoOutro,aliquota:calcAliquotaEfetiva(calc.rbt12,faixaOutro)};
 }
@@ -4913,7 +4917,7 @@ async function gerarPDFPassivo(){
   secTitle('4. OBRIGAÇÕES FISCAIS E TRABALHISTAS',[163,45,45]);
   tableRows4(fiscal);
 
-  doc.save('Passivo_'+new Date().toISOString().slice(0,10)+'.pdf');
+  doc.save('Passivo_'+hojeLocal()+'.pdf');
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -5140,7 +5144,7 @@ async function saveRecord(){
   if(CM==='orcamentos'&&payload.numero){await sincPipelineOrçamento(payload,EID);if(EID)await sincOrcamentoParaOS(EID);}
   // Agenda: criar compromisso de pagamento ao lançar como Pendente
   if(!EID && tb==='pagamentos' && payload.status==='Pendente'){
-    const venc=payload.vencimento||new Date().toISOString().split('T')[0];
+    const venc=payload.vencimento||hojeLocal();
     const vlrFmt=Number(payload.valor||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
     const agDesc='Pagamento pendente: '+(payload.descricao||'')+(payload.valor?' — R$ '+vlrFmt:'')+(payload.os_manual?' ('+payload.os_manual+')':'');
     const agPayload={titulo:'Pagar: '+(payload.descricao||''),tipo:'Geral',data:venc,descricao:agDesc,os_numero:payload.os_manual||'',concluido:false,concluida:false};
@@ -5167,7 +5171,7 @@ async function saveRecord(){
     for(let i=1;i<qtd;i++){
       const novo={...payload};
       delete novo.id;delete novo.created_at;delete novo.updated_at;
-      novo.vencimento=_addMeses(payload.vencimento||new Date().toISOString().split('T')[0],i);
+      novo.vencimento=_addMeses(payload.vencimento||hojeLocal(),i);
       novo.status='Pendente';
       novo.data_pagamento=null;
       if(useMarker)novo.recorrencia_id=recId;
@@ -6010,7 +6014,7 @@ function novoPDF(){
 // ─── PDF DA AGENDA ──────────────────────────────────────────────────────────
 async function gerarPDFAgenda(){
   toast('Gerando PDF da agenda...');
-  const hj=new Date().toISOString().split('T')[0];
+  const hj=hojeLocal();
   // Buscar eventos da agenda + pagamentos pendentes
   const[{data:ev},{data:pags}]=await Promise.all([
     sb.from('agenda').select('*').order('data'),
@@ -6441,7 +6445,7 @@ async function gerarPDFMedicao(){
 
 async function checkPendencias(){
   try{
-    const hj=new Date().toISOString().split('T')[0];
+    const hj=hojeLocal();
     const[r1,r2,r3,r4]=await Promise.all([
       sb.from('agenda').select('id,concluido,concluida').lt('data',hj),
       sb.from('projetos').select('id,pendencias'),
@@ -6591,7 +6595,7 @@ async function abrirOS(id){
     +'</div>'
     +'<div class="fg mb1"><label class="fl">Status da OS</label>'
     +'<select class="fc" id="os-status" style="font-weight:600">'+statusOpts+'</select>'
-    +'<div class="mu sm" style="margin-top:4px">Data de alteração: <span id="os-status-data">'+(o.data_status?fd(o.data_status):fd(new Date().toISOString().split('T')[0]))+'</span></div>'
+    +'<div class="mu sm" style="margin-top:4px">Data de alteração: <span id="os-status-data">'+(o.data_status?fd(o.data_status):fd(hojeLocal()))+'</span></div>'
     +'</div>'
     +'</div>'
 
@@ -6605,7 +6609,7 @@ async function abrirOS(id){
     // ─── Tarefas agendadas vinculadas à OS ───
     +(()=>{
       if(!tarefasOS.length) return '<div style="background:#F8FBFF;border:1px dashed var(--bor);border-radius:8px;padding:.6rem .75rem;margin-bottom:1rem;font-size:12px;color:#888"><i class="ti ti-calendar-off"></i> Nenhuma tarefa agendada para esta OS.</div>';
-      const hjT=new Date().toISOString().split('T')[0];
+      const hjT=hojeLocal();
       return '<div style="margin-bottom:1rem"><div class="w6 sm" style="margin-bottom:6px"><i class="ti ti-calendar-event" style="color:#854F0B"></i> Tarefas agendadas ('+tarefasOS.length+')</div>'
         +tarefasOS.map(t=>{
           const done=!!(t.concluido||t.concluida);
@@ -6745,11 +6749,11 @@ async function abrirLancarRecebimento(osId, osNumero, valorAberto){
     '<div class="fg"><label class="fl">Descrição *</label><input class="fc" id="f-descricao" value="Recebimento OS '+osNumero+'" placeholder="Descrição..."></div>'
     +(valorAberto>0?'<div class="mu sm" style="margin-bottom:6px">Valor em aberto: '+fmt(valorAberto)+'</div>':'')
     +'<div class="g2"><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor" value="'+(valorAberto>0?valorAberto.toFixed(2):'')+'"></div>'
-    +'<div class="fg"><label class="fl">Data recebimento</label><input class="fc" type="date" id="f-data_recebimento" value="'+new Date().toISOString().split('T')[0]+'"></div></div>'
+    +'<div class="fg"><label class="fl">Data recebimento</label><input class="fc" type="date" id="f-data_recebimento" value="'+hojeLocal()+'"></div></div>'
     +'<div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option selected>Recebido</option><option>Pendente</option></select></div>'
     +'<input type="hidden" id="f-os_manual" value="'+osNumero+'">'
     +'<input type="hidden" id="f-os_id" value="'+osId+'">'
-    +'<input type="hidden" id="f-vencimento" value="'+new Date().toISOString().split('T')[0]+'">';
+    +'<input type="hidden" id="f-vencimento" value="'+hojeLocal()+'">';
   document.getElementById('mf').innerHTML=
     '<button class="btn" onclick="fecharModalRec()">Cancelar</button>'
     +'<button class="btn bp2" onclick="salvarRecOS(\''+osId+'\')"><i class="ti ti-device-floppy"></i> Lançar</button>';
@@ -6768,7 +6772,7 @@ async function abrirAddNFOS(osId, osNumero, clienteId){
     +'<input type="file" id="nf-file-input" accept=".pdf" style="display:none" onchange="handleFileSelect(this,\'nf\')">'
     +'<input type="hidden" id="f-arquivo_url" value=""></div>'
     +'<div class="g2"><div class="fg"><label class="fl">Número NF *</label><input class="fc" id="f-numero" placeholder="Ex: 240"></div>'
-    +'<div class="fg"><label class="fl">Data emissão</label><input class="fc" type="date" id="f-data_emissao" value="'+new Date().toISOString().split('T')[0]+'"></div></div>'
+    +'<div class="fg"><label class="fl">Data emissão</label><input class="fc" type="date" id="f-data_emissao" value="'+hojeLocal()+'"></div></div>'
     +'<div class="g2"><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor" oninput="calcISS()"></div>'
     +'<div class="fg"><label class="fl">Alíq. ISS (%)</label><input class="fc" type="number" step="0.01" id="f-aliquota_iss" value="5" oninput="calcISS()"></div></div>'
     +'<div class="g2"><div class="fg"><label class="fl">Valor ISS (R$)</label><input class="fc" type="number" step="0.01" id="f-valor_iss" readonly style="background:#f4f4f0"></div>'
@@ -6816,7 +6820,7 @@ async function abrirAddNFMedicao(medId){
     const{data:os}=await sb.from('ordens').select('cliente_id').eq('id',m.os_ids[0]).single();
     clienteId=os?.cliente_id||null;
   }
-  const today=new Date().toISOString().split('T')[0];
+  const today=hojeLocal();
   const osNums=(m.os_dados||[]).map(o=>o.numero).join(', ')||'—';
   document.getElementById('mt').textContent='Lançar NF — '+(m.descricao||'Medição');
   CM='notas_fiscais';EID=null;
@@ -6894,7 +6898,7 @@ async function agendarRecebimentoMedicao(medId){
   const cli=m.cliente_nome||(m.os_dados||[])[0]?.cliente_nome||'';
   const osNums=(m.os_dados||[]).map(o=>o.numero).join(', ')||'—';
   const prev=new Date();prev.setDate(prev.getDate()+30);
-  const prevStr=prev.toISOString().split('T')[0];
+  const prevStr=hojeLocal(prev);
   CM='agenda';EID=null;
   document.getElementById('mt').textContent='Agendar Recebimento';
   document.getElementById('mb').innerHTML=
