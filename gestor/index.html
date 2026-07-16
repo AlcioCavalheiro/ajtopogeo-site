@@ -495,7 +495,7 @@ const PCFG={
   agenda:{t:'Agenda',a:'Novo Compromisso',tb:'agenda',h:function(o){return '<div class="fg"><label class="fl">Título *</label><input class="fc" id="f-titulo" placeholder="Ex: Reunião com cliente..."></div><div class="g2"><div class="fg"><label class="fl">Tipo</label><select class="fc" id="f-tipo"><option>Geral</option><option>OS</option><option>Prazo</option><option>Reunião</option><option>Entrega</option></select></div><div class="fg"><label class="fl">Data *</label><input class="fc" type="date" id="f-data"></div></div><div class="g2"><div class="fg"><label class="fl">Hora</label><input class="fc" type="time" id="f-hora"></div><div class="fg"><label class="fl">OS Vinculada</label><input class="fc" id="f-os_numero" placeholder="Ex: OS-001"></div></div><div class="fg"><label class="fl">Responsável</label><input class="fc" id="f-responsavel" placeholder="Nome do responsável pela tarefa"></div><div class="fg"><label class="fl">Descrição</label><textarea class="fc" id="f-descricao" rows="2"></textarea></div>';}},
   clientes:{t:'Clientes',a:'Novo Cliente',tb:'clientes',h:function(o){return '<div class="fg"><label class="fl">Nome / Razão Social *</label><input class="fc" id="f-nome"></div><div class="g2"><div class="fg"><label class="fl">CPF / CNPJ</label><input class="fc" id="f-cpfcnpj"></div><div class="fg"><label class="fl">Tipo</label><select class="fc" id="f-tipo"><option>PF</option><option selected>PJ</option></select></div></div><div class="g2"><div class="fg"><label class="fl">Telefone</label><input class="fc" id="f-telefone"></div><div class="fg"><label class="fl">E-mail</label><input class="fc" type="email" id="f-email"></div></div><div class="fg"><label class="fl">Endereço</label><input class="fc" id="f-endereco" placeholder="Rua, número, bairro..."></div>'+buildLocalizacao('f-estado','f-cidade')+'<div class="g2"><div class="fg"><label class="fl">CEP</label><input class="fc" id="f-cep" placeholder="00000-000" oninput="buscarCEP(this.value)"></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-ativo"><option value="true">Ativo</option><option value="false">Inativo</option></select></div></div>';}},
   servicos:{t:'Novo Serviço',a:'Novo Serviço',tb:'servicos',h:function(o){return '<div class="fg"><label class="fl">Nome *</label><input class="fc" id="f-nome" placeholder="Ex: Georreferenciamento Rural"></div><div class="g2"><div class="fg"><label class="fl">Categoria</label><select class="fc" id="f-categoria"><option>Georreferenciamento</option><option>Levantamento</option><option>Locação</option><option>Nivelamento</option><option>Regularização Fundiária</option><option>Diárias</option><option>Deslocamento</option><option>Materiais</option><option>Outro</option></select></div><div class="fg"><label class="fl">Unidade</label><input class="fc" id="f-unidade" placeholder="serviço, ha, km..."></div></div><div class="fg"><label class="fl">Valor unitário (R$)</label><input class="fc" type="number" step="0.01" id="f-valor_unitario"></div><div class="fg"><label class="fl">Descrição</label><textarea class="fc" id="f-descricao" rows="2"></textarea></div><div class="fg"><label class="fl">Documentos gerados (separados por vírgula)</label><input class="fc" id="f-docs_str" placeholder="Planta georreferenciada, ART..."></div>';}},
-  obras:{t:'Obras',a:'Nova Obra',tb:'obras',h:function(o){return '<div class="fg"><label class="fl">Nome da obra *</label><input class="fc" id="f-nome" placeholder="Ex: Jardim dos Ypes, Fazenda Santa Rita..."></div><div class="g2"><div class="fg"><label class="fl">Tipo de obra</label><select class="fc" id="f-tipo_obra"><option value="">Selecione...</option><option>Georreferenciamento</option><option>Loteamento</option><option>Construção</option><option>Levantamento Planialtimétrico</option><option>Demarcação</option><option>Locação de Obras</option><option>Regularização Fundiária</option><option>Desmembramento</option><option>Incorporação Imobiliária</option><option>Infraestrutura Urbana</option><option>Outro</option></select></div><div class="fg"><label class="fl">Cliente</label><select class="fc" id="f-cliente_id"><option value="">Selecione...</option>'+o.cOpts+'</select></div></div>'+buildLocalizacao('f-estado','f-municipio')+'<div class="fg"><label class="fl">Endereço / Localização</label><input class="fc" id="f-endereco" placeholder="Rua, bairro ou coordenadas..."></div><div class="fl mb1" style="margin-top:.5rem;color:var(--brand)"><i class="ti ti-map-2"></i> Dados do imóvel — preenchem automaticamente as ferramentas Geo (Requerimentos, Memorial, SIGEF, Anuência, Mapa)</div><div class="g2"><div class="fg"><label class="fl" id="lb-area_ha">Área (ha)</label><input class="fc" type="number" step="0.1" id="f-area_ha" placeholder="Ex: 142.5"></div><div class="fg"><label class="fl">Matrícula (CRI)</label><input class="fc" id="f-matricula" placeholder="Ex: 1.873"></div></div><div class="fg"><label class="fl">Tipo de cadastro do imóvel</label><select class="fc" id="f-codigo_incra_tipo" onchange="obraTipoCadastroChange()"><option value="INCRA">INCRA / SNCR — imóvel rural</option><option value="PREFEITURA">Prefeitura — imóvel urbano (cadastro municipal)</option></select></div><div class="g2"><div class="fg"><label class="fl" id="lb-codigo_incra">Código INCRA / SNCR</label><input class="fc" id="f-codigo_incra" placeholder="000.000.000.000-0"></div><div class="fg" id="fg-ccir"><label class="fl">CCIR</label><input class="fc" id="f-ccir"></div></div><div class="g2"><div class="fg"><label class="fl">Comarca</label><input class="fc" id="f-comarca" placeholder="Ex: Sidrolândia - MS"></div><div class="fg"><label class="fl">Cartório de Registro de Imóveis de</label><input class="fc" id="f-cartorio" placeholder="Ex: SIDROLÂNDIA MS"></div></div><div class="fg"><label class="fl">Observações</label><textarea class="fc" id="f-obs" rows="2"></textarea></div>';}},
+  obras:{t:'Obras',a:'Nova Obra',tb:'obras',h:function(o){return '<div class="fg"><label class="fl">Nome da obra *</label><input class="fc" id="f-nome" placeholder="Ex: Jardim dos Ypes, Fazenda Santa Rita..."></div><div class="g2"><div class="fg"><label class="fl">Tipo de obra</label><select class="fc" id="f-tipo_obra"><option value="">Selecione...</option><option>Georreferenciamento</option><option>Loteamento</option><option>Construção</option><option>Levantamento Planialtimétrico</option><option>Demarcação</option><option>Locação de Obras</option><option>Regularização Fundiária</option><option>Desmembramento</option><option>Incorporação Imobiliária</option><option>Infraestrutura Urbana</option><option>Outro</option></select></div><div class="fg"><label class="fl">Cliente</label><select class="fc" id="f-cliente_id"><option value="">Selecione...</option>'+o.cOpts+'</select></div></div>'+buildLocalizacao('f-estado','f-municipio')+'<div class="fg"><label class="fl">Endereço / Localização</label><input class="fc" id="f-endereco" placeholder="Rua, bairro ou coordenadas..."></div><div class="fl mb1" style="margin-top:.5rem;color:var(--brand)"><i class="ti ti-map-2"></i> Dados do imóvel — preenchem automaticamente as ferramentas Geo (Requerimentos, Memorial, SIGEF, Anuência, Mapa)</div><div class="g2"><div class="fg"><label class="fl" id="lb-area_ha">Área (ha)</label><input class="fc" type="number" step="0.1" id="f-area_ha" placeholder="Ex: 142.5"></div><div class="fg"><label class="fl">Matrícula (CRI)</label><input class="fc" id="f-matricula" placeholder="Ex: 1.873"></div></div><div class="fg"><label class="fl">Tipo de cadastro do imóvel</label><select class="fc" id="f-codigo_incra_tipo" onchange="obraTipoCadastroChange()"><option value="INCRA">INCRA / SNCR — imóvel rural</option><option value="PREFEITURA">Prefeitura — imóvel urbano (cadastro municipal)</option></select></div><div class="g2"><div class="fg"><label class="fl" id="lb-codigo_incra">Código INCRA / SNCR</label><input class="fc" id="f-codigo_incra" placeholder="000.000.000.000-0"></div><div class="fg" id="fg-ccir"><label class="fl">CCIR</label><input class="fc" id="f-ccir"></div></div><div class="g2"><div class="fg"><label class="fl">Comarca</label><input class="fc" id="f-comarca" placeholder="Ex: Sidrolândia - MS"></div><div class="fg"><label class="fl">Cartório de Registro de Imóveis de</label><input class="fc" id="f-cartorio" placeholder="Ex: SIDROLÂNDIA MS"></div></div><div class="fg"><label class="fl">RT (Responsável Técnico) — nº de registro / ART</label><input class="fc" id="f-rt" placeholder="Ex: CFT2404157156 - MS"></div><div class="fg"><label class="fl">Observações</label><textarea class="fc" id="f-obs" rows="2"></textarea></div>';}},
   orcamentos:{t:'Orçamentos',a:'Novo Orçamento',tb:'orcamentos',h:'__orca__'},
   contratos:{t:'Novo Contrato',tb:'contratos',h:function(o){return '<div class="g2"><div class="fg"><label class="fl">Número</label><input class="fc" id="f-numero" placeholder="Gerando automaticamente..." style="background:#f0f7ff;font-weight:600;color:#0d4fa0" readonly></div><div class="fg"><label class="fl">Orçamento de origem</label><select class="fc" id="f-orcamento_id" onchange="preencherContratoDoOrca(this.value)"><option value="">— Selecione um orçamento aprovado —</option>'+(o.orcOpts||'')+'</select></div></div><div class="mu sm" style="margin:-4px 0 8px;color:#0d4fa0"><i class="ti ti-info-circle"></i> Selecione um orçamento para preencher cliente, objeto e valor automaticamente.</div><div class="fg"><label class="fl">Cliente *</label><select class="fc" id="f-cliente_id"><option value="">Selecione...</option>'+o.cOpts+'</select></div><div class="fg"><label class="fl">Descrição / Objeto *</label><textarea class="fc" id="f-descricao" rows="3" placeholder="Um serviço por linha — cada linha vira uma cláusula no contrato."></textarea></div><div class="g2"><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor"></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option>Em andamento</option><option>Concluído</option><option>Cancelado</option></select></div></div><div class="g2"><div class="fg"><label class="fl">Data início</label><input class="fc" type="date" id="f-data_inicio"></div><div class="fg"><label class="fl">Prazo</label><input class="fc" type="date" id="f-prazo"></div></div><div class="fg"><label class="fl">Observações</label><textarea class="fc" id="f-obs" rows="2"></textarea></div>';}},
   ordens:{t:'Ordens de Serviço'},
@@ -5195,7 +5195,7 @@ async function saveRecord(){
   }
   closeModal();toast(_msgFinal);renderPage();checkOrca();
   // Obras: avisa se campos do imóvel foram descartados por falta de coluna no banco
-  if(tb==='obras'&&_colsRemovidas.some(c=>['matricula','codigo_incra','codigo_incra_tipo','comarca','cartorio'].includes(c)))obraMostrarSqlSetup(_colsRemovidas);
+  if(tb==='obras'&&_colsRemovidas.some(c=>['matricula','codigo_incra','codigo_incra_tipo','comarca','cartorio','rt'].includes(c)))obraMostrarSqlSetup(_colsRemovidas);
 }
 
 async function loadOSFin(osId){
@@ -7218,7 +7218,7 @@ function obraTipoCadastroChange(){
 }
 function obraMostrarSqlSetup(cols){
   document.getElementById('mt').textContent='Configuração necessária';
-  document.getElementById('mb').innerHTML='<div class="mu sm mb1">'+(cols&&cols.length?'Os campos <strong>'+cols.join(', ')+'<\/strong> NÃO foram salvos porque as colunas ainda não existem na tabela <strong>obras<\/strong>.':'A tabela <strong>obras<\/strong> precisa de colunas novas para os dados do imóvel.')+' Execute uma vez no SQL Editor do Supabase e salve a obra novamente:</div><pre style="background:#f4f4f0;border-radius:8px;padding:1rem;font-size:12px;overflow-x:auto">ALTER TABLE obras ADD COLUMN IF NOT EXISTS matricula TEXT;\nALTER TABLE obras ADD COLUMN IF NOT EXISTS codigo_incra TEXT;\nALTER TABLE obras ADD COLUMN IF NOT EXISTS codigo_incra_tipo TEXT;\nALTER TABLE obras ADD COLUMN IF NOT EXISTS comarca TEXT;\nALTER TABLE obras ADD COLUMN IF NOT EXISTS cartorio TEXT;</pre>';
+  document.getElementById('mb').innerHTML='<div class="mu sm mb1">'+(cols&&cols.length?'Os campos <strong>'+cols.join(', ')+'<\/strong> NÃO foram salvos porque as colunas ainda não existem na tabela <strong>obras<\/strong>.':'A tabela <strong>obras<\/strong> precisa de colunas novas para os dados do imóvel.')+' Execute uma vez no SQL Editor do Supabase e salve a obra novamente:</div><pre style="background:#f4f4f0;border-radius:8px;padding:1rem;font-size:12px;overflow-x:auto">ALTER TABLE obras ADD COLUMN IF NOT EXISTS matricula TEXT;\nALTER TABLE obras ADD COLUMN IF NOT EXISTS codigo_incra TEXT;\nALTER TABLE obras ADD COLUMN IF NOT EXISTS codigo_incra_tipo TEXT;\nALTER TABLE obras ADD COLUMN IF NOT EXISTS comarca TEXT;\nALTER TABLE obras ADD COLUMN IF NOT EXISTS cartorio TEXT;\nALTER TABLE obras ADD COLUMN IF NOT EXISTS rt TEXT;</pre>';
   document.getElementById('mf').innerHTML='<button class="btn" onclick="closeModal()">Fechar</button>';
   const ov=document.getElementById('ov');ov.style.zIndex='200';ov.classList.add('open');
 }
@@ -8764,12 +8764,20 @@ function reqTipoChange(){
   if(cfg.finalidade) document.getElementById('rq-finalidade').value=cfg.finalidade;
   if(cfg.certs){if(!_reqCerts.length)_reqCerts.push(reqCertNova());reqRenderCerts();}
 }
+function reqIsUrbano(){return (document.getElementById('rq-tipo-imovel')?.value)==='urbano';}
+function reqCertAreaFromObra(){return (_reqObra&&_reqObra.area_ha!=null&&_reqObra.area_ha!=='')?String(_reqObra.area_ha).replace('.',','):'';}
 function reqTipoImovelChange(){
-  const urbano=(document.getElementById('rq-tipo-imovel')?.value)==='urbano';
+  const urbano=reqIsUrbano();
   const lb=document.getElementById('rq-codincra-lb');
   const inp=document.getElementById('rq-codincra');
   if(lb)lb.textContent=urbano?'Inscrição Municipal / Cadastro':'Código INCRA/SNCR';
   if(inp)inp.placeholder=urbano?'Ex: inscrição/cadastro da Prefeitura':'000.000.000.000-0';
+  // Certificações: imóvel urbano não tem código SIGEF; área em m² puxada do cadastro
+  const secCerts=document.getElementById('rq-sec-certs');
+  if(secCerts&&secCerts.style.display!=='none'){
+    if(urbano)_reqCerts.forEach(function(c){if(!c.area)c.area=reqCertAreaFromObra();});
+    reqRenderCerts();
+  }
 }
 async function reqObraChange(){
   const oid=document.getElementById('rq-obra').value;
@@ -8788,7 +8796,8 @@ async function reqObraChange(){
   document.getElementById('rq-tipo-imovel').value=data.codigo_incra_tipo==='PREFEITURA'?'urbano':'rural';
   reqTipoImovelChange();
   document.getElementById('rq-proc-imovel').value=data.nome||'';
-  _reqCerts.forEach(function(c){if(!c.nome)c.nome=data.nome;});
+  if(data.rt)document.getElementById('rq-prof-cft').value=data.rt;
+  _reqCerts.forEach(function(c){if(!c.nome)c.nome=data.nome;if(data.rt)c.rt=data.rt;});
   reqRenderProprietarios();
   reqRenderCerts();
 }
@@ -8803,17 +8812,25 @@ function reqRenderProprietarios(){
     }).join('');
 }
 function reqCertNova(){
-  return {nome:(_reqObra&&_reqObra.nome)||'',codigo:'',area:'',data:'',
+  return {nome:(_reqObra&&_reqObra.nome)||'',codigo:'',area:reqIsUrbano()?reqCertAreaFromObra():'',data:'',
     credenciado:_incraHeader.tecnico||'ALCIO MARQUES CAVALHEIRO JUNIOR',
-    rt:_incraHeader.rt||'CFT2404157156 - MS'};
+    rt:(_reqObra&&_reqObra.rt)||_incraHeader.rt||'CFT2404157156 - MS'};
 }
 function reqAddCert(){_reqCerts.push(reqCertNova());reqRenderCerts();}
 function reqDelCert(i){_reqCerts.splice(i,1);reqRenderCerts();}
 function reqCertCampo(i,campo,v){_reqCerts[i][campo]=v;}
 function reqRenderCerts(){
   const el=document.getElementById('rq-sec-certs');if(!el)return;
-  el.innerHTML='<div class="fxb mb1"><div class="fl" style="margin:0">Certificações (uma por imóvel certificado)</div><button class="btn bxs" onclick="reqAddCert()"><i class="ti ti-plus"></i> Adicionar</button></div>'
+  const urbano=reqIsUrbano();
+  el.innerHTML='<div class="fxb mb1"><div class="fl" style="margin:0">'+(urbano?'Imóvel(is) — área em m² (puxada do cadastro da obra)':'Certificações (uma por imóvel certificado)')+'</div><button class="btn bxs" onclick="reqAddCert()"><i class="ti ti-plus"></i> Adicionar</button></div>'
     +_reqCerts.map(function(c,i){
+      if(urbano){
+        return '<div class="card mb1" style="padding:.75rem">'
+          +'<div class="g2 mb1"><div class="fg"><label class="fl">Imóvel</label><input class="fc" value="'+reqEsc(c.nome)+'" onchange="reqCertCampo('+i+',\'nome\',this.value)"></div>'
+          +'<div class="fg"><label class="fl">Área (m²)</label><input class="fc" value="'+reqEsc(c.area)+'" placeholder="ex: 450" onchange="reqCertCampo('+i+',\'area\',this.value)"></div></div>'
+          +(_reqCerts.length>1?'<div style="text-align:right"><button class="btn bxs" onclick="reqDelCert('+i+')"><i class="ti ti-trash"></i> Remover</button></div>':'')
+          +'</div>';
+      }
       return '<div class="card mb1" style="padding:.75rem">'
         +'<div class="g2 mb1"><div class="fg"><label class="fl">Imóvel</label><input class="fc" value="'+reqEsc(c.nome)+'" onchange="reqCertCampo('+i+',\'nome\',this.value)"></div>'
         +'<div class="fg"><label class="fl">Código da certificação (SIGEF)</label><input class="fc" value="'+reqEsc(c.codigo)+'" placeholder="ex: 6d2e1eaf-99d5-4d26-82a9-1739d3fe7dda" onchange="reqCertCampo('+i+',\'codigo\',this.value)"></div></div>'
@@ -8836,7 +8853,15 @@ function reqCertParagrafoXml(c){
   const rprB='<w:rPr><w:rFonts w:cs="Arial"/><w:b/><w:bCs/></w:rPr>';
   const rprU='<w:rPr><w:rFonts w:cs="Arial"/><w:u w:val="single"/></w:rPr>';
   const rpr='<w:rPr><w:rFonts w:cs="Arial"/></w:rPr>';
-  return '<w:p><w:pPr><w:spacing w:line="276" w:lineRule="auto"/><w:ind w:firstLine="708"/><w:jc w:val="both"/></w:pPr>'
+  const pOpen='<w:p><w:pPr><w:spacing w:line="276" w:lineRule="auto"/><w:ind w:firstLine="708"/><w:jc w:val="both"/></w:pPr>';
+  if(reqIsUrbano()){
+    return pOpen
+      +'<w:r>'+rprB+'<w:t>•</w:t><w:tab/></w:r>'
+      +'<w:r>'+rprU+'<w:t xml:space="preserve">'+xmlEscapeGeo(c.nome)+'</w:t></w:r>'
+      +'<w:r>'+rpr+'<w:t xml:space="preserve">, com área de '+xmlEscapeGeo(c.area)+' m²</w:t></w:r>'
+      +'<w:r>'+rprB+'<w:t>;</w:t></w:r></w:p>';
+  }
+  return pOpen
     +'<w:r>'+rprB+'<w:t>•</w:t><w:tab/></w:r>'
     +'<w:r>'+rprU+'<w:t xml:space="preserve">'+xmlEscapeGeo(c.nome)+'</w:t></w:r>'
     +'<w:r>'+rprB+'<w:t xml:space="preserve">, '+xmlEscapeGeo(c.codigo)+', </w:t></w:r>'
@@ -8885,9 +8910,12 @@ async function reqGerarDocx(){
   }
   if(cfg.proc&&!document.getElementById('rq-proc-outorgado').value.trim()){toast('Preencha o procurador (outorgado).',true);return;}
   if(cfg.certs){
+    const urbCert=reqIsUrbano();
     for(let ci=0;ci<_reqCerts.length;ci++){
       const c=_reqCerts[ci];
-      if(!c.nome||!c.codigo||!c.area||!c.data){toast('Preencha imóvel, código, área e data da certificação '+(ci+1)+'.',true);return;}
+      if(urbCert){
+        if(!c.nome||!c.area){toast('Preencha imóvel e área do imóvel '+(ci+1)+'.',true);return;}
+      }else if(!c.nome||!c.codigo||!c.area||!c.data){toast('Preencha imóvel, código, área e data da certificação '+(ci+1)+'.',true);return;}
     }
   }
   try{
