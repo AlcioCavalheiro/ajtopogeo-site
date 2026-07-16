@@ -11136,23 +11136,31 @@ function cadAtualizarVerticeEmGeometrias(oldX,oldY,novoX,novoY,novoZ){
   });
 }
 function cadLocalizarVerticeNaLinha(p){
-  let achado=null;
+  // Junta TODAS as feições que passam pelo vértice e escolhe a melhor. Um mesmo ponto pode
+  // pertencer ao perímetro (anel fechado) e a linhas curtas soltas (ex.: os tracinhos da
+  // camada VENNUMLOTE de número de lote, que compartilham vértices com o polígono). Pegar a
+  // primeira feição do arquivo fazia o "Próximo (horário)" grudar numa linha de 2 pontos e
+  // travar em "Já está no fim da linha". Preferimos o anel fechado e, em empate, o de mais vértices.
+  const candidatos=[];
   function fechado(coords){return coords.length>2&&Math.abs(coords[0][0]-coords[coords.length-1][0])<1e-6&&Math.abs(coords[0][1]-coords[coords.length-1][1])<1e-6;}
   function buscar(coords,closed){
     for(let i=0;i<coords.length;i++){
-      if(Math.abs(coords[i][0]-p.x)<1e-6&&Math.abs(coords[i][1]-p.y)<1e-6){achado={coords:coords,idx:i,closed:closed};return true;}
+      if(Math.abs(coords[i][0]-p.x)<1e-6&&Math.abs(coords[i][1]-p.y)<1e-6){candidatos.push({coords:coords,idx:i,closed:closed});return;}
     }
-    return false;
   }
-  (_cadGeoJSON&&_cadGeoJSON.features||[]).some(function(f){
-    const g=f.geometry;if(!g) return false;
-    if(g.type==='LineString') return buscar(g.coordinates,fechado(g.coordinates));
-    if(g.type==='MultiLineString') return g.coordinates.some(function(l){return buscar(l,fechado(l));});
-    if(g.type==='Polygon') return g.coordinates.some(function(r){return buscar(r,true);});
-    if(g.type==='MultiPolygon') return g.coordinates.some(function(poly){return poly.some(function(r){return buscar(r,true);});});
-    return false;
+  (_cadGeoJSON&&_cadGeoJSON.features||[]).forEach(function(f){
+    const g=f.geometry;if(!g) return;
+    if(g.type==='LineString') buscar(g.coordinates,fechado(g.coordinates));
+    else if(g.type==='MultiLineString') g.coordinates.forEach(function(l){buscar(l,fechado(l));});
+    else if(g.type==='Polygon') g.coordinates.forEach(function(r){buscar(r,true);});
+    else if(g.type==='MultiPolygon') g.coordinates.forEach(function(poly){poly.forEach(function(r){buscar(r,true);});});
   });
-  return achado;
+  if(!candidatos.length) return null;
+  candidatos.sort(function(a,b){
+    if(a.closed!==b.closed) return a.closed?-1:1;
+    return b.coords.length-a.coords.length;
+  });
+  return candidatos[0];
 }
 function cadProximoNaLinha(){
   if(_cadSelecionado===null){toast('Selecione um ponto primeiro.',true);return;}
