@@ -8708,10 +8708,12 @@ function geoReqHtml(){
     +'</select></div>'
     +'<div class="fg"><label class="fl">Obra</label><select class="fc" id="rq-obra" onchange="reqObraChange()"><option value="">Selecione...</option></select></div></div>'
     +'<div id="rq-proprietarios" class="mb1"></div>'
-    +'<div class="g2 mb1"><div class="fg"><label class="fl">Matrícula</label><input class="fc" id="rq-matricula"></div>'
-    +'<div class="fg"><label class="fl">Código INCRA/SNCR</label><input class="fc" id="rq-codincra" placeholder="000.000.000.000-0"></div></div>'
-    +'<div class="g2 mb1"><div class="fg"><label class="fl">Município/Comarca</label><input class="fc" id="rq-municipio" placeholder="Ex: Sidrolândia - MS"></div>'
-    +'<div class="fg"><label class="fl">Local/UF (para a data)</label><input class="fc" id="rq-localuf" placeholder="Ex: Sidrolândia - MS"></div></div>'
+    +'<div class="g2 mb1"><div class="fg"><label class="fl">Tipo de imóvel</label><select class="fc" id="rq-tipo-imovel" onchange="reqTipoImovelChange()"><option value="rural">Rural (INCRA/SNCR)</option><option value="urbano">Urbano (inscrição municipal)</option></select></div>'
+    +'<div class="fg"><label class="fl">Matrícula</label><input class="fc" id="rq-matricula"></div></div>'
+    +'<div class="g2 mb1"><div class="fg"><label class="fl" id="rq-codincra-lb">Código INCRA/SNCR</label><input class="fc" id="rq-codincra" placeholder="000.000.000.000-0"></div>'
+    +'<div class="fg"><label class="fl">Município/Comarca</label><input class="fc" id="rq-municipio" placeholder="Ex: Sidrolândia - MS"></div></div>'
+    +'<div class="g2 mb1"><div class="fg"><label class="fl">Local/UF (para a data)</label><input class="fc" id="rq-localuf" placeholder="Ex: Sidrolândia - MS"></div>'
+    +'<div class="fg"></div></div>'
     +'<div id="rq-sec-cartorio" class="mb1" style="display:none"><div class="fg"><label class="fl">Cartório de Registro de Imóveis de (cabeçalho)</label><input class="fc" id="rq-cartorio-local" placeholder="Ex: SIDROLÂNDIA MS"></div></div>'
     +'<div id="rq-sec-finalidade" class="mb1" style="display:none"><div class="fg"><label class="fl">Finalidade — completa a frase "solicitar a certidão para fins de ..."</label><textarea class="fc" id="rq-finalidade" rows="2"></textarea></div></div>'
     +'<div id="rq-sec-certs" class="mb1" style="display:none"></div>'
@@ -8758,6 +8760,13 @@ function reqTipoChange(){
   if(cfg.finalidade) document.getElementById('rq-finalidade').value=cfg.finalidade;
   if(cfg.certs){if(!_reqCerts.length)_reqCerts.push(reqCertNova());reqRenderCerts();}
 }
+function reqTipoImovelChange(){
+  const urbano=(document.getElementById('rq-tipo-imovel')?.value)==='urbano';
+  const lb=document.getElementById('rq-codincra-lb');
+  const inp=document.getElementById('rq-codincra');
+  if(lb)lb.textContent=urbano?'Inscrição Municipal / Cadastro':'Código INCRA/SNCR';
+  if(inp)inp.placeholder=urbano?'Ex: inscrição/cadastro da Prefeitura':'000.000.000.000-0';
+}
 async function reqObraChange(){
   const oid=document.getElementById('rq-obra').value;
   _reqObra=null;
@@ -8772,6 +8781,8 @@ async function reqObraChange(){
   document.getElementById('rq-cartorio-local').value=data.cartorio||(data.municipio||'').toUpperCase().replace(/\s*[-\/]\s*/g,' ');
   if(data.codigo_incra) document.getElementById('rq-codincra').value=data.codigo_incra;
   else if(_incraHeader.codigoIncra) document.getElementById('rq-codincra').value=_incraHeader.codigoIncra;
+  document.getElementById('rq-tipo-imovel').value=data.codigo_incra_tipo==='PREFEITURA'?'urbano':'rural';
+  reqTipoImovelChange();
   document.getElementById('rq-proc-imovel').value=data.nome||'';
   _reqCerts.forEach(function(c){if(!c.nome)c.nome=data.nome;});
   reqRenderProprietarios();
@@ -8810,10 +8821,12 @@ function reqRenderCerts(){
         +'</div>';
     }).join('');
 }
-function reqMontarQualificacao(pessoas,nomeImovel,matricula,municipio,codigoIncra){
+function reqMontarQualificacao(pessoas,nomeImovel,matricula,municipio,codigoIncra,tipoImovel){
   const corpo=pessoas.map(function(p,i){return anuenciaPessoaFrase(p,i,pessoas.length);}).join('; ');
   const plural=pessoas.length>1;
-  return corpo+', '+(plural?'proprietários':'proprietário(a)')+' do imóvel rural denominado '+anuBold(nomeImovel)+', matrícula n° '+anuBold(matricula||'—')+' de '+(municipio||'—')+(codigoIncra?', cadastrado no INCRA sob o código n° '+anuBold(codigoIncra):'')+'.';
+  const urbano=tipoImovel==='urbano';
+  const cadastro=codigoIncra?', cadastrado '+(urbano?'na Prefeitura sob a inscrição municipal n° ':'no INCRA sob o código n° ')+anuBold(codigoIncra):'';
+  return corpo+', '+(plural?'proprietários':'proprietário(a)')+' do imóvel '+(urbano?'urbano':'rural')+' denominado '+anuBold(nomeImovel)+', matrícula n° '+anuBold(matricula||'—')+' de '+(municipio||'—')+cadastro+'.';
 }
 function reqCertParagrafoXml(c){
   const rprB='<w:rPr><w:rFonts w:cs="Arial"/><w:b/><w:bCs/></w:rPr>';
@@ -8875,6 +8888,8 @@ async function reqGerarDocx(){
   }
   try{
     const matricula=document.getElementById('rq-matricula').value,codincra=document.getElementById('rq-codincra').value,municipio=document.getElementById('rq-municipio').value;
+    const tipoImovel=(document.getElementById('rq-tipo-imovel')?.value)==='urbano'?'urbano':'rural';
+    const urbano=tipoImovel==='urbano';
     const meses=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
     const d=new Date();
     const vals={
@@ -8886,6 +8901,8 @@ async function reqGerarDocx(){
       MATRICULA:matricula||'—',
       COMARCA:municipio,
       IMOVEL_NOME:cfg.proc?(document.getElementById('rq-proc-imovel').value||(_reqObra&&_reqObra.nome)||'—'):((_reqObra&&_reqObra.nome)||'—'),
+      TIPO_IMOVEL:tipoImovel,
+      ORGAO_CADASTRO:urbano?'na Prefeitura sob a inscrição municipal':'no INCRA/SNCR sob o código',
       DECL:(!isProf&&props.length>1)?'DECLARAMOS':'DECLARO',
       ENDERECO_NOTIFICACAO:cfg.proc?document.getElementById('rq-proc-endnotif').value:'',
       PRAZO_MESES:cfg.proc?(document.getElementById('rq-proc-prazo').value||'12'):''
@@ -8897,7 +8914,7 @@ async function reqGerarDocx(){
       ?(procOutorgante||pessoasFrase)
       :cfg.cancel
         ?pessoasFrase
-        :reqMontarQualificacao(props,_reqObra.nome,matricula,municipio,codincra);
+        :reqMontarQualificacao(props,_reqObra.nome,matricula,municipio,codincra,tipoImovel);
     const resp=await fetch('/gestor/templates/'+cfg.arquivo);
     if(!resp.ok) throw new Error('Template não encontrado (templates/'+cfg.arquivo+').');
     const buf=await resp.arrayBuffer();
