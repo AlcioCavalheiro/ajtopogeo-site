@@ -1,4 +1,6 @@
 User-agent: *
 Allow: /
+Disallow: /gestor/
+Disallow: /api/
 
 Sitemap: https://ajtopogeo.com.br/sitemap.xml
