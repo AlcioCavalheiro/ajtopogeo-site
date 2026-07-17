@@ -12935,7 +12935,7 @@ function _mpPoly(doc,pts,style){
 
 var _cadMapaDados=null;
 function cadAbrirModalMapa(){
-  const nomeados=_cadPontos.filter(function(p){return p.nome;});
+  const nomeados=_cadPontos.filter(function(p){return p.nome;}).sort(function(a,b){return (a.ordemNome||0)-(b.ordemNome||0);});
   if(nomeados.length<3){toast('Nomeie ao menos 3 pontos para gerar o mapa.',true);return;}
   const area=_mpArea(nomeados);
   let perim=0;
@@ -13055,7 +13055,7 @@ async function cadConfirmarGerarMapa(){
   const prop=(document.getElementById('mmap-prop').value||'').trim();
   if(!imovel||!prop){toast('Preencha o nome do imóvel e o proprietário.',true);return;}
   const trechosBas=_cadMapaDados.trechos;
-  const nomeados=_cadPontos.filter(function(p){return p.nome;});
+  const nomeados=_cadPontos.filter(function(p){return p.nome;}).sort(function(a,b){return (a.ordemNome||0)-(b.ordemNome||0);});
   const trechos=trechosBas.map(function(r,i){
     return Object.assign({},r,{
       conf:(document.getElementById('mmap-conf-'+i).value||'').trim()||'—',
@@ -13165,40 +13165,76 @@ function cadCapturarSitSatelite(d){
       const bMinLon=xMin/DEG, bMaxLon=xMax/DEG, bMinLat=invMercY(yMin), bMaxLat=invMercY(yMax);
       const bounds={minLat:bMinLat,maxLat:bMaxLat,minLon:bMinLon,maxLon:bMaxLon};
       // Escolhe o maior zoom cuja largura em pixels caiba no alvo (~1280px).
-      const maxZ=bm.maxNativeZoom||19; let z=maxZ;
-      for(z=maxZ;z>2;z--){ if(lon2px(bMaxLon,z)-lon2px(bMinLon,z)<=1280) break; }
-      const px0=lon2px(bMinLon,z), px1=lon2px(bMaxLon,z);
-      const py0=lat2px(bMaxLat,z), py1=lat2px(bMinLat,z); // py0 = topo (maxLat)
-      const W=Math.max(1,Math.round(px1-px0)), H=Math.max(1,Math.round(py1-py0));
-      const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
-      const ctx=cv.getContext('2d');
-      ctx.fillStyle='#dfeefc'; ctx.fillRect(0,0,W,H);
-      const nmax=Math.pow(2,z);
-      const tx0=Math.floor(px0/TS), tx1=Math.floor((px1-1e-4)/TS);
-      const ty0=Math.floor(py0/TS), ty1=Math.floor((py1-1e-4)/TS);
-      const jobs=[]; let loaded=0;
-      for(let tx=tx0;tx<=tx1;tx++){
-        for(let ty=ty0;ty<=ty1;ty++){
-          if(ty<0||ty>=nmax) continue;
-          const xx=((tx%nmax)+nmax)%nmax;
-          const url=bm.url.replace('{z}',z).replace('{x}',xx).replace('{y}',ty).replace('{s}','a');
-          const dx=Math.round(tx*TS-px0), dy=Math.round(ty*TS-py0);
-          jobs.push(new Promise(function(res){
-            const im=new Image(); let done=false;
-            function fin(ok){if(done)return;done=true;if(ok){try{ctx.drawImage(im,dx,dy,TS,TS);loaded++;}catch(e){}}res();}
-            im.crossOrigin='anonymous';
-            im.onload=function(){fin(true);};
-            im.onerror=function(){fin(false);};
-            setTimeout(function(){fin(false);},9000);
-            im.src=url;
-          }));
-        }
+      const maxZ=bm.maxNativeZoom||19; let z0=maxZ;
+      for(z0=maxZ;z0>2;z0--){ if(lon2px(bMaxLon,z0)-lon2px(bMinLon,z0)<=1280) break; }
+      // Em áreas rurais o Esri não tem imagem nos zooms mais altos e devolve o
+      // tile "Map data not yet available" (claro e uniforme). Descemos o zoom
+      // até achar imagem real, evitando o placeholder no mapa de situação.
+      const zFloor=Math.max(3,z0-6);
+
+      // Monta o mosaico de um zoom específico e devolve o canvas + nº de tiles.
+      function montarZoom(z){
+        return new Promise(function(res){
+          const px0=lon2px(bMinLon,z), px1=lon2px(bMaxLon,z);
+          const py0=lat2px(bMaxLat,z), py1=lat2px(bMinLat,z); // py0 = topo (maxLat)
+          const W=Math.max(1,Math.round(px1-px0)), H=Math.max(1,Math.round(py1-py0));
+          const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+          const ctx=cv.getContext('2d');
+          ctx.fillStyle='#dfeefc'; ctx.fillRect(0,0,W,H);
+          const nmax=Math.pow(2,z);
+          const tx0=Math.floor(px0/TS), tx1=Math.floor((px1-1e-4)/TS);
+          const ty0=Math.floor(py0/TS), ty1=Math.floor((py1-1e-4)/TS);
+          const jobs=[]; let loaded=0;
+          for(let tx=tx0;tx<=tx1;tx++){
+            for(let ty=ty0;ty<=ty1;ty++){
+              if(ty<0||ty>=nmax) continue;
+              const xx=((tx%nmax)+nmax)%nmax;
+              const url=bm.url.replace('{z}',z).replace('{x}',xx).replace('{y}',ty).replace('{s}','a');
+              const dx=Math.round(tx*TS-px0), dy=Math.round(ty*TS-py0);
+              jobs.push(new Promise(function(r2){
+                const im=new Image(); let done=false;
+                function fin(ok){if(done)return;done=true;if(ok){try{ctx.drawImage(im,dx,dy,TS,TS);loaded++;}catch(e){}}r2();}
+                im.crossOrigin='anonymous';
+                im.onload=function(){fin(true);};
+                im.onerror=function(){fin(false);};
+                setTimeout(function(){fin(false);},9000);
+                im.src=url;
+              }));
+            }
+          }
+          Promise.all(jobs).then(function(){res({z:z,cv:cv,ctx:ctx,W:W,H:H,loaded:loaded});});
+        });
       }
-      Promise.all(jobs).then(function(){
-        if(loaded===0){reject(new Error('Nenhum tile carregado'));return;}
-        let dataUrl; try{dataUrl=cv.toDataURL('image/jpeg',0.9);}catch(e){reject(e);return;}
-        resolve({dataUrl:dataUrl,bounds:bounds});
-      });
+
+      // Detecta o tile placeholder do Esri: imagem clara e quase sem textura.
+      // Imagem real de área rural é escura/texturizada (média ~100); o
+      // placeholder é cinza claro uniforme (média ~205, desvio baixo).
+      function ehPlaceholder(r){
+        if(r.loaded===0) return true;
+        let data; try{data=r.ctx.getImageData(0,0,r.W,r.H).data;}catch(e){return false;}
+        const tot=r.W*r.H; const passo=Math.max(1,Math.floor(tot/20000));
+        let n=0,soma=0,soma2=0;
+        for(let i=0;i<tot;i+=passo){
+          const k=i*4; const L=0.299*data[k]+0.587*data[k+1]+0.114*data[k+2];
+          soma+=L; soma2+=L*L; n++;
+        }
+        if(!n) return false;
+        const media=soma/n, desvio=Math.sqrt(Math.max(0,soma2/n-media*media));
+        return media>190 && desvio<40;
+      }
+
+      // Tenta do maior zoom com detalhe até achar imagem real; usa o piso se necessário.
+      (function tenta(z){
+        montarZoom(z).then(function(r){
+          if((r.loaded>0 && !ehPlaceholder(r)) || z<=zFloor){
+            if(r.loaded===0){reject(new Error('Nenhum tile carregado'));return;}
+            let dataUrl; try{dataUrl=r.cv.toDataURL('image/jpeg',0.9);}catch(e){reject(e);return;}
+            resolve({dataUrl:dataUrl,bounds:bounds});
+            return;
+          }
+          tenta(z-1);
+        });
+      })(z0);
     }catch(e){reject(e);}
   });
 }
