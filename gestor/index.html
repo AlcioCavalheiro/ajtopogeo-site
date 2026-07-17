@@ -8821,7 +8821,15 @@ function reqTipoChange(){
   if(cfg.certs){if(!_reqCerts.length)_reqCerts.push(reqCertNova());reqRenderCerts();}
 }
 function reqIsUrbano(){return (document.getElementById('rq-tipo-imovel')?.value)==='urbano';}
-function reqCertAreaFromObra(){return (_reqObra&&_reqObra.area_ha!=null&&_reqObra.area_ha!=='')?String(_reqObra.area_ha).replace('.',','):'';}
+function reqCertAreaFromObra(){
+  // Área em m² para o requerimento urbano. A obra guarda area_ha em m² quando é
+  // PREFEITURA (urbano) e em hectares quando é INCRA (rural) -> converte ha->m².
+  if(!_reqObra||_reqObra.area_ha==null||_reqObra.area_ha==='') return '';
+  var raw=parseFloat(String(_reqObra.area_ha).replace(',','.'));
+  if(!isFinite(raw)) return String(_reqObra.area_ha).replace('.',',');
+  var m2=(_reqObra.codigo_incra_tipo==='PREFEITURA')?raw:raw*10000;
+  return String(Math.round(m2*100)/100).replace('.',',');
+}
 function reqTipoImovelChange(){
   const urbano=reqIsUrbano();
   const lb=document.getElementById('rq-codincra-lb');
