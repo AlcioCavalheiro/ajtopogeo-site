@@ -7309,7 +7309,7 @@ function vizListaPessoasHtml(lista,ctx,vizIdx){
   }).join('')||'<div class="mu sm mb1">Nenhuma pessoa cadastrada ainda.</div>';
   return rows+'<button class="btn bp2 bsm" onclick="vizAdicionarPessoa(\''+ctx+'\','+(vizIdx===null?'null':vizIdx)+')"><i class="ti ti-plus"></i> Adicionar pessoa</button>';
 }
-function vizPessoaVazia(){return {tipo:'PF',nome:'',nacionalidade:'brasileiro(a)',profissao:'',docTipo:'RG',docNumero:'',docOrgao:'',cpf:'',cnpj:'',estadoCivil:'solteiro(a)',regimeBens:'',percentual:'',endereco:'',conjuge:null,representante:null};}
+function vizPessoaVazia(){return {tipo:'PF',nome:'',sexo:'M',nacionalidade:'brasileiro(a)',profissao:'',docTipo:'RG',docNumero:'',docOrgao:'',cpf:'',cnpj:'',estadoCivil:'solteiro(a)',regimeBens:'',percentual:'',endereco:'',conjuge:null,representante:null};}
 function vizAdicionarPessoa(ctx,vizIdx){
   const arr=vizGetPessoasArray(ctx,vizIdx);
   arr.push(vizPessoaVazia());
@@ -7338,11 +7338,14 @@ function vizTipoPessoaChange(v){
   document.getElementById('vp-nome-label').textContent=v==='PJ'?'Razão social':'Nome completo';
   document.getElementById('vp-endereco-label').textContent=v==='PJ'?'Endereço da sede':'Endereço completo';
 }
+function sexoSelectHtml(id,sexo){
+  return '<select class="fc" id="'+id+'"><option value="M"'+(sexo==='F'?'':' selected')+'>Masculino</option><option value="F"'+(sexo==='F'?' selected':'')+'>Feminino</option></select>';
+}
 function vizPessoaFormHtml(p){
   const tipoPJ=p.tipo==='PJ';
   const temConj=!!p.conjuge;
-  const c=p.conjuge||{nome:'',nacionalidade:'brasileiro(a)',profissao:'',docNumero:'',docOrgao:'',cpf:''};
-  const r=p.representante||{cargo:'',nome:'',nacionalidade:'brasileiro(a)',profissao:'',cpf:'',docNumero:'',docOrgao:''};
+  const c=p.conjuge||{nome:'',sexo:'M',nacionalidade:'brasileiro(a)',profissao:'',docNumero:'',docOrgao:'',cpf:''};
+  const r=p.representante||{cargo:'',nome:'',sexo:'M',nacionalidade:'brasileiro(a)',profissao:'',cpf:'',docNumero:'',docOrgao:''};
   const estCivis=['solteiro(a)','casado(a)','divorciado(a)','viúvo(a)','separado(a) judicialmente'];
   return '<div class="g3 mb1">'
     +'<div class="fg"><label class="fl">Tipo de pessoa</label><select class="fc" id="vp-tipo" onchange="vizTipoPessoaChange(this.value)"><option value="PF"'+(tipoPJ?'':' selected')+'>Pessoa Física</option><option value="PJ"'+(tipoPJ?' selected':'')+'>Pessoa Jurídica</option></select></div>'
@@ -7351,29 +7354,33 @@ function vizPessoaFormHtml(p){
     +'</div>'
     +'<div id="vp-pf-box" style="display:'+(tipoPJ?'none':'')+'">'
     +'<div class="g3 mb1">'
+    +'<div class="fg"><label class="fl">Sexo</label>'+sexoSelectHtml('vp-sexo',p.sexo)+'</div>'
     +'<div class="fg"><label class="fl">Nacionalidade</label><input class="fc" id="vp-nac" value="'+(p.nacionalidade||'brasileiro(a)')+'"></div>'
     +'<div class="fg"><label class="fl">Profissão</label><input class="fc" id="vp-prof" value="'+(p.profissao||'')+'"></div>'
-    +'<div class="fg"><label class="fl">CPF</label><input class="fc" id="vp-cpf" value="'+(p.cpf||'')+'"></div>'
     +'</div>'
     +'<div class="g3 mb1">'
     +'<div class="fg"><label class="fl">Tipo de doc.</label><select class="fc" id="vp-doctipo">'+['RG','CNH','CI'].map(function(t){return '<option'+(p.docTipo===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div>'
     +'<div class="fg"><label class="fl">Nº do documento</label><input class="fc" id="vp-docnum" value="'+(p.docNumero||'')+'"></div>'
     +'<div class="fg"><label class="fl">Órgão emissor</label><input class="fc" id="vp-docorgao" value="'+(p.docOrgao||'')+'" placeholder="Ex: SSP/MS"></div>'
     +'</div>'
-    +'<div class="g2 mb1">'
+    +'<div class="g3 mb1">'
+    +'<div class="fg"><label class="fl">CPF</label><input class="fc" id="vp-cpf" value="'+(p.cpf||'')+'"></div>'
     +'<div class="fg"><label class="fl">Estado civil</label><select class="fc" id="vp-estcivil" onchange="document.getElementById(\'vp-conjuge-box\').style.display=(this.value===\'casado(a)\')?\'\':\'none\'">'+estCivis.map(function(t){return '<option'+(p.estadoCivil===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select></div>'
     +'<div class="fg"><label class="fl">Regime de bens (se casado)</label><input class="fc" id="vp-regime" value="'+(p.regimeBens||'')+'" placeholder="Ex: comunhão parcial de bens, após a vigência da Lei nº 6.515/77"></div>'
     +'</div>'
     +'<label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-bottom:.75rem"><input type="checkbox" id="vp-temconj" '+(temConj?'checked':'')+' onchange="document.getElementById(\'vp-conjuge-box\').style.display=this.checked?\'\':\'none\'" style="width:16px;height:16px;accent-color:var(--brand)"> <span class="fl" style="margin:0">Possui cônjuge (qualificação conjunta)</span></label>'
     +'<div id="vp-conjuge-box" class="card mb1" style="background:#F4F8FF;display:'+(temConj?'':'none')+'">'
-    +'<div class="g3 mb1">'
+    +'<div class="g2 mb1">'
     +'<div class="fg"><label class="fl">Nome do cônjuge</label><input class="fc" id="vp-c-nome" value="'+(c.nome||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Sexo</label>'+sexoSelectHtml('vp-c-sexo',c.sexo)+'</div>'
+    +'</div>'
+    +'<div class="g3 mb1">'
     +'<div class="fg"><label class="fl">Nacionalidade</label><input class="fc" id="vp-c-nac" value="'+(c.nacionalidade||'brasileiro(a)')+'"></div>'
     +'<div class="fg"><label class="fl">Profissão</label><input class="fc" id="vp-c-prof" value="'+(c.profissao||'')+'"></div>'
+    +'<div class="fg"><label class="fl">CPF</label><input class="fc" id="vp-c-cpf" value="'+(c.cpf||'')+'"></div>'
     +'</div>'
-    +'<div class="g3"><div class="fg"><label class="fl">Nº do documento</label><input class="fc" id="vp-c-docnum" value="'+(c.docNumero||'')+'"></div>'
-    +'<div class="fg"><label class="fl">Órgão emissor</label><input class="fc" id="vp-c-docorgao" value="'+(c.docOrgao||'')+'"></div>'
-    +'<div class="fg"><label class="fl">CPF</label><input class="fc" id="vp-c-cpf" value="'+(c.cpf||'')+'"></div></div>'
+    +'<div class="g2"><div class="fg"><label class="fl">Nº do documento</label><input class="fc" id="vp-c-docnum" value="'+(c.docNumero||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Órgão emissor</label><input class="fc" id="vp-c-docorgao" value="'+(c.docOrgao||'')+'"></div></div>'
     +'</div>'
     +'</div>'
     +'<div id="vp-pj-box" style="display:'+(tipoPJ?'':'none')+'">'
@@ -7383,13 +7390,16 @@ function vizPessoaFormHtml(p){
     +'</div>'
     +'<div class="card mb1" style="background:#F4F8FF">'
     +'<div class="fl mb1" style="margin-bottom:.5rem">Representante legal (quem assina pela empresa)</div>'
-    +'<div class="g3 mb1">'
+    +'<div class="g2 mb1">'
     +'<div class="fg"><label class="fl">Nome completo</label><input class="fc" id="vp-r-nome" value="'+(r.nome||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Sexo</label>'+sexoSelectHtml('vp-r-sexo',r.sexo)+'</div>'
+    +'</div>'
+    +'<div class="g3 mb1">'
     +'<div class="fg"><label class="fl">Nacionalidade</label><input class="fc" id="vp-r-nac" value="'+(r.nacionalidade||'brasileiro(a)')+'"></div>'
     +'<div class="fg"><label class="fl">Profissão</label><input class="fc" id="vp-r-prof" value="'+(r.profissao||'')+'"></div>'
+    +'<div class="fg"><label class="fl">CPF</label><input class="fc" id="vp-r-cpf" value="'+(r.cpf||'')+'"></div>'
     +'</div>'
-    +'<div class="g3"><div class="fg"><label class="fl">CPF</label><input class="fc" id="vp-r-cpf" value="'+(r.cpf||'')+'"></div>'
-    +'<div class="fg"><label class="fl">Nº do documento (RG)</label><input class="fc" id="vp-r-docnum" value="'+(r.docNumero||'')+'"></div>'
+    +'<div class="g2"><div class="fg"><label class="fl">Nº do documento (RG)</label><input class="fc" id="vp-r-docnum" value="'+(r.docNumero||'')+'"></div>'
     +'<div class="fg"><label class="fl">Órgão emissor</label><input class="fc" id="vp-r-docorgao" value="'+(r.docOrgao||'')+'" placeholder="Ex: SSP/MS"></div></div>'
     +'</div>'
     +'</div>'
@@ -7409,6 +7419,7 @@ function vizSalvarPessoa(ctx,vizIdx,i){
       representante:{
         cargo:document.getElementById('vp-r-cargo').value,
         nome:document.getElementById('vp-r-nome').value,
+        sexo:document.getElementById('vp-r-sexo').value,
         nacionalidade:document.getElementById('vp-r-nac').value,
         profissao:document.getElementById('vp-r-prof').value,
         cpf:document.getElementById('vp-r-cpf').value,
@@ -7423,6 +7434,7 @@ function vizSalvarPessoa(ctx,vizIdx,i){
   arr[i]={
     tipo:'PF',
     nome:document.getElementById('vp-nome').value,
+    sexo:document.getElementById('vp-sexo').value,
     nacionalidade:document.getElementById('vp-nac').value,
     profissao:document.getElementById('vp-prof').value,
     docTipo:document.getElementById('vp-doctipo').value,
@@ -7435,6 +7447,7 @@ function vizSalvarPessoa(ctx,vizIdx,i){
     endereco:document.getElementById('vp-endereco').value,
     conjuge:temConj?{
       nome:document.getElementById('vp-c-nome').value,
+      sexo:document.getElementById('vp-c-sexo').value,
       nacionalidade:document.getElementById('vp-c-nac').value,
       profissao:document.getElementById('vp-c-prof').value,
       docNumero:document.getElementById('vp-c-docnum').value,
@@ -8566,30 +8579,53 @@ function anuenciaAtualizarBotao(){
   if(btn) btn.disabled=!ok;
 }
 function anuBold(texto){return ''+texto+'';}
+function sexoDe(x){return (x&&x.sexo==='F')?'F':'M';}
+function genero(sexo,masc,fem){return sexo==='F'?fem:masc;}
+// Resolve marcas de gênero "(a)" no texto conforme o sexo (M/F). Ex.: "brasileiro(a)"→"brasileiro"/"brasileira", "casado(a)"→"casado"/"casada".
+function degenero(texto,sexo){
+  if(!texto) return texto||'';
+  return String(texto)
+    .replace(/([a-zà-ú])o\(a\)/gi,function(_,c){return c+(sexo==='F'?'a':'o');})
+    .replace(/\(a\)/g,function(){return sexo==='F'?'a':'';});
+}
+// Termo "proprietário/proprietária/proprietários/proprietárias" conforme quantidade e sexo dos titulares (conta o cônjuge como titular).
+function propTermo(pessoas){
+  let total=0,masc=false,fem=false;
+  (pessoas||[]).forEach(function(p){
+    if(p.tipo==='PJ'){total++;fem=true;return;}
+    total++; if(sexoDe(p)==='F')fem=true; else masc=true;
+    if(p.estadoCivil==='casado(a)'&&p.conjuge){total++; if(sexoDe(p.conjuge)==='F')fem=true; else masc=true;}
+  });
+  if(total>1) return masc?'proprietários':'proprietárias';
+  return (fem&&!masc)?'proprietária':'proprietário';
+}
 function anuenciaPessoaFrase(p,idx,total){
   if(p.tipo==='PJ'){
     let s=anuBold(p.nome)+', pessoa jurídica de direito privado, inscrita no CNPJ sob o n° '+(p.cnpj||'—');
     if(p.endereco) s+=', com sede em '+p.endereco;
     const r=p.representante;
     if(r&&r.nome){
-      s+=', neste ato representada por seu(sua) '+(r.cargo||'representante legal')+', '+anuBold(r.nome)+', '+(r.nacionalidade||'brasileiro(a)')+(r.profissao?', '+r.profissao:'');
-      if(r.docNumero) s+=', portador(a) da Cédula de Identidade R.G. n° '+r.docNumero+(r.docOrgao?' ('+r.docOrgao+')':'');
-      if(r.cpf) s+=', inscrito(a) no CPF sob o n° '+r.cpf;
+      const sr=sexoDe(r);
+      s+=', neste ato representada por '+genero(sr,'seu','sua')+' '+degenero(r.cargo||'representante legal',sr)+', '+anuBold(r.nome)+', '+degenero(r.nacionalidade||'brasileiro(a)',sr)+(r.profissao?', '+r.profissao:'');
+      if(r.docNumero) s+=', '+genero(sr,'portador','portadora')+' da Cédula de Identidade R.G. n° '+r.docNumero+(r.docOrgao?' '+r.docOrgao:'');
+      if(r.cpf) s+=', '+genero(sr,'inscrito','inscrita')+' no CPF sob o n° '+r.cpf;
     }
     return s;
   }
+  const sp=sexoDe(p);
   let s=idx===0?'Eu, ':(idx===total-1&&total>1?'e Eu, ':'Eu, ');
-  s+=anuBold(p.nome)+', '+(p.nacionalidade||'brasileiro(a)')+', '+(p.profissao||'')+', portador(a) da '+(p.docTipo==='CNH'?'CNH':p.docTipo==='CI'?'Carteira de Identidade':'Cédula de Identidade R.G.')+' n° '+(p.docNumero||'')+(p.docOrgao?' ('+p.docOrgao+')':'')+', inscrito(a) no CPF sob o n° '+(p.cpf||'')+', '+(p.estadoCivil||'solteiro(a)');
-  if(p.estadoCivil==='casado(a)'&&p.conjuge){
-    s+=(p.regimeBens?' pelo regime de '+p.regimeBens:'')+' com '+p.conjuge.nome+', '+(p.conjuge.nacionalidade||'brasileiro(a)')+', '+(p.conjuge.profissao||'')+', inscrito(a) no CPF sob o n° '+(p.conjuge.cpf||'')+' e portador(a) de documento de identidade n° '+(p.conjuge.docNumero||'')+(p.conjuge.docOrgao?', '+p.conjuge.docOrgao:'');
+  s+=anuBold(p.nome)+', '+degenero(p.nacionalidade||'brasileiro(a)',sp)+', '+(p.profissao?p.profissao+', ':'')+genero(sp,'portador','portadora')+' da '+(p.docTipo==='CNH'?'CNH':p.docTipo==='CI'?'Carteira de Identidade':'Cédula de Identidade R.G.')+' n° '+(p.docNumero||'')+(p.docOrgao?' '+p.docOrgao:'')+', '+genero(sp,'inscrito','inscrita')+' no CPF sob o n° '+(p.cpf||'')+', '+degenero(p.estadoCivil||'solteiro(a)',sp);
+  const casal=p.estadoCivil==='casado(a)'&&p.conjuge;
+  if(casal){
+    const sc=sexoDe(p.conjuge);
+    s+=(p.regimeBens?' pelo regime de '+p.regimeBens:'')+' com '+p.conjuge.nome+', '+degenero(p.conjuge.nacionalidade||'brasileiro(a)',sc)+', '+(p.conjuge.profissao?p.conjuge.profissao+', ':'')+genero(sc,'inscrito','inscrita')+' no CPF sob o n° '+(p.conjuge.cpf||'')+' e '+genero(sc,'portador','portadora')+' de documento de identidade n° '+(p.conjuge.docNumero||'')+(p.conjuge.docOrgao?', '+p.conjuge.docOrgao:'');
   }
-  if(p.endereco) s+=', residente e domiciliado(a) em '+p.endereco;
+  if(p.endereco) s+=', '+(casal?'residentes e domiciliados':'residente e '+genero(sp,'domiciliado','domiciliada'))+' em '+p.endereco;
   return s;
 }
 function anuenciaMontarQualificacao(pessoas,nomeImovel,matricula,comarca,codigoIncra){
   const corpo=pessoas.map(function(p,i){return anuenciaPessoaFrase(p,i,pessoas.length);}).join('; ');
-  const plural=pessoas.length>1;
-  return corpo+', '+(plural?'proprietários':'proprietário(a)')+' do imóvel denominado '+anuBold(nomeImovel)+', da matrícula n° '+anuBold(matricula||'—')+', da comarca de '+(comarca||'—')+(codigoIncra?', cadastrado no INCRA sob o código n° '+codigoIncra:'')+'.';
+  return corpo+', '+propTermo(pessoas)+' do imóvel denominado '+anuBold(nomeImovel)+', da matrícula n° '+anuBold(matricula||'—')+', da comarca de '+(comarca||'—')+(codigoIncra?', cadastrado no INCRA sob o código n° '+codigoIncra:'')+'.';
 }
 function anuenciaLinhaTabelaXml(de,para,az,dist,lon,lat,alt){
   function tc(text,bold){
@@ -8646,8 +8682,8 @@ async function anuenciaGerarDocx(){
     const quali2Texto=(vizinho&&vizinho.pessoas&&vizinho.pessoas.length)?anuenciaMontarQualificacao(vizinho.pessoas,vizinho.nomeImovel,vizinho.matricula,vizinho.comarca,vizinho.codigoIncra):QUALI_MODELO_VAZIO;
     const linhasXml=marcosSelecionados.map(function(v){return anuenciaLinhaTabelaXml(v.codigo,v.vante,v.azimute,v.dist,v.lon,v.lat,v.alt);}).join('');
     const somaDist=marcosSelecionados.reduce(function(s,v){return s+(v.distDec||0);},0);
-    const assinaturas1Xml=propsSelecionados.map(function(p){return anuenciaAssinaturaXml(p,'(proprietário(a) Imóvel 1'+(p.percentual?' – '+p.percentual+'%':'')+')');}).join('');
-    const assinaturas2Xml=vizinho?vizinho.pessoas.map(function(p){return anuenciaAssinaturaXml(p,'(proprietário(a) Imóvel 2'+(p.percentual?' – '+p.percentual+'%':'')+')');}).join(''):'';
+    const assinaturas1Xml=propsSelecionados.map(function(p){return anuenciaAssinaturaXml(p,'('+genero(sexoDe(p),'proprietário','proprietária')+' Imóvel 1'+(p.percentual?' – '+p.percentual+'%':'')+')');}).join('');
+    const assinaturas2Xml=vizinho?vizinho.pessoas.map(function(p){return anuenciaAssinaturaXml(p,'('+genero(sexoDe(p),'proprietário','proprietária')+' Imóvel 2'+(p.percentual?' – '+p.percentual+'%':'')+')');}).join(''):'';
     const zonaEl=document.getElementById('incra-zona'),hemisEl=document.getElementById('incra-hemis');
     const zonaSgl=zonaEl?('SIRGAS 2000 Fuso '+zonaEl.value+(hemisEl.value==='S'?'S':'N')):'SIRGAS 2000';
     const meses=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
@@ -8863,10 +8899,9 @@ function reqRenderCerts(){
 }
 function reqMontarQualificacao(pessoas,nomeImovel,matricula,municipio,codigoIncra,tipoImovel){
   const corpo=pessoas.map(function(p,i){return anuenciaPessoaFrase(p,i,pessoas.length);}).join('; ');
-  const plural=pessoas.length>1;
   const urbano=tipoImovel==='urbano';
   const cadastro=codigoIncra?', cadastrado '+(urbano?'na Prefeitura sob a inscrição municipal n° ':'no INCRA sob o código n° ')+anuBold(codigoIncra):'';
-  return corpo+', '+(plural?'proprietários':'proprietário(a)')+' do imóvel '+(urbano?'urbano':'rural')+' denominado '+anuBold(nomeImovel)+', matrícula n° '+anuBold(matricula||'—')+' de '+(municipio||'—')+cadastro+'.';
+  return corpo+', '+propTermo(pessoas)+' do imóvel '+(urbano?'urbano':'rural')+' denominado '+anuBold(nomeImovel)+', matrícula n° '+anuBold(matricula||'—')+' de '+(municipio||'—')+cadastro+'.';
 }
 function reqCertParagrafoXml(c){
   const rprB='<w:rPr><w:rFonts w:cs="Arial"/><w:b/><w:bCs/></w:rPr>';
