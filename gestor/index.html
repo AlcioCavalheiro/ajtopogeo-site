@@ -8852,7 +8852,9 @@ async function reqObraChange(){
   document.getElementById('rq-tipo-imovel').value=data.codigo_incra_tipo==='PREFEITURA'?'urbano':'rural';
   reqTipoImovelChange();
   document.getElementById('rq-proc-imovel').value=data.nome||'';
-  _reqCerts.forEach(function(c){if(!c.nome)c.nome=data.nome;if(data.rt)c.rt=data.rt;});
+  // Trocou de obra: a lista de imóveis é "puxada do cadastro da obra", então
+  // regenera a partir da obra selecionada (não trava no nome/área da obra anterior).
+  _reqCerts=[reqCertNova()];
   reqRenderProprietarios();
   reqRenderCerts();
 }
