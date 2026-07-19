@@ -597,6 +597,18 @@ def montar_lancamentos(os_reg, data_iso, gastos, args):
     if args.so_andamento:
         return [], []
 
+    # O oposto: o dia já tem andamento e quase todo o financeiro, e falta um
+    # item solto. Filtra os gastos pelo texto e não mexe no andamento.
+    if args.so_gasto:
+        alvos = [normalizar(t) for t in args.so_gasto]
+        selecionados = [g for g in gastos
+                        if any(a in normalizar(g["descricao"]) for a in alvos)]
+        if not selecionados:
+            sys.exit(f"Nenhum gasto do diário casa com {args.so_gasto}. "
+                     f"Itens do dia: "
+                     + ", ".join(repr(g["descricao"]) for g in gastos))
+        gastos = selecionados
+
     numero = os_reg.get("numero") or ""
     ref = f"{numero} · {datetime.fromisoformat(data_iso).strftime('%d/%m/%Y')}"
     custos, pagamentos = [], []
@@ -652,7 +664,28 @@ def montar_lancamentos(os_reg, data_iso, gastos, args):
     return custos, pagamentos
 
 
-def checar_duplicata(url, key, os_reg, data_iso, so_andamento=False, hora=None):
+def checar_gasto_solto(url, key, os_reg, data_iso, pagamentos):
+    """Em --so-gasto, avisa se o item já está lançado naquela data.
+
+    Confere por valor: a descrição varia (o Gestor tem 'Pedagio' e o diário
+    'Pedágios'), mas o valor de um gasto avulso repetido no mesmo dia e na
+    mesma OS é quase sempre relançamento.
+    """
+    existentes = buscar(url, key, "pagamentos", "descricao,valor",
+                        os_id=f"eq.{os_reg['id']}", vencimento=f"eq.{data_iso}")
+    achados = []
+    for p in pagamentos:
+        for e in existentes:
+            if abs(float(e.get("valor") or 0) - float(p["valor"])) < 0.009:
+                achados.append(
+                    f"{brl(p['valor'])} já lançado nesta data como "
+                    f"{e.get('descricao') or '—'!r}")
+                break
+    return achados
+
+
+def checar_duplicata(url, key, os_reg, data_iso, so_andamento=False, hora=None,
+                     so_gasto=False):
     """Avisa o que já existe nesta OS nesta data. Relançar dobra o custo."""
     achados = []
     marca = marca_diario(data_iso, hora)
@@ -678,6 +711,11 @@ def checar_duplicata(url, key, os_reg, data_iso, so_andamento=False, hora=None):
     # sintoma: é justamente por ele já estar lançado que nada é relançado.
     if so_andamento:
         return achados
+    # Em --so-gasto vale o inverso: o andamento já existir é o normal, e o que
+    # importa é se o item específico já está lá. Quem confere isso é
+    # checar_gasto_solto, com o valor na mão.
+    if so_gasto:
+        return []
 
 
 
@@ -756,7 +794,10 @@ def imprimir_previa(os_reg, campos, data_iso, gastos, total, declarado,
               + "; ".join(duplicatas)
               + ". Aplicar de novo duplica o custo. Use --forcar se for intencional.")
 
-    print("\n## Andamento a registrar\n")
+    if args.so_gasto:
+        print("\n## Andamento — **não será tocado**\n")
+    else:
+        print("\n## Andamento a registrar\n")
     for linha in texto_andamento.split("\n"):
         print(f"> {linha}  ")
 
@@ -820,17 +861,21 @@ def imprimir_candidatas(candidatas, referencia, cliente, motivo):
 def aplicar_diario(url, key, os_reg, texto_andamento, custos, pagamentos, total, args):
     """Grava o andamento e os lançamentos numa OS que já existe."""
     agora = datetime.now()
-    item = {"txt": texto_andamento,
-            "data": agora.strftime("%d/%m/%Y"),
-            "hora": agora.strftime("%H:%M"),
-            "user": "diário de bordo"}
-    # A OS recém-criada já vem com o andamento de abertura; preservar.
-    novo = [*(os_reg.get("andamento") or []), item]
-    patch = {"andamento": novo, "atualizado_em": agora.astimezone().isoformat()}
-    if args.status:
-        patch["status"] = args.status
-    atualizar(url, key, "ordens", patch, id=f"eq.{os_reg['id']}")
-    print(f"✓ Andamento registrado em {os_reg.get('numero')}.")
+    if args.so_gasto:
+        # O andamento do dia já está lá — é só o item que faltou.
+        print(f"• Andamento preservado; lançando só o gasto que faltava.")
+    else:
+        item = {"txt": texto_andamento,
+                "data": agora.strftime("%d/%m/%Y"),
+                "hora": agora.strftime("%H:%M"),
+                "user": "diário de bordo"}
+        # A OS recém-criada já vem com o andamento de abertura; preservar.
+        novo = [*(os_reg.get("andamento") or []), item]
+        patch = {"andamento": novo, "atualizado_em": agora.astimezone().isoformat()}
+        if args.status:
+            patch["status"] = args.status
+        atualizar(url, key, "ordens", patch, id=f"eq.{os_reg['id']}")
+        print(f"✓ Andamento registrado em {os_reg.get('numero')}.")
 
     os_id, numero = os_reg["id"], os_reg.get("numero")
     for c in custos:
@@ -842,11 +887,16 @@ def aplicar_diario(url, key, os_reg, texto_andamento, custos, pagamentos, total,
         inserir(url, key, "pagamentos", {**p, "os_id": os_id, "os_manual": numero})
         print(f"✓ Despesa: {p['descricao']} — {brl(p['valor'])} ({p['status']})")
 
+    # `total` é o total do diário, não o que esta rodada gravou. Nos modos
+    # parciais os dois números divergem, e anunciar o do diário faz parecer
+    # que entrou dinheiro que não entrou.
     if args.so_andamento:
-        # Sem isto a linha fecha anunciando o total do diário como se tivesse
-        # sido lançado — o oposto do que este modo faz.
         print(f"\nSó o andamento foi gravado. O financeiro de {brl(total)} "
               f"deste dia continua como já estava na OS {numero}.")
+    elif args.so_gasto:
+        lancado = sum(p["valor"] for p in pagamentos) + sum(c["valor_total"] for c in custos)
+        print(f"\nLançado agora: {brl(lancado)} — de {brl(total)} que o diário "
+              f"registra no dia. O resto já estava na OS {numero}.")
     else:
         print(f"\nTotal lançado na OS: {brl(total)}. "
               f"Confira em Financeiro → OS {numero}.")
@@ -867,6 +917,10 @@ def main():
     ap.add_argument("--reembolso-pago", metavar="DATA",
                     help="data em que o reembolso já foi devolvido (dd/mm/aaaa); "
                          "sem isto ele entra como Pendente")
+    ap.add_argument("--so-gasto", metavar="TEXTO", action="append",
+                    help="lança só os gastos cuja descrição casa com TEXTO, sem "
+                         "tocar no andamento (item que faltou num dia já lançado). "
+                         "Pode repetir")
     ap.add_argument("--so-andamento", action="store_true",
                     help="grava só o andamento; não lança custo nem despesa "
                          "(dia antigo, com o financeiro já lançado à mão)")
@@ -964,7 +1018,9 @@ def main():
     texto_andamento = montar_andamento(campos, data_iso, gastos, total)
     custos, pagamentos = montar_lancamentos(os_reg, data_iso, gastos, args)
     duplicatas = checar_duplicata(url, key, os_reg, data_iso, args.so_andamento,
-                                  achar_hora(campos["chegada"]))
+                                  achar_hora(campos["chegada"]), args.so_gasto)
+    if args.so_gasto:
+        duplicatas = checar_gasto_solto(url, key, os_reg, data_iso, pagamentos)
 
     if args.json:
         print(json.dumps({"os": os_reg.get("numero"), "data": data_iso,

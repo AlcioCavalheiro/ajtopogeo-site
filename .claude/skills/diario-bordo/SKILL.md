@@ -275,6 +275,26 @@ mais, diga o que dá para recuperar e o que vai faltar, e deixe **ele**
 decidir se vale — não preencha horário por estimativa. Um andamento com
 hora inventada é pior que um andamento curto: ele parece registro de campo.
 
+## Lançar o item que faltou — `--so-gasto`
+
+O complemento do anterior: o dia já tem andamento e quase todo o financeiro,
+e falta um item. `--forcar` relançaria o dia inteiro e dobraria o resto.
+
+```bash
+py rotinas/diario_bordo.py <scratchpad>/diario.txt --os OS-JUN-025 \
+   --so-gasto pedagio --aplicar
+```
+
+Lança só os gastos cuja descrição casa com o texto (pode repetir a opção) e
+**não toca no andamento**. A checagem de duplicata muda de critério: em vez
+de olhar a data, compara o **valor** com o que já está lançado ali — a
+descrição varia entre o Gestor ("Pedagio") e o diário ("Pedágios"), o valor
+não.
+
+Depois de completar, rode `--so-andamento` só para ler a conferência: ela
+tem que fechar diário = lançado. Foi assim que 07/07 da OS-JUN-025 saiu de
+R$ 189,54 para os R$ 220,14 do diário.
+
 ## Passo 5 — Status e pendências
 
 O status da OS **não muda sozinho**. Depois de aplicar, olhe o campo Pendências
