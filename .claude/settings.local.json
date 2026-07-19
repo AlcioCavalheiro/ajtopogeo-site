@@ -148,7 +148,10 @@
       "Bash(node -e \"console.log\\(require.resolve\\('d3-delaunay'\\)\\)\")",
       "Bash(node -e \"const d=JSON.parse\\(require\\('fs'\\).readFileSync\\(0,'utf8'\\)\\);console.log\\(d.version, d.dependencies\\)\")",
       "Bash(node test_curvas_nivel.js)",
-      "Bash(node -e \"console.log\\(require.resolve\\('jsdom'\\)\\); console.log\\(require.resolve\\('d3-delaunay'\\)\\)\")"
+      "Bash(node -e \"console.log\\(require.resolve\\('jsdom'\\)\\); console.log\\(require.resolve\\('d3-delaunay'\\)\\)\")",
+      "mcp__claude-in-chrome__tabs_context_mcp",
+      "mcp__claude-in-chrome__navigate",
+      "mcp__claude-in-chrome__get_page_text"
     ],
     "defaultMode": "acceptEdits"
   }
