@@ -28,14 +28,28 @@ EXT_IMAGEM = {".jpg", ".jpeg", ".png", ".tif", ".tiff"}
 MIN_CHARS_POR_PAGINA = 120
 
 
+def exe_tesseract() -> str | None:
+    """No PATH, ou no caminho padrao do instalador (o app nao ve o PATH novo
+    ate ser reiniciado)."""
+    achado = shutil.which("tesseract")
+    if achado:
+        return achado
+    padrao = Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe")
+    return str(padrao) if padrao.exists() else None
+
+
 def tem_ocr() -> bool:
-    return shutil.which("tesseract") is not None
+    return exe_tesseract() is not None
 
 
 def tesseract(imagem: bytes) -> str:
+    cmd = [exe_tesseract(), "stdin", "stdout", "-l", "por"]
+    # por.traineddata proprio, para nao depender de escrita em Program Files
+    tessdata = Path(sys.prefix).parent / "tessdata"
+    if (tessdata / "por.traineddata").exists():
+        cmd += ["--tessdata-dir", str(tessdata)]
     return subprocess.run(
-        ["tesseract", "stdin", "stdout", "-l", "por"],
-        input=imagem, check=True, capture_output=True, timeout=300,
+        cmd, input=imagem, check=True, capture_output=True, timeout=300,
     ).stdout.decode("utf-8", "replace")
 
 
