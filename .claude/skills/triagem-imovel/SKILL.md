@@ -39,10 +39,13 @@ Estrutura em `G:\Meu Drive\EMPRESA\AJ TOPOGEO\TOPOGRAFIA\SERVIÇOS\EM EXECUÇÃO
 ```
 
 Regras:
-- `<NOME>` segue o padrão já usado na pasta: nome do cliente em CAIXA ALTA,
-  sem acento (ex: `NAGATOMO`, `AREA BANDEIRANTES`).
-- Se o cliente for um intermediário com várias áreas (padrão `LUCAS AMBIENTAL`),
-  crie como subpasta dele, não na raiz de EM EXECUÇÃO.
+- `<NOME>` segue o padrão já usado na pasta: nome do cliente ou da área em
+  CAIXA ALTA, sem acento. Olhe os vizinhos em EM EXECUÇÃO e siga o estilo.
+- Alguns clientes são intermediários com várias áreas sob o mesmo nome. Nesses,
+  a área nova entra como subpasta dele, não na raiz de EM EXECUÇÃO. Confirme
+  com o usuário quando não estiver claro qual é o caso.
+- Este repositório é público: não escreva nome de cliente, telefone, valor de
+  contrato ou número de matrícula em nenhum arquivo versionado.
 - **Nunca reorganize pasta de projeto já existente.** As antigas são planas e
   mexer nelas quebra caminhos de DWG e atalhos. O padrão vale para projeto novo.
 - Confirme com o usuário antes de criar se já existir pasta com nome parecido.

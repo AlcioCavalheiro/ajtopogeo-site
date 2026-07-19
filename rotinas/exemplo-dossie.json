@@ -1,0 +1,57 @@
+{
+  "_comentario": "EXEMPLO FICTÍCIO — modelo de estrutura para rotinas/relatorio_pdf.py. Este repositório é PÚBLICO: nunca versione um dossiê com dado real de cliente. O dossiê da semana vai no scratchpad da sessão; só o PDF e o markdown vão para o Drive.",
+  "data": "2026-01-15",
+  "resumo": {
+    "os_abertas": 40,
+    "total_travado": 100000,
+    "valor_cobrancas": 25000,
+    "valor_internas": 5000
+  },
+  "nota_topo": "<b>Comparativo com a rodada anterior:</b> 2 OS avançaram (R$ 8.000 recebidos), 5 seguem paradas. Nenhuma mensagem foi enviada: os textos abaixo são rascunhos.",
+  "cobrancas": [
+    {
+      "titulo": "CLIENTE EXEMPLO A",
+      "valor": 20000,
+      "contato": "(00) 00000-0000  ·  exemplo@dominio.com",
+      "os": [
+        {"numero": "OS-XXX-001", "desc": "Georreferenciamento — Imóvel Exemplo (Cidade-UF)", "valor": 18000, "dias": 45, "status": "Pendência Documental"},
+        {"numero": "OS-XXX-002", "desc": "Regularização Fundiária — mesmo imóvel", "valor": 2000, "dias": 40, "status": "Protocolada"}
+      ],
+      "contexto": "Duas OS do mesmo cliente e mesmo imóvel: agrupe numa mensagem só. Use este campo para o raciocínio de priorização.",
+      "mensagem": "Texto literal que vai para o WhatsApp. Sem markdown e sem HTML — sai no PDF exatamente assim e o usuário copia daqui.\n\nQuebra de linha simples com \\n. Uma ação clara pedida ao cliente, com prazo.",
+      "alerta": "Use quando o motivo da parada NÃO estiver confirmado no dado. Sai em vermelho, com o rótulo CONFIRME ANTES DE ENVIAR. Todo caso inferido precisa de um."
+    },
+    {
+      "titulo": "CLIENTE EXEMPLO B",
+      "valor": 5000,
+      "contato": "(00) 00000-0000",
+      "os": [
+        {"numero": "OS-XXX-003", "desc": "Locação de Obras — Empreendimento Exemplo", "valor": 5000, "dias": 50, "status": "NF Gerada"}
+      ],
+      "contexto": "NF emitida e não paga. Cobrança financeira direta, sem pendência técnica.",
+      "mensagem": "Mensagem de cobrança financeira.",
+      "dica": "Use para oportunidade: agrupar cobranças, emitir NF antes de mandar, aproveitar contato já agendado. Sai em âmbar."
+    }
+  ],
+  "internas": [
+    {
+      "titulo": "Emitir NF — CLIENTE EXEMPLO C",
+      "valor": 5000,
+      "os": [
+        {"numero": "OS-XXX-004", "desc": "Serviço Exemplo — Imóvel Exemplo", "valor": 5000, "dias": 50, "status": "Medição Realizada"}
+      ],
+      "texto": "Por que travou do nosso lado. Nada aqui depende do cliente — não vira mensagem.",
+      "acao": "O que fazer, em uma frase imperativa."
+    }
+  ],
+  "observacoes": [
+    {
+      "titulo": "Padrão da carteira, não caso isolado",
+      "texto": "Use esta seção para o que se repete: clientes sem contato cadastrado, concentração de OS num mesmo status, janelas em que o acompanhamento parou. É o que gera decisão estrutural, não tarefa avulsa."
+    }
+  ],
+  "proxima_semana": [
+    "Pergunta objetiva e verificável para a rodada seguinte",
+    "Uma por frente aberta nesta rodada"
+  ]
+}

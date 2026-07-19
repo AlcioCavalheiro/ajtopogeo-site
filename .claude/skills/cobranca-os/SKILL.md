@@ -50,19 +50,60 @@ Para cada uma das 5–10 primeiras, escreva uma mensagem curta de WhatsApp
   **não** é mensagem de cobrança: vira tarefa sua. Marque como `[INTERNO]`
   e liste como pendência de execução, não de cobrança.
 
-Separe a entrega em dois blocos: `## Cobranças a enviar` e `## Pendências internas`.
+Separe a entrega em dois blocos: cobranças a enviar e pendências internas.
 
-## Passo 4 — Registrar
+## Passo 4 — Montar o dossiê e gerar o PDF
 
-Salve o resultado em:
+**A entrega principal desta rotina é o PDF.** É nele que o usuário decide.
+
+Escreva os textos num dossiê JSON e renderize:
+
+```bash
+py rotinas/relatorio_pdf.py <dossie.json> "G:\Meu Drive\EMPRESA\AJ TopoGeo\_ROTINAS\COBRANCA\AAAA-MM-DD-cobranca.pdf"
+```
+
+Guarde o JSON no scratchpad da sessão, não no Drive — ele é intermediário.
+O modelo da rodada anterior está em `rotinas/exemplo-dossie.json`.
+
+Estrutura do dossiê:
+
+| Campo | Conteúdo |
+|---|---|
+| `resumo` | `os_abertas`, `total_travado`, `valor_cobrancas`, `valor_internas` |
+| `nota_topo` | uma frase situando a rodada e o delta da semana anterior |
+| `cobrancas[]` | `titulo`, `valor`, `contato`, `os[]`, `contexto`, `mensagem`, `alerta`, `dica` |
+| `internas[]` | `titulo`, `valor`, `os[]`, `texto`, `acao` |
+| `observacoes[]` | `titulo`, `texto` — padrões da carteira, não casos isolados |
+| `proxima_semana[]` | perguntas objetivas para a rodada seguinte |
+
+Cada `os[]` leva `numero`, `desc`, `valor`, `dias`, `status`.
+
+Regras de preenchimento:
+
+- `mensagem` é o texto literal que vai para o WhatsApp. Sem markdown, sem
+  HTML — ela é renderizada como está e o usuário copia daí.
+- `alerta` (vermelho) é para quando o motivo da parada **não está confirmado**
+  no dado. Todo caso em que você inferiu algo precisa de alerta.
+- `dica` (âmbar) é para oportunidade: agrupar cobranças, emitir NF antes, etc.
+- Nos campos de narrativa (`nota_topo`, `contexto`, `texto`, `acao`, `alerta`,
+  `dica`, `observacoes.texto`) pode usar `<b>` e `<i>`. Nos demais, não — eles
+  são escapados porque vêm do banco.
+
+Cada card sai no PDF com uma linha de decisão para marcar: enviar como está,
+ajustar, não enviar, já resolvido.
+
+## Passo 5 — Registrar
+
+Salve também a versão markdown ao lado do PDF, mesma pasta e mesmo nome:
 
 ```
 G:\Meu Drive\EMPRESA\AJ TOPOGEO\_ROTINAS\COBRANCA\AAAA-MM-DD-cobranca.md
 ```
 
-Inclua no topo o comparativo com a semana anterior (arquivo mais recente na
-mesma pasta): quais avançaram, quais seguem paradas, quanto entrou. Esse
-delta é o que dá sentido à rotina ser semanal.
+O PDF é para decidir; o markdown é para eu reler na semana seguinte e
+montar o comparativo. Inclua nele o delta em relação ao arquivo mais recente
+da pasta: quais avançaram, quais seguem paradas, quanto entrou. Esse delta é
+o que dá sentido à rotina ser semanal.
 
 ## Limite
 
