@@ -124,9 +124,9 @@ def buscar_ordens(url, key):
 
     Recebimentos só são somados quando têm os_id preenchido. Os que estão
     soltos (ligados por texto livre em 'descricao') NÃO são adivinhados: uma
-    descrição como "Negrimaq" pode se referir a qualquer uma das OS daquele
-    cliente, e errar aqui faz cobrar quem já pagou. Eles voltam separados,
-    para conciliação manual.
+    descrição com só o nome do cliente pode se referir a qualquer uma das OS
+    dele, e há clientes com várias OS de valor idêntico. Casar por semelhança
+    faria cobrar quem já pagou. Eles voltam separados, para conciliação manual.
     """
     ordens = buscar(url, key, "ordens",
                     "*,clientes(nome,telefone,email)", order="created_at.asc")
