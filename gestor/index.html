@@ -337,8 +337,11 @@ select.fc{cursor:pointer}
       <div class="ni" onclick="nav('orcamentos')"><i class="ti ti-file-dollar"></i>Orçamentos<span class="nb" id="bo" style="display:none">0</span></div>
       <div class="ni" onclick="nav('contratos')"><i class="ti ti-file-certificate"></i>Contratos</div>
       <div class="ng">Financeiro</div>
+      <div class="ni" onclick="nav('contas')"><i class="ti ti-building-bank"></i>Contas Bancárias</div>
       <div class="ni" onclick="nav('recebimentos')"><i class="ti ti-cash"></i>Recebimentos</div>
       <div class="ni" onclick="nav('pagamentos')"><i class="ti ti-credit-card"></i>Pagamentos</div>
+      <div class="ni" onclick="nav('gastosfixos')"><i class="ti ti-lock"></i>Gastos Fixos</div>
+      <div class="ni" onclick="nav('saidasvar')"><i class="ti ti-chart-bar"></i>Saídas Variáveis</div>
       <div class="ni" onclick="nav('impostos')"><i class="ti ti-receipt-tax"></i>Impostos</div>
       <div class="ni" onclick="nav('folha')"><i class="ti ti-users"></i>Folha / Pró-labore</div>
       <div class="ni" onclick="nav('medicao')"><i class="ti ti-checkup-list"></i>Medições</div>
@@ -499,8 +502,11 @@ const PCFG={
   orcamentos:{t:'Orçamentos',a:'Novo Orçamento',tb:'orcamentos',h:'__orca__'},
   contratos:{t:'Novo Contrato',tb:'contratos',h:function(o){return '<div class="g2"><div class="fg"><label class="fl">Número</label><input class="fc" id="f-numero" placeholder="Gerando automaticamente..." style="background:#f0f7ff;font-weight:600;color:#0d4fa0" readonly></div><div class="fg"><label class="fl">Orçamento de origem</label><select class="fc" id="f-orcamento_id" onchange="preencherContratoDoOrca(this.value)"><option value="">— Selecione um orçamento aprovado —</option>'+(o.orcOpts||'')+'</select></div></div><div class="mu sm" style="margin:-4px 0 8px;color:#0d4fa0"><i class="ti ti-info-circle"></i> Selecione um orçamento para preencher cliente, objeto e valor automaticamente.</div><div class="fg"><label class="fl">Cliente *</label><select class="fc" id="f-cliente_id"><option value="">Selecione...</option>'+o.cOpts+'</select></div><div class="fg"><label class="fl">Descrição / Objeto *</label><textarea class="fc" id="f-descricao" rows="3" placeholder="Um serviço por linha — cada linha vira uma cláusula no contrato."></textarea></div><div class="g2"><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor"></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option>Em andamento</option><option>Concluído</option><option>Cancelado</option></select></div></div><div class="g2"><div class="fg"><label class="fl">Data início</label><input class="fc" type="date" id="f-data_inicio"></div><div class="fg"><label class="fl">Prazo</label><input class="fc" type="date" id="f-prazo"></div></div><div class="fg"><label class="fl">Observações</label><textarea class="fc" id="f-obs" rows="2"></textarea></div>';}},
   ordens:{t:'Ordens de Serviço'},
-  recebimentos:{t:'Novo Recebimento',a:'Novo Recebimento',tb:'recebimentos',h:function(o){return '<div class="fg"><label class="fl">Descrição *</label><input class="fc" id="f-descricao" placeholder="Ex: Pagamento OS-001..."></div><div class="fg"><label class="fl">Cliente</label><select class="fc" id="f-cliente_id"><option value="">Selecione...</option>'+o.cOpts+'</select></div><div class="g2"><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor"></div><div class="fg"><label class="fl">Forma de pgto</label><select class="fc" id="f-forma"><option>PIX</option><option>Transferência</option><option>Boleto</option><option>Cheque</option><option>Dinheiro</option><option>Cartão</option></select></div></div><div class="g2"><div class="fg"><label class="fl">Vencimento</label><input class="fc" type="date" id="f-vencimento"></div><div class="fg"><label class="fl">Data recebimento</label><input class="fc" type="date" id="f-data_recebimento"></div></div><div class="fg"><label class="fl">OS Vinculada *</label><select class="fc" id="f-os_id" onchange="syncOsManual(this);recToggleAvulso()"><option value="">— Selecione a OS —</option>'+o.oOpts+'</select><input type="hidden" id="f-os_manual"></div><div class="fg" id="rec-avulso-wrap"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="rec-sem-os" style="width:16px;height:16px;accent-color:var(--brand)"> <span class="fl" style="margin:0">Receita avulsa — não pertence a nenhuma OS</span></label><div class="mu sm" style="margin-top:.25rem">Marque só se a receita realmente não tiver OS. Sem vínculo, o valor não abate o saldo de nenhuma ordem e ela segue aparecendo como não paga na cobrança.</div></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option>Pendente</option><option>Recebido</option></select></div>';}},
-  pagamentos:{t:'Novo Pagamento',tb:'pagamentos',h:function(o){return '<div class="fg"><label class="fl">Descrição *</label><input class="fc" id="f-descricao" placeholder="Ex: Gasolina OS-001..."></div><div class="g2"><div class="fg"><label class="fl">Categoria</label><select class="fc" id="f-categoria"><option>Combustível</option><option>Alimentação</option><option>Pessoal</option><option>Pró-labore</option><option>Salário</option><option>INSS Folha</option><option>FGTS Folha</option><option>IRRF</option><option>Infraestrutura</option><option>Equipamentos</option><option>Software</option><option>Financiamento</option><option>Parcelamento Tributário</option><option>Impostos</option><option>Outros</option></select></div><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor"></div></div><div class="g2"><div class="fg"><label class="fl">Vencimento</label><input class="fc" type="date" id="f-vencimento" oninput="calcTotalPag()"></div><div class="fg"><label class="fl">Data pagamento</label><input class="fc" type="date" id="f-data_pagamento" oninput="calcTotalPag()"></div></div><div class="fg" style="background:#FFF8E7;border-radius:8px;padding:.6rem .9rem"><div style="font-size:11px;color:#854F0B;margin-bottom:.4rem"><i class="ti ti-alert-triangle" style="font-size:11px"></i> Juros / Multa por atraso <span id="pag-atraso-label" style="font-weight:600"></span></div><div class="g2"><div class="fg"><label class="fl">Juros / Multa (R$)</label><input class="fc" type="number" step="0.01" id="f-juros" placeholder="0,00" oninput="calcTotalPag()"></div><div class="fg"><label class="fl">Total efetivo (R$)</label><input id="calc-total-pag" class="fc" type="number" step="0.01" readonly style="background:#f4f4f0" placeholder="—"></div></div></div><div class="fg"><label class="fl">OS Vinculada</label><select class="fc" id="f-os_id" onchange="syncOsManual(this)"><option value="">Sem OS</option>'+o.oOpts+'</select><input type="hidden" id="f-os_manual"></div><div class="g2"><div class="fg"><label class="fl">Tipo de custo</label><select class="fc" id="f-tipo_custo"><option>OS</option><option>Operacional</option><option>Administrativo</option></select></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option>Pendente</option><option>Pago</option></select></div></div><div class="fg"><label class="fl">Competência</label><input class="fc" id="f-periodo_ref" placeholder="Maio/2026"></div><div class="fg"><label class="fl">Boleto / Comprovante (PDF)</label><div id="pag-upload-area" class="upload-area" onclick="document.getElementById(\'pag-file-input\').click()" ondragover="this.classList.add(\'drag-over\');event.preventDefault()" ondragleave="this.classList.remove(\'drag-over\')" ondrop="handleFileDrop(event,\'pag\')"><i class="ti ti-file-invoice"></i><p>Clique ou arraste o PDF do boleto aqui</p></div><div id="pag-file-preview" style="display:none"></div><input type="file" id="pag-file-input" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="handleFileSelect(this,\'pag\')"><input type="hidden" id="f-arquivo_url" value=""></div><div class="fg" style="margin-top:.5rem;border-top:1px dashed var(--bor);padding-top:.75rem"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="pgrec-on" style="width:16px;height:16px;accent-color:var(--brand)" onchange="document.getElementById(\'pgrec-box\').style.display=this.checked?\'block\':\'none\'"> <span class="fl" style="margin:0"><i class="ti ti-repeat" style="color:#0D4FA0"></i> Pagamento recorrente (mensal)</span></label></div><div id="pgrec-box" style="display:none;background:#F4F8FF;border-radius:8px;padding:.75rem;margin-top:.25rem"><div class="g2"><div class="fg"><label class="fl">Repetir</label><select class="fc" id="pgrec-modo" onchange="document.getElementById(\'pgrec-qtd-wrap\').style.display=this.value===\'n\'?\'block\':\'none\'"><option value="n">Número definido de vezes</option><option value="inf">Contínuo (gera 24 meses)</option></select></div><div class="fg" id="pgrec-qtd-wrap"><label class="fl">Qtd de meses</label><input class="fc" type="number" min="2" max="120" id="pgrec-qtd" value="12"></div></div><div class="mu sm">Será criado um lançamento por mês (avançando o vencimento). Cada um pode ser editado ou excluído depois.</div></div>';}},
+  gastosfixos:{t:'Gastos Fixos',a:null},
+  saidasvar:{t:'Saídas Variáveis',a:null},
+  contas:{t:'Contas Bancárias',a:'Nova Conta',tb:'contas_bancarias',h:function(o){return '<div class="fg"><label class="fl">Banco / Nome da conta *</label><input class="fc" id="f-nome" placeholder="Ex: Sicredi, Banco do Brasil, Nubank..."></div><div class="g2"><div class="fg"><label class="fl">Tipo</label><select class="fc" id="f-tipo"><option>Conta Corrente</option><option>Poupança</option><option>Conta Digital</option><option>Investimento</option><option>Caixa</option></select></div><div class="fg"><label class="fl">Saldo inicial (R$)</label><input class="fc" type="number" step="0.01" id="f-saldo_inicial" placeholder="0,00"></div></div><div class="mu sm" style="margin:-4px 0 8px"><i class="ti ti-info-circle"></i> O saldo inicial é o ponto de partida. A movimentação vem sozinha dos recebimentos e pagamentos vinculados a esta conta.</div><div class="g2"><div class="fg"><label class="fl">Agência</label><input class="fc" id="f-agencia" placeholder="0001"></div><div class="fg"><label class="fl">Conta</label><input class="fc" id="f-numero" placeholder="12345-6"></div></div><div class="fg"><label class="fl">Cor</label><select class="fc" id="f-cor"><option value="#1a6fc4">Azul</option><option value="#27500A">Verde</option><option value="#854F0B">Âmbar</option><option value="#A32D2D">Vermelho</option><option value="#3C3489">Roxo</option><option value="#185FA5">Azul escuro</option><option value="#666666">Cinza</option></select></div><div class="fg"><label class="fl">Observação</label><input class="fc" id="f-obs"></div>';}},
+  recebimentos:{t:'Novo Recebimento',a:'Novo Recebimento',tb:'recebimentos',h:function(o){return '<div class="fg"><label class="fl">Descrição *</label><input class="fc" id="f-descricao" placeholder="Ex: Pagamento OS-001..."></div><div class="fg"><label class="fl">Cliente</label><select class="fc" id="f-cliente_id"><option value="">Selecione...</option>'+o.cOpts+'</select></div><div class="g2"><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor"></div><div class="fg"><label class="fl">Forma de pgto</label><select class="fc" id="f-forma"><option>PIX</option><option>Transferência</option><option>Boleto</option><option>Cheque</option><option>Dinheiro</option><option>Cartão</option></select></div></div><div class="g2"><div class="fg"><label class="fl">Vencimento</label><input class="fc" type="date" id="f-vencimento"></div><div class="fg"><label class="fl">Data recebimento</label><input class="fc" type="date" id="f-data_recebimento"></div></div><div class="fg"><label class="fl">OS Vinculada *</label><select class="fc" id="f-os_id" onchange="syncOsManual(this);recToggleAvulso()"><option value="">— Selecione a OS —</option>'+o.oOpts+'</select><input type="hidden" id="f-os_manual"></div><div class="fg" id="rec-avulso-wrap"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="rec-sem-os" style="width:16px;height:16px;accent-color:var(--brand)"> <span class="fl" style="margin:0">Receita avulsa — não pertence a nenhuma OS</span></label><div class="mu sm" style="margin-top:.25rem">Marque só se a receita realmente não tiver OS. Sem vínculo, o valor não abate o saldo de nenhuma ordem e ela segue aparecendo como não paga na cobrança.</div></div><div class="fg"><label class="fl">Conta movimentada</label><select class="fc" id="f-conta_id"><option value="">— Sem conta —</option>'+(o.ctOpts||'')+'</select><div class="mu sm" style="margin-top:.2rem">Em qual conta o dinheiro entrou. Só entra no saldo quando o status for <strong>Recebido</strong>.</div></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option>Pendente</option><option>Recebido</option></select></div>';}},
+  pagamentos:{t:'Novo Pagamento',tb:'pagamentos',h:function(o){return '<div class="fg"><label class="fl">Descrição *</label><input class="fc" id="f-descricao" placeholder="Ex: Gasolina OS-001..."></div><div class="g2"><div class="fg"><label class="fl">Categoria</label><select class="fc" id="f-categoria" onchange="sugerirNatureza()"><option>Combustível</option><option>Alimentação</option><option>Pessoal</option><option>Pró-labore</option><option>Salário</option><option>INSS Folha</option><option>FGTS Folha</option><option>IRRF</option><option>Infraestrutura</option><option>Equipamentos</option><option>Software</option><option>Financiamento</option><option>Parcelamento Tributário</option><option>Impostos</option><option>Outros</option></select></div><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor"></div></div><div class="g2"><div class="fg"><label class="fl">Vencimento</label><input class="fc" type="date" id="f-vencimento" oninput="calcTotalPag()"></div><div class="fg"><label class="fl">Data pagamento</label><input class="fc" type="date" id="f-data_pagamento" oninput="calcTotalPag()"></div></div><div class="fg" style="background:#FFF8E7;border-radius:8px;padding:.6rem .9rem"><div style="font-size:11px;color:#854F0B;margin-bottom:.4rem"><i class="ti ti-alert-triangle" style="font-size:11px"></i> Juros / Multa por atraso <span id="pag-atraso-label" style="font-weight:600"></span></div><div class="g2"><div class="fg"><label class="fl">Juros / Multa (R$)</label><input class="fc" type="number" step="0.01" id="f-juros" placeholder="0,00" oninput="calcTotalPag()"></div><div class="fg"><label class="fl">Total efetivo (R$)</label><input id="calc-total-pag" class="fc" type="number" step="0.01" readonly style="background:#f4f4f0" placeholder="—"></div></div></div><div class="fg"><label class="fl">OS Vinculada</label><select class="fc" id="f-os_id" onchange="syncOsManual(this)"><option value="">Sem OS</option>'+o.oOpts+'</select><input type="hidden" id="f-os_manual"></div><div class="fg"><label class="fl">Conta movimentada</label><select class="fc" id="f-conta_id"><option value="">— Sem conta —</option>'+(o.ctOpts||'')+'</select><div class="mu sm" style="margin-top:.2rem">De qual conta o dinheiro saiu. Só entra no saldo quando o status for <strong>Pago</strong>.</div></div><div class="g3"><div class="fg"><label class="fl">Natureza</label><select class="fc" id="f-natureza"><option>Variável</option><option>Fixo</option></select><div class="mu sm" style="margin-top:.2rem;font-size:10px">Fixo = repete todo mês</div></div><div class="fg"><label class="fl">Tipo de custo</label><select class="fc" id="f-tipo_custo"><option>OS</option><option>Operacional</option><option>Administrativo</option></select></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option>Pendente</option><option>Pago</option></select></div></div><div class="fg"><label class="fl">Competência</label><input class="fc" id="f-periodo_ref" placeholder="Maio/2026"></div><div class="fg"><label class="fl">Boleto / Comprovante (PDF)</label><div id="pag-upload-area" class="upload-area" onclick="document.getElementById(\'pag-file-input\').click()" ondragover="this.classList.add(\'drag-over\');event.preventDefault()" ondragleave="this.classList.remove(\'drag-over\')" ondrop="handleFileDrop(event,\'pag\')"><i class="ti ti-file-invoice"></i><p>Clique ou arraste o PDF do boleto aqui</p></div><div id="pag-file-preview" style="display:none"></div><input type="file" id="pag-file-input" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="handleFileSelect(this,\'pag\')"><input type="hidden" id="f-arquivo_url" value=""></div><div class="fg" style="margin-top:.5rem;border-top:1px dashed var(--bor);padding-top:.75rem"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="pgrec-on" style="width:16px;height:16px;accent-color:var(--brand)" onchange="document.getElementById(\'pgrec-box\').style.display=this.checked?\'block\':\'none\'"> <span class="fl" style="margin:0"><i class="ti ti-repeat" style="color:#0D4FA0"></i> Pagamento recorrente (mensal)</span></label></div><div id="pgrec-box" style="display:none;background:#F4F8FF;border-radius:8px;padding:.75rem;margin-top:.25rem"><div class="g2"><div class="fg"><label class="fl">Repetir</label><select class="fc" id="pgrec-modo" onchange="document.getElementById(\'pgrec-qtd-wrap\').style.display=this.value===\'n\'?\'block\':\'none\'"><option value="n">Número definido de vezes</option><option value="inf">Contínuo (gera 24 meses)</option></select></div><div class="fg" id="pgrec-qtd-wrap"><label class="fl">Qtd de meses</label><input class="fc" type="number" min="2" max="120" id="pgrec-qtd" value="12"></div></div><div class="mu sm">Será criado um lançamento por mês (avançando o vencimento). Cada um pode ser editado ou excluído depois.</div></div>';}},
   custos_os:{t:'Lançar Custo de Equipe',tb:'custos_os',h:function(o){return '<div class="fg"><label class="fl">Funcionário</label><select class="fc" id="f-func_id" onchange="autoVlrCusto()"><option value="">Selecione...</option>'+o.fOpts+'</select></div><div class="g2"><div class="fg"><label class="fl">Tipo de custo</label><select class="fc" id="f-tipo_custo" onchange="autoVlrCusto()"><option>Hora</option><option>Diária</option><option>Empreitada</option></select></div><div class="fg"><label class="fl">Quantidade</label><input class="fc" type="number" id="f-quantidade" value="1" step="0.5" oninput="autoCalcCusto()"></div></div><div class="g2"><div class="fg"><label class="fl">Valor unitário (R$)</label><input class="fc" type="number" step="0.01" id="f-valor_unit" oninput="autoCalcCusto()"></div><div class="fg"><label class="fl">Total (R$)</label><input class="fc" type="number" id="f-valor_total" readonly style="background:#f4f4f0"></div></div><div class="g2"><div class="fg"><label class="fl">OS vinculada</label><select class="fc" id="f-os_id"><option value="">Sem OS</option>'+o.oOpts+'</select></div><div class="fg"><label class="fl">Data</label><input class="fc" type="date" id="f-data"></div></div><div class="fg"><label class="fl">Observação</label><input class="fc" id="f-obs"></div>';}},
   impostos:{t:'Registrar Imposto',tb:'impostos',h:function(o){return '<div class="g2"><div class="fg"><label class="fl">Tipo *</label><select class="fc" id="f-tipo"><option>Simples Nacional (DAS)</option><option>INSS</option><option>IRPJ/CSLL</option><option>FGTS</option><option>ISS</option><option>IRRF</option><option>Outro</option></select></div><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor"></div></div><div class="fg"><label class="fl">Descrição</label><input class="fc" id="f-descricao" placeholder="Ex: DAS Simples Nacional Maio/2026"></div><div class="fg"><label class="fl">OS Vinculada</label><select class="fc" id="f-os_id"><option value="">Sem OS — distribuir entre todas do mês</option>'+o.oOpts+'</select></div><div class="g2"><div class="fg"><label class="fl">Data pagamento</label><input class="fc" type="date" id="f-data"></div><div class="fg"><label class="fl">Período ref.</label><input class="fc" id="f-periodo_ref" placeholder="Maio/2026"></div></div><div class="fg"><label class="fl">PDF do comprovante</label><div id="imp-upload-area" class="upload-area" onclick="document.getElementById(\'imp-file-input\').click()"><i class="ti ti-file-upload"></i><p>Clique ou arraste o PDF aqui</p></div><div id="imp-file-preview" style="display:none"></div><input type="file" id="imp-file-input" accept=".pdf" style="display:none" onchange="handleFileSelect(this,\'imp\')"><input type="hidden" id="f-arquivo_url" value=""></div>';}},
   medicao:{t:'Nova Medição',tb:'medicoes',h:function(o){return '<div class="fg"><label class="fl">Descrição *</label><input class="fc" id="f-descricao" placeholder="Ex: Medição 01 — Jardim Monaco Maio/2026"></div><div class="g2"><div class="fg"><label class="fl">Cliente</label><select class="fc" id="f-cliente_id"><option value="">Selecione...</option>'+o.cOpts+'</select></div><div class="fg"><label class="fl">OS Vinculada</label><select class="fc" id="f-os_id"><option value="">Sem OS</option>'+o.oOpts+'</select></div></div><div class="g2"><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor"></div><div class="fg"><label class="fl">% Executado</label><input class="fc" type="number" min="0" max="100" id="f-perc_executado" placeholder="0-100"></div></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option>Fechar Medição</option><option>Gerar NF</option><option>Falta Pagamento</option><option>Recebido</option></select></div><div class="fg"><label class="fl">Observações</label><textarea class="fc" id="f-obs" rows="2"></textarea></div>';}},
@@ -569,7 +575,7 @@ function nav(page){
   document.getElementById('pt').textContent=cfg.t;
   const ba=document.getElementById('ba');
   if(cfg.a){ba.style.display='flex';document.getElementById('bal').textContent=cfg.a;}else ba.style.display='none';
-  const _semBusca=new Set(['dashboard','agenda','dre','medicao','pipeline','pendencias','relatorios','config','geoferramentas','tributario']);
+  const _semBusca=new Set(['dashboard','agenda','dre','medicao','pipeline','pendencias','relatorios','config','geoferramentas','tributario','gastosfixos','saidasvar','contas']);
   const siWrap=document.querySelector('.sb2');
   const si=document.getElementById('si');
   si.value='';
@@ -2317,7 +2323,7 @@ function _renderRecTabela(re,q){
     }
     html+=`<tr>
       <td>${r.descricao||'—'}</td><td class="mu sm">${r.os_manual||'—'}</td>
-      <td class="w6">${fmt(r.valor)}</td><td class="mu sm">${r.forma||'—'}</td>
+      <td class="w6">${fmt(r.valor)}</td><td class="mu sm">${r.forma||'—'}${r.conta_id?'<br>'+badgeConta(r.conta_id):''}</td>
       <td>${fd(r.data_recebimento)}</td>
       <td class="fx g8">
         <button class="btn bsm" onclick="editRecord('recebimentos','${r.id}')"><i class="ti ti-edit"></i></button>
@@ -2337,6 +2343,7 @@ let _arCount=0;
 async function rRec(tab){
   if(tab)_recTab=tab;
   const hoje=hojeLocal();
+  await carregarContas();
   const[orcA,osOrc,recAll,agRec]=await Promise.all([
     sb.from('orcamentos').select('id,numero,valor_total,cliente_nome,cliente_id').eq('status','Aprovado'),
     sb.from('ordens').select('id,numero,orcamento_id,clientes(nome)').not('orcamento_id','is',null),
@@ -2573,7 +2580,7 @@ async function reconciliarPrevisoes(orcNum){
 
 let _pagCache=[];
 function _renderPagTabela(pa,q){
-  const t=q?pa.filter(p=>{const s=_normOS((p.descricao||'')+(p.categoria||'')+(p.os_manual||'')+(p.status||''));return s.includes(_normOS(q));}):pa;
+  const t=q?pa.filter(p=>{const s=_normOS((p.descricao||'')+(p.categoria||'')+(p.os_manual||'')+(p.status||'')+natPag(p));return s.includes(_normOS(q));}):pa;
   const tb=document.getElementById('pag-tbody');if(!tb)return;
   if(!t.length){tb.innerHTML=q?`<tr><td colspan="8" style="text-align:center;color:#888;padding:2rem">Nenhum pagamento encontrado para "<strong>${q}</strong>"</td></tr>`:nd(8);return;}
   const sorted=[...t].sort((a,b)=>{
@@ -2596,9 +2603,9 @@ function _renderPagTabela(pa,q){
     const vencido=p.status==='Pendente'&&p.vencimento&&p.vencimento<hoje;
     const diasV=vencido?diasDe(p.vencimento):0;
     html+=`<tr${vencido?' style="background:rgba(163,45,45,.06)"':''}>
-      <td>${p.descricao||'—'}${p.recorrencia_id?' <span class="bd bn" title="Pagamento recorrente"><i class="ti ti-repeat" style="font-size:10px"></i></span>':''}</td><td><span class="bd bn">${p.categoria||'—'}</span></td>
+      <td>${p.descricao||'—'}${p.recorrencia_id?' <span class="bd bn" title="Pagamento recorrente"><i class="ti ti-repeat" style="font-size:10px"></i></span>':''}</td><td><span class="bd bn">${p.categoria||'—'}</span> ${badgeNat(p)}</td>
       <td class="mu sm">${p.os_manual||'—'}</td><td class="w6">${fmt(p.valor)}${Number(p.juros||0)>0?`<br><span style="font-size:10px;color:#854F0B" title="Juros/multa por atraso">+${fmt(Number(p.juros))} juros</span>`:''}</td>
-      <td${vencido?' style="color:#A32D2D;font-weight:600"':''}>${fd(p.vencimento)}</td><td>${fd(p.data_pagamento)}</td>
+      <td${vencido?' style="color:#A32D2D;font-weight:600"':''}>${fd(p.vencimento)}</td><td>${fd(p.data_pagamento)}${p.conta_id?'<br>'+badgeConta(p.conta_id):''}</td>
       <td>${vencido?`<span class="bd br" title="Vencida há ${diasV} dia(s)"><i class="ti ti-alert-triangle"></i> Vencida ${diasV}d</span>`:`<span class="bd ${p.status==='Pago'?'bs':'bw'}">${p.status}</span>`}</td>
       <td class="fx g8">
         ${p.status==='Pendente'?`<button class="btn bxs bp2" onclick="pagarPagamento('${p.id}')" title="Marcar como pago hoje"><i class="ti ti-check"></i></button>`:''}
@@ -2612,14 +2619,18 @@ function _renderPagTabela(pa,q){
 }
 // Marca um pagamento como pago hoje (1 clique)
 async function pagarPagamento(id){
-  const p=_pagCache.find(x=>x.id===id);
+  // O cache só está quente na tela de Pagamentos; nas de Gastos Fixos /
+  // Saídas Variáveis busca o valor para o confirm não sair genérico.
+  let p=_pagCache.find(x=>x.id===id);
+  if(!p){const{data}=await sb.from('pagamentos').select('valor,descricao').eq('id',id).single();p=data;}
   if(!confirm('Marcar '+(p?fmt(p.valor):'este pagamento')+' como PAGO hoje?'))return;
   const hoje=hojeLocal();
   const{error}=await sb.from('pagamentos').update({status:'Pago',data_pagamento:hoje}).eq('id',id);
   if(error){toast('Erro: '+error.message,true);return;}
-  toast('Pagamento confirmado!');rPag();
+  toast('Pagamento confirmado!');renderPage();
 }
 async function rPag(){
+  await carregarContas();
   const{data}=await sb.from('pagamentos').select('*').order('vencimento',{ascending:false});
   _pagCache=data||[];
   const hojeP=hojeLocal();
@@ -2648,6 +2659,411 @@ async function rPag(){
   _renderPagTabela(_pagCache,'');
   const si=document.getElementById('si');
   si.oninput=function(){if(CP==='pagamentos')_renderPagTabela(_pagCache,this.value.trim());};
+}
+
+// ═══ CONTAS BANCÁRIAS ══════════════════════════════════════════
+// O saldo nunca é gravado — é sempre recalculado a partir dos lançamentos:
+//   saldo_inicial + recebimentos Recebidos − pagamentos Pagos (com juros).
+// Assim não existe saldo gravado divergindo do extrato de lançamentos, que é
+// o problema clássico de guardar saldo e ir somando delta a cada edição.
+const saldoConta=(c,recs,pags)=>Number(c.saldo_inicial||0)
+  +recs.filter(r=>r.conta_id===c.id&&r.status==='Recebido').reduce((s,r)=>s+Number(r.valor||0),0)
+  -pags.filter(p=>p.conta_id===c.id&&p.status==='Pago').reduce((s,p)=>s+Number(p.valor||0)+Number(p.juros||0),0);
+let _contasMap={};   // id → conta, para rotular os lançamentos nas outras telas
+const nomeConta=id=>{const c=_contasMap[id];return c?c.nome:'';};
+const badgeConta=id=>{
+  const c=_contasMap[id];
+  if(!c)return '<span class="mu sm" title="Lançamento sem conta vinculada">—</span>';
+  return `<span class="bd" style="background:${c.cor||'#1a6fc4'}1a;color:${c.cor||'#1a6fc4'}" title="${c.tipo||''}">${c.tipo==='Caixa'?'💵':'🏦'} ${c.nome}</span>`;
+};
+
+async function rContas(){
+  const[ctRes,reRes,paRes]=await Promise.all([
+    sb.from('contas_bancarias').select('*').order('nome'),
+    sb.from('recebimentos').select('valor,status,conta_id,data_recebimento'),
+    sb.from('pagamentos').select('valor,juros,status,conta_id,data_pagamento'),
+  ]);
+  // Sem a migração rodada a tabela não existe: mostra o passo a passo em vez de
+  // uma tela vazia que não explica nada.
+  if(ctRes.error){
+    document.getElementById('ct').innerHTML=`<div class="card" style="background:#FFF8E6;border:1.5px dashed #EF9F27">
+      <div class="st mb1" style="color:#854F0B"><i class="ti ti-alert-triangle"></i>Tabela de contas ainda não existe no banco</div>
+      <p style="font-size:13px;color:#633806;margin-bottom:.6rem">Rode a migração <strong>gestor/supabase/migrations/add_contas_bancarias.sql</strong> no Supabase (SQL Editor) para liberar esta tela e o seletor de conta nos lançamentos.</p>
+      <p class="mu sm">Erro do banco: ${ctRes.error.message}</p>
+    </div>`;
+    return;
+  }
+  const contas=ctRes.data||[],recs=reRes.data||[],pags=paRes.data||[];
+  _contasMap={};contas.forEach(c=>{_contasMap[c.id]=c;});
+  const ativas=contas.filter(c=>c.ativo!==false);
+  const saldos=ativas.map(c=>({c,saldo:saldoConta(c,recs,pags)}));
+  const total=saldos.reduce((s,x)=>s+x.saldo,0);
+  const caixa=saldos.filter(x=>x.c.tipo==='Caixa').reduce((s,x)=>s+x.saldo,0);
+  const negativas=saldos.filter(x=>x.saldo<0);
+  // Lançamentos já realizados que ninguém vinculou a conta nenhuma
+  const semConta=recs.filter(r=>!r.conta_id&&r.status==='Recebido').length
+                +pags.filter(p=>!p.conta_id&&p.status==='Pago').length;
+
+  const card=({c,saldo})=>{
+    const cor=c.cor||'#1a6fc4';
+    const rIn=recs.filter(r=>r.conta_id===c.id&&r.status==='Recebido');
+    const pOut=pags.filter(p=>p.conta_id===c.id&&p.status==='Pago');
+    const entrou=rIn.reduce((s,r)=>s+Number(r.valor||0),0);
+    const saiu=pOut.reduce((s,p)=>s+Number(p.valor||0)+Number(p.juros||0),0);
+    const mov=rIn.length+pOut.length;
+    return `<div style="background:var(--sf);border:1px solid var(--bor);border-radius:12px;overflow:hidden">
+      <div style="height:5px;background:${cor}"></div>
+      <div style="padding:.9rem 1rem">
+        <div class="fxb" style="align-items:flex-start;margin-bottom:.7rem">
+          <div class="fx g8" style="align-items:center;min-width:0">
+            <div style="width:34px;height:34px;border-radius:9px;background:${cor}22;color:${cor};display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0">${c.tipo==='Caixa'?'💵':(c.nome||'?').charAt(0).toUpperCase()}</div>
+            <div style="min-width:0"><div class="w6" style="font-size:14px">${c.nome}</div><div class="mu sm">${c.tipo||'Conta Corrente'}</div></div>
+          </div>
+          <div class="fx g8">
+            <button class="btn bsm" onclick="editRecord('contas_bancarias','${c.id}')" title="Editar"><i class="ti ti-edit"></i></button>
+            <button class="btn bxs bdr" onclick="excluirConta('${c.id}','${(c.nome||'').replace(/'/g,"\\'")}')" title="Excluir"><i class="ti ti-trash"></i></button>
+          </div>
+        </div>
+        ${c.tipo!=='Caixa'?`<div class="fxb mu sm" style="margin-bottom:.2rem"><span>Agência</span><span style="font-family:monospace;color:var(--tx)">${c.agencia||'—'}</span></div>
+        <div class="fxb mu sm" style="margin-bottom:.6rem"><span>Conta</span><span style="font-family:monospace;color:var(--tx)">${c.numero||'—'}</span></div>`:'<div style="height:.4rem"></div>'}
+        <div style="background:var(--bg);border-radius:9px;padding:.55rem .75rem;margin-bottom:.55rem">
+          <div class="mu sm">Saldo atual</div>
+          <div style="font-size:19px;font-weight:700;color:${saldo>=0?cor:'#A32D2D'}">${fmt(saldo)}</div>
+          <div class="mu sm" style="font-size:10px">inicial ${fmt(c.saldo_inicial||0)} · ${mov} ${mov===1?'movimentação':'movimentações'}</div>
+        </div>
+        <div class="fx g12" style="font-size:11px;margin-bottom:.55rem">
+          <span style="color:#27500A"><i class="ti ti-trending-up"></i> ${fmt(entrou)}</span>
+          <span style="color:#A32D2D"><i class="ti ti-trending-down"></i> ${fmt(saiu)}</span>
+        </div>
+        <button class="btn bsm" style="width:100%;justify-content:center" onclick="ajustarSaldoConta('${c.id}',${saldo})"><i class="ti ti-adjustments"></i> Ajustar saldo pelo extrato</button>
+      </div>
+    </div>`;
+  };
+
+  document.getElementById('ct').innerHTML=`
+  <div class="g4 mb1">
+    <div class="mc"><div class="ml">Saldo total</div><div class="mv" style="color:${total>=0?'#27500A':'#A32D2D'}">${fmt(total)}</div><div class="ms">${ativas.length} conta${ativas.length===1?'':'s'}</div></div>
+    <div class="mc"><div class="ml">Em espécie</div><div class="mv" style="color:#854F0B">${fmt(caixa)}</div><div class="ms">caixa físico</div></div>
+    <div class="mc" style="border-left:3px solid ${negativas.length?'#A32D2D':'var(--bor)'}"><div class="ml">Contas negativas</div><div class="mv" style="color:${negativas.length?'#A32D2D':'#999'}">${negativas.length}</div><div class="ms">${negativas.length?negativas.map(x=>x.c.nome).join(', '):'nenhuma no vermelho'}</div></div>
+    <div class="mc" style="border-left:3px solid ${semConta?'#EF9F27':'var(--bor)'}"><div class="ml">Sem conta vinculada</div><div class="mv" style="color:${semConta?'#854F0B':'#999'}">${semConta}</div><div class="ms">lançamentos já realizados</div></div>
+  </div>
+
+  ${semConta?`<div class="card mb1" style="background:#FFF8E6;border:1.5px dashed #EF9F27;padding:.7rem 1rem">
+    <div style="font-size:13px;color:#854F0B"><i class="ti ti-info-circle"></i> <strong>${semConta}</strong> lançamento(s) já pago/recebido ainda não têm conta vinculada — esses valores não estão entrando em nenhum saldo. Abra Pagamentos ou Recebimentos, edite o lançamento e escolha a conta.</div>
+  </div>`:''}
+
+  ${ativas.length?`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">${saldos.map(card).join('')}</div>`
+  :`<div class="card" style="text-align:center;color:var(--mu);padding:2.5rem">
+      <i class="ti ti-building-bank" style="font-size:30px;display:block;margin-bottom:.5rem;opacity:.4"></i>
+      Nenhuma conta cadastrada. Clique em <strong>Nova Conta</strong> para começar.
+    </div>`}`;
+}
+
+// Ajusta o saldo inicial para que o saldo calculado bata com o extrato do banco.
+// Não cria lançamento nenhum — só move o ponto de partida.
+async function ajustarSaldoConta(id,saldoAtual){
+  const c=_contasMap[id];if(!c)return;
+  const txt=prompt(`Saldo de "${c.nome}" hoje no app do banco (R$):\n\nO Gestor está calculando ${fmt(saldoAtual)}. Informando o saldo real, o saldo inicial é reajustado para bater — nenhum lançamento é criado ou alterado.`,String(saldoAtual.toFixed(2)));
+  if(txt===null)return;
+  const real=parseFloat(String(txt).replace(/\./g,'').replace(',','.'));
+  if(isNaN(real)){toast('Valor inválido.',true);return;}
+  const novoInicial=Math.round((Number(c.saldo_inicial||0)+(real-saldoAtual))*100)/100;
+  const{error}=await sb.from('contas_bancarias').update({saldo_inicial:novoInicial}).eq('id',id);
+  if(error){toast('Erro: '+error.message,true);return;}
+  toast('Saldo ajustado. Saldo inicial agora é '+fmt(novoInicial));
+  rContas();
+}
+
+// Excluir conta: desvincula os lançamentos antes, para não perder histórico
+// nem esbarrar na foreign key.
+async function excluirConta(id,nome){
+  const[{count:nP},{count:nR}]=await Promise.all([
+    sb.from('pagamentos').select('id',{count:'exact',head:true}).eq('conta_id',id),
+    sb.from('recebimentos').select('id',{count:'exact',head:true}).eq('conta_id',id),
+  ]);
+  const viculados=(nP||0)+(nR||0);
+  if(!confirm(`Excluir a conta "${nome}"?`+(viculados?`\n\n${viculados} lançamento(s) estão vinculados a ela. Eles NÃO serão excluídos — apenas ficarão sem conta.`:'')))return;
+  await Promise.all([
+    sb.from('pagamentos').update({conta_id:null}).eq('conta_id',id),
+    sb.from('recebimentos').update({conta_id:null}).eq('conta_id',id),
+  ]);
+  const{error}=await sb.from('contas_bancarias').delete().eq('id',id);
+  if(error){toast('Erro: '+error.message,true);return;}
+  toast('Conta excluída.');rContas();
+}
+
+// Carrega o mapa de contas para as telas de lançamento rotularem a conta.
+async function carregarContas(){
+  const{data}=await sb.from('contas_bancarias').select('id,nome,tipo,cor').order('nome');
+  _contasMap={};(data||[]).forEach(c=>{_contasMap[c.id]=c;});
+  return data||[];
+}
+
+// ═══ GASTO FIXO × SAÍDA VARIÁVEL ═══════════════════════════════
+// Fixo    = conta que chega todo mês tenha ou não obra rodando — folha,
+//           pró-labore, infraestrutura, software, financiamento, parcelamento.
+// Variável = saída que só existe porque teve serviço — combustível, alimentação,
+//           equipamento avulso, material de campo.
+// Manda a coluna `natureza`. Sem ela (lançamento antigo, ou banco ainda sem a
+// migração add_natureza_pagamentos.sql) cai na mesma regra usada no backfill,
+// então as telas funcionam antes mesmo de rodar o SQL.
+const CATS_FIXAS=['Pró-labore','Salário','INSS Folha','FGTS Folha','IRRF','Infraestrutura','Software','Financiamento','Parcelamento Tributário','Custo Fixo'];
+const natPag=p=>{
+  if(p.natureza==='Fixo'||p.natureza==='Variável')return p.natureza;
+  if(p.recorrencia_id)return 'Fixo';
+  return CATS_FIXAS.includes(p.categoria)?'Fixo':'Variável';
+};
+const ehFixo=p=>natPag(p)==='Fixo';
+// Mês de competência da saída: vale o vencimento; sem ele, a data de pagamento;
+// sem as duas, o dia do lançamento.
+const mesPag=p=>(p.vencimento||p.data_pagamento||p.created_at||'').slice(0,7);
+const badgeNat=p=>ehFixo(p)
+  ?'<span class="bd" style="background:#F1EEF9;color:#3C3489" title="Gasto fixo da empresa"><i class="ti ti-lock" style="font-size:10px"></i> Fixo</span>'
+  :'<span class="bd" style="background:#FFF8E7;color:#854F0B" title="Saída variável">Variável</span>';
+const _somaPag=arr=>arr.reduce((s,p)=>s+Number(p.valor||0)+Number(p.juros||0),0);
+const _mesLabel=m=>new Date(m+'-01T12:00').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+// Os 3 meses fechados anteriores ao mês de referência — base da média.
+const _mes3Ant=m=>[1,2,3].map(i=>_addMeses(m+'-01',-i).slice(0,7));
+
+// Ao trocar a categoria no formulário, sugere a natureza — mas só enquanto o
+// usuário não mexeu no campo, para não desfazer uma escolha manual.
+function sugerirNatureza(){
+  const cat=document.getElementById('f-categoria')?.value;
+  const el=document.getElementById('f-natureza');
+  if(!el||el.dataset.tocado)return;
+  el.value=CATS_FIXAS.includes(cat)?'Fixo':'Variável';
+  el.onchange=function(){this.dataset.tocado='1';};
+}
+
+// Abre o formulário de pagamento já com a natureza escolhida.
+async function novaSaida(nat){
+  const prev=CP;CP='pagamentos';await openModal();CP=prev;
+  const el=document.getElementById('f-natureza');
+  if(el){el.value=nat;el.dataset.tocado='1';}
+}
+
+// Cabeçalho de grupo (categoria) com subtotal, no mesmo formato do de mês.
+function _grpHeaderRow(label,subtotal,colspan,cor,extra){
+  return `<tr><td colspan="${colspan}" style="background:linear-gradient(90deg,${cor}22,transparent);border-left:4px solid ${cor};padding:8px 12px;font-weight:700;font-size:13px;color:${cor}">${label}${extra?` <span style="font-weight:400;opacity:.75">${extra}</span>`:''}<span style="float:right;font-weight:700">${fmt(subtotal)}</span></td></tr>`;
+}
+
+// ═══ GASTOS FIXOS — as contas da empresa, mês a mês ═══════════
+let _gfMes=null;
+async function rGastosFixos(){
+  const mes=_gfMes||mesLocal();
+  await carregarContas();
+  const{data}=await sb.from('pagamentos').select('*').order('vencimento',{ascending:false});
+  const todos=data||[];
+  const fixos=todos.filter(ehFixo);
+  const doMes=fixos.filter(p=>mesPag(p)===mes);
+  const hoje=hojeLocal();
+  const pagos=doMes.filter(p=>p.status==='Pago');
+  const abertos=doMes.filter(p=>p.status!=='Pago');
+  const vencidos=abertos.filter(p=>p.vencimento&&p.vencimento<hoje);
+  const total=_somaPag(doMes);
+  // Média dos 3 meses anteriores — o custo fixo de referência da empresa.
+  const ant=_mes3Ant(mes);
+  const media=ant.reduce((s,m)=>s+_somaPag(fixos.filter(p=>mesPag(p)===m)),0)/3;
+  const varPct=media>0?Math.round((total-media)/media*100):null;
+
+  // Conta fixa que apareceu no mês passado e ainda não foi lançada neste.
+  // É o furo clássico do controle manual: a conta existe, só ninguém lançou.
+  const mesAnt=ant[0];
+  const chave=p=>_normOS((p.descricao||'')+'|'+(p.categoria||''));
+  const lancadas=new Set(doMes.map(chave));
+  const faltando=[];const jaVista=new Set();
+  fixos.filter(p=>mesPag(p)===mesAnt).forEach(p=>{
+    const k=chave(p);
+    if(lancadas.has(k)||jaVista.has(k))return;
+    jaVista.add(k);faltando.push(p);
+  });
+
+  // Agrupa por categoria, maior primeiro
+  const grupos={};
+  doMes.forEach(p=>{const c=p.categoria||'Outros';(grupos[c]=grupos[c]||[]).push(p);});
+  const gEntries=Object.entries(grupos)
+    .map(([cat,itens])=>({cat,itens,tot:_somaPag(itens)}))
+    .sort((a,b)=>b.tot-a.tot);
+
+  const linha=p=>{
+    const vencido=p.status!=='Pago'&&p.vencimento&&p.vencimento<hoje;
+    const dias=vencido?Math.round((new Date(hoje)-new Date(p.vencimento))/86400000):0;
+    return `<tr${vencido?' style="background:rgba(163,45,45,.06)"':''}>
+      <td>${p.descricao||'—'}${p.recorrencia_id?' <span class="bd bn" title="Lançamento recorrente"><i class="ti ti-repeat" style="font-size:10px"></i></span>':''}</td>
+      <td class="mu sm">${p.os_manual||'—'}</td>
+      <td class="w6">${fmt(Number(p.valor||0)+Number(p.juros||0))}</td>
+      <td${vencido?' style="color:#A32D2D;font-weight:600"':''}>${fd(p.vencimento)}${p.conta_id?'<br>'+badgeConta(p.conta_id):''}</td>
+      <td>${p.status==='Pago'?'<span class="bd bs">Paga</span>':vencido?`<span class="bd br"><i class="ti ti-alert-triangle"></i> Vencida ${dias}d</span>`:'<span class="bd bw">Pendente</span>'}</td>
+      <td class="fx g8">
+        ${p.status!=='Pago'?`<button class="btn bxs bp2" onclick="pagarPagamento('${p.id}')" title="Marcar como paga hoje"><i class="ti ti-check"></i></button>`:''}
+        <button class="btn bsm" onclick="editRecord('pagamentos','${p.id}')"><i class="ti ti-edit"></i></button>
+      </td></tr>`;
+  };
+
+  document.getElementById('ct').innerHTML=`
+  <div class="fxb mb1">
+    <div class="w6" style="font-size:15px">Gastos fixos — <span style="color:var(--brand);text-transform:capitalize">${_mesLabel(mes)}</span></div>
+    <div class="fx g8">
+      <input type="month" class="fc" style="width:160px;padding:5px 8px" value="${mes}" onchange="_gfMes=this.value;rGastosFixos()">
+      <button class="btn bp2 bsm" onclick="novaSaida('Fixo')"><i class="ti ti-plus"></i> Novo Gasto Fixo</button>
+    </div>
+  </div>
+
+  <div class="g4 mb1">
+    <div class="mc"><div class="ml">Custo fixo do mês</div><div class="mv" style="color:#3C3489">${fmt(total)}</div><div class="ms">${doMes.length} conta${doMes.length===1?'':'s'}</div></div>
+    <div class="mc"><div class="ml">Pago</div><div class="mv" style="color:#27500A">${fmt(_somaPag(pagos))}</div><div class="ms">${pagos.length} quitada${pagos.length===1?'':'s'}</div></div>
+    <div class="mc"><div class="ml">Em aberto</div><div class="mv" style="color:#854F0B">${fmt(_somaPag(abertos))}</div><div class="ms">${abertos.length} pendente${abertos.length===1?'':'s'}</div></div>
+    <div class="mc" style="border-left:3px solid ${vencidos.length?'#A32D2D':'var(--bor)'}"><div class="ml">Vencidas</div><div class="mv" style="color:${vencidos.length?'#A32D2D':'#999'}">${fmt(_somaPag(vencidos))}</div><div class="ms">${vencidos.length} conta${vencidos.length===1?'':'s'}</div></div>
+  </div>
+
+  ${media>0?`<div class="card mb1" style="padding:.7rem 1rem">
+    <div class="fxb" style="font-size:13px">
+      <span>Média dos 3 meses anteriores: <strong>${fmt(media)}</strong></span>
+      <span style="color:${varPct===null?'#666':varPct>0?'#A32D2D':'#27500A'};font-weight:600">
+        ${varPct===null?'':varPct>0?`<i class="ti ti-trending-up"></i> ${varPct}% acima da média`:varPct<0?`<i class="ti ti-trending-down"></i> ${Math.abs(varPct)}% abaixo da média`:'em linha com a média'}
+      </span>
+    </div>
+  </div>`:''}
+
+  ${faltando.length?`<div class="card mb1" style="background:#FFF8E6;border:1.5px dashed #EF9F27">
+    <div class="st mb1" style="color:#854F0B"><i class="ti ti-alert-triangle"></i>${faltando.length} conta fixa de ${_mesLabel(mesAnt)} sem lançamento neste mês</div>
+    <div class="tw"><table>
+      <thead><tr><th>Descrição</th><th>Categoria</th><th>Valor no mês passado</th><th></th></tr></thead>
+      <tbody>${faltando.map(p=>`<tr>
+        <td>${p.descricao||'—'}</td><td><span class="bd bn">${p.categoria||'—'}</span></td>
+        <td class="w6">${fmt(p.valor)}</td>
+        <td><button class="btn bp2 bxs" onclick="repetirFixo('${p.id}','${mes}')"><i class="ti ti-copy"></i> Lançar em ${_mesLabel(mes).split(' de ')[0]}</button></td>
+      </tr>`).join('')}</tbody>
+    </table></div>
+  </div>`:''}
+
+  <div class="card">
+    <div class="st mb1"><i class="ti ti-lock" style="color:var(--brand)"></i>Contas do mês por categoria</div>
+    <div class="tw"><table>
+      <thead><tr><th>Descrição</th><th>OS</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr></thead>
+      <tbody>${gEntries.length?gEntries.map(g=>
+        _grpHeaderRow(g.cat,g.tot,6,'#3C3489',`· ${total>0?Math.round(g.tot/total*100):0}% do fixo`)
+        +g.itens.sort((a,b)=>(a.vencimento||'').localeCompare(b.vencimento||'')).map(linha).join('')
+      ).join(''):nd(6,'Nenhum gasto fixo neste mês')}</tbody>
+    </table></div>
+  </div>`;
+}
+
+// Repete uma conta fixa no mês de referência, mantendo o dia do vencimento.
+async function repetirFixo(id,mes){
+  const{data:p}=await sb.from('pagamentos').select('*').eq('id',id).single();
+  if(!p){toast('Lançamento não encontrado',true);return;}
+  const dia=(p.vencimento||'').slice(8,10)||'01';
+  const ultimo=new Date(Number(mes.slice(0,4)),Number(mes.slice(5,7)),0).getDate();
+  const venc=`${mes}-${String(Math.min(Number(dia),ultimo)).padStart(2,'0')}`;
+  if(!confirm(`Lançar "${p.descricao}" de ${fmt(p.valor)} com vencimento em ${fd(venc)}?`))return;
+  const novo={...p};
+  ['id','created_at','updated_at','juros','arquivo_url'].forEach(k=>delete novo[k]);
+  novo.vencimento=venc;novo.status='Pendente';novo.data_pagamento=null;
+  let{error}=await sb.from('pagamentos').insert(novo);
+  // Remove colunas que não existem neste banco e tenta de novo
+  let t=0;
+  while(error&&error.message&&error.message.includes('column')&&t++<5){
+    const m=error.message.match(/column "([^"]+)"/)||error.message.match(/find the '([^']+)' column/);
+    if(!(m&&m[1]&&novo.hasOwnProperty(m[1])))break;
+    delete novo[m[1]];
+    ({error}=await sb.from('pagamentos').insert(novo));
+  }
+  if(error){toast('Erro: '+error.message,true);return;}
+  toast('Conta fixa lançada!');rGastosFixos();
+}
+
+// ═══ SAÍDAS VARIÁVEIS — gasto de obra, por categoria ══════════
+let _svMes=null;
+async function rSaidasVar(){
+  const mes=_svMes||mesLocal();
+  await carregarContas();
+  const{data}=await sb.from('pagamentos').select('*').order('vencimento',{ascending:false});
+  const todos=data||[];
+  const varis=todos.filter(p=>!ehFixo(p));
+  const doMes=varis.filter(p=>mesPag(p)===mes);
+  const total=_somaPag(doMes);
+  const pagos=doMes.filter(p=>p.status==='Pago');
+  const abertos=doMes.filter(p=>p.status!=='Pago');
+  const comOS=doMes.filter(p=>p.os_manual||p.os_id);
+
+  const ant=_mes3Ant(mes);
+  const media=ant.reduce((s,m)=>s+_somaPag(varis.filter(p=>mesPag(p)===m)),0)/3;
+  const varPct=media>0?Math.round((total-media)/media*100):null;
+
+  // Por categoria: valor do mês × média dos 3 anteriores
+  const cats={};
+  doMes.forEach(p=>{const c=p.categoria||'Outros';(cats[c]=cats[c]||[]).push(p);});
+  const mediaCat=c=>ant.reduce((s,m)=>s+_somaPag(varis.filter(p=>mesPag(p)===m&&(p.categoria||'Outros')===c)),0)/3;
+  const catsAnt=new Set(varis.filter(p=>ant.includes(mesPag(p))).map(p=>p.categoria||'Outros'));
+  const linhas=[...new Set([...Object.keys(cats),...catsAnt])]
+    .map(c=>({cat:c,itens:cats[c]||[],atual:_somaPag(cats[c]||[]),med:mediaCat(c)}))
+    .filter(l=>l.atual>0||l.med>0)
+    .sort((a,b)=>b.atual-a.atual||b.med-a.med);
+  const maxBar=Math.max(...linhas.map(l=>Math.max(l.atual,l.med)),1);
+  const CORES=['#1a6fc4','#E24B4A','#854F0B','#27500A','#3C3489','#185FA5','#A32D2D','#0d4fa0','#633806','#666'];
+
+  document.getElementById('ct').innerHTML=`
+  <div class="fxb mb1">
+    <div class="w6" style="font-size:15px">Saídas variáveis — <span style="color:var(--brand);text-transform:capitalize">${_mesLabel(mes)}</span></div>
+    <div class="fx g8">
+      <input type="month" class="fc" style="width:160px;padding:5px 8px" value="${mes}" onchange="_svMes=this.value;rSaidasVar()">
+      <button class="btn bp2 bsm" onclick="novaSaida('Variável')"><i class="ti ti-plus"></i> Nova Saída</button>
+    </div>
+  </div>
+
+  <div class="g4 mb1">
+    <div class="mc"><div class="ml">Total variável</div><div class="mv" style="color:#854F0B">${fmt(total)}</div><div class="ms">${doMes.length} lançamento${doMes.length===1?'':'s'}</div></div>
+    <div class="mc"><div class="ml">Pago</div><div class="mv" style="color:#27500A">${fmt(_somaPag(pagos))}</div><div class="ms">${pagos.length} quitado${pagos.length===1?'':'s'}</div></div>
+    <div class="mc"><div class="ml">Em aberto</div><div class="mv" style="color:#A32D2D">${fmt(_somaPag(abertos))}</div><div class="ms">${abertos.length} pendente${abertos.length===1?'':'s'}</div></div>
+    <div class="mc"><div class="ml">Vinculado a OS</div><div class="mv" style="color:#0d4fa0">${fmt(_somaPag(comOS))}</div><div class="ms">${total>0?Math.round(_somaPag(comOS)/total*100):0}% do variável</div></div>
+  </div>
+
+  ${media>0?`<div class="card mb1" style="padding:.7rem 1rem">
+    <div class="fxb" style="font-size:13px">
+      <span>Média dos 3 meses anteriores: <strong>${fmt(media)}</strong></span>
+      <span style="color:${varPct===null?'#666':varPct>0?'#A32D2D':'#27500A'};font-weight:600">
+        ${varPct===null?'':varPct>0?`<i class="ti ti-trending-up"></i> ${varPct}% acima da média`:varPct<0?`<i class="ti ti-trending-down"></i> ${Math.abs(varPct)}% abaixo da média`:'em linha com a média'}
+      </span>
+    </div>
+  </div>`:''}
+
+  ${linhas.length?`<div class="card mb1">
+    <div class="fxb mb1"><div class="st" style="margin:0"><i class="ti ti-chart-bar" style="color:var(--brand)"></i>Categoria × média dos 3 meses anteriores</div>
+      <div class="fx g12" style="font-size:11px;color:#666">
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#854F0B;vertical-align:middle"></span> Este mês</span>
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#d6d3cb;vertical-align:middle"></span> Média 3m</span>
+      </div>
+    </div>
+    ${linhas.map(l=>`<div style="margin-bottom:.7rem">
+      <div class="fxb" style="font-size:12px;margin-bottom:3px">
+        <span class="w5">${l.cat}</span>
+        <span style="color:${l.med>0&&l.atual>l.med*1.2?'#A32D2D':'#555'}">${fmt(l.atual)}${l.med>0?` <span class="mu" style="font-size:11px">· média ${fmt(l.med)}</span>`:''}</span>
+      </div>
+      <div style="height:9px;background:#854F0B;width:${Math.max(l.atual/maxBar*100,l.atual>0?1.5:0)}%;border-radius:3px;margin-bottom:2px"></div>
+      <div style="height:9px;background:#d6d3cb;width:${Math.max(l.med/maxBar*100,l.med>0?1.5:0)}%;border-radius:3px"></div>
+    </div>`).join('')}
+  </div>`:''}
+
+  <div class="card">
+    <div class="st mb1"><i class="ti ti-receipt-2" style="color:var(--brand)"></i>Lançamentos do mês</div>
+    <div class="tw"><table>
+      <thead><tr><th>Descrição</th><th>OS</th><th>Valor</th><th>Data</th><th>Status</th><th></th></tr></thead>
+      <tbody>${linhas.filter(l=>l.itens.length).length?linhas.filter(l=>l.itens.length).map((l,i)=>
+        _grpHeaderRow(l.cat,l.atual,6,CORES[i%CORES.length],`· ${l.itens.length} item${l.itens.length===1?'':'s'}`)
+        +l.itens.sort((a,b)=>(b.vencimento||'').localeCompare(a.vencimento||'')).map(p=>`<tr>
+          <td>${p.descricao||'—'}</td>
+          <td class="mu sm">${p.os_manual||'—'}</td>
+          <td class="w6">${fmt(Number(p.valor||0)+Number(p.juros||0))}</td>
+          <td>${fd(p.data_pagamento||p.vencimento)}${p.conta_id?'<br>'+badgeConta(p.conta_id):''}</td>
+          <td><span class="bd ${p.status==='Pago'?'bs':'bw'}">${p.status||'—'}</span></td>
+          <td class="fx g8">
+            ${p.status!=='Pago'?`<button class="btn bxs bp2" onclick="pagarPagamento('${p.id}')" title="Marcar como pago hoje"><i class="ti ti-check"></i></button>`:''}
+            <button class="btn bsm" onclick="editRecord('pagamentos','${p.id}')"><i class="ti ti-edit"></i></button>
+          </td></tr>`).join('')
+      ).join(''):nd(6,'Nenhuma saída variável neste mês')}</tbody>
+    </table></div>
+  </div>`;
 }
 
 // ═══ ACOMPANHAMENTO POR OBRA — consolidado financeiro por OS ═══
@@ -4927,7 +5343,7 @@ Object.assign(pageMap, {
   dashboard:rDash, agenda:rAgenda,
   pendencias:rPendencias, ordens:rOS,
   clientes:rClientes, servicos:rServicos, orcamentos:rOrcamentos, contratos:rContratos,
-  recebimentos:rRec, pagamentos:rPag,
+  recebimentos:rRec, pagamentos:rPag, gastosfixos:rGastosFixos, saidasvar:rSaidasVar, contas:rContas,
   impostos:rImpostos, medicao:rMedicao, nfe:rNFe, folha:rFolha, dre:rDRE, acompanhamento:rAcompObras, passivo:rPassivo,
   rotinas:rRotinas, administrativo:rAdm, funcionarios:rFunc,
   relatorios:rRelatorios, config:rConfig, tributario:rTributario,
@@ -4958,17 +5374,22 @@ async function openModal(){
   EID=null;const cfg=PCFG[CP];if(!cfg||!cfg.h){toast('Formulário não disponível para este módulo.',true);return;}
   CM=cfg.tb||CP;
   document.getElementById('mt').textContent=cfg.t||'Novo registro';
-  const[{data:cls},{data:svcs},{data:oss},{data:funcs},{data:orcas},{data:obras}]=await Promise.all([
+  const[{data:cls},{data:svcs},{data:oss},{data:funcs},{data:orcas},{data:obras},{data:cnts}]=await Promise.all([
     sb.from('clientes').select('id,nome').eq('ativo',true).order('nome'),
     sb.from('servicos').select('id,nome,descricao,unidade,valor_unitario').order('nome'),
     sb.from('ordens').select('id,numero,tipo').not('status','eq','Cancelada').order('numero'),
     sb.from('funcionarios').select('id,nome,valor_hora,valor_diaria').eq('ativo',true).order('nome'),
     sb.from('orcamentos').select('id,numero,valor_total,cliente_id,itens,descricao,pagamento').eq('status','Aprovado').order('numero'),
     sb.from('obras').select('id,nome,municipio').order('nome'),
+    // Contas bancárias — tabela pode não existir ainda (antes da migração):
+    // o Supabase devolve {data:null} sem estourar, e o seletor sai vazio.
+    sb.from('contas_bancarias').select('id,nome,tipo,numero').eq('ativo',true).order('nome'),
   ]);
   const cOpts=(cls||[]).map(c=>'<option value="'+c.id+'">'+c.nome+'</option>').join('');
   const fOpts=(funcs||[]).map(f=>'<option value="'+f.id+'" data-h="'+(f.valor_hora||0)+'" data-d="'+(f.valor_diaria||0)+'">'+f.nome+'</option>').join('');
   const oOpts=(oss||[]).map(o=>'<option value="'+o.id+'">'+o.numero+' — '+o.tipo+'</option>').join('');
+  const ctOpts=(cnts||[]).map(c=>'<option value="'+c.id+'">'+(c.tipo==='Caixa'?'💵 ':'🏦 ')+c.nome+(c.numero?' — '+c.numero:'')+'</option>').join('');
+  window._contasCache=cnts||[];
   const orcAprovados=orcas||[];
   window._orcAprovadosCache=orcAprovados; // usado para preencher contrato a partir do orçamento
   const orcOpts=orcAprovados.map(o=>'<option value="'+o.id+'">'+o.numero+(o.valor_total?' — '+fmt(o.valor_total):'')+'</option>').join('');
@@ -4979,7 +5400,7 @@ async function openModal(){
     const fChks=(funcs||[]).map(f=>'<label style="display:flex;align-items:center;gap:8px;padding:4px;cursor:pointer;border-radius:4px" class="hover-row"><input type="checkbox" class="f-resp-chk" value="'+f.id+'" data-nome="'+f.nome+'" style="width:14px;height:14px;accent-color:var(--brand)"> <span style="font-size:13px">'+f.nome+'</span></label>').join('');
     html=buildOrcaForm(cOpts,svcs||[],obOpts,fChks);
   }
-  else if(typeof cfg.h==='function'){html=cfg.h({cOpts,fOpts,oOpts,orcOpts});}
+  else if(typeof cfg.h==='function'){html=cfg.h({cOpts,fOpts,oOpts,orcOpts,ctOpts});}
   else if(typeof cfg.h==='string'){html=cfg.h;}
   else{toast('Formulário não configurado.',true);return;}
   document.getElementById('mb').innerHTML=html;
@@ -4992,7 +5413,7 @@ async function openModal(){
 async function editRecord(table,id){
   EID=id;CM=table;
   const prevPage=CP;
-  const pmap={'notas_fiscais':'nfe','documentos_empresa':'administrativo','custos_os':'custos_os','medicoes':'medicao'};
+  const pmap={'notas_fiscais':'nfe','documentos_empresa':'administrativo','custos_os':'custos_os','medicoes':'medicao','contas_bancarias':'contas'};
   CP=pmap[table]||table;
   await openModal();
   CP=prevPage;EID=id;
@@ -5020,7 +5441,14 @@ async function editRecord(table,id){
   if(table==='notas_fiscais'&&data.arquivo_url)mostrarArquivoExistente('nf',data.arquivo_url);
   if(table==='impostos'&&data.arquivo_url)mostrarArquivoExistente('imp',data.arquivo_url);
   if(table==='documentos_empresa'&&data.arquivo_url)mostrarArquivoExistente('adm',data.arquivo_url);
-  if(table==='pagamentos'){calcTotalPag();if(data.arquivo_url)mostrarArquivoExistente('pag',data.arquivo_url);}
+  if(table==='pagamentos'){
+    calcTotalPag();
+    if(data.arquivo_url)mostrarArquivoExistente('pag',data.arquivo_url);
+    // Lançamento sem natureza gravada (anterior à migração): mostra a natureza
+    // deduzida, senão o form abriria em "Variável" e salvaria a classificação errada.
+    const nEl=document.getElementById('f-natureza');
+    if(nEl){nEl.value=natPag(data);nEl.dataset.tocado='1';}
+  }
   // Recebimento já vinculado não mostra a opção de avulso. Os antigos sem
   // vínculo continuam mostrando — editar um deles obriga a conciliar.
   if(table==='recebimentos')recToggleAvulso();
