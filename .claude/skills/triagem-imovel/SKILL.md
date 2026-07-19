@@ -127,9 +127,32 @@ antes de sair (acesso, cercas, marcos existentes, época de chuva).
 
 ## Passo 4 — Croqui
 
-Se houver coordenadas utilizáveis (memorial descritivo, KML, shapefile, CAR),
-gere um DXF do perímetro em `10_TRIAGEM/`. Se não houver, diga explicitamente
-que não houve — não gere croqui a partir de área estimada.
+Havendo coordenadas utilizáveis (memorial, KML, shapefile, CAR), gere o DXF do
+perímetro em `10_TRIAGEM/`.
+
+**Não havendo, gere assim mesmo, com o que a matrícula descrever.** Matrícula
+antiga costuma dar rumo e distância de alguns alinhamentos e resolver o resto
+com divisa natural ("segue o córrego", "acompanha a serra"). Monte o spec e
+rode:
+
+```
+C:\Users\ALCIO\.ajtopogeo\venv\Scripts\python.exe .claude\skills\triagem-imovel\scripts\croqui.py "<pasta>\spec-<NOME>.json"
+```
+
+O script desenha em escala o que está descrito e fecha o resto com um arco
+dimensionado para a figura encerrar a área registral. Sai também um
+`croqui-<NOME>.md` com o percentual arbitrado do perímetro.
+
+Regras:
+- **O que foi arbitrado tem que se identificar sozinho.** O script já põe
+  camada separada, tracejado vermelho, rótulo repetido ao longo do traço e
+  bloco de aviso no DXF. Não remova nada disso, e não entregue o croqui
+  convertido em PDF/imagem sem esses elementos.
+- Cite sempre o percentual arbitrado no resumo da triagem. Um croqui 78%
+  arbitrado e um 5% arbitrado não são o mesmo documento.
+- O croqui **não tem georreferência** — é forma e dimensão em coordenada
+  local. Nunca o apresente como localização.
+- Se nem rumo houver, aí sim não há croqui. Diga isso explicitamente.
 
 ## Regra de ouro
 
