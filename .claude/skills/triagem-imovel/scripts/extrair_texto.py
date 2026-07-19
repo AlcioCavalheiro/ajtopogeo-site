@@ -62,6 +62,54 @@ def paginas_pdf(caminho: Path) -> int:
         return 1
 
 
+def montar_tabela(tabela) -> list[list[str]]:
+    """A grade do find_tables se desalinha quando ha celula mesclada: cada linha
+    cai em sub-colunas diferentes. Reancora pelo centro horizontal da celula,
+    usando a linha mais completa como referencia de colunas."""
+    dados = tabela.extract()
+    linhas = []
+    for i, linha in enumerate(tabela.rows):
+        celulas = [((c[0] + c[2]) / 2, (t or "").strip().replace("\n", " "))
+                   for c, t in zip(linha.cells, dados[i]) if c and (t or "").strip()]
+        if celulas:
+            linhas.append(celulas)
+    if not linhas:
+        return []
+
+    colunas = [x for x, _ in max(linhas, key=len)]
+    montadas = []
+    for celulas in linhas:
+        saida = [""] * len(colunas)
+        for x, texto in celulas:
+            i = min(range(len(colunas)), key=lambda c: abs(colunas[c] - x))
+            saida[i] = f"{saida[i]} {texto}".strip() if saida[i] else texto
+        montadas.append([c.replace("|", "\\|") for c in saida])
+    return montadas
+
+
+def tabelas_pdf(origem: Path) -> str:
+    """O markitdown achata tabela em celulas soltas e perde a associacao entre
+    vertice e coordenada. Reextrai preservando a linha."""
+    import pymupdf
+    blocos = []
+    with pymupdf.open(origem) as pdf:
+        for n, pagina in enumerate(pdf, start=1):
+            for tabela in pagina.find_tables().tables:
+                linhas = montar_tabela(tabela)
+                if len(linhas) < 2 or len(linhas[0]) < 2:
+                    continue
+                corpo = [f"| {' | '.join(l)} |" for l in linhas]
+                corpo.insert(1, "| " + " | ".join(["---"] * len(linhas[0])) + " |")
+                blocos.append(f"**Tabela - pagina {n}**\n\n" + "\n".join(corpo))
+
+    if not blocos:
+        return ""
+    return ("\n\n---\n\n## Tabelas reextraidas\n\n"
+            "Mesmas tabelas acima, com a estrutura de linha preservada. Onde as "
+            "duas versoes divergirem, confira no PDF original.\n\n"
+            + "\n\n".join(blocos) + "\n")
+
+
 def ocr_pdf(origem: Path) -> str:
     """Rasteriza cada pagina a 300 dpi e passa no OCR. Devolve o texto."""
     import pymupdf
@@ -106,6 +154,16 @@ def converter(md: MarkItDown, arquivo: Path, saida: Path) -> tuple[str, int]:
                 print(f"    OCR falhou: {e}", file=sys.stderr)
                 return "SEM TEXTO - ler visualmente", len(texto.strip())
             status = "OCR"
+        else:
+            # so faz sentido com camada de texto; em pagina rasterizada nao acha
+            try:
+                tabelas = tabelas_pdf(arquivo)
+            except Exception as e:
+                print(f"    tabelas: {e}", file=sys.stderr)
+                tabelas = ""
+            if tabelas:
+                texto += tabelas
+                status = "OK + tabelas"
 
     (saida / f"{arquivo.stem}.md").write_text(texto, encoding="utf-8")
     return status, len(texto.strip())

@@ -70,6 +70,9 @@ conferência. Mas:
 
 - Todo arquivo com status `SEM TEXTO`, `FALHOU` ou `IGNORADO` no índice tem
   que ser lido no original antes de fechar a triagem. Não conclua sem ele.
+- Tabela de vértices, coordenadas e confrontantes: use a seção **Tabelas
+  reextraídas**, no fim do `.md`. O corpo do texto sai com a tabela achatada
+  em células soltas, e ali é fácil colar a coordenada no vértice errado.
 - OCR erra carimbo, manuscrito e número riscado. Área, matrícula nº, CPF/CNPJ,
   data e fração de condomínio: confira no PDF original antes de escrever no
   resumo. O `.md` é ponto de partida, não fonte final.
