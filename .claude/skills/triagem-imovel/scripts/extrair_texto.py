@@ -68,6 +68,33 @@ def tesseract(imagem: bytes) -> str:
     ).stdout.decode("utf-8", "replace")
 
 
+def paginas_escaneadas(caminho: Path) -> list[int]:
+    """Paginas cujo conteudo real e imagem.
+
+    Certidao de cartorio costuma vir escaneada com uma tarja de texto de
+    verdade por cima - selo, emolumentos, link de validacao. Contando so
+    caractere, essa tarja passa do limite sozinha, o documento escapa do OCR e
+    o .md sai com o selo e sem uma linha da matricula, marcado como OK. Por
+    isso a decisao olha quanto da pagina esta coberto por imagem."""
+    import pymupdf
+    escaneadas = []
+    with pymupdf.open(caminho) as pdf:
+        for n, pagina in enumerate(pdf, start=1):
+            area = abs(pagina.rect)
+            if not area:
+                continue
+            imagem = sum(abs(r) for img in pagina.get_images(full=True)
+                         for r in pagina.get_image_rects(img[0])) / area
+            texto = sum(abs(pymupdf.Rect(b[:4]))
+                        for b in pagina.get_text("blocks")) / area
+            # so cobertura de imagem nao serve: certidao escaneada fica em 0,45
+            # a 0,61 conforme a margem do scanner. O que separa e a imagem
+            # dominar o texto - na tarja o texto ocupa 5% a 9% da pagina.
+            if imagem > 0.2 and imagem > texto * 3:
+                escaneadas.append(n)
+    return escaneadas
+
+
 def paginas_pdf(caminho: Path) -> int:
     try:
         import pymupdf
@@ -125,14 +152,24 @@ def tabelas_pdf(origem: Path) -> str:
             + "\n\n".join(blocos) + "\n")
 
 
-def ocr_pdf(origem: Path) -> str:
-    """Rasteriza cada pagina a 300 dpi e passa no OCR. Devolve o texto."""
+def texto_misto(origem: Path, escaneadas: list[int]) -> str:
+    """OCR so nas paginas escaneadas; nas demais usa o texto nativo, que e
+    exato. Documento misto existe: relatorio nosso, digital, com mapa colado no
+    meio - passar OCR nele inteiro trocaria texto exato por texto adivinhado."""
     import pymupdf
     partes = []
     with pymupdf.open(origem) as pdf:
-        for i, pagina in enumerate(pdf, start=1):
-            imagem = pagina.get_pixmap(dpi=300).tobytes("png")
-            partes.append(f"\n\n--- pagina {i} ---\n\n" + tesseract(imagem))
+        for n, pagina in enumerate(pdf, start=1):
+            nativo = pagina.get_text().strip()
+            if n in escaneadas:
+                corpo = tesseract(pagina.get_pixmap(dpi=300).tobytes("png"))
+                marca = "OCR"
+                if nativo:
+                    # tarja de selo/validacao do cartorio: exata, o OCR degrada
+                    corpo += f"\n\n[tarja nativa da pagina, sem OCR]\n{nativo}"
+            else:
+                corpo, marca = nativo, "texto nativo"
+            partes.append(f"\n\n--- pagina {n} ({marca}) ---\n\n{corpo}")
     return "".join(partes)
 
 
@@ -159,16 +196,19 @@ def converter(md: MarkItDown, arquivo: Path, saida: Path) -> tuple[str, int]:
 
     status = "OK"
     if ext == ".pdf":
-        limite = MIN_CHARS_POR_PAGINA * paginas_pdf(arquivo)
-        if len(texto.strip()) < limite:
+        paginas = paginas_pdf(arquivo)
+        escaneadas = paginas_escaneadas(arquivo)
+        if not escaneadas and len(texto.strip()) < MIN_CHARS_POR_PAGINA * paginas:
+            escaneadas = list(range(1, paginas + 1))  # sem texto e sem imagem
+        if escaneadas:
             if not tem_ocr():
                 return "SEM TEXTO - ler visualmente", len(texto.strip())
             try:
-                texto = ocr_pdf(arquivo)
+                texto = texto_misto(arquivo, escaneadas)
             except Exception as e:
                 print(f"    OCR falhou: {e}", file=sys.stderr)
                 return "SEM TEXTO - ler visualmente", len(texto.strip())
-            status = "OCR"
+            status = f"OCR ({len(escaneadas)} de {paginas} pag.)"
         else:
             # so faz sentido com camada de texto; em pagina rasterizada nao acha
             try:
@@ -216,6 +256,8 @@ def main() -> int:
     for arquivo in sorted(entrada.rglob("*")):
         if not arquivo.is_file():
             continue
+        if saida == arquivo.parent or saida in arquivo.parents:
+            continue  # em projeto antigo a saida cai dentro da propria entrada
         if args.filtro and args.filtro.lower() not in arquivo.name.lower():
             continue
         ext = arquivo.suffix.lower()
