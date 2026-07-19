@@ -203,6 +203,27 @@ Grava o andamento na OS (marcado com `[diário dd/mm/aaaa]`, que é o que trava 
 duplicata depois), os custos e as despesas. Confirme ao usuário o que entrou,
 com os valores.
 
+## Reprocessar dia antigo — `--so-andamento`
+
+Dia em que o financeiro já foi lançado à mão, e só o andamento está pobre
+("11/07 — Levantamento Planialtimétrico", sem horário nem pendência):
+
+```bash
+py rotinas/diario_bordo.py <scratchpad>/diario.txt --os OS-JUN-025 \
+   --so-andamento --aplicar
+```
+
+Grava só o andamento. Não toca em `custos_os` nem em `pagamentos`, e a
+checagem de duplicata passa a olhar apenas a marca `[diário dd/mm/aaaa]` —
+o financeiro daquele dia existir é o esperado, não o sintoma.
+
+**Isso exige o diário original.** Horário, pendência e observação não estão
+em lugar nenhum do sistema: reconstruir a partir da OS só recupera data,
+serviço e gastos. Peça o texto do WhatsApp ao usuário. Se ele não tiver
+mais, diga o que dá para recuperar e o que vai faltar, e deixe **ele**
+decidir se vale — não preencha horário por estimativa. Um andamento com
+hora inventada é pior que um andamento curto: ele parece registro de campo.
+
 ## Passo 5 — Status e pendências
 
 O status da OS **não muda sozinho**. Depois de aplicar, olhe o campo Pendências

@@ -524,6 +524,11 @@ def montar_andamento(campos, data_iso, gastos, total):
 
 
 def montar_lancamentos(os_reg, data_iso, gastos, args):
+    # Reprocessar dia antigo: o financeiro daquele dia já foi lançado à mão e
+    # relançar dobraria o custo. Só o andamento é reescrito.
+    if args.so_andamento:
+        return [], []
+
     numero = os_reg.get("numero") or ""
     ref = f"{numero} · {datetime.fromisoformat(data_iso).strftime('%d/%m/%Y')}"
     custos, pagamentos = [], []
@@ -566,7 +571,7 @@ def montar_lancamentos(os_reg, data_iso, gastos, args):
     return custos, pagamentos
 
 
-def checar_duplicata(url, key, os_reg, data_iso):
+def checar_duplicata(url, key, os_reg, data_iso, so_andamento=False):
     """Avisa o que já existe nesta OS nesta data. Relançar dobra o custo."""
     achados = []
     marca = marca_diario(data_iso)
@@ -575,6 +580,12 @@ def checar_duplicata(url, key, os_reg, data_iso):
         if txt and marca in txt:
             achados.append(f"andamento já registrado com a marca {marca}")
             break
+
+    # Em --so-andamento o financeiro daquele dia existir é o esperado, não o
+    # sintoma: é justamente por ele já estar lançado que nada é relançado.
+    if so_andamento:
+        return achados
+
     custos = buscar(url, key, "custos_os", "id,valor_total,obs",
                     os_id=f"eq.{os_reg['id']}", data=f"eq.{data_iso}")
     if custos:
@@ -649,6 +660,10 @@ def imprimir_previa(os_reg, campos, data_iso, gastos, total, declarado,
         print(f"\n> ⚠ O diário não trouxe: {', '.join(faltando)}. "
               f"O andamento vai ficar incompleto.")
 
+    if args.so_andamento:
+        print("\n> Modo `--so-andamento`: nenhum custo ou despesa será lançado. "
+              "O financeiro deste dia já está no Gestor e relançar dobraria.")
+
     if not args.aplicar:
         print("\n---\n\n**Prévia — nada foi gravado.** Rode de novo com `--aplicar` "
               "para lançar no Gestor.")
@@ -710,6 +725,9 @@ def main():
     ap.add_argument("--reembolso", metavar="VALOR",
                     help="valor a devolver a quem pagou pela conta pessoal")
     ap.add_argument("--reembolso-desc", metavar="TEXTO", help="descrição do reembolso")
+    ap.add_argument("--so-andamento", action="store_true",
+                    help="grava só o andamento; não lança custo nem despesa "
+                         "(dia antigo, com o financeiro já lançado à mão)")
     ap.add_argument("--criar-os", action="store_true",
                     help="serviço sem OS: cria cliente, orçamento e OS antes de lançar")
     ap.add_argument("--cliente", metavar="NOME", help="nome do cliente a cadastrar")
@@ -775,7 +793,7 @@ def main():
 
     texto_andamento = montar_andamento(campos, data_iso, gastos, total)
     custos, pagamentos = montar_lancamentos(os_reg, data_iso, gastos, args)
-    duplicatas = checar_duplicata(url, key, os_reg, data_iso)
+    duplicatas = checar_duplicata(url, key, os_reg, data_iso, args.so_andamento)
 
     if args.json:
         print(json.dumps({"os": os_reg.get("numero"), "data": data_iso,
