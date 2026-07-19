@@ -139,6 +139,21 @@ o erro que a rotina quase cometeu: um pedágio de 11/07 pareceu ser de 07/07
 com data trocada, e era da segunda equipe. Pergunte antes de mover qualquer
 lançamento de data.
 
+A mesma OS também recebe **dois diários no mesmo dia** — manhã e tarde,
+serviços diferentes. Por isso a marca leva a hora de chegada:
+`[diário 14/07/2026 08:20]`. Diário repetido colide na marca cheia e é
+bloqueado; diário novo do mesmo dia só avisa que já existe outro, e vai com
+`--forcar` depois que o usuário confirmar que foi outro turno.
+
+### Gasto rateado entre OS
+
+Uma despesa única pode ter sido dividida entre duas OS — uma refeição de
+R$ 54,00 lançada como R$ 27,00 em cada. Quando o mesmo valor aparecer em
+dois diários do mesmo dia, **não presuma duplicidade**: procure o valor em
+`pagamentos` na data, em todas as OS. Se só existir uma metade, lançar a
+outra completa o gasto em vez de duplicá-lo. A soma final tem que bater com
+a nota real — foi assim que a alimentação de 14/07 fechou em R$ 54,00.
+
 ## Quando o serviço não tem OS
 
 Acontece de o campo sair antes do sistema: cliente novo, combinado no

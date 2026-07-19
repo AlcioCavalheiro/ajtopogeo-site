@@ -543,9 +543,16 @@ def brl(v):
     return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
-def marca_diario(data_iso):
-    """Assinatura que identifica o andamento deste diário — trava a duplicata."""
-    return f"[diário {datetime.fromisoformat(data_iso).strftime('%d/%m/%Y')}]"
+def marca_diario(data_iso, hora=None):
+    """Assinatura que identifica o andamento deste diário — trava a duplicata.
+
+    Leva a hora de chegada quando o diário traz: a mesma OS pode receber dois
+    diários no mesmo dia (equipe de manhã e de tarde, serviços diferentes), e
+    marca só de data confundiria o segundo diário com o relançamento do
+    primeiro. Sem hora, cai no formato antigo, só data.
+    """
+    dia = datetime.fromisoformat(data_iso).strftime("%d/%m/%Y")
+    return f"[diário {dia} {hora}]" if hora else f"[diário {dia}]"
 
 
 def bloco(titulo, itens):
@@ -574,7 +581,7 @@ def montar_andamento(campos, data_iso, gastos, total):
     elif chegada or saida:
         partes.append(f"chegada {chegada}" if chegada else f"saída {saida}")
 
-    linhas = [" · ".join([marca_diario(data_iso)] + partes)]
+    linhas = [" · ".join([marca_diario(data_iso, chegada)] + partes)]
     linhas += bloco("Serviços realizados", campos["servicos"])
     linhas += bloco("Pendências", campos["pendencias"])
     if gastos:
@@ -632,14 +639,26 @@ def montar_lancamentos(os_reg, data_iso, gastos, args):
     return custos, pagamentos
 
 
-def checar_duplicata(url, key, os_reg, data_iso, so_andamento=False):
+def checar_duplicata(url, key, os_reg, data_iso, so_andamento=False, hora=None):
     """Avisa o que já existe nesta OS nesta data. Relançar dobra o custo."""
     achados = []
-    marca = marca_diario(data_iso)
+    marca = marca_diario(data_iso, hora)
+    generica = marca_diario(data_iso)
     for item in (os_reg.get("andamento") or []):
         txt = item.get("txt") if isinstance(item, dict) else str(item)
-        if txt and marca in txt:
-            achados.append(f"andamento já registrado com a marca {marca}")
+        if not txt:
+            continue
+        if marca in txt:
+            achados.append(f"este mesmo diário já está registrado — marca {marca}")
+            break
+        if generica in txt:
+            # Outro diário do mesmo dia nesta OS: as duas equipes acontecem, e
+            # o segundo diário é legítimo. Mas dobrar o dia por engano também
+            # acontece — quem decide é quem viu o campo.
+            achados.append(
+                f"já há OUTRO diário desta data nesta OS ({generica}). Se for o "
+                f"segundo turno/equipe, é legítimo e vai com --forcar; se for o "
+                f"mesmo dia lançado de novo, não aplique")
             break
 
     # Em --so-andamento o financeiro daquele dia existir é o esperado, não o
@@ -928,7 +947,8 @@ def main():
 
     texto_andamento = montar_andamento(campos, data_iso, gastos, total)
     custos, pagamentos = montar_lancamentos(os_reg, data_iso, gastos, args)
-    duplicatas = checar_duplicata(url, key, os_reg, data_iso, args.so_andamento)
+    duplicatas = checar_duplicata(url, key, os_reg, data_iso, args.so_andamento,
+                                  achar_hora(campos["chegada"]))
 
     if args.json:
         print(json.dumps({"os": os_reg.get("numero"), "data": data_iso,
