@@ -709,8 +709,14 @@ def aplicar_diario(url, key, os_reg, texto_andamento, custos, pagamentos, total,
         inserir(url, key, "pagamentos", {**p, "os_id": os_id, "os_manual": numero})
         print(f"✓ Despesa: {p['descricao']} — {brl(p['valor'])} ({p['status']})")
 
-    print(f"\nTotal lançado na OS: {brl(total)}. "
-          f"Confira em Financeiro → OS {numero}.")
+    if args.so_andamento:
+        # Sem isto a linha fecha anunciando o total do diário como se tivesse
+        # sido lançado — o oposto do que este modo faz.
+        print(f"\nSó o andamento foi gravado. O financeiro de {brl(total)} "
+              f"deste dia continua como já estava na OS {numero}.")
+    else:
+        print(f"\nTotal lançado na OS: {brl(total)}. "
+              f"Confira em Financeiro → OS {numero}.")
 
 
 # ─────────────────────────── main ───────────────────────────
