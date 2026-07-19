@@ -58,6 +58,13 @@ Financeiro da OS:
 
 Todas entram como **Pago**, com vencimento e pagamento na data do campo.
 
+**Adiantamento não é gasto.** A equipe anota junto dos gastos o dinheiro que
+saiu para a viagem e o que sobrou dele — "Pix viagem: R$400", "SALDO: +108,40".
+Isso é movimento de caixa: o custo da obra são os itens que o adiantamento
+pagou, e somar os dois conta o mesmo dinheiro duas vezes. O script separa
+essas linhas e as reporta à parte. Saldo que ficou com quem foi a campo se
+acerta no caixa, não na OS.
+
 Essas categorias são as que o banco **já usa**, não as do `<select>` do
 formulário — o Gestor tem "Pedágio", "Material de Campo" e "Manutenção de
 Equipamento" gravadas, e nenhuma aparece no dropdown. Não se guie pelo
@@ -119,6 +126,19 @@ A prévia só é confiável depois que você tratou o que ela sinalizou:
 Se a OS não for encontrada, o script lista candidatas e sai. Leve a lista ao
 usuário; não escolha por proximidade de número.
 
+### Data não é chave
+
+Duas equipes saem a campo no mesmo dia, em OS diferentes, às vezes do mesmo
+cliente. Um diário de 11/07 em Maracaju não invalida outro de 11/07 em São
+Gabriel, e despesa lançada numa data **não** prova que o dia pertence àquela
+OS.
+
+Nunca conclua que um lançamento está com data errada porque "não combina"
+com o diário que você tem na mão — pode ser da outra equipe. Foi exatamente
+o erro que a rotina quase cometeu: um pedágio de 11/07 pareceu ser de 07/07
+com data trocada, e era da segunda equipe. Pergunte antes de mover qualquer
+lançamento de data.
+
 ## Quando o serviço não tem OS
 
 Acontece de o campo sair antes do sistema: cliente novo, combinado no
@@ -157,6 +177,17 @@ O script numera igual ao Gestor (`ORC-<ano>-<seq>`, `OS-<MES>-<seq>`, sempre
 do mês corrente), cria o orçamento já **Aprovado** — é registro retroativo de
 combinação que nunca passou pelo sistema — preenche `os_gerada` e só então
 lança o diário na OS nova.
+
+**Cliente que já está na carteira** — caso de OS nova para cliente antigo —
+usa `--cliente-existente`, que reaproveita o cadastro em vez de criar outro.
+Exige que exatamente um cadastro case com o nome; com dois ou nenhum, para.
+
+**Deslocamento é item próprio**, não embutido no valor do serviço:
+`--km 375` acrescenta "Mobilização e Desmobilização de Equipe" a **R$ 1,50/km**
+— a taxa é a mesma em todos os orçamentos da carteira que cobram km. Quando o
+usuário disser "1500 + 375 km", são R$ 1.500,00 de serviço mais R$ 562,50 de
+deslocamento, total R$ 2.062,50. Confirme a leitura antes de gravar: "375"
+também pode ser reais, e a diferença é de quase R$ 200.
 
 **Cliente parecido bloqueia.** Se já existir cadastro com nome que encaixe no
 informado, o script para. Cadastro duplicado divide as OS do mesmo dono em

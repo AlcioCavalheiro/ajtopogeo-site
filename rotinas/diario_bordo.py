@@ -86,6 +86,12 @@ DESTINO_GASTO = [
 # Linhas de gasto que são fechamento de conta, não lançamento.
 LINHAS_TOTAL = ("total", "soma", "somatorio", "total do dia", "total geral")
 
+# Movimento de caixa que a equipe anota junto dos gastos: o adiantamento que
+# saiu para o campo e o que sobrou dele. Não é custo da obra — o custo são os
+# itens que o adiantamento pagou, e somar os dois conta o dinheiro duas vezes.
+LINHAS_CAIXA = ("pix", "saldo", "adiantamento", "vale", "transferencia",
+                "deposito", "troco", "sobra", "restante", "devolucao")
+
 # O diário vem colado do WhatsApp e traz a menção de quem foi marcado na
 # mensagem ("@Fulano"). Não é conteúdo do dia e não pode entrar no andamento
 # da OS, que é documento de obra e pode ir para o cliente no relatório.
@@ -269,14 +275,17 @@ def classificar_gasto(descricao):
 
 
 def ler_gastos(linhas):
-    """Devolve (lançamentos, total_declarado)."""
-    itens, declarado = [], None
+    """Devolve (lançamentos, total_declarado, linhas_de_caixa)."""
+    itens, declarado, caixa = [], None, []
     for linha in linhas:
         if not linha:
             continue
         rotulo = normalizar(linha.split(":")[0].split("-")[0])
         if any(rotulo.startswith(t) for t in LINHAS_TOTAL):
             declarado = ler_valor(linha)
+            continue
+        if any(rotulo.startswith(c) for c in LINHAS_CAIXA):
+            caixa.append(linha)
             continue
         valor = ler_valor(linha)
         if valor is None:
@@ -288,7 +297,7 @@ def ler_gastos(linhas):
         destino, categoria, certeza = classificar_gasto(desc)
         itens.append({"descricao": desc, "valor": valor, "destino": destino,
                       "categoria": categoria, "categoria_certa": certeza})
-    return itens, declarado
+    return itens, declarado, caixa
 
 
 # ─────────────────────────── cadeia cliente → orçamento → OS ───────────────────────────
@@ -297,6 +306,11 @@ MESES = ("JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "
 
 # Quem assina o serviço. É o responsável técnico de todas as OS da carteira.
 RESPONSAVEL = "ALCIO MARQUES CAVALHEIRO JUNIOR"
+
+# Deslocamento é item próprio no orçamento, sempre a R$ 1,50/km — a taxa é a
+# mesma em todos os orçamentos da carteira que cobram km.
+ITEM_KM = "Mobilização e Desmobilização de Equipe"
+VALOR_KM = 1.5
 
 
 def proximo_numero(url, key, tabela, prefixo):
@@ -359,12 +373,21 @@ def montar_cadeia(url, key, args, data_iso, campos):
 
     hoje = datetime.now().date()
     forma = args.pagamento or "À vista"
+
+    itens = [{"nome": servico, "unidade": "serviço", "quantidade": 1,
+              "valor_unitario": valor, "descricao": servico}]
+    km = float(args.km) if args.km else 0
+    if km:
+        itens.append({"nome": ITEM_KM, "unidade": "km", "quantidade": km,
+                      "valor_unitario": VALOR_KM,
+                      "descricao": f"Deslocamento de equipe e equipamento — {km:g} km"})
+        valor = round(valor + km * VALOR_KM, 2)
+
     orcamento = {
         "numero": proximo_numero(url, key, "orcamentos", f"ORC-{hoje.year}-"),
         "descricao": servico,
         "valor_total": valor,
-        "itens": [{"nome": servico, "unidade": "serviço", "quantidade": 1,
-                   "valor_unitario": valor, "descricao": servico}],
+        "itens": itens,
         # Nasce Aprovado porque o serviço já foi executado: é registro
         # retroativo de uma combinação que nunca passou pelo sistema.
         "status": "Aprovado",
@@ -387,10 +410,18 @@ def montar_cadeia(url, key, args, data_iso, campos):
     return cliente, orcamento, ordem
 
 
-def criar_cadeia(url, key, cliente, orcamento, ordem, data_iso):
-    """Grava cliente → orçamento → OS e devolve a OS criada."""
-    novo_cliente = inserir(url, key, "clientes", cliente)[0]
-    print(f"✓ Cliente criado: {novo_cliente['nome']} ({novo_cliente['tipo']})")
+def criar_cadeia(url, key, cliente, orcamento, ordem, data_iso, existente=None):
+    """Grava cliente → orçamento → OS e devolve a OS criada.
+
+    Com `existente`, o cliente é reaproveitado em vez de criado — caso da OS
+    nova para cliente que já está na carteira.
+    """
+    if existente:
+        novo_cliente = existente
+        print(f"• Cliente existente reaproveitado: {novo_cliente['nome']}")
+    else:
+        novo_cliente = inserir(url, key, "clientes", cliente)[0]
+        print(f"✓ Cliente criado: {novo_cliente['nome']} ({novo_cliente['tipo']})")
 
     orcamento = {**orcamento, "cliente_id": novo_cliente["id"]}
     novo_orc = inserir(url, key, "orcamentos", orcamento)[0]
@@ -413,27 +444,57 @@ def criar_cadeia(url, key, cliente, orcamento, ordem, data_iso):
     return nova_os
 
 
-def imprimir_cadeia(cliente, orcamento, ordem, parecidos):
+def diario_ja_tem_os(url, key, cliente_id, data_iso):
+    """OS do mesmo cliente que já registrou este diário.
+
+    Sem isto, rodar --criar-os duas vezes abre duas OS com o mesmo dia de
+    campo — e a segunda leva o custo junto, dobrando a despesa numa obra que
+    nem deveria existir.
+    """
+    if not cliente_id:
+        return []
+    marca = marca_diario(data_iso)
+    repetidas = []
+    for o in buscar(url, key, "ordens", "numero,andamento",
+                    cliente_id=f"eq.{cliente_id}"):
+        for item in (o.get("andamento") or []):
+            txt = item.get("txt") if isinstance(item, dict) else str(item)
+            if txt and marca in txt:
+                repetidas.append(o.get("numero"))
+                break
+    return repetidas
+
+
+def imprimir_cadeia(cliente, orcamento, ordem, parecidos, existente=None):
     print("## Cadeia a criar (cliente → orçamento → OS)\n")
+    if existente:
+        print(f"- **Cliente:** {existente['nome']} — *já cadastrado, será "
+              f"reaproveitado* (tel {existente.get('telefone') or '—'})")
     if parecidos:
         print("> ⛔ **Já existe cliente com nome parecido:** "
               + "; ".join(f"{c['nome']}" + (f" ({c['cidade']})" if c.get("cidade") else "")
                           for c in parecidos)
               + ". Cadastrar de novo divide as OS do mesmo dono em dois cadastros. "
                 "Use --os com a OS existente, ou confirme que é outra pessoa.\n")
-    print(f"- **Cliente:** {cliente['nome']} · {cliente['tipo']}"
-          f" · tel {cliente['telefone'] or '— não informado —'}"
-          f" · {cliente['cidade'] or '—'}/{cliente['estado']}")
-    print(f"- **Orçamento {orcamento['numero']}:** {orcamento['descricao']} — "
+    if not existente:
+        print(f"- **Cliente:** {cliente['nome']} · {cliente['tipo']}"
+              f" · tel {cliente['telefone'] or '— não informado —'}"
+              f" · {cliente['cidade'] or '—'}/{cliente['estado']}")
+    print(f"- **Orçamento {orcamento['numero']}:** "
           f"{brl(float(orcamento['valor_total']))} · {orcamento['status']} · "
           f"{orcamento['pagamento']['forma']}")
+    for it in orcamento["itens"]:
+        sub = float(it["quantidade"]) * float(it["valor_unitario"])
+        print(f"    - {it['nome']} — {it['quantidade']:g} {it['unidade']} × "
+              f"{brl(float(it['valor_unitario']))} = **{brl(sub)}**")
     print(f"- **OS {ordem['numero']}:** {ordem['tipo']} · status {ordem['status']} · "
           f"data {datetime.fromisoformat(ordem['data']).strftime('%d/%m/%Y')}")
-    if not cliente["cpfcnpj"]:
-        print("\n> ⚠ Sem CPF/CNPJ. Cadastro serve para tocar a OS, mas NF e "
-              "contrato vão exigir o documento depois.")
-    if not cliente["telefone"]:
-        print("\n> ⚠ Sem telefone. A OS entra na /cobranca-os sem contato.")
+    if not existente:
+        if not cliente["cpfcnpj"]:
+            print("\n> ⚠ Sem CPF/CNPJ. Cadastro serve para tocar a OS, mas NF e "
+                  "contrato vão exigir o documento depois.")
+        if not cliente["telefone"]:
+            print("\n> ⚠ Sem telefone. A OS entra na /cobranca-os sem contato.")
     print()
 
 
@@ -645,6 +706,13 @@ def imprimir_previa(os_reg, campos, data_iso, gastos, total, declarado,
               f"{brl(total)}. Diferença de {brl(abs(declarado - total))} — confira "
               f"antes de aplicar; pode faltar item ou ter valor trocado.")
 
+    if getattr(args, "caixa", None):
+        print(f"\n> ℹ Fora do custo da obra, por serem movimento de caixa: "
+              + "; ".join(f"*{c}*" for c in args.caixa)
+              + ". O adiantamento não é custo — os itens que ele pagou já "
+                "estão lançados acima. Se sobrou saldo com quem foi a campo, "
+                "isso se acerta no caixa, não na OS.")
+
     incertos = [g for g in gastos if not g["categoria_certa"]]
     if incertos:
         print(f"\n> ⚠ Sem categoria reconhecida (foram para *Outros*): "
@@ -776,6 +844,11 @@ def main():
     ap.add_argument("--valor", metavar="VALOR", help="valor combinado do serviço")
     ap.add_argument("--tipo", metavar="TIPO", help="tipo da OS (ex: Locação de Obras)")
     ap.add_argument("--pagamento", metavar="FORMA", help="forma de pagamento do orçamento")
+    ap.add_argument("--km", metavar="KM", type=float,
+                    help=f"km de deslocamento — vira item '{ITEM_KM}' a "
+                         f"R$ {VALOR_KM:.2f}/km no orçamento")
+    ap.add_argument("--cliente-existente", action="store_true",
+                    help="reaproveita o cliente já cadastrado em vez de criar outro")
     ap.add_argument("--json", action="store_true", help="imprime o que seria gravado, em JSON")
     args = ap.parse_args()
 
@@ -787,15 +860,35 @@ def main():
     if not data_iso:
         sys.exit("Não achei a data do diário. Ela precisa estar como dd/mm/aaaa.")
 
-    gastos, declarado = ler_gastos(campos["gastos"])
+    gastos, declarado, caixa = ler_gastos(campos["gastos"])
     total = round(sum(g["valor"] for g in gastos), 2)
+    args.caixa = caixa
 
     url, key = carregar_env()
 
     if args.criar_os:
         cliente, orcamento, ordem = montar_cadeia(url, key, args, data_iso, campos)
         parecidos = achar_cliente(url, key, cliente["nome"])
-        imprimir_cadeia(cliente, orcamento, ordem, parecidos)
+
+        existente = None
+        if args.cliente_existente:
+            if len(parecidos) != 1:
+                sys.exit(
+                    f"--cliente-existente precisa de exatamente um cadastro que "
+                    f"case com {cliente['nome']!r}; achei {len(parecidos)}."
+                    + ("\nCandidatos: " + "; ".join(c["nome"] for c in parecidos)
+                       if parecidos else "")
+                )
+            existente = parecidos[0]
+            parecidos = []  # reaproveitar é a intenção, não o acidente
+
+        imprimir_cadeia(cliente, orcamento, ordem, parecidos, existente)
+
+        ja_lancado = diario_ja_tem_os(url, key, (existente or {}).get("id"), data_iso)
+        if ja_lancado:
+            print(f"> ⛔ **Este diário já está lançado em {', '.join(ja_lancado)}** "
+                  f"(mesmo cliente, mesma data). Criar outra OS duplicaria a obra "
+                  f"e o custo. Use `--os` para complementar a existente.\n")
 
         os_reg = {"id": None, "numero": ordem["numero"], "status": ordem["status"],
                   "clientes": {"nome": cliente["nome"]}, "andamento": []}
@@ -809,8 +902,11 @@ def main():
         if parecidos and not args.forcar:
             sys.exit("\nAbortado: já existe cliente com nome parecido (ver acima). "
                      "Confirme se é a mesma pessoa antes de criar um cadastro novo.")
+        if ja_lancado and not args.forcar:
+            sys.exit(f"\nAbortado: este diário já está em {', '.join(ja_lancado)}. "
+                     f"Criar outra OS duplicaria a obra e o custo.")
 
-        nova = criar_cadeia(url, key, cliente, orcamento, ordem, data_iso)
+        nova = criar_cadeia(url, key, cliente, orcamento, ordem, data_iso, existente)
         aplicar_diario(url, key, nova, texto_andamento, custos, pagamentos, total, args)
         return
 
