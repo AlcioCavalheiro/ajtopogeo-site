@@ -47,8 +47,11 @@ ETAPA_DE_STATUS = {
     "Agendada": 1, "Logística / Preparação": 1,
     "Em campo": 2, "Em andamento": 2,
     "Processamento": 3, "Desenho": 3, "Revisão Técnica": 3,
+    # Trava que pode cair em qualquer ponto do fluxo — peso neutro de meio.
+    "Pendência Documental": 3,
     "Análise Jurídica": 4, "Pronto para Protocolo": 4, "Protocolada": 4,
-    "Encaminhada para Medição": 5, "Medição Realizada": 5, "NF Gerada": 5,
+    "Encaminhada para Medição": 5, "Medição Realizada": 5, "Fechar Medição": 5,
+    "Gerar NF": 5, "NF Gerada": 5, "Falta Pagamento": 5,
     "Pronto para Enviar ao Cliente": 5, "Documentos Enviados ao Cliente": 5,
 }
 ETAPA_MAX = 5
@@ -63,12 +66,16 @@ MOTIVO_PROVAVEL = {
     "Processamento": "Dado bruto aguardando processamento interno.",
     "Desenho": "Aguardando desenho/CAD interno.",
     "Revisão Técnica": "Parada em revisão interna — depende de você liberar.",
+    "Pendência Documental": "Aguardando documento do cliente (matrícula, CCIR, CAR, ITR, procuração, CNH). Confira no andamento QUAL documento falta antes de cobrar.",
     "Análise Jurídica": "Aguardando documento do cliente (matrícula, CCIR, CAR, procuração) ou parecer jurídico.",
     "Pronto para Protocolo": "Pronta e não protocolada — normalmente falta documento ou assinatura do cliente.",
     "Protocolada": "No órgão (INCRA/cartório/prefeitura) — verificar exigência em aberto.",
     "Encaminhada para Medição": "Serviço entregue, medição não fechada — receita travada aqui.",
     "Medição Realizada": "Medição fechada e NF não emitida — faturamento pendente.",
+    "Fechar Medição": "Medição aberta aguardando fechamento — passo interno antes de faturar.",
+    "Gerar NF": "Medição fechada aguardando emissão da NF.",
     "NF Gerada": "NF emitida e não recebida — cobrança financeira direta.",
+    "Falta Pagamento": "NF emitida e vencida sem pagamento — cobrança financeira direta.",
     "Pronto para Enviar ao Cliente": "Produto pronto e não entregue ao cliente.",
     "Documentos Enviados ao Cliente": "Entregue — confirmar recebimento e liberar faturamento.",
 }
@@ -100,17 +107,28 @@ def carregar_env():
     return url, key
 
 
-def buscar_ordens(url, key):
-    endpoint = f"{url}/rest/v1/ordens"
-    params = {
-        "select": "*,clientes(nome,telefone,email),obras(nome,municipio)",
-        "order": "created_at.asc",
-    }
+def buscar(url, key, tabela, select, **extra):
     headers = {"apikey": key, "Authorization": f"Bearer {key}"}
-    r = requests.get(endpoint, params=params, headers=headers, timeout=60)
+    params = {"select": select, **extra}
+    r = requests.get(f"{url}/rest/v1/{tabela}", params=params, headers=headers, timeout=60)
     if r.status_code != 200:
-        sys.exit(f"Supabase retornou HTTP {r.status_code}: {r.text[:400]}")
+        sys.exit(f"Supabase retornou HTTP {r.status_code} em '{tabela}': {r.text[:400]}")
     return r.json()
+
+
+def buscar_ordens(url, key):
+    """Traz as ordens com o cliente embutido e a obra unida na mão.
+
+    Não existe FK entre ordens e obras no schema, então o embed do PostgREST
+    falha com PGRST200 — a união é feita por obra_id aqui.
+    """
+    ordens = buscar(url, key, "ordens",
+                    "*,clientes(nome,telefone,email)", order="created_at.asc")
+    obras = buscar(url, key, "obras", "id,nome,municipio")
+    por_id = {o["id"]: o for o in obras}
+    for os_reg in ordens:
+        os_reg["_obra"] = por_id.get(os_reg.get("obra_id")) or {}
+    return ordens
 
 
 def dias_desde(iso):
@@ -147,7 +165,7 @@ def analisar(ordens, min_dias=0):
         if parado < min_dias:
             continue
         cliente = (o.get("clientes") or {}) or {}
-        obra = (o.get("obras") or {}) or {}
+        obra = (o.get("_obra") or {}) or {}
         status = o.get("status") or "(sem status)"
         enriquecidas.append({
             "numero": o.get("numero") or f"id:{o.get('id')}",
@@ -160,7 +178,8 @@ def analisar(ordens, min_dias=0):
             "municipio": obra.get("municipio") or "",
             "valor": float(o.get("orcamento_valor") or 0),
             "dias_parada": parado,
-            "etapa": ETAPA_DE_STATUS.get(status, 1),
+            "etapa": ETAPA_DE_STATUS.get(status, 3),
+            "status_mapeado": status in ETAPA_DE_STATUS,
             "responsavel": o.get("responsavel") or "",
             "motivo_provavel": MOTIVO_PROVAVEL.get(status, "Status fora do fluxo padrão — investigar manualmente."),
             "ultimo_andamento": ultimo_andamento(o),
@@ -199,6 +218,15 @@ def imprimir_markdown(lista, top, total_abertas):
     print(f"- OS em aberto analisadas: **{total_abertas}**")
     print(f"- Valor total em aberto: **{brl(travado_geral)}**")
     print(f"- Nas {len(recorte)} prioritárias abaixo: **{brl(travado)}**\n")
+
+    # Status novo no Gestor que ainda não está nos mapas deste script cai num
+    # motivo genérico e numa etapa neutra — avisar em vez de mascarar.
+    desconhecidos = sorted({e["status"] for e in lista if not e["status_mapeado"]})
+    if desconhecidos:
+        print(f"> ⚠ Status sem mapeamento (motivo e etapa são chutes): "
+              f"{', '.join(desconhecidos)}. Atualize ETAPA_DE_STATUS e "
+              f"MOTIVO_PROVAVEL em rotinas/os_paradas.py.\n")
+
     print("---\n")
 
     for i, e in enumerate(recorte, 1):
