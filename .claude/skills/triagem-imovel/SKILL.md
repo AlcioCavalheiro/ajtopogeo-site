@@ -52,7 +52,30 @@ Regras:
 
 Depois salve cada arquivo recebido em `01_DOCUMENTOS/`.
 
-## Passo 2 — Resumo estruturado
+## Passo 2 — Extrair o texto antes de analisar
+
+Com os arquivos já em `01_DOCUMENTOS/`, rode:
+
+```
+C:\Users\ALCIO\.ajtopogeo\venv\Scripts\python.exe .claude\skills\triagem-imovel\scripts\extrair_texto.py "<pasta do projeto>"
+```
+
+O script converte PDF, DOCX, planilha e e-mail em `.md` dentro de
+`10_TRIAGEM/_texto/`, e passa OCR em português nos PDFs escaneados (matrícula
+de cartório, quase sempre). No fim escreve `_texto/_INDICE.md` com o status de
+cada arquivo.
+
+Analise a partir desses `.md` — é onde os números ficam confiáveis para
+conferência. Mas:
+
+- Todo arquivo com status `SEM TEXTO`, `FALHOU` ou `IGNORADO` no índice tem
+  que ser lido no original antes de fechar a triagem. Não conclua sem ele.
+- OCR erra carimbo, manuscrito e número riscado. Área, matrícula nº, CPF/CNPJ,
+  data e fração de condomínio: confira no PDF original antes de escrever no
+  resumo. O `.md` é ponto de partida, não fonte final.
+- O `_texto/` tem dado de cliente. Fica no Drive, nunca no repositório.
+
+## Passo 3 — Resumo estruturado
 
 Sempre nesta ordem, em `10_TRIAGEM/triagem-<NOME>.md`:
 
@@ -95,7 +118,7 @@ antes de sair (acesso, cercas, marcos existentes, época de chuva).
 
 **9. O que falta** — documentos ainda não recebidos, listados para o usuário pedir.
 
-## Passo 3 — Croqui
+## Passo 4 — Croqui
 
 Se houver coordenadas utilizáveis (memorial descritivo, KML, shapefile, CAR),
 gere um DXF do perímetro em `10_TRIAGEM/`. Se não houver, diga explicitamente
