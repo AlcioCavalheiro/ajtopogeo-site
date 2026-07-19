@@ -102,6 +102,9 @@ def estilos():
                              fontName="Helvetica-Bold", textColor=colors.white)
     s["td"] = ParagraphStyle("td", parent=base["Normal"], fontSize=8,
                              textColor=CINZA_TXT, leading=11)
+    # A tabela completa tem 8 colunas e 60+ linhas: precisa de corpo menor.
+    s["td_mini"] = ParagraphStyle("td_mini", parent=base["Normal"], fontSize=6.6,
+                                  textColor=CINZA_TXT, leading=8.4)
     s["metric_v"] = ParagraphStyle("metric_v", parent=base["Normal"], fontSize=16,
                                    fontName="Helvetica-Bold", textColor=AZUL,
                                    alignment=TA_CENTER)
@@ -125,9 +128,9 @@ def faixa_secao(texto, cor, largura, st):
 def bloco_metricas(resumo, largura, st):
     itens = [
         (str(resumo.get("os_abertas", "—")), "OS EM ABERTO"),
-        (brl(resumo.get("total_travado", 0)), "TOTAL TRAVADO"),
-        (brl(resumo.get("valor_cobrancas", 0)), "A COBRAR AGORA"),
-        (brl(resumo.get("valor_internas", 0)), "PENDENTE INTERNO"),
+        (brl(resumo.get("contratado", 0)), "CONTRATADO"),
+        (brl(resumo.get("recebido", 0)), "JÁ RECEBIDO"),
+        (brl(resumo.get("em_aberto", 0)), "EM ABERTO A COBRAR"),
     ]
     t = Table(
         [[Paragraph(rt(v), st["metric_v"]) for v, _ in itens],
@@ -165,6 +168,66 @@ def tabela_os(lista_os, largura, st):
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("TOPPADDING", (0, 0), (-1, -1), 4),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 5),
+    ]))
+    return t
+
+
+def tabela_completa(linhas_os, largura, st):
+    """Todas as OS em aberto, com contratado / recebido / em aberto."""
+    cab = ["#", "OS", "Cliente", "Contratado", "Recebido", "Em aberto", "Dias", "Status"]
+    linhas = [[Paragraph(rt(c), st["th"]) for c in cab]]
+    estilo_extra = []
+    for i, o in enumerate(linhas_os, 1):
+        quitada = bool(o.get("quitada"))
+        aberto = brl(o.get("em_aberto", 0)) + (" ✓" if quitada else "")
+        linhas.append([
+            Paragraph(rt(i), st["td_mini"]),
+            Paragraph(rt(o.get("numero")), st["td_mini"]),
+            Paragraph(rt((o.get("cliente") or "")[:30]), st["td_mini"]),
+            Paragraph(rt(brl(o.get("contratado", 0))), st["td_mini"]),
+            Paragraph(rt(brl(o.get("recebido", 0))), st["td_mini"]),
+            Paragraph(f"<b>{rt(aberto)}</b>", st["td_mini"]),
+            Paragraph(rt(o.get("dias")), st["td_mini"]),
+            Paragraph(rt(o.get("status")), st["td_mini"]),
+        ])
+        if quitada:
+            estilo_extra.append(("TEXTCOLOR", (0, i), (-1, i), colors.HexColor("#8A8A85")))
+
+    larguras = [largura * p for p in
+                (0.035, 0.115, 0.245, 0.115, 0.105, 0.115, 0.055, 0.215)]
+    t = Table(linhas, colWidths=larguras, repeatRows=1)
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), AZUL),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F7F7F5")]),
+        ("GRID", (0, 0), (-1, -1), 0.3, CINZA_BORDA),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, -1), 2.5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2.5),
+        ("LEFTPADDING", (0, 0), (-1, -1), 3),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 3),
+    ] + estilo_extra))
+    return t
+
+
+def tabela_soltos(recs, largura, st):
+    """Recebimentos sem os_id — não abatidos de nenhuma OS."""
+    cab = ["Descrição", "Valor", "Data"]
+    linhas = [[Paragraph(rt(c), st["th"]) for c in cab]]
+    for r in recs:
+        linhas.append([
+            Paragraph(rt(r.get("descricao") or "—"), st["td"]),
+            Paragraph(rt(brl(r.get("valor", 0))), st["td"]),
+            Paragraph(rt(r.get("data") or "—"), st["td"]),
+        ])
+    t = Table(linhas, colWidths=[largura * 0.6, largura * 0.2, largura * 0.2], repeatRows=1)
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), AMBAR),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, AMBAR_BG]),
+        ("GRID", (0, 0), (-1, -1), 0.4, CINZA_BORDA),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, -1), 3.5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3.5),
         ("LEFTPADDING", (0, 0), (-1, -1), 5),
     ]))
     return t
@@ -341,6 +404,38 @@ def gerar(dossie, saida):
         story.append(Spacer(1, 8))
         for letra, p in zip("ABCDEFGHIJ", internas):
             story.append(KeepTogether(card_interna(letra, p, largura, st)))
+
+    soltos = dossie.get("recebimentos_sem_os", [])
+    if soltos:
+        story.append(PageBreak())
+        total_soltos = sum(float(r.get("valor") or 0) for r in soltos)
+        story.append(faixa_secao(
+            f"RECEBIMENTOS SEM OS VINCULADA  ({len(soltos)}  ·  {brl(total_soltos)})",
+            AMBAR, largura, st))
+        story.append(Spacer(1, 6))
+        story.append(Paragraph(
+            "Estes recebimentos <b>não foram descontados de nenhuma OS</b> porque não "
+            "têm vínculo no banco — estão ligados só por texto livre. Se algum "
+            "corresponder a uma OS da lista, o valor em aberto dela está "
+            "<b>superestimado</b>. Concilie antes de cobrar.", st["corpo"]))
+        story.append(Spacer(1, 6))
+        story.append(tabela_soltos(soltos, largura, st))
+        story.append(Spacer(1, 12))
+
+    todas = dossie.get("todas_os", [])
+    if todas:
+        if not soltos:
+            story.append(PageBreak())
+        story.append(faixa_secao(
+            f"TODAS AS OS EM ABERTO  ({len(todas)})", AZUL, largura, st))
+        story.append(Spacer(1, 6))
+        story.append(Paragraph(
+            "Ordenadas por prioridade de cobrança (valor em aberto, tempo parado e "
+            "proximidade de conclusão). Linhas em cinza com ✓ estão quitadas — a "
+            "pendência delas é técnica, não financeira.", st["corpo"]))
+        story.append(Spacer(1, 6))
+        story.append(tabela_completa(todas, largura, st))
+        story.append(Spacer(1, 12))
 
     obs = dossie.get("observacoes", [])
     if obs:

@@ -117,18 +117,45 @@ def buscar(url, key, tabela, select, **extra):
 
 
 def buscar_ordens(url, key):
-    """Traz as ordens com o cliente embutido e a obra unida na mão.
+    """Traz as ordens com cliente, obra e o quanto já foi recebido de cada uma.
 
     Não existe FK entre ordens e obras no schema, então o embed do PostgREST
     falha com PGRST200 — a união é feita por obra_id aqui.
+
+    Recebimentos só são somados quando têm os_id preenchido. Os que estão
+    soltos (ligados por texto livre em 'descricao') NÃO são adivinhados: uma
+    descrição como "Negrimaq" pode se referir a qualquer uma das OS daquele
+    cliente, e errar aqui faz cobrar quem já pagou. Eles voltam separados,
+    para conciliação manual.
     """
     ordens = buscar(url, key, "ordens",
                     "*,clientes(nome,telefone,email)", order="created_at.asc")
     obras = buscar(url, key, "obras", "id,nome,municipio")
-    por_id = {o["id"]: o for o in obras}
+    recebimentos = buscar(url, key, "recebimentos",
+                          "id,os_id,valor,status,data_recebimento,descricao,vencimento")
+
+    por_obra = {o["id"]: o for o in obras}
+
+    recebido_por_os, previsto_por_os = {}, {}
+    soltos = []
+    for r in recebimentos:
+        valor = float(r.get("valor") or 0)
+        alvo = r.get("os_id")
+        if not alvo:
+            soltos.append(r)
+            continue
+        if (r.get("status") or "") == "Recebido":
+            recebido_por_os[alvo] = recebido_por_os.get(alvo, 0.0) + valor
+        else:
+            previsto_por_os[alvo] = previsto_por_os.get(alvo, 0.0) + valor
+
     for os_reg in ordens:
-        os_reg["_obra"] = por_id.get(os_reg.get("obra_id")) or {}
-    return ordens
+        oid = os_reg.get("id")
+        os_reg["_obra"] = por_obra.get(os_reg.get("obra_id")) or {}
+        os_reg["_recebido"] = recebido_por_os.get(oid, 0.0)
+        os_reg["_previsto"] = previsto_por_os.get(oid, 0.0)
+
+    return ordens, soltos
 
 
 def dias_desde(iso):
@@ -167,6 +194,8 @@ def analisar(ordens, min_dias=0):
         cliente = (o.get("clientes") or {}) or {}
         obra = (o.get("_obra") or {}) or {}
         status = o.get("status") or "(sem status)"
+        valor_total = float(o.get("orcamento_valor") or 0)
+        recebido = float(o.get("_recebido") or 0)
         enriquecidas.append({
             "numero": o.get("numero") or f"id:{o.get('id')}",
             "tipo": o.get("tipo") or "",
@@ -176,7 +205,13 @@ def analisar(ordens, min_dias=0):
             "email": cliente.get("email") or "",
             "obra": obra.get("nome") or "",
             "municipio": obra.get("municipio") or "",
-            "valor": float(o.get("orcamento_valor") or 0),
+            "valor_total": valor_total,
+            "recebido": recebido,
+            "previsto": float(o.get("_previsto") or 0),
+            # O que ainda dá para cobrar. É este que manda no ranking:
+            # OS quitada com pendência só técnica não é caso de cobrança.
+            "valor": max(0.0, valor_total - recebido),
+            "quitada": recebido > 0 and (valor_total - recebido) < 0.01,
             "dias_parada": parado,
             "etapa": ETAPA_DE_STATUS.get(status, 3),
             "status_mapeado": status in ETAPA_DE_STATUS,
@@ -208,15 +243,23 @@ def brl(v):
     return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
 
-def imprimir_markdown(lista, top, total_abertas):
+def imprimir_markdown(lista, top, total_abertas, soltos=None):
     hoje = datetime.now().strftime("%d/%m/%Y")
     recorte = lista[:top]
     travado = sum(e["valor"] for e in recorte)
     travado_geral = sum(e["valor"] for e in lista)
+    contratado = sum(e["valor_total"] for e in lista)
+    recebido_geral = sum(e["recebido"] for e in lista)
+    quitadas = [e for e in lista if e["quitada"]]
 
     print(f"# OS paradas — {hoje}\n")
-    print(f"- OS em aberto analisadas: **{total_abertas}**")
-    print(f"- Valor total em aberto: **{brl(travado_geral)}**")
+    print(f"- OS em aberto: **{total_abertas}**")
+    print(f"- Valor contratado: {brl(contratado)}")
+    print(f"- Já recebido (vinculado): {brl(recebido_geral)}")
+    print(f"- **Em aberto a cobrar: {brl(travado_geral)}**")
+    if quitadas:
+        print(f"- OS já quitadas com pendência apenas técnica: **{len(quitadas)}** "
+              f"(não são cobrança)")
     print(f"- Nas {len(recorte)} prioritárias abaixo: **{brl(travado)}**\n")
 
     # Status novo no Gestor que ainda não está nos mapas deste script cai num
@@ -231,7 +274,11 @@ def imprimir_markdown(lista, top, total_abertas):
 
     for i, e in enumerate(recorte, 1):
         print(f"## {i}. {e['numero']} — {e['cliente']}  ·  score {e['score']}")
-        linha = f"**{brl(e['valor'])}** · parada há **{e['dias_parada']} dias** · status: **{e['status']}**"
+        linha = (f"**{brl(e['valor'])} em aberto** · parada há "
+                 f"**{e['dias_parada']} dias** · status: **{e['status']}**")
+        if e["recebido"]:
+            linha += (f"\ncontratado {brl(e['valor_total'])} · "
+                      f"já recebido {brl(e['recebido'])}")
         print(linha)
         detalhe = []
         if e["tipo"]:
@@ -251,14 +298,66 @@ def imprimir_markdown(lista, top, total_abertas):
         print(f"- **Contato:** {contato or '— sem contato cadastrado —'}")
         print()
 
-    if len(lista) > top:
-        resto = lista[top:]
-        print("---\n")
-        print(f"### Fila restante ({len(resto)} OS · {brl(sum(e['valor'] for e in resto))})\n")
-        print("| OS | Cliente | Valor | Dias | Status |")
-        print("|---|---|---|---|---|")
-        for e in resto:
-            print(f"| {e['numero']} | {e['cliente']} | {brl(e['valor'])} | {e['dias_parada']} | {e['status']} |")
+    print("---\n")
+    print(f"## Todas as OS em aberto ({len(lista)})\n")
+    print("| # | OS | Cliente | Contratado | Recebido | Em aberto | Dias | Status |")
+    print("|---|---|---|---|---|---|---|---|")
+    for i, e in enumerate(lista, 1):
+        marca = " ✓quitada" if e["quitada"] else ""
+        print(f"| {i} | {e['numero']} | {e['cliente'][:28]} | {brl(e['valor_total'])} "
+              f"| {brl(e['recebido'])} | **{brl(e['valor'])}**{marca} "
+              f"| {e['dias_parada']} | {e['status']} |")
+
+    if soltos:
+        recs = [r for r in soltos if (r.get("status") or "") == "Recebido"]
+        total = sum(float(r.get("valor") or 0) for r in recs)
+        print("\n---\n")
+        print(f"## ⚠ Recebimentos sem OS vinculada ({len(recs)} · {brl(total)})\n")
+        print("Não foram descontados de nenhuma OS porque não têm `os_id`. "
+              "Se algum destes corresponder a uma OS da lista acima, o valor "
+              "**em aberto** dela está superestimado — concilie antes de cobrar.\n")
+        print("| Descrição | Valor | Data |")
+        print("|---|---|---|")
+        for r in sorted(recs, key=lambda x: -float(x.get("valor") or 0)):
+            print(f"| {r.get('descricao') or '—'} | {brl(r.get('valor') or 0)} "
+                  f"| {r.get('data_recebimento') or '—'} |")
+
+
+def montar_dossie_base(lista, soltos):
+    """Parte factual do dossiê do PDF: números, lista completa e não conciliados.
+
+    A narrativa (cobrancas, internas, observacoes, proxima_semana) é escrita
+    por cima disto a cada semana — ver .claude/skills/cobranca-os.
+    """
+    recs = [r for r in soltos if (r.get("status") or "") == "Recebido"]
+    return {
+        "data": datetime.now().strftime("%Y-%m-%d"),
+        "resumo": {
+            "os_abertas": len(lista),
+            "contratado": round(sum(e["valor_total"] for e in lista), 2),
+            "recebido": round(sum(e["recebido"] for e in lista), 2),
+            "em_aberto": round(sum(e["valor"] for e in lista), 2),
+        },
+        "todas_os": [{
+            "numero": e["numero"],
+            "cliente": e["cliente"],
+            "contratado": e["valor_total"],
+            "recebido": e["recebido"],
+            "em_aberto": e["valor"],
+            "quitada": e["quitada"],
+            "dias": e["dias_parada"],
+            "status": e["status"],
+        } for e in lista],
+        "recebimentos_sem_os": [{
+            "descricao": r.get("descricao") or "—",
+            "valor": float(r.get("valor") or 0),
+            "data": r.get("data_recebimento") or "—",
+        } for r in sorted(recs, key=lambda x: -float(x.get("valor") or 0))],
+        "cobrancas": [],
+        "internas": [],
+        "observacoes": [],
+        "proxima_semana": [],
+    }
 
 
 def main():
@@ -266,10 +365,12 @@ def main():
     ap.add_argument("--top", type=int, default=10, help="quantas OS detalhar (padrão 10)")
     ap.add_argument("--min-dias", type=int, default=0, help="ignorar OS paradas há menos de N dias")
     ap.add_argument("--json", action="store_true", help="imprime JSON em vez de Markdown")
+    ap.add_argument("--dossie", metavar="ARQUIVO",
+                    help="grava a base factual do dossiê do PDF neste caminho")
     args = ap.parse_args()
 
     url, key = carregar_env()
-    ordens = buscar_ordens(url, key)
+    ordens, soltos = buscar_ordens(url, key)
     lista = analisar(ordens, min_dias=args.min_dias)
 
     if not lista:
@@ -278,10 +379,22 @@ def main():
 
     total_abertas = len([o for o in ordens if (o.get("status") or "") not in STATUS_ENCERRADOS])
 
+    if args.dossie:
+        destino = Path(args.dossie)
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        destino.write_text(
+            json.dumps(montar_dossie_base(lista, soltos), ensure_ascii=False, indent=2),
+            encoding="utf-8")
+        print(f"Base do dossiê gravada em: {destino}")
+        print("Preencha cobrancas / internas / observacoes / proxima_semana "
+              "e renderize com rotinas/relatorio_pdf.py")
+        return
+
     if args.json:
-        print(json.dumps(lista[:args.top], ensure_ascii=False, indent=2))
+        print(json.dumps({"os": lista, "recebimentos_sem_os": soltos},
+                         ensure_ascii=False, indent=2))
     else:
-        imprimir_markdown(lista, args.top, total_abertas)
+        imprimir_markdown(lista, args.top, total_abertas, soltos)
 
 
 if __name__ == "__main__":

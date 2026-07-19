@@ -13,17 +13,40 @@ Cadência: toda segunda-feira, 20–30 min. Objetivo: destravar receita.
 py rotinas/os_paradas.py --top 10
 ```
 
-O script lê `.env.local`, consulta a tabela `ordens` do Supabase e ordena por score
-(valor 40% + dias parada 35% + proximidade de conclusão 25%).
+O script lê `.env.local`, consulta `ordens` e `recebimentos` no Supabase e
+ordena por score (valor **em aberto** 40% + dias parada 35% + proximidade de
+conclusão 25%).
 
 Variações úteis:
 - `--min-dias 15` — ignora o que mexeu na última quinzena
-- `--top 20` — semana de faxina
-- `--json` — para cruzar com outra base
+- `--dossie <arquivo>` — grava a base factual do PDF (ver Passo 4)
+- `--json` — dados crus
 
 Se der erro de `.env.local`, pare e avise o usuário. Não tente contornar
 consultando com a chave anônima: o RLS devolve lista vazia e você vai
 concluir, erradamente, que não há OS parada.
+
+### Valor em aberto, nunca valor da OS
+
+O que importa é **contratado menos já recebido**. A maioria das OS é paga em
+duas partes (50% na assinatura), então o valor cheio superestima a dívida em
+quase o dobro. Toda cifra que você citar — no PDF, no texto da mensagem ou na
+conversa — é o saldo em aberto.
+
+OS com saldo zero continuam na lista quando ainda estão abertas, marcadas como
+quitadas. Elas **não são cobrança**: a pendência é de entrega. Tratar como
+cobrança é constrangedor com quem já pagou.
+
+### Recebimentos sem vínculo
+
+Só são abatidos os recebimentos com `os_id`. Os que estão soltos (ligados por
+texto livre em `descricao`) voltam numa lista separada e **nunca devem ser
+atribuídos por semelhança de nome ou valor**. Um cliente pode ter várias OS do
+mesmo valor — casar por coincidência leva a cobrar quem já pagou, que é o pior
+erro possível desta rotina.
+
+Quando um recebimento solto puder corresponder a uma OS da lista, diga isso no
+alerta do card e mande conferir o extrato antes de qualquer contato.
 
 ## Passo 2 — Conferir antes de escrever
 
@@ -56,27 +79,41 @@ Separe a entrega em dois blocos: cobranças a enviar e pendências internas.
 
 **A entrega principal desta rotina é o PDF.** É nele que o usuário decide.
 
-Escreva os textos num dossiê JSON e renderize:
+Primeiro gere a base factual, depois escreva a narrativa por cima dela:
 
 ```bash
-py rotinas/relatorio_pdf.py <dossie.json> "G:\Meu Drive\EMPRESA\AJ TopoGeo\_ROTINAS\COBRANCA\AAAA-MM-DD-cobranca.pdf"
+py rotinas/os_paradas.py --dossie <scratchpad>/base.json
+# preencha cobrancas / internas / observacoes / proxima_semana / nota_topo
+py rotinas/relatorio_pdf.py <scratchpad>/dossie.json "G:\Meu Drive\EMPRESA\AJ TopoGeo\_ROTINAS\COBRANCA\AAAA-MM-DD-cobranca.pdf"
 ```
 
-Guarde o JSON no scratchpad da sessão, não no Drive — ele é intermediário.
-O modelo da rodada anterior está em `rotinas/exemplo-dossie.json`.
+Guarde os JSON no scratchpad da sessão, **nunca no repo**: eles têm nome,
+telefone e valor de cliente, e o repositório é público. O modelo de estrutura
+(fictício) está em `rotinas/exemplo-dossie.json`.
 
-Estrutura do dossiê:
+O `--dossie` já preenche sozinho:
 
 | Campo | Conteúdo |
 |---|---|
-| `resumo` | `os_abertas`, `total_travado`, `valor_cobrancas`, `valor_internas` |
+| `resumo` | `os_abertas`, `contratado`, `recebido`, `em_aberto` |
+| `todas_os[]` | **todas** as OS em aberto, ordenadas por prioridade |
+| `recebimentos_sem_os[]` | os lançamentos não conciliados |
+
+Você escreve:
+
+| Campo | Conteúdo |
+|---|---|
 | `nota_topo` | uma frase situando a rodada e o delta da semana anterior |
 | `cobrancas[]` | `titulo`, `valor`, `contato`, `os[]`, `contexto`, `mensagem`, `alerta`, `dica` |
 | `internas[]` | `titulo`, `valor`, `os[]`, `texto`, `acao` |
 | `observacoes[]` | `titulo`, `texto` — padrões da carteira, não casos isolados |
 | `proxima_semana[]` | perguntas objetivas para a rodada seguinte |
 
-Cada `os[]` leva `numero`, `desc`, `valor`, `dias`, `status`.
+Cada `os[]` leva `numero`, `desc`, `valor` (em aberto), `dias`, `status`.
+
+O PDF sai com a lista completa das OS e os recebimentos não conciliados
+automaticamente — você não precisa repetir isso na narrativa. Use os cards
+para o que exige decisão.
 
 Regras de preenchimento:
 
