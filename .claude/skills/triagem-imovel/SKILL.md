@@ -18,14 +18,24 @@ faltando, siga com o que tem e liste o que falta — não trave a triagem.
 Estrutura em `G:\Meu Drive\EMPRESA\AJ TOPOGEO\TOPOGRAFIA\SERVIÇOS\EM EXECUÇÃO\<NOME>\`:
 
 ```
-01_DOCUMENTOS/      matrícula, CCIR, ITR, CAR, CNH/CPF, procuração
-02_CONTRATO/        proposta, contrato, ART/TRT
-03_LEVANTAMENTO/    dados brutos GNSS/estação, RINEX, cadernetas
-04_PROCESSAMENTO/   pós-processado, coordenadas, planilhas ODS
-05_DESENHO/         dwg, dxf, plotagens
-06_ENTREGAVEIS/     memorial, planta assinada, pacote SIGEF
-07_PROTOCOLO/       protocolos, exigências, certificação INCRA/cartório
-08_TRIAGEM/         este resumo e anexos de análise
+01_DOCUMENTOS/        matrícula, CCIR, ITR, CAR, CNH/CPF, procuração
+02_CONTRATO/          proposta, contrato, ART/TRT
+03_LEVANTAMENTO/      dados brutos de campo
+    BASE/             RINEX e log da base, ponto de apoio
+    ROVER/            pontos coletados, cadernetas, arquivo bruto do receptor
+    DRONE/            imagens do voo, log, GCPs, plano de voo
+04_PROCESSAMENTO/     dados pós-processados
+    GPS/              pós-processado GNSS, relatório, coordenadas ajustadas
+    DRONE/            ortomosaico, nuvem de pontos, MDS/MDT, relatório
+05_DESENHO/           dwg, dxf, plotagens
+06_ODS/               planilhas ODS do SIGEF (perímetro, vértices, confrontantes)
+07_ENTREGAVEIS/
+    MAPA/             plantas finais, assinadas e não assinadas
+    MEMORIAL/         memorial descritivo, versões e assinado
+    INCRA/            pacote de certificação, recibos, certificado
+08_REQUERIMENTOS/     anuência, cartório, zoneamento, comprobatória, cancelamento
+09_PROTOCOLO/         protocolos, exigências e respostas (INCRA/cartório/prefeitura)
+10_TRIAGEM/           este resumo e anexos de análise
 ```
 
 Regras:
@@ -41,7 +51,7 @@ Depois salve cada arquivo recebido em `01_DOCUMENTOS/`.
 
 ## Passo 2 — Resumo estruturado
 
-Sempre nesta ordem, em `08_TRIAGEM/triagem-<NOME>.md`:
+Sempre nesta ordem, em `10_TRIAGEM/triagem-<NOME>.md`:
 
 **1. Identificação** — matrícula nº, cartório/comarca, denominação, município,
 código INCRA/CCIR, NIRF.
@@ -85,7 +95,7 @@ antes de sair (acesso, cercas, marcos existentes, época de chuva).
 ## Passo 3 — Croqui
 
 Se houver coordenadas utilizáveis (memorial descritivo, KML, shapefile, CAR),
-gere um DXF do perímetro em `08_TRIAGEM/`. Se não houver, diga explicitamente
+gere um DXF do perímetro em `10_TRIAGEM/`. Se não houver, diga explicitamente
 que não houve — não gere croqui a partir de área estimada.
 
 ## Regra de ouro
