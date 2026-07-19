@@ -625,14 +625,27 @@ def montar_lancamentos(os_reg, data_iso, gastos, args):
         if valor is None:
             sys.exit(f"Não entendi o valor do reembolso: {args.reembolso!r}")
         desc = args.reembolso_desc or "Gastos de campo pagos pela conta pessoal"
+        # O reembolso pode já ter sido devolvido antes de o diário ser lançado.
+        # Vencimento fica no dia do campo, que é quando a dívida nasceu; a data
+        # do acerto vai em data_pagamento, senão o caixa mostra saída no dia
+        # errado.
+        pago_em = None
+        if args.reembolso_pago:
+            pago_em = achar_data([args.reembolso_pago])
+            if not pago_em:
+                sys.exit(f"Não entendi a data do reembolso: {args.reembolso_pago!r} "
+                         f"— use dd/mm/aaaa.")
         pagamentos.append({
             "descricao": f"Reembolso — {desc} — {ref}",
             "categoria": "Pessoal", "valor": valor,
-            "vencimento": data_iso, "data_pagamento": None,
-            "status": "Pendente", "tipo_custo": "OS",
+            "vencimento": data_iso, "data_pagamento": pago_em,
+            "status": "Pago" if pago_em else "Pendente", "tipo_custo": "OS",
             "os_id": os_reg["id"], "os_manual": numero,
-            "obs": f"Reembolso ao sócio — diário de bordo {ref}. "
-                   f"Não é custo novo da OS: o gasto já está lançado à parte.",
+            "obs": f"Reembolso ao sócio — diário de bordo {ref}"
+                   + (f", devolvido em "
+                      f"{datetime.fromisoformat(pago_em).strftime('%d/%m/%Y')}"
+                      if pago_em else "")
+                   + ". Não é custo novo da OS: o gasto já está lançado à parte.",
             "_reembolso": True,
         })
 
@@ -851,6 +864,9 @@ def main():
     ap.add_argument("--reembolso", metavar="VALOR",
                     help="valor a devolver a quem pagou pela conta pessoal")
     ap.add_argument("--reembolso-desc", metavar="TEXTO", help="descrição do reembolso")
+    ap.add_argument("--reembolso-pago", metavar="DATA",
+                    help="data em que o reembolso já foi devolvido (dd/mm/aaaa); "
+                         "sem isto ele entra como Pendente")
     ap.add_argument("--so-andamento", action="store_true",
                     help="grava só o andamento; não lança custo nem despesa "
                          "(dia antigo, com o financeiro já lançado à mão)")

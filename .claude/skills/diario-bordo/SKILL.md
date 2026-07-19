@@ -227,6 +227,11 @@ Isso cria um lançamento em `pagamentos`, categoria Pessoal, **status Pendente**
 some no fluxo de caixa como dívida da empresa com o sócio e some no Recebimentos
 como conta a pagar. Não é custo novo da OS; o custo já está lançado à parte.
 
+O diário costuma chegar dias depois, e o acerto pode já ter acontecido.
+Nesse caso acrescente `--reembolso-pago 18/07/2026`: entra como **Pago**, com
+o vencimento no dia do campo — quando a dívida nasceu — e a data do acerto em
+`data_pagamento`. Sem essa separação o caixa mostra a saída no dia errado.
+
 Duas conferências antes de passar o `--reembolso`:
 
 - O valor é só a parte da conta pessoal, não o gasto inteiro. No exemplo, o
