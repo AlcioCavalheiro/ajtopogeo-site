@@ -8,13 +8,29 @@ Python do sistema e fora deste repositório.
 ```powershell
 py -m venv C:\Users\ALCIO\.ajtopogeo\venv
 & C:\Users\ALCIO\.ajtopogeo\venv\Scripts\python.exe -m pip install `
-    "markitdown[pdf,docx,xlsx,xls,pptx,outlook]" pymupdf pillow
+    "markitdown[pdf,docx,xlsx,xls,pptx,outlook]" pymupdf pillow `
+    ezdxf fpdf2 matplotlib
 ```
 
 - `markitdown` — PDF com texto, DOCX, planilha, PPTX, HTML, e-mail (.msg), ZIP.
 - `pymupdf` — rasteriza a página do PDF escaneado para mandar ao OCR, e
   reextrai tabela preservando a estrutura de linha.
-- `pillow` — neutraliza marca-texto antes do OCR (ver abaixo).
+- `pillow` — neutraliza marca-texto antes do OCR (ver abaixo) e recorta a
+  margem em branco da imagem do croqui.
+- `ezdxf` — escreve o DXF do croqui (`croqui.py`).
+- `fpdf2` — compõe o PDF da triagem (`relatorio.py`).
+- `matplotlib` — rasteriza o DXF para embutir o croqui no PDF.
+
+## Os três scripts
+
+| script | entrada | saída |
+| --- | --- | --- |
+| `extrair_texto.py` | pasta de documentos | `.md` por documento + `_INDICE.md` |
+| `croqui.py` | `spec-<NOME>.json` com os rumos | `croqui-<NOME>.dxf` + `.md` |
+| `relatorio.py` | `triagem-<NOME>.md` | `triagem-<NOME>.pdf` |
+
+O PDF usa Arial de `C:\Windows\Fonts`. Faltando, cai para Helvetica embutida,
+que é latin-1 e perde caractere fora dessa tabela.
 
 ## OCR (PDF escaneado)
 

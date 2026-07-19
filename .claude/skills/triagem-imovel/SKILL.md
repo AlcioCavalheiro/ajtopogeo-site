@@ -154,6 +154,28 @@ Regras:
   local. Nunca o apresente como localização.
 - Se nem rumo houver, aí sim não há croqui. Diga isso explicitamente.
 
+## Passo 5 — Relatório em PDF
+
+O `.md` é rascunho de trabalho; o que vai para o cliente é PDF com timbre.
+
+```
+C:\Users\ALCIO\.ajtopogeo\venv\Scripts\python.exe .claude\skills\triagem-imovel\scripts\relatorio.py "<pasta>\triagem-<NOME>.md" --croqui "<pasta>\croqui-<NOME>.dxf" --rev 01
+```
+
+Compõe o `.md` em página no padrão AJ TopoGeo — cabeçalho, rodapé com CNPJ,
+numeração, aviso de documento preliminar — e anexa o croqui na última página.
+
+- **O `.md` continua sendo a fonte única.** Para corrigir o relatório, corrija
+  o `.md` e rode de novo. Nunca edite o PDF por fora: a próxima geração
+  sobrescreve.
+- Suba a `--rev` a cada versão enviada ao cliente, e diga no corpo o que mudou.
+- O relatório tem que carregar **nome, CPF/CNPJ, RG, estado civil e endereço**
+  de cada parte da cadeia, o número e a data de cada ato, e os valores. É isso
+  que faz o documento servir para advogado e para cartório. Resumo sem
+  qualificação obriga a voltar na matrícula.
+- Onde o documento estiver ilegível ou incompleto, escreva isso na tabela em
+  vez de deixar a célula vazia.
+
 ## Regra de ouro
 
 Você lê documento jurídico e aponta o que está escrito e o que não fecha.

@@ -145,10 +145,15 @@ def desenhar(spec: dict, dxf: Path) -> dict:
     doc = ezdxf.new("R2010", setup=True)
     doc.units = ezdxf.units.M
     msp = doc.modelspace()
-    doc.layers.add(CAMADA_DESCRITO, color=3)
-    doc.layers.add(CAMADA_ARBITRADO, color=1, linetype="DASHED")
-    doc.layers.add(CAMADA_ROTULO, color=7)
-    doc.layers.add(CAMADA_AVISO, color=1)
+    # cor verdadeira alem do indice: o verde e o vermelho puros da paleta ACI
+    # ficam lavados sobre fundo branco, e o croqui vai para PDF branco
+    descrito_l = doc.layers.add(CAMADA_DESCRITO, color=3)
+    arbitrado_l = doc.layers.add(CAMADA_ARBITRADO, color=1, linetype="DASHED")
+    descrito_l.rgb, arbitrado_l.rgb = (11, 110, 63), (193, 18, 31)
+    descrito_l.dxf.lineweight = arbitrado_l.dxf.lineweight = 50  # 0,50 mm
+    doc.layers.add(CAMADA_ROTULO, color=7).rgb = (40, 40, 40)
+    doc.layers.add(CAMADA_AVISO, color=1).rgb = (150, 20, 25)
+    doc.header["$LWDISPLAY"] = 1
 
     alvo = spec.get("area_registral_m2")
     arco, raio, varredura = [], 0.0, 0.0
