@@ -24,6 +24,11 @@ O usuário cola o diário no chat, no formato que a equipe manda do campo:
 Salve o texto **como veio** num arquivo no scratchpad da sessão. Ele tem nome de
 cliente, local e valor: nunca no repositório, que é público.
 
+O diário é colado do WhatsApp e vem com sujeira junto: caractere invisível
+antes do item de gasto e menção de quem foi marcado na mensagem
+(`@Fulano`). O script descarta a menção — ela não pode entrar no andamento,
+que é documento de obra e sai no relatório da OS.
+
 Campo faltando não trava a rotina — só a data é obrigatória. O que faltar sai
 sinalizado na prévia.
 
@@ -42,11 +47,22 @@ Financeiro da OS:
 | Gasto | Destino | Como entra |
 |---|---|---|
 | Ajudante, diarista, auxiliar | `custos_os` | tipo **Diária**, sem funcionário vinculado, nome na observação |
-| Combustível, diesel, posto | `pagamentos` | categoria Combustível, status Pago |
-| Alimentação, almoço, lanche | `pagamentos` | categoria Alimentação, status Pago |
-| Pedágio, manutenção, borracharia | `pagamentos` | categoria Outros |
-| Estacas, marcos, bateria, tinta | `pagamentos` | categoria Equipamentos |
-| Hospedagem | `pagamentos` | categoria Infraestrutura |
+| Combustível, diesel, posto | `pagamentos` | Combustível |
+| Alimentação, almoço, lanche | `pagamentos` | Alimentação |
+| Pedágio | `pagamentos` | Pedágio |
+| Frete, balsa, estacionamento | `pagamentos` | Transporte / Frete |
+| Borracharia, pneu, conserto | `pagamentos` | Manutenção de Equipamento |
+| Estacas, marcos, tinta | `pagamentos` | Material de Campo |
+| Bateria, GPS, drone, trena | `pagamentos` | Equipamentos |
+| Cartório, taxa, certidão | `pagamentos` | Taxas e Emolumentos |
+
+Todas entram como **Pago**, com vencimento e pagamento na data do campo.
+
+Essas categorias são as que o banco **já usa**, não as do `<select>` do
+formulário — o Gestor tem "Pedágio", "Material de Campo" e "Manutenção de
+Equipamento" gravadas, e nenhuma aparece no dropdown. Não se guie pelo
+formulário: gasto de campo em "Outros" vai parar junto de contabilidade e
+seguro, que é o que mora nessa categoria.
 
 O ajudante entra em `custos_os` de propósito: é mão de obra da OS e precisa
 somar no custo de pessoal da obra junto com a equipe fixa. Os diaristas não são
@@ -102,6 +118,50 @@ A prévia só é confiável depois que você tratou o que ela sinalizou:
 
 Se a OS não for encontrada, o script lista candidatas e sai. Leve a lista ao
 usuário; não escolha por proximidade de número.
+
+## Quando o serviço não tem OS
+
+Acontece de o campo sair antes do sistema: cliente novo, combinado no
+telefone, nenhum orçamento lançado. O diário chega sem número de OS e o
+cliente não existe no cadastro.
+
+Nesse caso **pergunte os dados ao usuário** e crie a cadeia inteira —
+cliente → orçamento → OS — antes de lançar o diário. Nunca invente valor,
+nunca cadastre cliente com nome parcial "para resolver depois".
+
+O que perguntar, e o que não perguntar:
+
+| Dado | Como obter |
+|---|---|
+| Valor combinado | **Só o usuário sabe.** Sem ele não há orçamento nem OS. Ofereça como referência os valores que ele já pratica naquele tipo de serviço — a mediana e o mais frequente, consultados no banco |
+| Nome completo | Pergunte. O diário traz o nome curto de campo, e é o nome cheio que vai em contrato, NF e ART |
+| Telefone | Pergunte. Sem ele a OS entra na `/cobranca-os` sem contato |
+| CPF/CNPJ | Pergunte, mas não trave por isso — o cadastro funciona sem, e a falta só pesa na NF e no contrato |
+| Tipo da OS | Ofereça a lista real de `OS_TIPOS` do Gestor, com a sua recomendação |
+| Status inicial | O serviço já foi executado, então "Agendada" quase nunca é a resposta certa. Diga o que cada opção implica: "Concluída" tira a OS do radar de faturamento, "Gerar NF" a mantém na fila |
+| Cidade, local, serviço, data | **Não pergunte** — já estão no diário |
+
+Peça em pergunta estruturada, com opções, sempre que a resposta for
+enumerável. Valor, telefone, CPF e nome são texto livre: peça em texto, e
+confira se a resposta veio mesmo com o dado — escolher a opção "vou informar
+agora" não traz o número junto.
+
+```bash
+py rotinas/diario_bordo.py <scratchpad>/diario.txt --criar-os \
+   --cliente "Nome Completo" --telefone "67 99999-8888" \
+   --valor 400,00 --tipo "Locação de Obras" --status "Concluída" \
+   --pagamento "À vista" --aplicar
+```
+
+O script numera igual ao Gestor (`ORC-<ano>-<seq>`, `OS-<MES>-<seq>`, sempre
+do mês corrente), cria o orçamento já **Aprovado** — é registro retroativo de
+combinação que nunca passou pelo sistema — preenche `os_gerada` e só então
+lança o diário na OS nova.
+
+**Cliente parecido bloqueia.** Se já existir cadastro com nome que encaixe no
+informado, o script para. Cadastro duplicado divide as OS do mesmo dono em
+dois donos e quebra o histórico. Confirme com o usuário se é a mesma pessoa;
+se for, use `--os` com a OS existente em vez de criar outra.
 
 ## Passo 3 — Observações: o que é dinheiro de fora
 

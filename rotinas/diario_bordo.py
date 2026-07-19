@@ -22,7 +22,7 @@ import json
 import re
 import sys
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 try:
@@ -55,7 +55,12 @@ CAMPOS = {
 }
 
 # Para onde vai cada gasto. "equipe" cai em custos_os (Custo de Equipe da OS);
-# o resto vira despesa em pagamentos, na categoria correspondente do Gestor.
+# o resto vira despesa em pagamentos.
+#
+# As categorias abaixo são as que o Gestor já usa de fato, não as do <select>
+# do formulário — o banco tem "Pedágio", "Material de Campo" e "Manutenção de
+# Equipamento", que não estão no dropdown. Mandar gasto de campo para "Outros"
+# o mistura com contabilidade e seguro, que é o que mora lá.
 DESTINO_GASTO = [
     ("equipe", "Diária", ("ajudante", "diarista", "auxiliar", "mao de obra",
                           "maodeobra", "peao", "braçal", "bracal", "equipe")),
@@ -64,16 +69,27 @@ DESTINO_GASTO = [
     ("pagamento", "Alimentação", ("alimentacao", "almoco", "janta", "jantar",
                                   "refeicao", "lanche", "cafe", "comida",
                                   "marmita", "agua")),
-    ("pagamento", "Equipamentos", ("equipamento", "bateria", "estaca", "piquete",
-                                   "marco", "tinta", "material")),
-    ("pagamento", "Infraestrutura", ("hospedagem", "hotel", "pousada", "diaria hotel")),
-    ("pagamento", "Outros", ("pedagio", "balsa", "manutencao", "borracharia",
-                             "pneu", "lavagem", "frete", "correio", "cartorio",
-                             "taxa", "estacionamento")),
+    ("pagamento", "Pedágio", ("pedagio",)),
+    ("pagamento", "Transporte / Frete", ("frete", "transporte", "balsa", "uber",
+                                         "taxi", "estacionamento")),
+    ("pagamento", "Manutenção de Equipamento", ("manutencao", "borracharia",
+                                                "pneu", "lavagem", "conserto",
+                                                "revisao")),
+    ("pagamento", "Material de Campo", ("estaca", "piquete", "marco", "tinta",
+                                        "material", "cimento", "prego")),
+    ("pagamento", "Equipamentos", ("equipamento", "bateria", "gps", "receptor",
+                                   "drone", "trena", "bastao")),
+    ("pagamento", "Taxas e Emolumentos", ("cartorio", "emolumento", "certidao",
+                                          "taxa", "protocolo")),
 ]
 
 # Linhas de gasto que são fechamento de conta, não lançamento.
 LINHAS_TOTAL = ("total", "soma", "somatorio", "total do dia", "total geral")
+
+# O diário vem colado do WhatsApp e traz a menção de quem foi marcado na
+# mensagem ("@Fulano"). Não é conteúdo do dia e não pode entrar no andamento
+# da OS, que é documento de obra e pode ir para o cliente no relatório.
+MENCAO_WHATSAPP = re.compile(r"^@[^\d]{1,60}$")
 
 
 def normalizar(texto):
@@ -159,7 +175,7 @@ def ler_diario(texto):
 
     for linha_bruta in texto.splitlines():
         linha = limpar(linha_bruta)
-        if not linha:
+        if not linha or MENCAO_WHATSAPP.match(linha):
             continue
 
         rotulo, tem_dois_pontos, resto = linha.partition(":")
@@ -273,6 +289,152 @@ def ler_gastos(linhas):
         itens.append({"descricao": desc, "valor": valor, "destino": destino,
                       "categoria": categoria, "categoria_certa": certeza})
     return itens, declarado
+
+
+# ─────────────────────────── cadeia cliente → orçamento → OS ───────────────────────────
+
+MESES = ("JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ")
+
+# Quem assina o serviço. É o responsável técnico de todas as OS da carteira.
+RESPONSAVEL = "ALCIO MARQUES CAVALHEIRO JUNIOR"
+
+
+def proximo_numero(url, key, tabela, prefixo):
+    """Replica a numeração do Gestor: prefixo + sequencial de 3 dígitos.
+
+    O Gestor ordena por 'numero' desc e soma 1 no maior — mesma conta aqui,
+    para a OS criada pela rotina não colidir com a criada pela tela.
+    """
+    achados = buscar(url, key, tabela, "numero",
+                     numero=f"like.{prefixo}%", order="numero.desc", limit="1")
+    seq = 0
+    if achados:
+        resto = (achados[0].get("numero") or "").replace(prefixo, "")
+        try:
+            seq = int(resto)
+        except ValueError:
+            seq = 0
+    return f"{prefixo}{seq + 1:03d}"
+
+
+def achar_cliente(url, key, nome):
+    """Clientes cujo nome se encaixa no informado, nos dois sentidos.
+
+    Cliente duplicado espalha OS do mesmo dono em dois cadastros e quebra o
+    histórico — por isso qualquer semelhança vira bloqueio, não escolha.
+    """
+    alvo = normalizar(nome)
+    parecidos = []
+    for c in buscar(url, key, "clientes", "id,nome,telefone,cidade"):
+        atual = normalizar(c.get("nome") or "")
+        if not atual:
+            continue
+        if alvo == atual or alvo in atual or atual in alvo:
+            parecidos.append(c)
+    return parecidos
+
+
+def montar_cadeia(url, key, args, data_iso, campos):
+    """Prepara (cliente, orçamento, OS) sem gravar nada."""
+    if not args.cliente:
+        sys.exit("--criar-os exige --cliente com o nome do cliente.")
+    valor = ler_valor(args.valor or "")
+    if valor is None:
+        sys.exit("--criar-os exige --valor com o valor combinado do serviço.")
+
+    servico = (campos["servicos"][0] if campos["servicos"] else "Serviço de campo")
+    local = campos["local"][0] if campos["local"] else None
+    digitos = re.sub(r"\D", "", args.cpfcnpj or "")
+    tipo_pessoa = "PJ" if len(digitos) == 14 else "PF"
+
+    cliente = {
+        "nome": args.cliente.strip(),
+        "tipo": tipo_pessoa,
+        "telefone": args.telefone or None,
+        "cpfcnpj": args.cpfcnpj or None,
+        "cidade": args.cidade or local,
+        "estado": "MS",
+        "ativo": True,
+    }
+
+    hoje = datetime.now().date()
+    forma = args.pagamento or "À vista"
+    orcamento = {
+        "numero": proximo_numero(url, key, "orcamentos", f"ORC-{hoje.year}-"),
+        "descricao": servico,
+        "valor_total": valor,
+        "itens": [{"nome": servico, "unidade": "serviço", "quantidade": 1,
+                   "valor_unitario": valor, "descricao": servico}],
+        # Nasce Aprovado porque o serviço já foi executado: é registro
+        # retroativo de uma combinação que nunca passou pelo sistema.
+        "status": "Aprovado",
+        "validade": (hoje + timedelta(days=30)).isoformat(),
+        "pagamento": {"forma": forma, "parcelas": 1 if "vista" in normalizar(forma) else 2},
+        "responsavel": RESPONSAVEL,
+    }
+
+    ordem = {
+        "numero": proximo_numero(url, key, "ordens", f"OS-{MESES[hoje.month - 1]}-"),
+        "tipo": args.tipo or "Outro",
+        "responsavel": RESPONSAVEL,
+        "status": args.status or "Agendada",
+        "data": data_iso,
+        "orcamento_valor": valor,
+        "obs": (campos["obs"][0] if campos["obs"] else None),
+        "checklist": [],
+        "proc_etapas": [],
+    }
+    return cliente, orcamento, ordem
+
+
+def criar_cadeia(url, key, cliente, orcamento, ordem, data_iso):
+    """Grava cliente → orçamento → OS e devolve a OS criada."""
+    novo_cliente = inserir(url, key, "clientes", cliente)[0]
+    print(f"✓ Cliente criado: {novo_cliente['nome']} ({novo_cliente['tipo']})")
+
+    orcamento = {**orcamento, "cliente_id": novo_cliente["id"]}
+    novo_orc = inserir(url, key, "orcamentos", orcamento)[0]
+    print(f"✓ Orçamento {novo_orc['numero']} — {brl(float(novo_orc['valor_total']))} (Aprovado)")
+
+    agora = datetime.now()
+    abertura = {
+        "txt": f"OS criada a partir do orçamento {novo_orc['numero']}",
+        "data": agora.strftime("%d/%m/%Y"), "hora": agora.strftime("%H:%M"),
+        "user": "diário de bordo",
+    }
+    ordem = {**ordem, "cliente_id": novo_cliente["id"],
+             "orcamento_id": novo_orc["id"], "orcamento_numero": novo_orc["numero"],
+             "andamento": [abertura]}
+    nova_os = inserir(url, key, "ordens", ordem)[0]
+    print(f"✓ OS {nova_os['numero']} criada — {nova_os['tipo']} · {nova_os['status']}")
+
+    atualizar(url, key, "orcamentos", {"os_gerada": nova_os["numero"]},
+              id=f"eq.{novo_orc['id']}")
+    return nova_os
+
+
+def imprimir_cadeia(cliente, orcamento, ordem, parecidos):
+    print("## Cadeia a criar (cliente → orçamento → OS)\n")
+    if parecidos:
+        print("> ⛔ **Já existe cliente com nome parecido:** "
+              + "; ".join(f"{c['nome']}" + (f" ({c['cidade']})" if c.get("cidade") else "")
+                          for c in parecidos)
+              + ". Cadastrar de novo divide as OS do mesmo dono em dois cadastros. "
+                "Use --os com a OS existente, ou confirme que é outra pessoa.\n")
+    print(f"- **Cliente:** {cliente['nome']} · {cliente['tipo']}"
+          f" · tel {cliente['telefone'] or '— não informado —'}"
+          f" · {cliente['cidade'] or '—'}/{cliente['estado']}")
+    print(f"- **Orçamento {orcamento['numero']}:** {orcamento['descricao']} — "
+          f"{brl(float(orcamento['valor_total']))} · {orcamento['status']} · "
+          f"{orcamento['pagamento']['forma']}")
+    print(f"- **OS {ordem['numero']}:** {ordem['tipo']} · status {ordem['status']} · "
+          f"data {datetime.fromisoformat(ordem['data']).strftime('%d/%m/%Y')}")
+    if not cliente["cpfcnpj"]:
+        print("\n> ⚠ Sem CPF/CNPJ. Cadastro serve para tocar a OS, mas NF e "
+              "contrato vão exigir o documento depois.")
+    if not cliente["telefone"]:
+        print("\n> ⚠ Sem telefone. A OS entra na /cobranca-os sem contato.")
+    print()
 
 
 # ─────────────────────────── resolução da OS ───────────────────────────
@@ -440,9 +602,12 @@ def imprimir_previa(os_reg, campos, data_iso, gastos, total, declarado,
               f"errada contamina o resultado das duas.\n")
 
     print(f"- Data do campo: **{datetime.fromisoformat(data_iso).strftime('%d/%m/%Y')}**")
-    print(f"- Status atual da OS: **{os_reg.get('status') or '—'}**")
-    if args.status:
-        print(f"- Status será alterado para: **{args.status}**")
+    if args.criar_os:
+        print(f"- Status com que a OS nasce: **{os_reg.get('status') or '—'}**")
+    else:
+        print(f"- Status atual da OS: **{os_reg.get('status') or '—'}**")
+        if args.status:
+            print(f"- Status será alterado para: **{args.status}**")
     print(f"- Total de gastos do diário: **{brl(total)}**")
 
     if declarado is not None and abs(declarado - total) > 0.009:
@@ -504,6 +669,35 @@ def imprimir_candidatas(candidatas, referencia, cliente, motivo):
           "terminam no mesmo dígito e o custo iria para a obra errada.")
 
 
+def aplicar_diario(url, key, os_reg, texto_andamento, custos, pagamentos, total, args):
+    """Grava o andamento e os lançamentos numa OS que já existe."""
+    agora = datetime.now()
+    item = {"txt": texto_andamento,
+            "data": agora.strftime("%d/%m/%Y"),
+            "hora": agora.strftime("%H:%M"),
+            "user": "diário de bordo"}
+    # A OS recém-criada já vem com o andamento de abertura; preservar.
+    novo = [*(os_reg.get("andamento") or []), item]
+    patch = {"andamento": novo, "atualizado_em": agora.astimezone().isoformat()}
+    if args.status:
+        patch["status"] = args.status
+    atualizar(url, key, "ordens", patch, id=f"eq.{os_reg['id']}")
+    print(f"✓ Andamento registrado em {os_reg.get('numero')}.")
+
+    os_id, numero = os_reg["id"], os_reg.get("numero")
+    for c in custos:
+        inserir(url, key, "custos_os", {**c, "os_id": os_id})
+        print(f"✓ Custo de equipe: {brl(c['valor_total'])}")
+
+    for p in pagamentos:
+        p = {k: v for k, v in p.items() if not k.startswith("_")}
+        inserir(url, key, "pagamentos", {**p, "os_id": os_id, "os_manual": numero})
+        print(f"✓ Despesa: {p['descricao']} — {brl(p['valor'])} ({p['status']})")
+
+    print(f"\nTotal lançado na OS: {brl(total)}. "
+          f"Confira em Financeiro → OS {numero}.")
+
+
 # ─────────────────────────── main ───────────────────────────
 
 def main():
@@ -516,6 +710,15 @@ def main():
     ap.add_argument("--reembolso", metavar="VALOR",
                     help="valor a devolver a quem pagou pela conta pessoal")
     ap.add_argument("--reembolso-desc", metavar="TEXTO", help="descrição do reembolso")
+    ap.add_argument("--criar-os", action="store_true",
+                    help="serviço sem OS: cria cliente, orçamento e OS antes de lançar")
+    ap.add_argument("--cliente", metavar="NOME", help="nome do cliente a cadastrar")
+    ap.add_argument("--telefone", metavar="FONE", help="telefone do cliente")
+    ap.add_argument("--cpfcnpj", metavar="DOC", help="CPF ou CNPJ do cliente")
+    ap.add_argument("--cidade", metavar="CIDADE", help="cidade do cliente (padrão: local do diário)")
+    ap.add_argument("--valor", metavar="VALOR", help="valor combinado do serviço")
+    ap.add_argument("--tipo", metavar="TIPO", help="tipo da OS (ex: Locação de Obras)")
+    ap.add_argument("--pagamento", metavar="FORMA", help="forma de pagamento do orçamento")
     ap.add_argument("--json", action="store_true", help="imprime o que seria gravado, em JSON")
     args = ap.parse_args()
 
@@ -531,6 +734,29 @@ def main():
     total = round(sum(g["valor"] for g in gastos), 2)
 
     url, key = carregar_env()
+
+    if args.criar_os:
+        cliente, orcamento, ordem = montar_cadeia(url, key, args, data_iso, campos)
+        parecidos = achar_cliente(url, key, cliente["nome"])
+        imprimir_cadeia(cliente, orcamento, ordem, parecidos)
+
+        os_reg = {"id": None, "numero": ordem["numero"], "status": ordem["status"],
+                  "clientes": {"nome": cliente["nome"]}, "andamento": []}
+        texto_andamento = montar_andamento(campos, data_iso, gastos, total)
+        custos, pagamentos = montar_lancamentos(os_reg, data_iso, gastos, args)
+        imprimir_previa(os_reg, campos, data_iso, gastos, total, declarado,
+                        custos, pagamentos, texto_andamento, [], "número exato", args)
+
+        if not args.aplicar:
+            return
+        if parecidos and not args.forcar:
+            sys.exit("\nAbortado: já existe cliente com nome parecido (ver acima). "
+                     "Confirme se é a mesma pessoa antes de criar um cadastro novo.")
+
+        nova = criar_cadeia(url, key, cliente, orcamento, ordem, data_iso)
+        aplicar_diario(url, key, nova, texto_andamento, custos, pagamentos, total, args)
+        return
+
     ordens = buscar(url, key, "ordens", "*,clientes(nome)", order="created_at.desc")
 
     referencia = args.os or (campos["os"][0] if campos["os"] else "")
@@ -575,29 +801,7 @@ def main():
         sys.exit("\nAbortado: já há lançamento desta OS nesta data (ver acima). "
                  "Confira no Gestor e, se for mesmo para duplicar, use --forcar.")
 
-    agora = datetime.now()
-    item = {"txt": texto_andamento,
-            "data": agora.strftime("%d/%m/%Y"),
-            "hora": agora.strftime("%H:%M"),
-            "user": "diário de bordo"}
-    novo = [*(os_reg.get("andamento") or []), item]
-    patch = {"andamento": novo, "atualizado_em": agora.astimezone().isoformat()}
-    if args.status:
-        patch["status"] = args.status
-    atualizar(url, key, "ordens", patch, id=f"eq.{os_reg['id']}")
-    print(f"\n✓ Andamento registrado em {os_reg.get('numero')}.")
-
-    for c in custos:
-        inserir(url, key, "custos_os", c)
-        print(f"✓ Custo de equipe: {brl(c['valor_total'])}")
-
-    for p in pagamentos:
-        p = {k: v for k, v in p.items() if not k.startswith("_")}
-        inserir(url, key, "pagamentos", p)
-        print(f"✓ Despesa: {p['descricao']} — {brl(p['valor'])} ({p['status']})")
-
-    print(f"\nTotal lançado na OS: {brl(total)}. "
-          f"Confira em Financeiro → OS {os_reg.get('numero')}.")
+    aplicar_diario(url, key, os_reg, texto_andamento, custos, pagamentos, total, args)
 
 
 if __name__ == "__main__":
