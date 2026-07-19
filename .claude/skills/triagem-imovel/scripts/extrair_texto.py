@@ -191,6 +191,10 @@ def main() -> int:
     ap.add_argument("--saida", default="10_TRIAGEM/_texto")
     ap.add_argument("--force", action="store_true",
                     help="reconverte mesmo se o .md ja estiver atualizado")
+    ap.add_argument("--filtro", default="",
+                    help="so converte arquivo cujo nome contenha este trecho; "
+                         "util em projeto antigo, de pasta cheia, quando a "
+                         "triagem e de uma matricula so")
     args = ap.parse_args()
 
     projeto = Path(args.projeto)
@@ -211,6 +215,8 @@ def main() -> int:
 
     for arquivo in sorted(entrada.rglob("*")):
         if not arquivo.is_file():
+            continue
+        if args.filtro and args.filtro.lower() not in arquivo.name.lower():
             continue
         ext = arquivo.suffix.lower()
         if ext not in EXT_TEXTO and ext not in EXT_IMAGEM:
