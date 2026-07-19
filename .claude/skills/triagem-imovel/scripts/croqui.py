@@ -43,7 +43,51 @@ from ezdxf.enums import TextEntityAlignment
 CAMADA_DESCRITO = "DESCRITO-NA-MATRICULA"
 CAMADA_ARBITRADO = "ARBITRADO-NAO-LEVANTADO"
 CAMADA_ROTULO = "ROTULOS"
+CAMADA_CHAMADA = "LINHAS-DE-CHAMADA"
 CAMADA_AVISO = "AVISO"
+
+
+class Rotulos:
+    """Coloca rotulo fora do desenho, puxado por linha de chamada.
+
+    Alinhamento curto ao lado de alinhamento longo - 4,65 m contra 770,00 m -
+    empilha rotulo em cima de rotulo no meio do croqui. Aqui cada rotulo sai
+    perpendicular ao seu segmento e vai se afastando ate achar espaco livre,
+    alternando de lado, com uma linha fina ligando ao ponto que ele descreve.
+    """
+
+    def __init__(self, msp, escala):
+        self.msp, self.escala = msp, escala
+        self.ocupados = []
+
+    @staticmethod
+    def _colide(a, b):
+        return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+    def _caixa(self, x, y, texto, altura):
+        larg = len(texto) * altura * 0.62
+        folga = altura * 0.35
+        return (x - larg / 2 - folga, y - altura / 2 - folga,
+                x + larg / 2 + folga, y + altura / 2 + folga)
+
+    def reservar(self, x, y, texto, altura):
+        self.ocupados.append(self._caixa(x, y, texto, altura))
+
+    def colocar(self, alvo, direcao, texto, altura, tentativas=24):
+        """`alvo` e o ponto descrito; `direcao` e o vetor unitario do segmento."""
+        nx, ny = -direcao[1], direcao[0]
+        for i in range(tentativas):
+            lado = 1 if i % 2 == 0 else -1
+            dist = self.escala * (1.4 + 1.35 * (i // 2))
+            x, y = alvo[0] + nx * dist * lado, alvo[1] + ny * dist * lado
+            caixa = self._caixa(x, y, texto, altura)
+            if all(not self._colide(caixa, o) for o in self.ocupados):
+                break
+        self.ocupados.append(caixa)
+        self.msp.add_line(alvo, (x, y), dxfattribs={"layer": CAMADA_CHAMADA})
+        self.msp.add_circle(alvo, radius=altura * 0.12,
+                            dxfattribs={"layer": CAMADA_CHAMADA})
+        return x, y
 
 
 def azimute(rumo: str) -> float:
@@ -63,6 +107,24 @@ def azimute(rumo: str) -> float:
     if not quad:
         return ang % 360  # ja era azimute
     return {"NE": ang, "SE": 180 - ang, "SW": 180 + ang, "NW": 360 - ang}[quad[0]] % 360
+
+
+def rumo_texto(rumo: str) -> str:
+    """Devolve o rumo em forma canonica: 76 35 SW -> 76°35' SW."""
+    texto = str(rumo).strip().upper().replace("º", " ").replace("°", " ")
+    texto = texto.replace("'", " ").replace('"', " ").replace("-", " ")
+    quad = re.findall(r"NE|NW|SE|SW", texto.replace(" ", ""))
+    n = [float(x.replace(",", ".")) for x in re.findall(r"\d+[.,]?\d*", texto)]
+    if not n:
+        return str(rumo)
+    if not quad:
+        return f"Az {n[0]:.4f}°"
+    saida = f"{int(n[0])}°"
+    if len(n) > 1:
+        saida += f"{int(n[1]):02d}'"
+    if len(n) > 2:
+        saida += f'{int(n[2]):02d}"'
+    return f"{saida} {quad[0]}"
 
 
 def caminhar(segmentos: list[dict]) -> list[tuple[float, float]]:
@@ -152,6 +214,7 @@ def desenhar(spec: dict, dxf: Path) -> dict:
     descrito_l.rgb, arbitrado_l.rgb = (11, 110, 63), (193, 18, 31)
     descrito_l.dxf.lineweight = arbitrado_l.dxf.lineweight = 50  # 0,50 mm
     doc.layers.add(CAMADA_ROTULO, color=7).rgb = (40, 40, 40)
+    doc.layers.add(CAMADA_CHAMADA, color=8).rgb = (130, 130, 130)
     doc.layers.add(CAMADA_AVISO, color=1).rgb = (150, 20, 25)
     doc.header["$LWDISPLAY"] = 1
 
@@ -171,27 +234,42 @@ def desenhar(spec: dict, dxf: Path) -> dict:
     # centenas de metros, e some justamente o sinal de "isto e hipotese"
     doc.header["$LTSCALE"] = escala
 
-    for i, s in enumerate(segmentos):
-        a, b = pontos[i], pontos[i + 1]
-        msp.add_circle(a, radius=escala / 4, dxfattribs={"layer": CAMADA_DESCRITO})
-        msp.add_text(f"P{i}", height=escala / 2,
-                     dxfattribs={"layer": CAMADA_ROTULO}).set_placement(
-            (a[0] + escala / 3, a[1] + escala / 3))
-        msp.add_text(f"{s['rumo']} - {s['dist']:.2f} m", height=escala / 2,
-                     dxfattribs={"layer": CAMADA_ROTULO}).set_placement(
-            ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2 - escala / 2),
-            align=TextEntityAlignment.MIDDLE_CENTER)
-    msp.add_circle(pontos[-1], radius=escala / 4,
-                   dxfattribs={"layer": CAMADA_DESCRITO})
-    msp.add_text(f"P{len(segmentos)}", height=escala / 2,
-                 dxfattribs={"layer": CAMADA_ROTULO}).set_placement(
-        (pontos[-1][0] + escala / 3, pontos[-1][1] + escala / 3))
+    rotulos = Rotulos(msp, escala)
+    alt_v, alt_s, alt_a = escala * 0.42, escala * 0.5, escala * 0.55
 
-    # o trecho arbitrado se identifica ao longo de todo o percurso, nao so na legenda
-    for i in range(0, len(arco), max(len(arco) // 8, 1)):
-        msp.add_text("TRECHO ARBITRADO - NAO LEVANTADO", height=escala * 0.8,
+    # 1) o trecho arbitrado se identifica ao longo do percurso, nao so na
+    # legenda. Vai primeiro para que os demais rotulos desviem dele.
+    aviso = "TRECHO ARBITRADO - NAO LEVANTADO"
+    for i in range(0, len(arco), max(len(arco) // 6, 1)):
+        rotulos.reservar(arco[i][0], arco[i][1], aviso, alt_a)
+        msp.add_text(aviso, height=alt_a,
                      dxfattribs={"layer": CAMADA_ARBITRADO}).set_placement(
             arco[i], align=TextEntityAlignment.MIDDLE_CENTER)
+
+    # 2) vertices
+    for i, p in enumerate(pontos):
+        msp.add_circle(p, radius=escala / 5,
+                       dxfattribs={"layer": CAMADA_DESCRITO})
+    for i, p in enumerate(pontos):
+        vizinho = pontos[i + 1] if i + 1 < len(pontos) else pontos[i - 1]
+        comp = math.dist(p, vizinho) or 1.0
+        direcao = ((vizinho[0] - p[0]) / comp, (vizinho[1] - p[1]) / comp)
+        x, y = rotulos.colocar(p, direcao, f"P{i}", alt_v)
+        msp.add_text(f"P{i}", height=alt_v,
+                     dxfattribs={"layer": CAMADA_ROTULO}).set_placement(
+            (x, y), align=TextEntityAlignment.MIDDLE_CENTER)
+
+    # 3) alinhamentos
+    for i, s in enumerate(segmentos):
+        a, b = pontos[i], pontos[i + 1]
+        meio = ((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)
+        comp = math.dist(a, b) or 1.0
+        direcao = ((b[0] - a[0]) / comp, (b[1] - a[1]) / comp)
+        texto = f"{rumo_texto(s['rumo'])} - {s['dist']:.2f} m"
+        x, y = rotulos.colocar(meio, direcao, texto, alt_s)
+        msp.add_text(texto, height=alt_s,
+                     dxfattribs={"layer": CAMADA_ROTULO}).set_placement(
+            (x, y), align=TextEntityAlignment.MIDDLE_CENTER)
 
     arbitrado_m = raio * varredura if arco else math.dist(pontos[-1], pontos[0])
     linhas = [

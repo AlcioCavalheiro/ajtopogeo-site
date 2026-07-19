@@ -32,6 +32,28 @@ py -m venv C:\Users\ALCIO\.ajtopogeo\venv
 O PDF usa Arial de `C:\Windows\Fonts`. Faltando, cai para Helvetica embutida,
 que é latin-1 e perde caractere fora dessa tabela.
 
+## Padrão visual
+
+Cores e métricas extraídas do **RT-627/2026 Rev. 02**, que é o padrão dos
+relatórios técnicos da empresa. Mexer aqui é mudar a identidade dos
+entregáveis — confira contra um relatório recente antes.
+
+| elemento | cor |
+| --- | --- |
+| faixa do cabeçalho, título, cabeçalho de tabela | `#0b2e59` |
+| filete sob a faixa | `#5ba3e0` |
+| títulos de seção | `#1e5fa5` |
+| corpo de texto | `#444444` |
+| rodapé | `#7a7a7a` |
+| linha alternada de tabela | `#eaf1fb` |
+| borda de tabela | `#cfdcef` |
+| caixa de síntese: fundo / filete / texto | `#fcebeb` / `#a32d2d` / `#5a1414` |
+
+Faixa de 21,9 mm (62 pt) + filete de 1,4 mm (4 pt), margens de 15 mm, corpo em
+9,5 pt e tabela em 8 pt — as mesmas do modelo.
+
+No markdown, `> ` vira a caixa de síntese conclusiva.
+
 ## OCR (PDF escaneado)
 
 Instalado: **Tesseract 5.4** (build UB-Mannheim) em
