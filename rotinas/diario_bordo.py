@@ -586,6 +586,8 @@ def checar_duplicata(url, key, os_reg, data_iso, so_andamento=False):
     if so_andamento:
         return achados
 
+
+
     custos = buscar(url, key, "custos_os", "id,valor_total,obs",
                     os_id=f"eq.{os_reg['id']}", data=f"eq.{data_iso}")
     if custos:
@@ -599,8 +601,25 @@ def checar_duplicata(url, key, os_reg, data_iso, so_andamento=False):
 
 # ─────────────────────────── saída ───────────────────────────
 
+def conferir_lancado(url, key, os_reg, data_iso, total):
+    """Compara o total do diário com o que já está lançado naquela data.
+
+    Só faz sentido em --so-andamento, onde nada é gravado no financeiro: é a
+    chance de descobrir gasto do diário que nunca entrou no Gestor, ou entrou
+    com data trocada. Devolve (lancado, diferenca).
+    """
+    pags = buscar(url, key, "pagamentos", "valor",
+                  os_id=f"eq.{os_reg['id']}", vencimento=f"eq.{data_iso}")
+    custos = buscar(url, key, "custos_os", "valor_total",
+                    os_id=f"eq.{os_reg['id']}", data=f"eq.{data_iso}")
+    lancado = (sum(float(x.get("valor") or 0) for x in pags)
+               + sum(float(x.get("valor_total") or 0) for x in custos))
+    return round(lancado, 2), round(total - lancado, 2)
+
+
 def imprimir_previa(os_reg, campos, data_iso, gastos, total, declarado,
-                    custos, pagamentos, texto_andamento, duplicatas, motivo, args):
+                    custos, pagamentos, texto_andamento, duplicatas, motivo, args,
+                    conferencia=None):
     cliente = (os_reg.get("clientes") or {}).get("nome") or "—"
     print(f"# Diário de bordo → {os_reg.get('numero')} — {cliente}\n")
 
@@ -663,6 +682,20 @@ def imprimir_previa(os_reg, campos, data_iso, gastos, total, declarado,
     if args.so_andamento:
         print("\n> Modo `--so-andamento`: nenhum custo ou despesa será lançado. "
               "O financeiro deste dia já está no Gestor e relançar dobraria.")
+        if conferencia:
+            lancado, diferenca = conferencia
+            print(f"\n- Diário: **{brl(total)}** · já lançado na OS nesta data: "
+                  f"**{brl(lancado)}**")
+            if abs(diferenca) > 0.009:
+                print(f"\n> ⚠ **Faltam {brl(diferenca)} lançados nesta data.** O "
+                      f"diário registra gasto que não está no Gestor, ou o "
+                      f"lançamento entrou com outra data. Confira antes de "
+                      f"completar — pode ser o mesmo gasto em dia trocado, e aí "
+                      f"lançar de novo duplica."
+                      if diferenca > 0 else
+                      f"\n> ⚠ **Há {brl(abs(diferenca))} a mais lançados nesta "
+                      f"data do que o diário registra.** Pode ser gasto de outro "
+                      f"dia com data trocada, ou lançamento em duplicidade.")
 
     if not args.aplicar:
         print("\n---\n\n**Prévia — nada foi gravado.** Rode de novo com `--aplicar` "
@@ -808,8 +841,11 @@ def main():
                          ensure_ascii=False, indent=2))
         return
 
+    conferencia = (conferir_lancado(url, key, os_reg, data_iso, total)
+                   if args.so_andamento else None)
     imprimir_previa(os_reg, campos, data_iso, gastos, total, declarado,
-                    custos, pagamentos, texto_andamento, duplicatas, motivo, args)
+                    custos, pagamentos, texto_andamento, duplicatas, motivo, args,
+                    conferencia)
 
     if not args.aplicar:
         return
