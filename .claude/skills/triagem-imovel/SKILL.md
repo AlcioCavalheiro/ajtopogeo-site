@@ -73,9 +73,13 @@ conferência. Mas:
 - Tabela de vértices, coordenadas e confrontantes: use a seção **Tabelas
   reextraídas**, no fim do `.md`. O corpo do texto sai com a tabela achatada
   em células soltas, e ali é fácil colar a coordenada no vértice errado.
-- OCR erra carimbo, manuscrito e número riscado. Área, matrícula nº, CPF/CNPJ,
-  data e fração de condomínio: confira no PDF original antes de escrever no
-  resumo. O `.md` é ponto de partida, não fonte final.
+- Em documento que passou por OCR (status `OCR` no índice), **rumo, azimute e
+  distância da descrição perimétrica nunca valem sem conferência no original.**
+  Em matrícula datilografada antiga o Tesseract troca `º` por `9`, `"` por `!`
+  e `4` por `h` — `144,00` virou `14h,00`, `S 8º 35' E` virou `S 89 35! E`.
+  O erro é plausível o bastante para passar despercebido.
+- Vale o mesmo para área, matrícula nº, CPF/CNPJ, data e fração de condomínio.
+  O `.md` é ponto de partida, não fonte final.
 - O `_texto/` tem dado de cliente. Fica no Drive, nunca no repositório.
 
 ## Passo 3 — Resumo estruturado

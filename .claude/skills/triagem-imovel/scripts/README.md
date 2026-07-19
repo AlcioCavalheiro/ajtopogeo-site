@@ -8,11 +8,13 @@ Python do sistema e fora deste repositório.
 ```powershell
 py -m venv C:\Users\ALCIO\.ajtopogeo\venv
 & C:\Users\ALCIO\.ajtopogeo\venv\Scripts\python.exe -m pip install `
-    "markitdown[pdf,docx,xlsx,xls,pptx,outlook]" pymupdf
+    "markitdown[pdf,docx,xlsx,xls,pptx,outlook]" pymupdf pillow
 ```
 
 - `markitdown` — PDF com texto, DOCX, planilha, PPTX, HTML, e-mail (.msg), ZIP.
-- `pymupdf` — rasteriza a página do PDF escaneado para mandar ao OCR.
+- `pymupdf` — rasteriza a página do PDF escaneado para mandar ao OCR, e
+  reextrai tabela preservando a estrutura de linha.
+- `pillow` — neutraliza marca-texto antes do OCR (ver abaixo).
 
 ## OCR (PDF escaneado)
 
@@ -32,3 +34,14 @@ de instalação — o app do Claude só enxerga PATH novo depois de reiniciado.
 
 Sem Tesseract nada quebra: converte tudo que tem texto e marca os escaneados
 como `SEM TEXTO - ler visualmente` no índice.
+
+### Marca-texto
+
+Trecho grifado com marca-texto ciano ou verde **sumia inteiro** do OCR — não
+saía errado, saía ausente, com a frase ainda parecendo completa. Numa matrícula
+de teste, a área do imóvel e a fração mínima de parcelamento, ambas grifadas,
+desapareceram. O binarizador do Tesseract come o texto junto com o fundo
+colorido escuro.
+
+Antes do OCR a imagem passa por `max(R,G,B)`, que joga qualquer cor saturada
+para branco e mantém o traço preto. Com isso os dois campos voltaram.

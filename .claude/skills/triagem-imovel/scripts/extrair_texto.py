@@ -12,6 +12,7 @@ pasta do projeto, no Drive.
 """
 
 import argparse
+import io
 import shutil
 import subprocess
 import sys
@@ -42,7 +43,21 @@ def tem_ocr() -> bool:
     return exe_tesseract() is not None
 
 
+def neutralizar_realce(imagem: bytes) -> bytes:
+    """Marca-texto ciano/verde fica escuro na conversao para cinza, e o
+    binarizador do tesseract come o texto por baixo dele - some sem deixar
+    rastro, e a frase continua lendo como se estivesse inteira. max(R,G,B)
+    joga qualquer cor saturada para branco e preserva o traco preto."""
+    from PIL import Image, ImageChops
+    img = Image.open(io.BytesIO(imagem)).convert("RGB")
+    r, g, b = img.split()
+    buf = io.BytesIO()
+    ImageChops.lighter(ImageChops.lighter(r, g), b).save(buf, format="PNG")
+    return buf.getvalue()
+
+
 def tesseract(imagem: bytes) -> str:
+    imagem = neutralizar_realce(imagem)
     cmd = [exe_tesseract(), "stdin", "stdout", "-l", "por"]
     # por.traineddata proprio, para nao depender de escrita em Program Files
     tessdata = Path(sys.prefix).parent / "tessdata"
