@@ -1,0 +1,23 @@
+# Nada aqui vai para o site público (ajtopogeo.com.br).
+# Se criar pasta nova com dado de cliente, ADICIONE AQUI.
+#
+# CUIDADO: gestor/templates/ NÃO pode entrar nesta lista — o Gestor busca
+# esses .docx em runtime (fetch '/gestor/templates/...'). Excluir quebra a
+# geração de memorial, anuência e requerimentos em produção.
+
+.claude/
+rotinas/
+LIXO/
+_dados_keywords/
+.env
+.env.local
+.env.local.exemplo
+
+# Migrations e edge function: rodam no Supabase, não são servidas pelo site
+gestor/supabase/
+
+# Documentos e scripts internos
+gestor/Manual_Sistema_Gestao_AJ_TopoGeo.docx
+gestor/Manual_Sistema_Gestao_AJ_TopoGeo.pdf
+gestor/Relatorio_OS_AJTopoGeo.pdf
+gestor/gerar_relatorio_os.py
