@@ -6643,7 +6643,7 @@ async function abrirOS(id){
     })()
     +'<div id="os-and-list">'+and.map((a,i)=>'<div class="fx g12" style="padding:8px 0;border-bottom:1px solid var(--bor);align-items:flex-start">'
       +'<div class="mu sm" style="min-width:80px">'+(a.data||'')+(a.hora?'<br>'+a.hora:'')+'</div>'
-      +'<div style="flex:1"><div style="font-size:13px">'+a.txt+'</div>'
+      +'<div style="flex:1"><div style="font-size:13px">'+andamentoHtml(a.txt)+'</div>'
       +'<div class="mu sm">'+(a.user||'')+'</div></div>'
       +'<button class="btn bxs bdr" style="flex-shrink:0;padding:3px 7px" title="Excluir andamento" onclick="excluirAndamento(\''+id+'\','+i+')"><i class="ti ti-trash"></i></button>'
       +'</div>').join('')
@@ -6709,10 +6709,19 @@ async function addAndamento(osId){
   toast('Andamento registrado!');
 }
 
+// O texto do andamento é digitado (textarea) ou vem do diário de bordo, e nos
+// dois casos pode ter quebra de linha. Em HTML ela colapsa em espaço: sem isto
+// os blocos do diário (serviços, pendências, gastos) viram um parágrafo só.
+function andamentoHtml(txt){
+  return String(txt==null?'':txt)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/\n/g,'<br>');
+}
+
 function renderAndamentoList(lista,osId){
   return lista.map((a,i)=>'<div class="fx g12" style="padding:8px 0;border-bottom:1px solid var(--bor);align-items:flex-start">'
     +'<div class="mu sm" style="min-width:80px">'+(a.data||'')+(a.hora?'<br>'+a.hora:'')+'</div>'
-    +'<div style="flex:1"><div style="font-size:13px">'+a.txt+'</div>'
+    +'<div style="flex:1"><div style="font-size:13px">'+andamentoHtml(a.txt)+'</div>'
     +'<div class="mu sm">'+(a.user||'')+'</div></div>'
     +'<button class="btn bxs bdr" style="flex-shrink:0;padding:3px 7px" title="Excluir andamento" onclick="excluirAndamento(\''+osId+'\','+i+')"><i class="ti ti-trash"></i></button>'
     +'</div>').join('');
