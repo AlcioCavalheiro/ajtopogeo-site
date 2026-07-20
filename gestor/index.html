@@ -2867,6 +2867,18 @@ function _grpHeaderRow(label,subtotal,colspan,cor,extra){
 }
 
 // ═══ CONTAS FIXAS — aba "Pagamentos" — as contas da empresa, mês a mês ══
+// "Dispensar" no aviso de conta fixa faltando: guarda no localStorage (por
+// mês) quais contas o usuário já disse que não repetem nesse mês, pra não
+// ficar avisando de novo a cada visita à tela.
+function _pagFaltandoDispensadas(mes){
+  try{return new Set(JSON.parse(localStorage.getItem('pag_falt_dispensadas_'+mes)||'[]'));}
+  catch(e){return new Set();}
+}
+function pagDispensarFaltando(chaveItem,mes){
+  const arr=[..._pagFaltandoDispensadas(mes),chaveItem];
+  localStorage.setItem('pag_falt_dispensadas_'+mes,JSON.stringify(arr));
+  const si=document.getElementById('si');_pagPaint(si?si.value.trim():'');
+}
 function _pagFixoHtml(q){
   const fixos=_pagCache.filter(ehFixo);
   if(q){
@@ -2891,10 +2903,11 @@ function _pagFixoHtml(q){
   const mesAnt=ant[0];
   const chave=p=>_normOS((p.descricao||'')+'|'+(p.categoria||''));
   const lancadas=new Set(doMes.map(chave));
+  const dispensadas=_pagFaltandoDispensadas(mes);
   const faltando=[];const jaVista=new Set();
   fixos.filter(p=>mesPag(p)===mesAnt).forEach(p=>{
     const k=chave(p);
-    if(lancadas.has(k)||jaVista.has(k))return;
+    if(lancadas.has(k)||jaVista.has(k)||dispensadas.has(k))return;
     jaVista.add(k);faltando.push(p);
   });
 
@@ -2953,7 +2966,10 @@ function _pagFixoHtml(q){
       <tbody>${faltando.map(p=>`<tr>
         <td>${p.descricao||'—'}</td><td><span class="bd bn">${p.categoria||'—'}</span></td>
         <td class="w6">${fmt(p.valor)}</td>
-        <td><button class="btn bp2 bxs" onclick="repetirFixo('${p.id}','${mes}')"><i class="ti ti-copy"></i> Lançar em ${_mesLabel(mes).split(' de ')[0]}</button></td>
+        <td class="fx g8">
+          <button class="btn bp2 bxs" onclick="repetirFixo('${p.id}','${mes}')"><i class="ti ti-copy"></i> Lançar em ${_mesLabel(mes).split(' de ')[0]}</button>
+          <button class="btn bxs bdr" onclick="pagDispensarFaltando('${chave(p).replace(/'/g,"\\'")}','${mes}')" title="Não repete esse mês — não avisar de novo"><i class="ti ti-x"></i></button>
+        </td>
       </tr>`).join('')}</tbody>
     </table></div>
   </div>`:''}
