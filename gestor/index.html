@@ -2930,6 +2930,7 @@ function _pagFixoHtml(q){
       <td class="fx g8">
         ${p.status!=='Pago'?`<button class="btn bxs bp2" onclick="pagarPagamento('${p.id}')" title="Marcar como paga hoje"><i class="ti ti-check"></i></button>`:''}
         <button class="btn bsm" onclick="editRecord('pagamentos','${p.id}')"><i class="ti ti-edit"></i></button>
+        <button class="btn bxs bdr" onclick="excluirReg('pagamentos','${p.id}','${(p.descricao||'').replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button>
       </td></tr>`;
   };
 
@@ -3098,6 +3099,7 @@ function _pagVarHtml(q){
           <td class="fx g8">
             ${p.status!=='Pago'?`<button class="btn bxs bp2" onclick="pagarPagamento('${p.id}')" title="Marcar como pago hoje"><i class="ti ti-check"></i></button>`:''}
             <button class="btn bsm" onclick="editRecord('pagamentos','${p.id}')"><i class="ti ti-edit"></i></button>
+            <button class="btn bxs bdr" onclick="excluirReg('pagamentos','${p.id}','${(p.descricao||'').replace(/'/g,"\\'")}')"><i class="ti ti-trash"></i></button>
           </td></tr>`).join('')
       ).join(''):nd(6,'Nenhuma saída variável neste mês')}</tbody>
     </table></div>
