@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Renderiza o PDF de decisão da rotina de cobrança.
+Renderiza o PDF de andamento da rotina de cobrança.
 
-Entrada: um dossiê JSON (gerado a cada semana com os textos já redigidos).
-Saída:   PDF com um card por cobrança, a mensagem inteira embutida e uma
-         linha de decisão para marcar.
+Entrada: um dossiê JSON (gerado a cada semana com a narrativa já redigida).
+Saída:   PDF com a tabela de todas as OS abertas (com andamento) e cards de
+         destaque para as OS que precisam de atenção.
 
 Uso:
     py rotinas/relatorio_pdf.py dossie.json saida.pdf
@@ -174,8 +174,8 @@ def tabela_os(lista_os, largura, st):
 
 
 def tabela_completa(linhas_os, largura, st):
-    """Todas as OS em aberto, com contratado / recebido / em aberto."""
-    cab = ["#", "OS", "Cliente", "Contratado", "Recebido", "Em aberto", "Dias", "Status"]
+    """Todas as OS em aberto, com contratado / recebido / em aberto / andamento."""
+    cab = ["#", "OS", "Cliente", "Contratado", "Recebido", "Em aberto", "Dias", "Status", "Andamento"]
     linhas = [[Paragraph(rt(c), st["th"]) for c in cab]]
     estilo_extra = []
     for i, o in enumerate(linhas_os, 1):
@@ -190,12 +190,13 @@ def tabela_completa(linhas_os, largura, st):
             Paragraph(f"<b>{rt(aberto)}</b>", st["td_mini"]),
             Paragraph(rt(o.get("dias")), st["td_mini"]),
             Paragraph(rt(o.get("status")), st["td_mini"]),
+            Paragraph(rt((o.get("andamento") or "—")[:180]), st["td_mini"]),
         ])
         if quitada:
             estilo_extra.append(("TEXTCOLOR", (0, i), (-1, i), colors.HexColor("#8A8A85")))
 
     larguras = [largura * p for p in
-                (0.035, 0.115, 0.245, 0.115, 0.105, 0.115, 0.055, 0.215)]
+                (0.025, 0.09, 0.155, 0.085, 0.08, 0.09, 0.04, 0.125, 0.31)]
     t = Table(linhas, colWidths=larguras, repeatRows=1)
     t.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), AZUL),
@@ -233,8 +234,8 @@ def tabela_soltos(recs, largura, st):
     return t
 
 
-def caixa_mensagem(texto, largura, st):
-    """A mensagem de cobrança, destacada — é o que ele vai copiar e enviar."""
+def caixa_andamento(texto, largura, st):
+    """O andamento atual da OS, destacado — estado dos fatos, não texto para enviar."""
     p = Paragraph(rt(texto), st["msg"])
     t = Table([[p]], colWidths=[largura])
     t.setStyle(TableStyle([
@@ -250,7 +251,7 @@ def caixa_mensagem(texto, largura, st):
 def caixa_aviso(texto, largura, st, tipo="alerta"):
     estilo = st["alerta"] if tipo == "alerta" else st["dica"]
     fundo = VERMELHO_BG if tipo == "alerta" else AMBAR_BG
-    prefixo = "<b>CONFIRME ANTES DE ENVIAR — </b>" if tipo == "alerta" else "<b>DICA — </b>"
+    prefixo = "<b>NÃO CONFIRMADO — </b>" if tipo == "alerta" else "<b>DICA — </b>"
     t = Table([[Paragraph(prefixo + rt_rico(texto), estilo)]], colWidths=[largura])
     t.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), fundo),
@@ -262,10 +263,10 @@ def caixa_aviso(texto, largura, st, tipo="alerta"):
 
 def linha_decisao(largura, st):
     # Helvetica do reportlab é Latin-1: nada de U+2610, sairia quadrado preto.
-    marcas = ("[   ]  Enviar como está     "
-              "[   ]  Ajustar o texto     "
-              "[   ]  Não enviar     "
-              "[   ]  Já resolvido")
+    marcas = ("[   ]  Feito     "
+              "[   ]  Em andamento     "
+              "[   ]  Bloqueado     "
+              "[   ]  Não é caso")
     t = Table([[Paragraph(rt(marcas), st["decisao"])]], colWidths=[largura])
     t.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#EEF3FA")),
@@ -304,8 +305,8 @@ def card_cobranca(i, c, largura, st):
         partes.append(Paragraph(rt_rico(c["contexto"]), st["corpo"]))
         partes.append(Spacer(1, 4))
 
-    if c.get("mensagem"):
-        partes.append(caixa_mensagem(c["mensagem"], largura, st))
+    if c.get("andamento"):
+        partes.append(caixa_andamento(c["andamento"], largura, st))
 
     if c.get("alerta"):
         partes.append(Spacer(1, 4))
@@ -315,8 +316,6 @@ def card_cobranca(i, c, largura, st):
         partes.append(Spacer(1, 4))
         partes.append(caixa_aviso(c["dica"], largura, st, "dica"))
 
-    partes.append(Spacer(1, 6))
-    partes.append(linha_decisao(largura, st))
     partes.append(Spacer(1, 14))
     return partes
 
@@ -391,7 +390,7 @@ def gerar(dossie, saida):
     cobrancas = dossie.get("cobrancas", [])
     if cobrancas:
         story.append(faixa_secao(
-            f"COBRANÇAS A ENVIAR  ({len(cobrancas)})", AZUL, largura, st))
+            f"OS EM DESTAQUE  ({len(cobrancas)})", AZUL, largura, st))
         story.append(Spacer(1, 8))
         for i, c in enumerate(cobrancas, 1):
             story.append(KeepTogether(card_cobranca(i, c, largura, st)))
@@ -431,8 +430,10 @@ def gerar(dossie, saida):
         story.append(Spacer(1, 6))
         story.append(Paragraph(
             "Ordenadas por prioridade de cobrança (valor em aberto, tempo parado e "
-            "proximidade de conclusão). Linhas em cinza com ✓ estão quitadas — a "
-            "pendência delas é técnica, não financeira.", st["corpo"]))
+            "proximidade de conclusão). A coluna Andamento traz o último registro da "
+            "OS no Gestor ou, na falta dele, o motivo provável inferido do status. "
+            "Linhas em cinza com ✓ estão quitadas — a pendência delas é técnica, "
+            "não financeira.", st["corpo"]))
         story.append(Spacer(1, 6))
         story.append(tabela_completa(todas, largura, st))
         story.append(Spacer(1, 12))
@@ -461,7 +462,7 @@ def gerar(dossie, saida):
     story.append(HRFlowable(width="100%", thickness=0.5, color=CINZA_BORDA, spaceBefore=6))
     story.append(Paragraph(
         f"AJ TopoGeo  |  gerado em {data_br}  |  "
-        f"nenhuma mensagem foi enviada — os textos deste relatório são rascunhos",
+        f"relatório de andamento — nenhum contato com cliente foi feito a partir daqui",
         st["rodape"]))
 
     doc.build(story)

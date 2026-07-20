@@ -347,6 +347,7 @@ def montar_dossie_base(lista, soltos):
             "quitada": e["quitada"],
             "dias": e["dias_parada"],
             "status": e["status"],
+            "andamento": e["ultimo_andamento"] or e["motivo_provavel"],
         } for e in lista],
         "recebimentos_sem_os": [{
             "descricao": r.get("descricao") or "—",

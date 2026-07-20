@@ -7,7 +7,7 @@
     "valor_cobrancas": 25000,
     "valor_internas": 5000
   },
-  "nota_topo": "<b>Comparativo com a rodada anterior:</b> 2 OS avançaram (R$ 8.000 recebidos), 5 seguem paradas. Nenhuma mensagem foi enviada: os textos abaixo são rascunhos.",
+  "nota_topo": "<b>Comparativo com a rodada anterior:</b> 2 OS avançaram (R$ 8.000 recebidos), 5 seguem paradas. Este relatório é só andamento — nenhum contato com cliente foi feito a partir dele.",
   "cobrancas": [
     {
       "titulo": "CLIENTE EXEMPLO A",
@@ -17,9 +17,9 @@
         {"numero": "OS-XXX-001", "desc": "Georreferenciamento — Imóvel Exemplo (Cidade-UF)", "valor": 18000, "dias": 45, "status": "Pendência Documental"},
         {"numero": "OS-XXX-002", "desc": "Regularização Fundiária — mesmo imóvel", "valor": 2000, "dias": 40, "status": "Protocolada"}
       ],
-      "contexto": "Duas OS do mesmo cliente e mesmo imóvel: agrupe numa mensagem só. Use este campo para o raciocínio de priorização.",
-      "mensagem": "Texto literal que vai para o WhatsApp. Sem markdown e sem HTML — sai no PDF exatamente assim e o usuário copia daqui.\n\nQuebra de linha simples com \\n. Uma ação clara pedida ao cliente, com prazo.",
-      "alerta": "Use quando o motivo da parada NÃO estiver confirmado no dado. Sai em vermelho, com o rótulo CONFIRME ANTES DE ENVIAR. Todo caso inferido precisa de um."
+      "contexto": "Duas OS do mesmo cliente e mesmo imóvel: destacadas juntas porque a decisão sobre elas tende a ser conjunta. Use este campo para o raciocínio de priorização.",
+      "andamento": "Estado atual em português de cliente, não em jargão de status do sistema — 'falta a matrícula atualizada', não 'OS em Análise Jurídica'. É descrição de fato, não texto para enviar a ninguém.",
+      "alerta": "Use quando o motivo da parada NÃO estiver confirmado no dado (sem `ultimo_andamento` ou `obs` claros). Sai em vermelho, com o rótulo NÃO CONFIRMADO. Todo caso inferido precisa de um."
     },
     {
       "titulo": "CLIENTE EXEMPLO B",
@@ -29,7 +29,7 @@
         {"numero": "OS-XXX-003", "desc": "Locação de Obras — Empreendimento Exemplo", "valor": 5000, "dias": 50, "status": "NF Gerada"}
       ],
       "contexto": "NF emitida e não paga. Cobrança financeira direta, sem pendência técnica.",
-      "mensagem": "Mensagem de cobrança financeira.",
+      "andamento": "NF emitida em 05/01, vencida há 12 dias, sem pagamento registrado.",
       "dica": "Use para oportunidade: agrupar cobranças, emitir NF antes de mandar, aproveitar contato já agendado. Sai em âmbar."
     }
   ],

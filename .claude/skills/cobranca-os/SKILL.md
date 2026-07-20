@@ -1,6 +1,6 @@
 ---
 name: cobranca-os
-description: Rotina semanal de cobrança das OS paradas — puxa as ordens em aberto do Gestor, prioriza por valor/tempo/proximidade de conclusão e escreve os rascunhos de cobrança. Use quando o usuário pedir "cobrança das OS", "OS paradas", "o que está travado", ou rodar a rotina de segunda-feira.
+description: Rotina semanal de cobrança das OS paradas — puxa as ordens em aberto do Gestor, prioriza por valor/tempo/proximidade de conclusão e reporta o andamento de cada uma. Use quando o usuário pedir "cobrança das OS", "OS paradas", "o que está travado", "andamento das OS", ou rodar a rotina de segunda-feira.
 ---
 
 # Rotina 1 — Cobrança das OS paradas
@@ -30,7 +30,7 @@ concluir, erradamente, que não há OS parada.
 
 O que importa é **contratado menos já recebido**. A maioria das OS é paga em
 duas partes (50% na assinatura), então o valor cheio superestima a dívida em
-quase o dobro. Toda cifra que você citar — no PDF, no texto da mensagem ou na
+quase o dobro. Toda cifra que você citar — no PDF, no andamento ou na
 conversa — é o saldo em aberto.
 
 OS com saldo zero continuam na lista quando ainda estão abertas, marcadas como
@@ -48,32 +48,43 @@ erro possível desta rotina.
 Quando um recebimento solto puder corresponder a uma OS da lista, diga isso no
 alerta do card e mande conferir o extrato antes de qualquer contato.
 
-## Passo 2 — Conferir antes de escrever
+## Passo 2 — Conferir antes de reportar
 
 O campo `motivo_provavel` do relatório é **inferido do status**, não é fato.
-Antes de redigir, confira o `ultimo_andamento` e as `obs` de cada OS. Se o
-motivo real não estiver claro no dado, escreva o rascunho pedindo a informação
-em vez de afirmar uma causa errada — cobrar alegando motivo errado queima
-credibilidade com o cliente.
+Antes de reportar o andamento de uma OS, confira o `ultimo_andamento` e as
+`obs` dela. Se o motivo real não estiver claro no dado, reporte isso
+explicitamente (campo `alerta`) em vez de afirmar uma causa errada — errar o
+motivo é o pior tipo de erro desta rotina, porque parece confiança que o dado
+não sustenta.
 
-Cruze também com a semana anterior (ver Passo 4): se uma OS já foi cobrada e
-não andou, o tom muda — é segunda cobrança, não primeira.
+Cruze também com a semana anterior (ver Passo 4): se uma OS já estava parada
+na rodada anterior e não andou, isso é o próprio ponto do relatório — não
+precisa de tratamento especial, só aparece no delta da nota do topo.
 
-## Passo 3 — Redigir os rascunhos
+## Passo 3 — Detalhar as OS que precisam de atenção
 
-Para cada uma das 5–10 primeiras, escreva uma mensagem curta de WhatsApp
-(o canal real de contato do cliente), seguindo:
+O relatório já traz o andamento de **todas** as OS abertas automaticamente
+(ver Passo 4, `todas_os[]`) — o script preenche isso sozinho a partir de
+`ultimo_andamento` ou, na falta dele, `motivo_provavel`. Você não escreve
+esse campo à mão para cada OS.
 
-- Abertura direta, sem "espero que esteja bem".
+O que você escreve à mão é o destaque das 5–10 que mais merecem atenção
+(mesmo critério de priorização: valor em aberto, tempo parado, proximidade
+de conclusão). Para cada uma, no card de destaque:
+
 - Uma frase situando: qual serviço, qual imóvel.
-- O que está travando, em português de cliente — não em jargão de status
-  do sistema. "Falta a matrícula atualizada" e não "OS em Análise Jurídica".
-- **Uma** ação clara e específica pedida a ele, com prazo.
+- O andamento em português de cliente, não em jargão de status do sistema.
+  "Falta a matrícula atualizada" e não "OS em Análise Jurídica".
+- **Isto não é uma mensagem para o cliente.** É um relato de fato, para o
+  usuário decidir o que fazer — não escreva no imperativo dirigido ao
+  cliente ("mande", "envie"), nem cobre prazo dele. Se o usuário quiser um
+  texto pronto para WhatsApp a partir de um andamento específico, é um
+  pedido à parte, feito depois de ler o relatório.
 - Se o travamento for interno (Revisão Técnica, Desenho, Processamento),
-  **não** é mensagem de cobrança: vira tarefa sua. Marque como `[INTERNO]`
-  e liste como pendência de execução, não de cobrança.
+  não é destaque de OS: vira tarefa sua. Marque como `[INTERNO]` e liste
+  como pendência de execução, na seção separada (Passo 4).
 
-Separe a entrega em dois blocos: cobranças a enviar e pendências internas.
+Separe a entrega em dois blocos: OS em destaque e pendências internas.
 
 ## Passo 4 — Montar o dossiê e gerar o PDF
 
@@ -96,7 +107,7 @@ O `--dossie` já preenche sozinho:
 | Campo | Conteúdo |
 |---|---|
 | `resumo` | `os_abertas`, `contratado`, `recebido`, `em_aberto` |
-| `todas_os[]` | **todas** as OS em aberto, ordenadas por prioridade |
+| `todas_os[]` | **todas** as OS em aberto, ordenadas por prioridade, já com `andamento` preenchido |
 | `recebimentos_sem_os[]` | os lançamentos não conciliados |
 
 Você escreve:
@@ -104,21 +115,22 @@ Você escreve:
 | Campo | Conteúdo |
 |---|---|
 | `nota_topo` | uma frase situando a rodada e o delta da semana anterior |
-| `cobrancas[]` | `titulo`, `valor`, `contato`, `os[]`, `contexto`, `mensagem`, `alerta`, `dica` |
+| `cobrancas[]` | `titulo`, `valor`, `contato`, `os[]`, `contexto`, `andamento`, `alerta`, `dica` |
 | `internas[]` | `titulo`, `valor`, `os[]`, `texto`, `acao` |
 | `observacoes[]` | `titulo`, `texto` — padrões da carteira, não casos isolados |
 | `proxima_semana[]` | perguntas objetivas para a rodada seguinte |
 
 Cada `os[]` leva `numero`, `desc`, `valor` (em aberto), `dias`, `status`.
 
-O PDF sai com a lista completa das OS e os recebimentos não conciliados
-automaticamente — você não precisa repetir isso na narrativa. Use os cards
-para o que exige decisão.
+O PDF sai com a lista completa das OS (incluindo a coluna Andamento) e os
+recebimentos não conciliados automaticamente — você não precisa repetir isso
+na narrativa. Use os cards de `cobrancas[]` só para o que exige atenção do
+usuário; para o resto, a tabela completa já basta.
 
 Regras de preenchimento:
 
-- `mensagem` é o texto literal que vai para o WhatsApp. Sem markdown, sem
-  HTML — ela é renderizada como está e o usuário copia daí.
+- `andamento` é a descrição factual do estado atual da OS — não é texto para
+  enviar a ninguém. Sem markdown, sem HTML.
 - `alerta` (vermelho) é para quando o motivo da parada **não está confirmado**
   no dado. Todo caso em que você inferiu algo precisa de alerta.
 - `dica` (âmbar) é para oportunidade: agrupar cobranças, emitir NF antes, etc.
@@ -126,8 +138,9 @@ Regras de preenchimento:
   `dica`, `observacoes.texto`) pode usar `<b>` e `<i>`. Nos demais, não — eles
   são escapados porque vêm do banco.
 
-Cada card sai no PDF com uma linha de decisão para marcar: enviar como está,
-ajustar, não enviar, já resolvido.
+Os cards de `internas[]` saem no PDF com uma linha de checklist (feito, em
+andamento, bloqueado, não é caso). Os cards de `cobrancas[]` não têm essa
+linha — não há decisão de envio a marcar.
 
 ## Passo 5 — Registrar
 
@@ -144,5 +157,8 @@ o que dá sentido à rotina ser semanal.
 
 ## Limite
 
-Você redige e salva. **Você não envia.** O envio é sempre do usuário, mesmo
-que ele diga "pode mandar" — não há canal de WhatsApp conectado aqui.
+Esta rotina só reporta andamento — ela não redige mensagem nenhuma para
+cliente. Se, depois de ler o relatório, o usuário pedir um texto pronto para
+WhatsApp a partir de uma OS específica, isso é um pedido à parte: você redige
+e salva, mas **não envia**. O envio é sempre do usuário, mesmo que ele diga
+"pode mandar" — não há canal de WhatsApp conectado aqui.
