@@ -10092,6 +10092,10 @@ function geoCadHtml(){
     +'<div id="cad-lista" class="mb1"><div class="mu sm">Nenhum ponto nomeado ainda.</div></div>'
     +'<button class="btn bsm mb1" onclick="cadExportarTxt()"><i class="ti ti-file-text"></i> Exportar TXT</button> '
     +'<button class="btn bsm mb1" onclick="cadExportarDxf()"><i class="ti ti-file-export"></i> Exportar DXF</button>'
+    +'<div class="st mb1" style="font-size:13px;margin-top:.75rem">Linhas e polígonos desenhados</div>'
+    +'<div id="cad-linhas" class="mb1"><div class="mu sm">Nenhuma linha ou polígono ainda.</div></div>'
+    +'<button class="btn bsm mb1" onclick="cadExportarLinhasDxf()"><i class="ti ti-file-export"></i> Exportar linhas (DXF)</button> '
+    +'<button class="btn bsm mb1" onclick="cadExportarLinhasShp()"><i class="ti ti-file-zip"></i> Exportar linhas (Shapefile)</button>'
     +'</div>'
     +'</div>'
     +'</div>';
@@ -11653,7 +11657,8 @@ function cadPolilinhaConcluir(fechada){
   cadAtualizarPainel();
   cadAtualizarLista();
   cadRenderPolilinhaInfo();
-  toast('Polilinha '+(fechada?'fechada':'aberta')+' criada com '+pontosNovos.length+' vértice(s).');
+  const areaMsg=fechada?(' — área '+cadFmtArea(cadAreaAnel(coords))):'';
+  toast('Polilinha '+(fechada?'fechada':'aberta')+' criada com '+pontosNovos.length+' vértice(s)'+areaMsg+'.');
 }
 function cadSelecionarPonto(id){
   _cadSelecionado=id;
@@ -11713,6 +11718,7 @@ function cadAplicarEdicaoPonto(){
   toast('Ponto atualizado.');
 }
 function cadAtualizarLista(){
+  cadAtualizarLinhas();
   const el=document.getElementById('cad-lista');
   if(!el) return;
   const nomeados=_cadPontos.filter(function(p){return p.nome;});
@@ -11832,6 +11838,100 @@ function cadExportarDxf(){
   const gj={type:'FeatureCollection',features:nomeados.map(function(p){return {type:'Feature',properties:{name:p.nome},geometry:{type:'Point',coordinates:[p.x,p.y,p.z||0]}};})};
   const blob=new Blob([geojsonToDxf(gj)],{type:'application/dxf'});
   downloadBlobGeo(blob,'pontos_cad.dxf');
+}
+// ── Linhas e polígonos desenhados/importados na CAD: listagem com comprimento/área e exportação ──
+function cadComprimentoLinha(coords){
+  let d=0;
+  for(let i=1;i<coords.length;i++){const a=coords[i-1],b=coords[i];d+=Math.hypot(b[0]-a[0],b[1]-a[1]);}
+  return d;
+}
+function cadAreaAnel(coords){
+  const n=coords.length;
+  if(n<3) return 0;
+  const fechado=Math.abs(coords[0][0]-coords[n-1][0])<1e-9&&Math.abs(coords[0][1]-coords[n-1][1])<1e-9;
+  const pts=fechado?coords.slice(0,-1):coords;
+  const m=pts.length;
+  let a=0;
+  for(let i=0;i<m;i++){const p1=pts[i],p2=pts[(i+1)%m];a+=p1[0]*p2[1]-p2[0]*p1[1];}
+  return Math.abs(a)/2;
+}
+function cadAreaPoligono(coordsRings){
+  if(!coordsRings||!coordsRings.length) return 0;
+  let area=cadAreaAnel(coordsRings[0]);
+  for(let i=1;i<coordsRings.length;i++) area-=cadAreaAnel(coordsRings[i]);
+  return Math.max(area,0);
+}
+function cadGeometriaResumo(g){
+  if(!g) return {tipo:'',comprimento:0,area:0};
+  if(g.type==='LineString') return {tipo:'Linha',comprimento:cadComprimentoLinha(g.coordinates),area:0};
+  if(g.type==='MultiLineString'){
+    let c=0;g.coordinates.forEach(function(l){c+=cadComprimentoLinha(l);});
+    return {tipo:'Linha (múltipla)',comprimento:c,area:0};
+  }
+  if(g.type==='Polygon'){
+    let c=0;g.coordinates.forEach(function(r){c+=cadComprimentoLinha(r);});
+    return {tipo:'Polígono',comprimento:c,area:cadAreaPoligono(g.coordinates)};
+  }
+  if(g.type==='MultiPolygon'){
+    let c=0,a=0;
+    g.coordinates.forEach(function(poly){poly.forEach(function(r){c+=cadComprimentoLinha(r);});a+=cadAreaPoligono(poly);});
+    return {tipo:'Polígono (múltiplo)',comprimento:c,area:a};
+  }
+  return {tipo:g.type,comprimento:0,area:0};
+}
+function cadFeaturesLinhas(){
+  return (_cadGeoJSON&&_cadGeoJSON.features||[]).map(function(f,idx){return {f:f,idx:idx};}).filter(function(o){
+    const t=o.f.geometry&&o.f.geometry.type;
+    return t==='LineString'||t==='MultiLineString'||t==='Polygon'||t==='MultiPolygon';
+  });
+}
+function cadFmtArea(area){
+  return area>0?(area.toFixed(2)+' m² ('+(area/10000).toFixed(4)+' ha)'):'—';
+}
+function cadAtualizarLinhas(){
+  const el=document.getElementById('cad-linhas');
+  if(!el) return;
+  const itens=cadFeaturesLinhas();
+  if(!itens.length){el.innerHTML='<div class="mu sm">Nenhuma linha ou polígono ainda.</div>';return;}
+  let totalComp=0,totalArea=0;
+  const linhas=itens.map(function(o){
+    const r=cadGeometriaResumo(o.f.geometry);
+    totalComp+=r.comprimento;totalArea+=r.area;
+    const layerId=o.f.properties&&o.f.properties.layer;
+    const cam=_cadCamadas.find(function(c){return c.id===layerId;});
+    return '<tr><td>'+r.tipo+'</td><td>'+xmlEscapeGeo(cam?cam.nome:'—')+'</td><td>'+r.comprimento.toFixed(2)+' m</td><td>'+cadFmtArea(r.area)+'</td>'
+      +'<td><button class="btn bxs bdr" onclick="cadRemoverLinha('+o.idx+')" title="Excluir"><i class="ti ti-x"></i></button></td></tr>';
+  }).join('');
+  el.innerHTML='<div class="tw"><table><thead><tr><th>Tipo</th><th>Camada</th><th>Compr.</th><th>Área</th><th></th></tr></thead><tbody>'+linhas+'</tbody></table></div>'
+    +'<div class="mu sm mt1"><strong>Total:</strong> '+totalComp.toFixed(2)+' m · área total '+cadFmtArea(totalArea)+'</div>';
+}
+function cadRemoverLinha(idx){
+  if(!_cadGeoJSON||!_cadGeoJSON.features||!_cadGeoJSON.features[idx]) return;
+  if(!confirm('Excluir esta linha/polígono do desenho?')) return;
+  _cadGeoJSON.features.splice(idx,1);
+  cadRenderSvg();
+  cadAtualizarLista();
+  toast('Linha/polígono excluído.');
+}
+function cadExportarLinhasDxf(){
+  const itens=cadFeaturesLinhas();
+  if(!itens.length){toast('Nenhuma linha ou polígono para exportar.',true);return;}
+  const gj={type:'FeatureCollection',features:itens.map(function(o){return o.f;})};
+  const blob=new Blob([geojsonToDxf(gj)],{type:'application/dxf'});
+  downloadBlobGeo(blob,'linhas_cad.dxf');
+  toast(itens.length+' linha(s)/polígono(s) exportados em DXF.');
+}
+async function cadExportarLinhasShp(){
+  const itens=cadFeaturesLinhas();
+  if(!itens.length){toast('Nenhuma linha ou polígono para exportar.',true);return;}
+  try{
+    const gj={type:'FeatureCollection',features:itens.map(function(o){return o.f;})};
+    const gjWgs=reprojectGeoJSON(gj,projDef('SIRGAS2000',_cadUtmZona,_cadUtmSul),projDef('WGS84',null,false));
+    validarCoordsWgs84(gjWgs);
+    const blob=await shpwrite.zip(mergeLinhasParaShp(gjWgs),{outputType:'blob'});
+    downloadBlobGeo(blob,'linhas_cad_shp.zip');
+    toast(itens.length+' linha(s)/polígono(s) exportados em Shapefile.');
+  }catch(e){toast('Erro ao gerar shapefile: '+e.message,true);}
 }
 function cadOdsTexto(cell){
   if(!cell) return '';
