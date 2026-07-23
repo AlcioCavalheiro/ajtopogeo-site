@@ -2879,6 +2879,52 @@ function pagDispensarFaltando(chaveItem,mes){
   localStorage.setItem('pag_falt_dispensadas_'+mes,JSON.stringify(arr));
   const si=document.getElementById('si');_pagPaint(si?si.value.trim():'');
 }
+
+// ── Parcelamentos/financiamentos — contador de parcelas até a quitação ──
+// O total contratado (ex: "PGFN em 60x") não existe em nenhuma tabela — só
+// quem lançou sabe. Guarda no localStorage por descrição (mesmo padrão do
+// "dispensar" acima) pra não depender de migração de banco.
+function _parcTotalKey(desc){return 'parc_total_'+_normOS(desc).replace(/[^a-z0-9]+/g,'_');}
+function _parcTotalGet(desc){const v=localStorage.getItem(_parcTotalKey(desc));return v?Number(v):null;}
+function _parcTotalSet(desc,val){
+  const k=_parcTotalKey(desc),n=parseInt(val);
+  if(n>0)localStorage.setItem(k,n);else localStorage.removeItem(k);
+  const si=document.getElementById('si');_pagPaint(si?si.value.trim():'');
+}
+function _pagParcelamentosHtml(){
+  const grupos={};
+  _pagCache.filter(ehFixo).forEach(p=>{
+    const key=_normOS(p.descricao||'');
+    if(!key)return;
+    (grupos[key]=grupos[key]||{nome:p.descricao,itens:[]}).itens.push(p);
+  });
+  const linhas=Object.values(grupos).filter(g=>g.itens.length>1)
+    .sort((a,b)=>b.itens.length-a.itens.length);
+  if(!linhas.length)return '';
+  return `<div class="card mb1">
+    <div class="st mb1"><i class="ti ti-calendar-repeat" style="color:var(--brand)"></i>Parcelamentos e financiamentos <span class="mu sm" style="font-weight:400">— acumulado, independe do mês</span></div>
+    <div class="tw"><table>
+      <thead><tr><th>Descrição</th><th>Parcela</th><th>Pagas</th><th>Restantes no sistema</th><th>Total contratado</th><th>Faltam p/ quitação</th><th>Previsão término</th></tr></thead>
+      <tbody>${linhas.map(g=>{
+        const pagas=g.itens.filter(p=>p.status==='Pago').length;
+        const pendentes=g.itens.filter(p=>p.status!=='Pago');
+        const valorParc=g.itens.slice().sort((a,b)=>(b.vencimento||'').localeCompare(a.vencimento||''))[0].valor;
+        const total=_parcTotalGet(g.nome);
+        const faltam=total?Math.max(total-pagas,0):null;
+        const ultimoVenc=pendentes.map(p=>p.vencimento).filter(Boolean).sort().pop();
+        return `<tr>
+          <td>${g.nome}</td>
+          <td class="w6">${fmt(valorParc)}</td>
+          <td style="color:#27500A;font-weight:600">${pagas}</td>
+          <td style="color:#854F0B;font-weight:600">${pendentes.length}</td>
+          <td><input class="fc" type="number" min="0" style="width:80px;padding:4px 6px" value="${total||''}" placeholder="?" onchange="_parcTotalSet('${g.nome.replace(/'/g,"\\'")}',this.value)"></td>
+          <td>${faltam===null?'<span class="mu sm">defina o total →</span>':faltam===0?'<span class="bd bs">Quitado</span>':`<strong>${faltam}</strong> parcela${faltam===1?'':'s'}`}</td>
+          <td class="mu sm">${ultimoVenc?fd(ultimoVenc):'—'}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>
+  </div>`;
+}
 function _pagFixoHtml(q){
   const fixos=_pagCache.filter(ehFixo);
   if(q){
@@ -2959,6 +3005,8 @@ function _pagFixoHtml(q){
       </span>
     </div>
   </div>`:''}
+
+  ${_pagParcelamentosHtml()}
 
   ${faltando.length?`<div class="card mb1" style="background:#FFF8E6;border:1.5px dashed #EF9F27">
     <div class="st mb1" style="color:#854F0B"><i class="ti ti-alert-triangle"></i>${faltando.length} conta fixa de ${_mesLabel(mesAnt)} sem lançamento neste mês</div>
