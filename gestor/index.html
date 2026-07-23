@@ -5962,21 +5962,32 @@ async function gerarPDFOrcamento(idDireto){
   y+=8;
   doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...NAVY);
   it.forEach((item,idx)=>{
-    if(y>260){
+    const nomeLs=doc.splitTextToSize(item.nome||'',74);
+    doc.setFontSize(7.5);
+    const descLs=item.descricao?doc.splitTextToSize(item.descricao,74):[];
+    doc.setFontSize(9);
+    const rowH=Math.max(10,nomeLs.length*4.6+(descLs.length?descLs.length*3.4+1.5:0)+5);
+    if(y+rowH>270){
       addFooter();doc.addPage();addHeader('PROPOSTA TÉCNICA E COMERCIAL (cont.)');y=27;
       doc.setFillColor(...TEAL);doc.rect(10,y-4,W-20,9,'F');
       doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(...WHITE);
       ['SERVIÇO','QTD','UNID','VLR UNIT','SUBTOTAL'].forEach((h,i)=>{const xs=[12,90,110,130,165];doc.text(h,xs[i],y+1);});
       y+=8;doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...NAVY);
     }
-    if(idx%2===0){doc.setFillColor(...LIGHT_TEAL);doc.rect(10,y-5,W-20,10,'F');}
+    if(idx%2===0){doc.setFillColor(...LIGHT_TEAL);doc.rect(10,y-5,W-20,rowH,'F');}
     const sub=Number(item.quantidade)*Number(item.valor_unitario);
-    doc.text((item.nome||'').slice(0,45),12,y);
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...NAVY);
+    doc.text(nomeLs,12,y);
     doc.text(String(item.quantidade||''),92,y,{align:'center'});
     doc.text(item.unidade||'un',112,y,{align:'center'});
     doc.text(fmt(item.valor_unitario),158,y,{align:'right'});
     doc.text(fmt(sub),198,y,{align:'right'});
-    y+=9;
+    if(descLs.length){
+      doc.setFont('helvetica','italic');doc.setFontSize(7.5);doc.setTextColor(95,95,95);
+      doc.text(descLs,12,y+nomeLs.length*4.6+0.5);
+      doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(...NAVY);
+    }
+    y+=rowH;
   });
   // Total
   y+=4;
@@ -6155,16 +6166,27 @@ async function gerarPDFOSCore(osIdDireto,incluirFinanceiro){
     y+=9;
     doc.setFont('helvetica','normal');doc.setTextColor(26,26,26);
     (orca.itens||[]).forEach((it,i)=>{
-      checkPage(10);
+      const larg=incluirFinanceiro?90:160;
+      doc.setFontSize(8);
+      const nome=doc.splitTextToSize(it.nome||'',larg);
+      checkPage(Math.max(10,nome.length*5)+(it.descricao?doc.splitTextToSize(it.descricao,larg).length*3.2+1:0));
       if(i%2===0){doc.setFillColor(250,250,248);doc.rect(10,y-1,W-20,7,'F');}
-      const nome=doc.splitTextToSize(it.nome||'',incluirFinanceiro?90:160);
-      doc.setFontSize(8);doc.text(nome,14,y+3);
+      doc.setFontSize(8);doc.setFont('helvetica','normal');doc.setTextColor(26,26,26);
+      doc.text(nome,14,y+3);
       doc.text(String(it.quantidade||1)+' '+(it.unidade||''),120,y+3);
       if(incluirFinanceiro){
         doc.text(fmt(it.valor_unitario),145,y+3);
         doc.text(fmt(Number(it.quantidade||1)*Number(it.valor_unitario||0)),W-14,y+3,{align:'right'});
       }
-      y+=Math.max(7,nome.length*5);
+      let extra=0;
+      if(it.descricao){
+        doc.setFont('helvetica','italic');doc.setFontSize(7);doc.setTextColor(95,95,95);
+        const dsc=doc.splitTextToSize(it.descricao,larg);
+        doc.text(dsc,14,y+3+nome.length*4+0.5);
+        extra=dsc.length*3.2+1;
+        doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(26,26,26);
+      }
+      y+=Math.max(7,nome.length*5)+extra;
     });
     if(incluirFinanceiro){
       checkPage(8);
