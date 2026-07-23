@@ -1,76 +1,96 @@
 ---
 name: conteudo-instagram
-description: Gera as peças de conteúdo do Instagram @aj_topogeo — legenda, roteiro de Reel ou carrossel e a arte no Canva. Use nas quartas e sextas, ou quando o usuário mandar fotos/vídeos de campo pedindo post, legenda ou pauta.
+description: Gera automaticamente as peças de Instagram do @aj_topogeo a partir das fotos/vídeos de campo e da descrição do serviço — triagem de sigilo, legendas, hashtags, cards do carrossel, Reel montado com som ambiente e guia de publicação em PDF. Use nas quartas e sextas, ou quando o usuário mandar material de campo pedindo post, legenda ou pauta.
 ---
 
 # Rotina 5 — Conteúdo Instagram (@aj_topogeo)
 
-Cadência: quarta e sexta, 30 min. Objetivo: presença digital ativa sem tirar
-tempo da execução técnica.
+Cadência: quarta e sexta. Objetivo: presença digital ativa sem tirar tempo da
+execução técnica.
 
-## Contexto que manda no tom
-
-A captação da AJ TopoGeo é **boca a boca**. O Instagram não é canal de venda
-direta: ele é a prova social que o cliente indicado consulta antes de fechar.
-Então o conteúdo prioriza **autoridade técnica e obra real**, não promoção.
-Nada de "solicite seu orçamento" em toda peça, nada de emoji em excesso,
-nada de linguagem de infoproduto.
-
-Público: produtor rural de MS, escritório de advocacia com demanda fundiária,
-construtora/loteadora, consultoria ambiental.
+**Esta rotina roda inteira sem perguntar nada.** O usuário manda o material e a
+descrição do serviço; você devolve tudo pronto para postar. Não pergunte qual
+eixo usar, quantas peças fazer, qual foto escolher ou se pode prosseguir —
+decida e execute. A única coisa que você não faz é publicar.
 
 ## Entrada
 
-O usuário manda 2–3 fotos/vídeos brutos da semana. Se não houver material novo,
-trabalhe temas gerais a partir do blog do site (`blog-*.html` na raiz do repo) —
-esses textos já estão no tom certo e cobrem os temas de busca reais.
+Um zip, uma pasta ou arquivos soltos de fotos e vídeos, mais uma linha
+descrevendo o serviço. Se não vier material novo, trabalhe temas gerais a
+partir dos `blog-*.html` na raiz do repositório.
 
-## Passo 1 — Escolher o formato
+Se a descrição do serviço não bater com o que as imagens mostram, siga o que as
+imagens mostram e diga isso no relatório final — a descrição costuma ser o
+título do serviço, não o enquadramento das fotos.
 
-Alterne entre os quatro eixos, sem repetir o mesmo eixo em duas peças seguidas:
+## Ambiente
 
-| Eixo | Formato que funciona |
+Todos os scripts rodam no venv da empresa:
+
+```
+C:\Users\ALCIO\.ajtopogeo\venv\Scripts\python.exe
+```
+
+Scripts e esquema do `pauta.json` em `scripts/README.md` (leia antes).
+
+## As três etapas
+
+Delegue cada etapa ao subagente correspondente, em sequência, passando o
+resultado da anterior. Rode uma de cada vez: a redação depende do inventário e
+a edição depende da pauta.
+
+| Etapa | Subagente | Modelo | Entrega |
+|---|---|---|---|
+| 1. Curadoria | `ig-curadoria` | Sonnet | Inventário do material, recortes seguros, trechos de vídeo com tempos |
+| 2. Redação | `ig-redacao` | Sonnet | `pauta.json` com legendas, hashtags, cards e cenas |
+| 3. Edição | `ig-edicao` | Opus | Cards, Reel, capa, PDF — conferidos visualmente |
+
+Ao chamar cada um, passe o caminho da pasta de trabalho, o texto do serviço e o
+retorno da etapa anterior por inteiro. Subagente começa sem contexto: o que não
+estiver no prompt, ele não sabe.
+
+Depois da etapa 3, rode `registrar.py pauta.json` para acrescentar a sessão à
+pauta do mês, se a edição ainda não tiver rodado.
+
+## Onde as coisas ficam
+
+| O quê | Onde |
 |---|---|
-| Antes/depois de levantamento | Carrossel (bruto → processado → entregue) |
-| Curiosidade técnica (georref., CAR, drone, SIGEF) | Reel curto ou carrossel de 4–5 cards |
-| Bastidor de campo | Reel, som ambiente, sem locução |
-| Case resolvido | Carrossel: problema → o que foi feito → resultado |
+| Material pronto para postar | `C:\Users\ALCIO\Pictures\POST_<SERVICO>_<AAAA-MM-DD>\` |
+| Pauta do mês | `G:\Meu Drive\EMPRESA\AJ TOPOGEO\_ROTINAS\INSTAGRAM\AAAA-MM-pauta.md` |
+| Trabalho intermediário | pasta de scratchpad da sessão |
 
-## Passo 2 — Escrever
+A pauta do mês é a memória da rotina: é ela que impede repetir gancho, tema ou
+foto. A etapa de redação tem que ler antes de escrever.
 
-Entregue 2–3 peças, cada uma com:
+## Sigilo do cliente — inegociável
 
-- **Legenda** — primeira linha é gancho e precisa funcionar sozinha (o resto
-  fica cortado no feed). Corpo de 3–6 linhas curtas. CTA leve e variado.
-- **Roteiro** — Reel: cena a cena com o texto na tela e duração. Carrossel:
-  o texto exato de cada card, numerado.
-- **Hashtags** — 8 a 12, misturando técnicas (`#georreferenciamento` `#sigef`
-  `#topografia`) e geográficas (`#matogrossodosul` `#campograndems` e a cidade
-  do serviço). Sem hashtag genérica de alcance.
+Nunca publique nome de proprietário, número de matrícula, coordenada, valor de
+serviço ou imagem que identifique a propriedade: horizonte com silhueta da
+cidade, malha reconhecível de loteamento, sede, benfeitoria, placa de veículo,
+fachada, marca de gado. Em case, use "uma fazenda em Sidrolândia", "um cliente
+da região de Maracaju".
 
-**Sigilo do cliente é inegociável.** Nunca publique nome de proprietário,
-número de matrícula, coordenadas, valor de serviço ou imagem que identifique
-a propriedade (placa, fachada, marca de gado). Em case, use "uma fazenda em
-Sidrolândia", "um cliente da região de Maracaju". Se a foto enviada mostrar
-algo identificável, avise e sugira o corte.
+Na dúvida sobre um enquadramento, corte. `recortar.py` existe para isso, e o
+recorte gerado tem que ser conferido olhando, não presumido.
 
-## Passo 3 — Arte no Canva
+## Identidade visual
 
-Gere os cards do carrossel (1080x1350) ou a capa do Reel via conector Canva.
+Cores e tipografia saem do `css/style.css` do site, já codificadas em
+`scripts/marca.py`. Não use o conector Canva: as artes são geradas pelos
+scripts, que dão controle de layout e reprodutibilidade que o Canva não dá.
+A logo de `gestor/LOGO.png` não serve para os cards — é texto preto sobre fundo
+branco e some no azul-marinho. A assinatura é tipográfica.
 
-Antes da primeira arte da sessão, rode `list-brand-kits` e use a identidade da
-AJ TopoGeo. Se não houver brand kit, puxe as cores e a fonte do CSS do site
-(`css/` na raiz) e a logo de `gestor/LOGO.png` — a arte tem que ser reconhecível
-como a mesma empresa do site.
+## O que entregar ao usuário no final
 
-Entregue o link do design para o usuário revisar. **Não publique nada.**
-
-## Passo 4 — Registrar a pauta
-
-Salve em `G:\Meu Drive\EMPRESA\AJ TOPOGEO\_ROTINAS\INSTAGRAM\AAAA-MM-pauta.md`,
-acumulando o mês. Antes de escrever peça nova, leia o arquivo do mês: serve
-para não repetir gancho, tema nem foto já usados.
+Um resumo em prosa com: o que foi gerado e onde, o gancho de cada peça, o que
+foi bloqueado por sigilo e por quê, as pendências técnicas, e as decisões que
+dependem dele (cidade nas hashtags, qualquer frase que possa soar como crítica
+ao cliente, case em andamento vs. entregue). Aponte o PDF como o documento que
+ele lê antes de postar.
 
 ## Limite
 
-Você escreve e desenha. Quem posta é o usuário.
+Você escreve, desenha e monta. Quem posta é o usuário. Não publique, não agende
+e não suba nada para lugar nenhum.
