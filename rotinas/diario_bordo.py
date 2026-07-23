@@ -904,6 +904,168 @@ def aplicar_diario(url, key, os_reg, texto_andamento, custos, pagamentos, total,
 
 # ─────────────────────────── main ───────────────────────────
 
+# ─────────────────────── dia operacional (várias OS) ───────────────────────
+
+def ratear_valor(total, pesos):
+    """Divide `total` (reais) entre len(pesos) fatias, na proporção de `pesos`.
+
+    Conta em centavos inteiros e joga a sobra na última fatia, para a soma
+    fechar exatamente com o total. Rateio que não fecha é o que faz o custo do
+    dia não bater com a nota depois.
+    """
+    soma_peso = sum(pesos) or len(pesos)
+    total_cent = round(total * 100)
+    fatias = [int(total_cent * p / soma_peso) for p in pesos]
+    fatias[-1] += total_cent - sum(fatias)
+    return [c / 100 for c in fatias]
+
+
+def carregar_plano(caminho):
+    """Lê o plano do dia operacional: quais OS receberam o dia e o que anotar.
+
+    O plano é o que o operador confirmou com o usuário — qual atividade é de
+    qual OS. O script nunca deduz isso: custo na obra errada só aparece meses
+    depois, quando o resultado da obra não fecha com o que foi cobrado.
+    """
+    try:
+        plano = json.loads(Path(caminho).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        sys.exit(f"Não consegui ler o plano {caminho!r}: {e}")
+    oss = plano.get("os") or []
+    if not oss:
+        sys.exit('O plano precisa de pelo menos uma OS em "os": [ ... ].')
+    for o in oss:
+        if not o.get("numero"):
+            sys.exit('Cada item de "os" precisa de "numero".')
+        if not o.get("atividade"):
+            sys.exit(f'OS {o["numero"]}: falta "atividade" (o texto do andamento).')
+    return plano
+
+
+def dia_operacional(url, key, args, data_iso, gastos):
+    """Dia que passou por várias OS: rateia os gastos e anota cada OS.
+
+    Diferente do diário normal, aqui não existe uma OS dona do dia — o gasto
+    (deslocamento, alimentação) é de um dia inteiro de tarefas espalhadas por
+    vários clientes. Jogá-lo numa OS só distorce o custo daquela obra; deixá-lo
+    de fora some com a despesa. A saída é ratear entre as OS efetivamente
+    tocadas, que vêm no plano confirmado pelo operador — não do palpite do
+    script. Atividade sem OS (prospecção, OS não identificada) fica de fora: o
+    texto do diário continua no scratchpad da sessão.
+    """
+    plano = carregar_plano(args.dia_operacional)
+    numeros = [o["numero"] for o in plano["os"]]
+    pesos = [float(o.get("peso", 1) or 1) for o in plano["os"]]
+    conta_pessoal = normalizar(plano.get("conta", "empresa")) == "pessoal"
+
+    # Toda OS do plano tem que existir. Número errado = custo perdido numa OS
+    # fantasma; melhor parar aqui do que gravar em lugar nenhum.
+    achadas = {o["numero"]: o for o in
+               buscar(url, key, "ordens", "id,numero,andamento",
+                      numero=f"in.({','.join(numeros)})")}
+    faltam = [n for n in numeros if n not in achadas]
+    if faltam:
+        sys.exit(f"OS do plano que não existem no Gestor: {', '.join(faltam)}. "
+                 f"Confira os números e rode de novo.")
+
+    # Rateia por categoria, não pelo total: assim combustível continua
+    # combustível e alimentação continua alimentação no Financeiro de cada OS.
+    por_categoria = {}
+    for g in gastos:
+        por_categoria[g["categoria"]] = por_categoria.get(g["categoria"], 0.0) + g["valor"]
+    total = round(sum(por_categoria.values()), 2)
+    if total <= 0:
+        sys.exit("O diário não tem gastos para ratear.")
+
+    rateio = {cat: ratear_valor(val, pesos) for cat, val in por_categoria.items()}
+    total_os = [round(sum(rateio[c][i] for c in rateio), 2) for i in range(len(numeros))]
+
+    dia_br = datetime.fromisoformat(data_iso).strftime("%d/%m/%Y")
+    marca = marca_diario(data_iso)
+    origem = "conta pessoal do sócio" if conta_pessoal else "conta da empresa"
+
+    print(f"# Dia operacional {dia_br} — rateio de {brl(total)} entre "
+          f"{len(numeros)} OS\n")
+    print(f"- Origem do dinheiro: **{origem}**")
+    print("- Gastos: " + "; ".join(f"{c} {brl(v)}" for c, v in por_categoria.items()) + "\n")
+    print("| OS | Atividade (vai no andamento) | "
+          + " | ".join(rateio.keys()) + " | Total |")
+    print("|---|---|" + "|".join(["---"] * len(rateio)) + "|---|")
+    for i, o in enumerate(plano["os"]):
+        cats = " | ".join(brl(rateio[c][i]) for c in rateio)
+        print(f"| {o['numero']} | {o['atividade'][:58]} | {cats} | **{brl(total_os[i])}** |")
+    print(f"\nSoma do rateio: **{brl(round(sum(total_os), 2))}** (diário: {brl(total)})")
+    if conta_pessoal:
+        print(f"\n> 💰 Conta pessoal: além dos gastos, entra **1 reembolso pendente "
+              f"de {brl(total)}** ao sócio (categoria Pessoal, sem OS).")
+
+    if not args.aplicar:
+        print("\n**Prévia — nada gravado.** Rode com `--aplicar` para gravar.")
+        return
+
+    agora = datetime.now()
+    for i, o in enumerate(plano["os"]):
+        reg = achadas[o["numero"]]
+        andamento = reg.get("andamento") or []
+        ja = any(marca in (a.get("txt", "") if isinstance(a, dict) else str(a))
+                 for a in andamento)
+        if ja:
+            print(f"• {o['numero']}: andamento de {dia_br} já existe, mantido.")
+        else:
+            entrada = {
+                "txt": (f"{marca} {o['atividade']} · rateio operacional do dia "
+                        f"(deslocamento+alimentação): {brl(total_os[i])}."),
+                "data": agora.strftime("%d/%m/%Y"), "hora": agora.strftime("%H:%M"),
+                "user": "diário de bordo",
+            }
+            atualizar(url, key, "ordens",
+                      {"andamento": [*andamento, entrada],
+                       "atualizado_em": agora.astimezone().isoformat()},
+                      id=f"eq.{reg['id']}")
+            print(f"✓ {o['numero']}: andamento registrado.")
+
+        # Guarda contra rodar duas vezes: rateio já lançado nesta OS nesta data.
+        existentes = buscar(url, key, "pagamentos", "descricao",
+                            os_id=f"eq.{reg['id']}", data_pagamento=f"eq.{data_iso}")
+        if any("Rateio dia operacional" in (p.get("descricao") or "") for p in existentes):
+            print(f"  {o['numero']}: rateio já lançado nesta data, pulado.")
+            continue
+        for cat in rateio:
+            val = rateio[cat][i]
+            if val <= 0:
+                continue
+            inserir(url, key, "pagamentos", {
+                "descricao": f"Rateio dia operacional {dia_br} — {cat} — {o['numero']}",
+                "categoria": cat, "valor": val,
+                "vencimento": data_iso, "data_pagamento": data_iso,
+                "status": "Pago", "tipo_custo": "OS",
+                "os_id": reg["id"], "os_manual": o["numero"],
+                "obs": (f"Rateio do dia operacional de {dia_br} (total {brl(total)} "
+                        f"dividido entre {len(numeros)} OS). Pago via {origem}."),
+            })
+        print(f"  ✓ {o['numero']}: {brl(total_os[i])} lançado ({', '.join(rateio.keys())}).")
+
+    if conta_pessoal:
+        # Dívida única da empresa com o sócio pelo dia inteiro — não é de uma OS.
+        # O gasto já entrou rateado como Pago; isto é só a devolução do que saiu
+        # do bolso, e some no caixa como conta a pagar até o acerto.
+        inserir(url, key, "pagamentos", {
+            "descricao": f"Reembolso — dia operacional {dia_br} pago pela conta pessoal",
+            "categoria": "Pessoal", "valor": total,
+            "vencimento": data_iso, "data_pagamento": None,
+            "status": "Pendente", "tipo_custo": "Operacional",
+            "obs": (f"Reembolso ao sócio pelo dia operacional de {dia_br}. O gasto "
+                    f"já está rateado nas OS à parte; isto é só a devolução do que "
+                    f"saiu da conta pessoal."),
+        })
+        print(f"\n✓ Reembolso pendente de {brl(total)} criado (Pessoal, sem OS).")
+
+    print(f"\nRateio concluído: {brl(round(sum(total_os), 2))} entre {len(numeros)} OS. "
+          f"Confira no Financeiro de cada OS.")
+
+
+# ─────────────────────────── main ───────────────────────────
+
 def main():
     ap = argparse.ArgumentParser(description="Lança um diário de bordo na OS correspondente.")
     ap.add_argument("arquivo", help="arquivo de texto com o diário (ou - para stdin)")
@@ -938,6 +1100,9 @@ def main():
                          f"R$ {VALOR_KM:.2f}/km no orçamento")
     ap.add_argument("--cliente-existente", action="store_true",
                     help="reaproveita o cliente já cadastrado em vez de criar outro")
+    ap.add_argument("--dia-operacional", metavar="PLANO",
+                    help="dia que passou por várias OS: rateia os gastos e anota "
+                         "cada OS conforme o plano JSON (ver SKILL.md)")
     ap.add_argument("--json", action="store_true", help="imprime o que seria gravado, em JSON")
     args = ap.parse_args()
 
@@ -997,6 +1162,10 @@ def main():
 
         nova = criar_cadeia(url, key, cliente, orcamento, ordem, data_iso, existente)
         aplicar_diario(url, key, nova, texto_andamento, custos, pagamentos, total, args)
+        return
+
+    if args.dia_operacional:
+        dia_operacional(url, key, args, data_iso, gastos)
         return
 
     ordens = buscar(url, key, "ordens", "*,clientes(nome)", order="created_at.desc")

@@ -32,6 +32,11 @@ que é documento de obra e sai no relatório da OS.
 Campo faltando não trava a rotina — só a data é obrigatória. O que faltar sai
 sinalizado na prévia.
 
+Dois formatos fogem do dia de campo comum e têm fluxo próprio mais abaixo:
+serviço **sem OS** (cliente novo, combinado no telefone → "Quando o serviço não
+tem OS") e **dia operacional** que passa por vários clientes numa tacada só,
+com o campo 👤Cliente vazio (→ "Dia operacional — vários serviços, várias OS").
+
 ## Passo 1 — Prévia
 
 ```bash
@@ -208,6 +213,64 @@ também pode ser reais, e a diferença é de quase R$ 200.
 informado, o script para. Cadastro duplicado divide as OS do mesmo dono em
 dois donos e quebra o histórico. Confirme com o usuário se é a mesma pessoa;
 se for, use `--os` com a OS existente em vez de criar outra.
+
+## Dia operacional — vários serviços, várias OS
+
+Nem todo diário é um dia de campo de uma OS. Vem também o **dia burocrático**:
+entregar anuência num cliente, alinhar cartório de outro, levar documento pro
+prefeito assinar, reunião de prospecção — tudo no mesmo dia, cada tarefa de uma
+OS diferente. O diário chega com o campo 👤Cliente vazio e uma lista de serviços
+que não fecham numa OS só.
+
+Aqui **não existe uma OS dona do dia**. Jogar o combustível e a alimentação numa
+OS só distorce o custo daquela obra; deixar de fora some com a despesa. A saída é
+**ratear** o gasto entre as OS efetivamente tocadas — mas qual tarefa é de qual
+OS é a regra de ouro de novo: **o script nunca deduz, você confirma com o
+usuário**. A carteira tem obras com nome parecido e o mesmo cliente com várias
+OS; custo na obra errada só aparece meses depois.
+
+O fluxo:
+
+1. **Identifique as OS.** Procure no banco por cliente **e por obra** — no
+   Gestor "Vitória", "Chácara Iva" e "Cooperativa Alfa" são nomes de **obra**,
+   não de cliente, e várias OS penduram na mesma obra. Leve os candidatos ao
+   usuário e deixe **ele** dizer qual OS é cada tarefa. Tarefa que ele não quiser
+   ratear, ou OS que não dá pra identificar, fica de fora.
+2. **Prospecção não entra.** Cliente novo sem OS (a reunião da Casa e Terra) não
+   recebe rateio — se virar serviço, é caso de `--criar-os` outro dia.
+3. **Escreva o plano** num JSON no scratchpad, com a OS e o texto que vai no
+   andamento de cada uma:
+
+```json
+{
+  "conta": "empresa",
+  "os": [
+    {"numero": "OS-JUN-011", "atividade": "Entrega das anuências para Miguel e Milton assinarem."},
+    {"numero": "OS-JUL-015", "atividade": "Alinhamento com o cartório sobre a permuta."},
+    {"numero": "OS-JUN-026", "atividade": "Entrega da documentação da permuta para o prefeito assinar."}
+  ]
+}
+```
+
+4. **Prévia e aplica:**
+
+```bash
+py rotinas/diario_bordo.py <scratchpad>/diario.txt --dia-operacional <scratchpad>/plano.json
+py rotinas/diario_bordo.py <scratchpad>/diario.txt --dia-operacional <scratchpad>/plano.json --aplicar
+```
+
+O rateio é **por categoria**, não pelo total: combustível continua combustível e
+alimentação continua alimentação no Financeiro de cada OS. A divisão é igual
+entre as OS (centavo de sobra na última, a soma fecha com o diário); se um dia
+foi quase todo de uma obra, ponha `"peso": 2` (ou o que for) na OS que puxou o
+dia. Cada OS recebe um andamento marcado `[diário dd/mm/aaaa]` — a mesma marca
+que trava a duplicata, então rodar de novo **pula** o que já entrou, não dobra.
+
+**`"conta"`** é a regra de ouro da conta: `"empresa"` (padrão) lança os gastos
+como Pagos e acabou; `"pessoal"` lança os gastos **e** cria um único reembolso
+pendente do total ao sócio (categoria Pessoal, sem OS) — o dia inteiro saiu do
+bolso, e a dívida é da empresa com ele, não de uma obra. Qual conta pagou você
+**pergunta**, não deduz.
 
 ## Passo 3 — Observações: o que é dinheiro de fora
 
