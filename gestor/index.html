@@ -5679,7 +5679,13 @@ async function saveRecord(){
     if(agErr){toast('Salvo! (aviso agenda: '+agErr.message+')',false);}
   }
   // Pagamento recorrente: gera N (ou contínuo=24) lançamentos mensais independentes
+  // Se algum campo foi removido do salvamento por falta da coluna no banco, avisa em vez de
+  // salvar em silêncio — sem isso o usuário preenche um campo, o sistema "salva com sucesso"
+  // mas o dado nunca chega a ser gravado (foi o que aconteceu com contratos.orcamento_id).
   let _msgFinal=EID?'Atualizado!':'Salvo!';
+  if(_colsRemovidas.length){
+    _msgFinal+=' ATENÇÃO: sem o(s) campo(s) "'+_colsRemovidas.join(', ')+'" — essa(s) coluna(s) ainda não existe(m) na tabela "'+tb+'" do banco. Peça para adicionar via SQL Editor do Supabase.';
+  }
   if(!EID && tb==='pagamentos' && document.getElementById('pgrec-on')?.checked){
     const modo=document.getElementById('pgrec-modo')?.value||'n';
     let qtd=modo==='inf'?24:(parseInt(document.getElementById('pgrec-qtd')?.value)||12);
@@ -6340,12 +6346,7 @@ async function gerarPDFContrato(idDireto){
   // Orçamento de origem buscado ao vivo (mesmo padrão de abrirOS ao buscar orcamento_id) —
   // garante que itens e valores do contrato gerado sempre reflitam o orçamento atual.
   let orca=null;
-  if(ct.orcamento_id){const r=await sb.from('orcamentos').select('*').eq('id',ct.orcamento_id).single();orca=r.data||null;
-    // DIAGNÓSTICO TEMPORÁRIO — remover depois de identificar o problema da tabela de valores.
-    alert('DIAGNÓSTICO\nct.orcamento_id: '+ct.orcamento_id+'\nerro na busca: '+(r.error?JSON.stringify(r.error):'nenhum')+'\norca encontrado: '+(!!orca)+'\norca.numero: '+(orca&&orca.numero)+'\norca.itens (qtd): '+(orca&&orca.itens?orca.itens.length:'orca.itens é '+(orca&&typeof orca.itens))+'\norca.pagamento: '+(orca?JSON.stringify(orca.pagamento):'—'));
-  } else {
-    alert('DIAGNÓSTICO\nct.orcamento_id está vazio/nulo neste contrato — por isso não tem como buscar o orçamento.');
-  }
+  if(ct.orcamento_id){const r=await sb.from('orcamentos').select('*').eq('id',ct.orcamento_id).single();orca=r.data||null;}
   toast('Gerando contrato...');
   const cli=ct.clientes||{};
   const W=210,LIMITE=255,doc=novoPDF();
