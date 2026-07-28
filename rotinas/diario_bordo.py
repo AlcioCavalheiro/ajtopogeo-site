@@ -250,12 +250,9 @@ def achar_hora(valores):
     return None
 
 
-def ler_valor(texto):
-    """Extrai o valor em reais de 'combustível - R$ 70,00'."""
-    m = re.search(r"R?\$?\s*([\d][\d.\s]*,\d{2}|\d[\d.\s]*)\b", texto)
-    if not m:
-        return None
-    bruto = m.group(1).replace(" ", "")
+def _num_para_float(bruto):
+    """Converte o número já isolado ('1.200,00', '69,00', '1.200') em reais."""
+    bruto = bruto.replace(" ", "")
     if "," in bruto:
         bruto = bruto.replace(".", "").replace(",", ".")
     elif bruto.count(".") == 1 and len(bruto.split(".")[1]) == 3:
@@ -264,6 +261,27 @@ def ler_valor(texto):
         return round(float(bruto), 2)
     except ValueError:
         return None
+
+
+def ler_valor(texto):
+    """Extrai o valor em reais de uma linha de gasto.
+
+    A quantia de verdade nem sempre é o primeiro número da linha: "30 Estacas:
+    R$69,00" traz a quantidade antes do preço e "Combustível: 154,39" vem sem
+    cifrão. Por isso a busca segue uma ordem de preferência — (a) o número logo
+    depois de 'R$'/'$', senão (b) o número com centavos em vírgula, senão (c) o
+    último número da linha — em vez de agarrar o primeiro número cru.
+    """
+    m = re.search(r"R?\$\s*([\d][\d.\s]*,\d{2}|\d[\d.\s]*)", texto)
+    if m:
+        return _num_para_float(m.group(1))
+    decimais = re.findall(r"\d[\d.\s]*,\d{2}", texto)
+    if decimais:
+        return _num_para_float(decimais[-1])
+    numeros = re.findall(r"\d[\d.\s]*", texto)
+    if numeros:
+        return _num_para_float(numeros[-1])
+    return None
 
 
 def classificar_gasto(descricao):
@@ -290,8 +308,16 @@ def ler_gastos(linhas):
         valor = ler_valor(linha)
         if valor is None:
             continue
-        # Descrição é tudo antes do valor, sem o separador solto no fim.
-        desc = re.split(r"[-–—:]?\s*R?\$", linha)[0]
+        # Descrição é tudo antes do valor. Com "R$" o corte é nele (a quantidade
+        # antes fica na descrição: "30 Estacas: R$69,00" → "30 Estacas"); sem
+        # cifrão, corta no último número para o valor não vazar para o texto
+        # ("Combustível: 154,39" → "Combustível").
+        partes = re.split(r"[-–—:]?\s*R?\$", linha, maxsplit=1)
+        if len(partes) > 1:
+            desc = partes[0]
+        else:
+            nums = list(re.finditer(r"\d[\d.\s]*(?:,\d{2})?", linha))
+            desc = linha[:nums[-1].start()] if nums else linha
         desc = limpar(desc).rstrip(" -–—:") or linha
         desc = desc[:1].upper() + desc[1:]  # "combustível" vira "Combustível" na lista
         destino, categoria, certeza = classificar_gasto(desc)
