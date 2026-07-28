@@ -6418,25 +6418,26 @@ async function gerarPDFContrato(idDireto){
   // com o esquema de cor do contrato (azul-marinho) em vez do teal do orçamento.
   function tabelaValoresOrcamento(itens,total){
     if(!itens||!itens.length) return;
-    const xs=[16,122,142,160,196];
+    const xs=[16,104,122,168,196];
     function header(){
       checkY(9);
       doc.setFillColor(13,79,160);doc.rect(14,y-5,W-28,7,'F');
       doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(255,255,255);
-      doc.text('SERVIÇO',xs[0],y);doc.text('QTD',xs[1],y,{align:'center'});doc.text('UNID',xs[2],y,{align:'center'});doc.text('VLR UNIT',xs[3],y,{align:'right'});doc.text('SUBTOTAL',xs[4],y,{align:'right'});
+      doc.text('SERVIÇO',xs[0],y);doc.text('QTD',xs[1],y,{align:'center'});doc.text('UNID',xs[2],y);doc.text('VLR UNIT',xs[3],y,{align:'right'});doc.text('SUBTOTAL',xs[4],y,{align:'right'});
       y+=6;
     }
     header();
     doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(26,26,24);
     itens.forEach((item,idx)=>{
-      const nomeLs=doc.splitTextToSize(item.nome||'',100);
-      const rowH=Math.max(6,nomeLs.length*3.6+2);
+      const nomeLs=doc.splitTextToSize(item.nome||'',82);
+      const unidLs=doc.splitTextToSize(item.unidade||'un',40);
+      const rowH=Math.max(6,Math.max(nomeLs.length,unidLs.length)*3.6+2);
       if(y+rowH>LIMITE){novaPagina(true);header();doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(26,26,24);}
       if(idx%2===0){doc.setFillColor(235,242,250);doc.rect(14,y-4,W-28,rowH,'F');}
       const sub=Number(item.quantidade||0)*Number(item.valor_unitario||0);
       doc.text(nomeLs,xs[0],y);
       doc.text(String(item.quantidade||0),xs[1],y,{align:'center'});
-      doc.text(item.unidade||'un',xs[2],y,{align:'center'});
+      doc.text(unidLs,xs[2],y);
       doc.text(fmt(item.valor_unitario),xs[3],y,{align:'right'});
       doc.text(fmt(sub),xs[4],y,{align:'right'});
       y+=rowH;
