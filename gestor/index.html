@@ -2240,13 +2240,10 @@ function preencherContratoDoOrca(orcId){
     // Valor
     const val=document.getElementById('f-valor');
     if(val&&orc.valor_total)val.value=orc.valor_total;
-    // Objeto: monta a partir dos itens do orçamento (um por linha) ou da descrição
+    // Objeto: vem da descrição/objeto escrita no orçamento (não dos itens — os itens com
+    // valores aparecem à parte, em tabela, no contrato gerado).
     const desc=document.getElementById('f-descricao');
-    if(desc){
-      const itens=(orc.itens||[]).map(i=>i.nome).filter(Boolean);
-      if(itens.length)desc.value=itens.join('\n');
-      else if(orc.descricao)desc.value=orc.descricao;
-    }
+    if(desc&&orc.descricao)desc.value=orc.descricao;
     // Observações: forma de pagamento do orçamento, se houver
     const obs=document.getElementById('f-obs');
     if(obs&&!obs.value&&orc.pagamento){
@@ -2278,6 +2275,7 @@ async function verContrato(id){
   const orcaBlockHtml=orca?`
     <div class="card mb1" style="background:#F4F8FF">
       <div class="fxb mb1"><div class="st" style="margin:0;font-size:13px"><i class="ti ti-link" style="color:var(--brand)"></i>Vinculado ao Orçamento ${orca.numero||'—'}</div><span class="bd ${orca.status==='Aprovado'?'bs':'bw'}">${orca.status||'—'}</span></div>
+      ${orca.descricao?`<div class="mb1"><label class="fl">Objeto (do orçamento)</label><div class="mu sm" style="white-space:pre-wrap">${orca.descricao}</div></div>`:''}
       ${itensOrca.length?`<div class="tw"><table><thead><tr><th>Serviço</th><th>Qtd</th><th>Unid.</th><th>Vlr. Unit.</th><th>Subtotal</th></tr></thead><tbody>
         ${itensOrca.map(i=>`<tr><td>${i.nome||'—'}</td><td class="w5">${i.quantidade||0}</td><td class="w5">${i.unidade||'un'}</td><td class="w6">${fmt(i.valor_unitario)}</td><td class="w6">${fmt(Number(i.quantidade||0)*Number(i.valor_unitario||0))}</td></tr>`).join('')}
       </tbody></table></div>`:'<div class="mu sm">Este orçamento ainda não tem itens lançados.</div>'}
@@ -6483,12 +6481,12 @@ async function gerarPDFContrato(idDireto){
   // CLÁUSULA TERCEIRA — OBRIGAÇÕES DO CONTRATADO (objeto detalhado)
   clausula('CLÁUSULA TERCEIRA - OBRIGAÇÕES DO CONTRATADO');
   par('3.1 A CONTRATADA deverá prestar ao CONTRATANTE os seguintes serviços:');
-  // Itens do objeto: prioriza os itens reais do orçamento vinculado (ao vivo — reflete
-  // qualquer alteração feita depois no orçamento); só cai para o texto livre da descrição
-  // do contrato quando não há orçamento vinculado (contrato criado/editado manualmente).
-  const itensObj=(orca&&(orca.itens||[]).length)
-    ? orca.itens.map(i=>(i.nome||'')+(i.descricao?' — '+i.descricao:'')+' ('+(i.quantidade||0)+' '+(i.unidade||'un')+')')
-    : (ct.descricao||'').split(/\n|;|•/).map(s=>s.trim()).filter(Boolean);
+  // Objeto: vem da descrição/objeto do orçamento vinculado (ao vivo — reflete qualquer
+  // alteração feita depois no orçamento); só cai para a descrição do próprio contrato
+  // quando não há orçamento vinculado. Os itens com valores entram à parte, em tabela
+  // (mais abaixo, na cláusula quinta), não aqui na descrição do objeto.
+  const objetoTexto=(orca&&orca.descricao)?orca.descricao:(ct.descricao||'');
+  const itensObj=objetoTexto.split(/\n|;|•/).map(s=>s.trim()).filter(Boolean);
   if(itensObj.length){
     itensObj.forEach((it,i)=>{par('3.1.'+(i+1)+' '+it+';',{indent:20,after:1});});
     y+=2;
