@@ -2268,6 +2268,21 @@ async function verContrato(id){
   const totalRec=(recs||[]).reduce((s,r)=>s+Number(r.valor),0);
   const recebido=(recs||[]).filter(r=>r.status==='Recebido').reduce((s,r)=>s+Number(r.valor),0);
   const saldo=Number(c.valor)-recebido;
+  // Orçamento de origem: busca sempre ao vivo (mesma lógica de vínculo já usada em OS/medições
+  // — abrirOS busca o orçamento por orcamento_id/orcamento_numero a cada abertura) para que
+  // qualquer alteração feita depois no orçamento (itens, valor) já apareça aqui sem precisar
+  // duplicar/copiar os dados no momento da criação do contrato.
+  let orca=null;
+  if(c.orcamento_id){const r=await sb.from('orcamentos').select('*').eq('id',c.orcamento_id).single();orca=r.data||null;}
+  const itensOrca=(orca?.itens||[]);
+  const orcaBlockHtml=orca?`
+    <div class="card mb1" style="background:#F4F8FF">
+      <div class="fxb mb1"><div class="st" style="margin:0;font-size:13px"><i class="ti ti-link" style="color:var(--brand)"></i>Vinculado ao Orçamento ${orca.numero||'—'}</div><span class="bd ${orca.status==='Aprovado'?'bs':'bw'}">${orca.status||'—'}</span></div>
+      ${itensOrca.length?`<div class="tw"><table><thead><tr><th>Serviço</th><th>Qtd</th><th>Unid.</th><th>Vlr. Unit.</th><th>Subtotal</th></tr></thead><tbody>
+        ${itensOrca.map(i=>`<tr><td>${i.nome||'—'}</td><td class="w5">${i.quantidade||0}</td><td class="w5">${i.unidade||'un'}</td><td class="w6">${fmt(i.valor_unitario)}</td><td class="w6">${fmt(Number(i.quantidade||0)*Number(i.valor_unitario||0))}</td></tr>`).join('')}
+      </tbody></table></div>`:'<div class="mu sm">Este orçamento ainda não tem itens lançados.</div>'}
+      <div class="mu sm" style="margin-top:6px">Total do orçamento: <strong>${fmt(orca.valor_total)}</strong>${Math.abs(Number(orca.valor_total||0)-Number(c.valor||0))>0.01?` <span style="color:#A32D2D">(diferente do valor registrado no contrato: ${fmt(c.valor)} — confira antes de gerar o PDF)</span>`:''}</div>
+    </div>`:(c.orcamento_id?'<div class="mu sm mb1" style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Orçamento vinculado não foi encontrado (pode ter sido excluído).</div>':'');
   document.getElementById('mt2').textContent='Contrato '+c.numero;
   document.getElementById('mb2').innerHTML=`
     <div class="g2 mb1">
@@ -2279,6 +2294,7 @@ async function verContrato(id){
       <div class="mc"><div class="ml">Recebido</div><div class="mv" style="font-size:18px;color:#3B6D11">${fmt(recebido)}</div></div>
       <div class="mc"><div class="ml">Saldo</div><div class="mv" style="font-size:18px;color:${saldo>0?'#854F0B':'#0d4fa0'}">${fmt(saldo)}</div></div>
     </div>
+    ${orcaBlockHtml}
     ${c.obs?`<div class="fg"><label class="fl">Observações</label><div class="mu sm">${c.obs}</div></div>`:''}`;
   document.getElementById('mf2').innerHTML=`<button class="btn" onclick="closeModal2()">Fechar</button><button class="btn" onclick="editRecord('contratos','${id}');closeModal2()"><i class="ti ti-edit"></i> Editar</button><button class="btn bp2" onclick="gerarPDFContrato('${id}')"><i class="ti ti-file-text"></i> Gerar Contrato</button>`;
   document.getElementById('ov2').classList.add('open');
@@ -6323,6 +6339,10 @@ async function gerarPDFContrato(idDireto){
   if(!id){toast('Selecione um contrato!',true);return;}
   const{data:ct}=await sb.from('contratos').select('*,clientes(*)').eq('id',id).single();
   if(!ct){toast('Contrato não encontrado!',true);return;}
+  // Orçamento de origem buscado ao vivo (mesmo padrão de abrirOS ao buscar orcamento_id) —
+  // garante que itens e valores do contrato gerado sempre reflitam o orçamento atual.
+  let orca=null;
+  if(ct.orcamento_id){const r=await sb.from('orcamentos').select('*').eq('id',ct.orcamento_id).single();orca=r.data||null;}
   toast('Gerando contrato...');
   const cli=ct.clientes||{};
   const W=210,LIMITE=255,doc=novoPDF();
@@ -6386,6 +6406,40 @@ async function gerarPDFContrato(idDireto){
     doc.setDrawColor(13,79,160);doc.setLineWidth(0.3);doc.line(14,y,14+doc.getTextWidth(titulo),y);
     y+=6;
   }
+  // Tabela de valores do orçamento vinculado — mesmas colunas da proposta (gerarPDFOrcamento),
+  // com o esquema de cor do contrato (azul-marinho) em vez do teal do orçamento.
+  function tabelaValoresOrcamento(itens,total){
+    if(!itens||!itens.length) return;
+    const xs=[16,122,142,160,196];
+    function header(){
+      checkY(9);
+      doc.setFillColor(13,79,160);doc.rect(14,y-5,W-28,7,'F');
+      doc.setFont('helvetica','bold');doc.setFontSize(8);doc.setTextColor(255,255,255);
+      doc.text('SERVIÇO',xs[0],y);doc.text('QTD',xs[1],y,{align:'center'});doc.text('UNID',xs[2],y,{align:'center'});doc.text('VLR UNIT',xs[3],y,{align:'right'});doc.text('SUBTOTAL',xs[4],y,{align:'right'});
+      y+=6;
+    }
+    header();
+    doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(26,26,24);
+    itens.forEach((item,idx)=>{
+      const nomeLs=doc.splitTextToSize(item.nome||'',100);
+      const rowH=Math.max(6,nomeLs.length*3.6+2);
+      if(y+rowH>LIMITE){novaPagina(true);header();doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(26,26,24);}
+      if(idx%2===0){doc.setFillColor(235,242,250);doc.rect(14,y-4,W-28,rowH,'F');}
+      const sub=Number(item.quantidade||0)*Number(item.valor_unitario||0);
+      doc.text(nomeLs,xs[0],y);
+      doc.text(String(item.quantidade||0),xs[1],y,{align:'center'});
+      doc.text(item.unidade||'un',xs[2],y,{align:'center'});
+      doc.text(fmt(item.valor_unitario),xs[3],y,{align:'right'});
+      doc.text(fmt(sub),xs[4],y,{align:'right'});
+      y+=rowH;
+    });
+    checkY(12);
+    doc.setFillColor(9,56,115);doc.rect(14,y-4,W-28,9,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(9.5);doc.setTextColor(255,255,255);
+    doc.text('TOTAL',xs[0],y+1.5);doc.text(fmt(total),xs[4],y+1.5,{align:'right'});
+    y+=13;
+    doc.setTextColor(26,26,24);
+  }
 
   // ══════════ CAPA ══════════
   doc.setFillColor(13,79,160);doc.rect(0,0,W,297,'F');
@@ -6429,8 +6483,12 @@ async function gerarPDFContrato(idDireto){
   // CLÁUSULA TERCEIRA — OBRIGAÇÕES DO CONTRATADO (objeto detalhado)
   clausula('CLÁUSULA TERCEIRA - OBRIGAÇÕES DO CONTRATADO');
   par('3.1 A CONTRATADA deverá prestar ao CONTRATANTE os seguintes serviços:');
-  // Itens do objeto: a partir da descrição do contrato (quebra por linha ou ;)
-  const itensObj=(ct.descricao||'').split(/\n|;|•/).map(s=>s.trim()).filter(Boolean);
+  // Itens do objeto: prioriza os itens reais do orçamento vinculado (ao vivo — reflete
+  // qualquer alteração feita depois no orçamento); só cai para o texto livre da descrição
+  // do contrato quando não há orçamento vinculado (contrato criado/editado manualmente).
+  const itensObj=(orca&&(orca.itens||[]).length)
+    ? orca.itens.map(i=>(i.nome||'')+(i.descricao?' — '+i.descricao:'')+' ('+(i.quantidade||0)+' '+(i.unidade||'un')+')')
+    : (ct.descricao||'').split(/\n|;|•/).map(s=>s.trim()).filter(Boolean);
   if(itensObj.length){
     itensObj.forEach((it,i)=>{par('3.1.'+(i+1)+' '+it+';',{indent:20,after:1});});
     y+=2;
@@ -6448,6 +6506,12 @@ async function gerarPDFContrato(idDireto){
   clausula('CLÁUSULA QUINTA - DO PREÇO E DAS CONDIÇÕES DE PAGAMENTO');
   const valExt=ct.valor?valorPorExtenso(Number(ct.valor)):'';
   par('5.1 Fica acertado entre as partes o valor total de '+fmt(ct.valor||0)+(valExt?' ('+valExt+')':'')+' para a prestação dos serviços ora contratados.');
+  if(orca&&(orca.itens||[]).length){
+    checkY(10);
+    doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(13,79,160);
+    doc.text('Tabela de valores — Orçamento '+(orca.numero||''),14,y);y+=6;
+    tabelaValoresOrcamento(orca.itens,orca.valor_total);
+  }
   par('5.2 Os pagamentos serão realizados 50% (cinquenta por cento) para início dos trabalhos e 50% (cinquenta por cento) ao final, mediante a comprovação de finalização com o protocolo do processo no órgão competente.');
   par('5.3 No caso de atraso no pagamento superior a 15 (quinze) dias, será devida multa moratória no valor de 2% (dois por cento) sobre o valor em atraso, além de juros de 0,033% (trinta e três milésimos por cento) por dia de atraso.');
   par('5.4 As taxas de cartório, INCRA ou quaisquer encargos públicos serão de responsabilidade exclusiva do CONTRATANTE.');
@@ -7686,6 +7750,7 @@ function _osSetFiltroRapido(tipo){
 // ALTER TABLE ordens ADD COLUMN IF NOT EXISTS data_status date;
 // ALTER TABLE ordens ADD COLUMN IF NOT EXISTS obra_id uuid REFERENCES obras(id);
 // ALTER TABLE ordens ADD COLUMN IF NOT EXISTS responsaveis jsonb DEFAULT '[]';
+// ALTER TABLE contratos ADD COLUMN IF NOT EXISTS orcamento_id uuid REFERENCES orcamentos(id);
 
 // ─── INSERÇÃO EM LOTE: Pró-labore Previsão Jul–Dez 2026 ──────
 // Chame uma vez pelo console: inserirPrevisaoProlabore2026H2()
