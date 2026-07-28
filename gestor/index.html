@@ -6340,7 +6340,12 @@ async function gerarPDFContrato(idDireto){
   // Orçamento de origem buscado ao vivo (mesmo padrão de abrirOS ao buscar orcamento_id) —
   // garante que itens e valores do contrato gerado sempre reflitam o orçamento atual.
   let orca=null;
-  if(ct.orcamento_id){const r=await sb.from('orcamentos').select('*').eq('id',ct.orcamento_id).single();orca=r.data||null;}
+  if(ct.orcamento_id){const r=await sb.from('orcamentos').select('*').eq('id',ct.orcamento_id).single();orca=r.data||null;
+    // DIAGNÓSTICO TEMPORÁRIO — remover depois de identificar o problema da tabela de valores.
+    alert('DIAGNÓSTICO\nct.orcamento_id: '+ct.orcamento_id+'\nerro na busca: '+(r.error?JSON.stringify(r.error):'nenhum')+'\norca encontrado: '+(!!orca)+'\norca.numero: '+(orca&&orca.numero)+'\norca.itens (qtd): '+(orca&&orca.itens?orca.itens.length:'orca.itens é '+(orca&&typeof orca.itens))+'\norca.pagamento: '+(orca?JSON.stringify(orca.pagamento):'—'));
+  } else {
+    alert('DIAGNÓSTICO\nct.orcamento_id está vazio/nulo neste contrato — por isso não tem como buscar o orçamento.');
+  }
   toast('Gerando contrato...');
   const cli=ct.clientes||{};
   const W=210,LIMITE=255,doc=novoPDF();
