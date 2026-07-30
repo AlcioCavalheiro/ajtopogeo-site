@@ -1,0 +1,69 @@
+{
+  "_comentario": "Modelo de entrada do gerar_post_blog.py. Campos narrativos (hero_h1, hero_lead, intro, paragrafos, lista) aceitam HTML inline (<strong>, <a>, <span>). Campos de atributo (title, meta_*, alt, tag, titulo_card, resumo_card) são escapados automaticamente. Slug: minúsculo com hífens; vira blog-<slug>.html e a URL limpa /blog-<slug>.",
+
+  "slug": "exemplo-noticia-setor",
+  "categoria": "geo",
+  "tag": "Notícia · Georreferenciamento",
+  "titulo_card": "Título curto do card no índice do blog",
+  "resumo_card": "Uma ou duas frases que aparecem no card do índice, sem HTML.",
+  "imagem": "marco-geodesico.jpg",
+  "imagem_alt": "Descrição objetiva da imagem para acessibilidade e SEO",
+
+  "title": "Título da aba/SEO até ~60 caracteres | AJ TopoGeo",
+  "meta_description": "Meta description de 140 a 160 caracteres resumindo a notícia e o ângulo da AJ TopoGeo para o produtor rural de MS.",
+  "meta_keywords": "palavra-chave 1, palavra-chave 2, georreferenciamento MS, INCRA",
+  "og_title": "Título para compartilhamento em redes",
+  "og_description": "Resumo curto para o card de compartilhamento.",
+
+  "breadcrumb": "Título curto na trilha",
+  "hero_h1": "Manchete <span>com destaque</span> no hero",
+  "hero_lead": "Parágrafo de abertura do hero, explicando a notícia em uma frase forte.",
+  "data_publicacao": "2026-07-29",
+
+  "intro": "Primeiro parágrafo do artigo. Contextualiza a notícia e por que ela importa para quem tem imóvel rural em Mato Grosso do Sul.",
+  "secoes": [
+    {
+      "h2": "O que muda na prática",
+      "paragrafos": [
+        "Parágrafo explicando o ponto principal, com <strong>termos-chave em negrito</strong>.",
+        "Segundo parágrafo do bloco, se necessário."
+      ]
+    },
+    {
+      "h2": "Quem é afetado",
+      "paragrafos": ["Frase introduzindo a lista:"],
+      "lista": [
+        "Primeiro item da lista",
+        "Segundo item",
+        "Terceiro item"
+      ]
+    },
+    {
+      "h2": "Como a AJ TopoGeo ajuda",
+      "paragrafos": [
+        "Fechamento amarrando o serviço da empresa, com link para o <a href=\"georreferenciamento-incra\" style=\"color:var(--verde);\">serviço de georreferenciamento INCRA</a>."
+      ]
+    }
+  ],
+
+  "fonte": {
+    "nome": "Nome do veículo de imprensa",
+    "url": "https://exemplo.com/materia-original"
+  },
+
+  "cta_sidebar": {
+    "titulo": "Chamada da sidebar",
+    "texto": "Texto curto de conversão na barra lateral.",
+    "wa_text": "Olá! Vim pelo blog e quero falar sobre georreferenciamento."
+  },
+  "leia_tambem": [
+    { "href": "blog-georreferenciamento-obrigatorio", "label": "Quando o georreferenciamento é obrigatório" },
+    { "href": "blog-sigef-incra", "label": "SIGEF: o que é e como certificar" },
+    { "href": "georreferenciamento-incra", "label": "Serviço: Georreferenciamento INCRA" }
+  ],
+  "cta_faixa": {
+    "titulo": "Chamada da faixa final",
+    "texto": "Texto da faixa de CTA no rodapé do artigo.",
+    "wa_text": "Olá! Vim pelo blog e quero um orçamento."
+  }
+}

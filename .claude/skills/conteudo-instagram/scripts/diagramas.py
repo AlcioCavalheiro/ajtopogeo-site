@@ -183,14 +183,34 @@ def perfil_vertente(img, top=830, topo_rotulo="LOTEAMENTO", agua=False,
     if marcas:
         ytopo = min(_terreno_v(x, x0, x1, top) - _dossel_v(x, x0, x1)
                     for x in xs) - 52
+        frot = font(BOLD_F, 22)
+        # rótulo centrado no marcador e preso à margem; quando dois se
+        # encavalam na horizontal, o segundo sobe uma linha em vez de colar.
+        itens = []
         for pos, texto, alvo in marcas:
             xp = x0 + int((x1 - x0) * pos)
+            w = largura(d, texto, frot, 4)
+            lx = int(max(x0, min(xp - w / 2, x1 - w)))
+            itens.append([xp, texto, alvo, lx, w])
+        itens.sort(key=lambda it: it[3])
+        linhas_dir = []  # borda direita já ocupada em cada linha de rótulo
+        for it in itens:
+            lx, w = it[3], it[4]
+            r = 0
+            while r < len(linhas_dir) and lx < linhas_dir[r] + 16:
+                r += 1
+            if r == len(linhas_dir):
+                linhas_dir.append(0)
+            linhas_dir[r] = lx + w
+            it.append(r)
+        for xp, texto, alvo, lx, w, r in itens:
             ys = _terreno_v(xp, x0, x1, top)
             yc = ys - _dossel_v(xp, x0, x1)
             yp = {"solo": ys, "meio": (ys + yc) / 2, "copa": yc}[alvo]
-            d.line([(xp, yp), (xp, ytopo + 14)], fill=ORANGE + (255,), width=3)
+            ylab = ytopo - 18 - r * 32
+            d.line([(xp, yp), (xp, ylab + 22)], fill=ORANGE + (255,), width=3)
             d.ellipse([xp - 7, yp - 7, xp + 7, yp + 7], fill=ORANGE + (255,))
-            _rot(d, xp - 6, ytopo - 18, texto, ORANGE, 22, x0, x1)
+            tracked(d, (lx, ylab), texto, frot, ORANGE, track=4)
 
     if lancamento:
         xp = x0 + int((x1 - x0) * 0.9)
@@ -205,9 +225,118 @@ def perfil_vertente(img, top=830, topo_rotulo="LOTEAMENTO", agua=False,
     img.alpha_composite(layer)
 
 
+# --------------------------------------------- corte_via_pv (locação de PV)
+
+def corte_via_pv(img, cota=None, rotulos=None, descricao=None, top=760):
+    """Corte transversal da via para locação de poço de visita (PV) de esgoto.
+
+    Mostra a capa asfáltica como faixa na superfície, o fuste do poço descendo
+    abaixo dela (tubo com anéis) com o tampão no nível do greide, o meio-fio na
+    lateral e uma cota de amarração lateral ligando o centro do poço à face do
+    meio-fio - a referência que sobrevive ao corte do asfalto.
+
+    `cota` é o texto da medida; `rotulos` = [capa, fuste, tampão, meio-fio].
+    """
+    W, H = img.size
+    layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    x0, x1 = MARGIN, W - MARGIN
+
+    padrao = ["CAPA ASFÁLTICA", "FUSTE DO POÇO", "TAMPÃO NO GREIDE", "MEIO-FIO"]
+    rot = list(rotulos or [])
+    while len(rot) < 4:
+        rot.append(padrao[len(rot)])
+    r_capa, r_fuste, r_tampao, r_mf = rot[0], rot[1], rot[2], rot[3]
+
+    # --- geometria do corte -------------------------------------------------
+    y_surf = top + 100                    # greide = topo da capa asfáltica
+    band_h = 26
+    y_band = y_surf + band_h              # base da capa
+    x_pv = x0 + int((x1 - x0) * 0.35)     # centro do poço de visita
+    fw = 42                               # meia-largura do fuste
+    y_fuste = min(H - 210, y_surf + 290)  # profundidade desenhada do fuste
+    x_mf = x0 + int((x1 - x0) * 0.85)     # face interna do meio-fio
+    mf_w = 72
+    y_mf_top = y_surf - 30
+    y_mf_bot = y_surf + 100
+    y_ground = y_fuste + 20
+
+    # degradê de leitura atrás do diagrama (garante contraste sobre a foto)
+    y_bg = top - 30
+    for y in range(y_bg, min(H, y_ground + 8)):
+        a = int(150 * _suave(y, y_bg, y_bg + 64))
+        if a:
+            d.line([(0, y), (W, y)], fill=(13, 27, 42, a))
+
+    # subleito: pista à esquerda (mais baixa) e terreno/passeio à direita do
+    # meio-fio (mais alto) - o meio-fio separa os dois níveis da via
+    d.rectangle([x0 - 4, y_band, x_mf, y_ground], fill=(16, 34, 52, 168))
+    d.rectangle([x_mf, y_mf_top, x1 + 4, y_ground], fill=(16, 34, 52, 168))
+    for yy in range(int(y_band) + 22, int(y_ground), 34):   # hachura do solo
+        d.line([(x0, yy), (x1, yy)], fill=(28, 52, 78, 90), width=1)
+
+    # capa asfáltica (faixa escura na pista) + greide, só até a face do meio-fio
+    d.rectangle([x0 - 4, y_surf, x_mf, y_band], fill=(9, 16, 26, 235))
+    d.line([(x0 - 4, y_surf), (x_mf, y_surf)], fill=(170, 190, 208, 255), width=3)
+    # terreno do outro lado do meio-fio, num nível acima do greide da pista
+    d.line([(x_mf + mf_w, y_mf_top), (x1 + 4, y_mf_top)], fill=(150, 172, 194, 220), width=2)
+
+    # fuste do poço: massa, anéis e paredes; centro tracejado
+    d.rectangle([x_pv - fw, y_surf, x_pv + fw, y_fuste], fill=(38, 60, 86, 185))
+    for yy in range(int(y_surf) + 46, int(y_fuste), 46):    # anéis
+        d.line([(x_pv - fw, yy), (x_pv + fw, yy)], fill=(120, 145, 170, 210), width=2)
+    for xx in (x_pv - fw, x_pv + fw):
+        d.line([(xx, y_surf), (xx, y_fuste)], fill=(150, 172, 194, 240), width=4)
+    d.line([(x_pv - fw, y_fuste), (x_pv + fw, y_fuste)], fill=(150, 172, 194, 240), width=4)
+    _tracejada(d, [(x_pv, y_surf), (x_pv, y_fuste)], ORANGE + (150,), 2, dash=12, gap=10)
+
+    # tampão no greide (elemento em destaque)
+    tw = fw + 12
+    d.rectangle([x_pv - tw, y_surf - 9, x_pv + tw, y_surf + 7], fill=ACCENT + (255,))
+    d.line([(x_pv, y_surf - 9), (x_pv, y_surf + 7)], fill=(13, 27, 42, 210), width=2)
+
+    # meio-fio (guia) na lateral
+    d.rectangle([x_mf, y_mf_top, x_mf + mf_w, y_mf_bot], fill=(120, 145, 170, 235))
+    d.rectangle([x_mf, y_mf_top, x_mf + mf_w, y_mf_bot], outline=(170, 190, 208, 255), width=2)
+
+    # --- cota de amarração lateral: centro do PV -> face do meio-fio ---------
+    y_dim = y_surf - 44
+    d.line([(x_pv, y_dim), (x_mf, y_dim)], fill=ORANGE + (255,), width=3)
+    d.line([(x_pv, y_dim - 4), (x_pv, y_surf - 2)], fill=ORANGE + (200,), width=2)
+    d.line([(x_mf, y_dim - 4), (x_mf, y_mf_top)], fill=ORANGE + (200,), width=2)
+    for xx, s in ((x_pv, 1), (x_mf, -1)):
+        d.polygon([(xx, y_dim), (xx + 15 * s, y_dim - 7), (xx + 15 * s, y_dim + 7)],
+                  fill=ORANGE + (255,))
+    if cota:
+        fc = font(BOLD_F, 27)
+        wc = largura(d, cota, fc, 4)
+        xc = int((x_pv + x_mf) / 2 - wc / 2)
+        _rot(d, xc, y_dim - 42, cota, ORANGE, 27, x0, x1)
+
+    # --- rótulos com linha de chamada (clampados à margem) ------------------
+    def _leader(target, lx, ly, texto, cor, tam=22):
+        f = font(BOLD_F, tam)
+        w = largura(d, texto, f, 4)
+        lx = int(max(x0, min(lx, x1 - w)))
+        tracked(d, (lx, ly), texto, f, cor, track=4)
+        tx, ty = target
+        cx = lx if abs(tx - lx) <= abs(tx - (lx + w)) else lx + w
+        cy = ly - 4 if ty < ly else ly + tam + 2
+        d.line([(cx, cy), target], fill=cor + (220,), width=2)
+        d.ellipse([tx - 5, ty - 5, tx + 5, ty + 5], fill=cor + (255,))
+
+    _leader((x_pv - tw + 6, y_surf - 1), x0 + 4, y_surf - 54, r_tampao, ACCENT, 22)
+    _leader((x0 + 165, y_surf + band_h // 2), x0 + 4, y_band + 22, r_capa, WHITE, 22)
+    _leader((x_pv + fw, y_surf + 160), x_pv + fw + 44, y_surf + 146, r_fuste, WHITE, 22)
+    _leader((x_mf + mf_w // 2, y_mf_bot), x_mf - 24, y_mf_bot + 18, r_mf, WHITE, 22)
+
+    img.alpha_composite(layer)
+
+
 DIAGRAMAS = {
     "perfil_mata": perfil_mata,
     "perfil_vertente": perfil_vertente,
+    "corte_via_pv": corte_via_pv,
 }
 
 

@@ -6,7 +6,7 @@ de todas as artes de Instagram - confira contra o site antes.
 """
 import math
 import os
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
 
 # --- paleta (css/style.css) ---
 BG = (13, 27, 42)        # --azul    #0d1b2a
@@ -101,7 +101,10 @@ def foto_fundo(img, caminho, dim=0.58, blur=0.8, top_scrim=800, bot_scrim=330,
     anchor_y < 0.5 puxa o enquadramento para cima, jogando o assunto para baixo.
     """
     W, H = img.size
-    ph = Image.open(caminho).convert("RGB")
+    # exif_transpose aplica a orientação EXIF (foto de celular/câmera vem com a
+    # rotação no metadado); sem isso a imagem sai deitada, ao contrário do que o
+    # navegador mostra no site. No-op para imagem sem orientação.
+    ph = ImageOps.exif_transpose(Image.open(caminho)).convert("RGB")
     s = max(W / ph.width, H / ph.height) * zoom
     ph = ph.resize((int(ph.width * s) + 1, int(ph.height * s) + 1), Image.LANCZOS)
     lx = (ph.width - W) // 2

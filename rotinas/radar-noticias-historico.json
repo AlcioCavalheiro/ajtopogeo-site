@@ -1,0 +1,29 @@
+{
+  "_comentario": "Histórico da rotina radar-noticias. Cada post de notícia já feito entra aqui para não repetir tema na semana seguinte. Sem dado sigiloso — notícia é pública. Semeado com os posts de notícia que já existiam no site antes da rotina.",
+  "posts": [
+    {
+      "data": "2026-07-29",
+      "titulo": "INCRA unifica seus sistemas de terras: o que muda em agosto",
+      "tema": "georreferenciamento / INCRA / SIGEF / SNCR / certificação",
+      "fonte": "Poder360",
+      "fonte_url": "https://www.poder360.com.br/poder-infra/incra-unifica-sistemas-de-dados-em-agosto-para-controle-de-terras/",
+      "slug": "incra-sistema-unificado-terras"
+    },
+    {
+      "data": "2026-06-07",
+      "titulo": "Georreferenciamento obrigatório ampliado até 2029: o que muda",
+      "tema": "georreferenciamento / prazo / INCRA",
+      "fonte": "Decreto federal (alteração do Decreto 4.449/2002)",
+      "fonte_url": "",
+      "slug": "georreferenciamento-prazo-2029"
+    },
+    {
+      "data": "2026-06-07",
+      "titulo": "Regularização de barragens, açudes e reservatórios em MS",
+      "tema": "meio ambiente / barragens / IMASUL",
+      "fonte": "IMASUL / Governo de MS",
+      "fonte_url": "",
+      "slug": "regularizacao-barragens-acudes-ms"
+    }
+  ]
+}

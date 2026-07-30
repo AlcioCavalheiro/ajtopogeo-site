@@ -31,6 +31,21 @@ FF = imageio_ffmpeg.get_ffmpeg_exe()
 RW, RH = M.STORY_W, M.STORY_H
 
 
+def _atempo(vel):
+    """Cadeia de atempo para a velocidade pedida. O filtro atempo só aceita
+    tempo em [0.5, 100]; câmera lenta (vel < 0.5) precisa de fatores encadeados
+    (ex.: 0.4 = 0.5 x 0.8). Sem isso o ffmpeg aborta com 'Result too large'."""
+    fatores, v = [], float(vel)
+    while v < 0.5:
+        fatores.append(0.5)
+        v /= 0.5
+    while v > 100.0:
+        fatores.append(100.0)
+        v /= 100.0
+    fatores.append(v)
+    return ",".join(f"atempo={f:.6g}" for f in fatores)
+
+
 def _faixa(d, y0, y1, a_max=185):
     """Degradê atrás da legenda: sem isso o texto some no céu claro."""
     for y in range(y0, y1):
@@ -120,7 +135,7 @@ def montar(peca, pasta, trabalho):
             f"[{src}:v]trim={c['ini']}:{c['fim']},{pts},"
             f"scale={RW}:{RH}:force_original_aspect_ratio=increase,"
             f"crop={RW}:{RH},fps=30,setsar=1[b{i}];")
-        atempo = f",atempo={vel}" if vel != 1.0 else ""
+        atempo = f",{_atempo(vel)}" if vel != 1.0 else ""
         fc.append(
             f"[{src}:a]atrim={c['ini']}:{c['fim']},asetpts=PTS-STARTPTS{atempo},"
             f"aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[a{i}];")

@@ -151,7 +151,14 @@
       "Bash(node -e \"console.log\\(require.resolve\\('jsdom'\\)\\); console.log\\(require.resolve\\('d3-delaunay'\\)\\)\")",
       "mcp__claude-in-chrome__tabs_context_mcp",
       "mcp__claude-in-chrome__navigate",
-      "mcp__claude-in-chrome__get_page_text"
+      "mcp__claude-in-chrome__get_page_text",
+      "Bash(node test_contrato_orcamento.js)",
+      "Bash(ls -la ~/.claude/settings.json 2>/dev/null && echo \"---EXISTS---\" || echo \"---NOT FOUND---\")",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\(process.env.USERPROFILE+'/.claude/settings.json','utf8'\\)\\); console.log\\('valid json'\\)\")",
+      "Bash(node -e \"const fs=require\\('fs'\\);JSON.parse\\(fs.readFileSync\\('C:/Users/ALCIO/.claude/settings.json','utf8'\\)\\);console.log\\('valid json'\\)\")",
+      "Bash(curl -s 'https://wwmlrifoxnekhgppikxa.supabase.co/rest/v1/orcamentos?select=id,numero,descricao,valor_total,cliente_id,status&numero=like.*-100' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3bWxyaWZveG5la2hncHBpa3hhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2NTE3OTQsImV4cCI6MjA5NTIyNzc5NH0.6VIS72AJC8VOArvXh-4sXDuyrYRkj3zP5cUhuEaYPHo' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3bWxyaWZveG5la2hncHBpa3hhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2NTE3OTQsImV4cCI6MjA5NTIyNzc5NH0.6VIS72AJC8VOArvXh-4sXDuyrYRkj3zP5cUhuEaYPHo')",
+      "Bash(curl -s 'https://wwmlrifoxnekhgppikxa.supabase.co/rest/v1/orcamentos?select=id,numero&limit=5&order=numero.asc' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3bWxyaWZveG5la2hncHBpa3hhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2NTE3OTQsImV4cCI6MjA5NTIyNzc5NH0.6VIS72AJC8VOArvXh-4sXDuyrYRkj3zP5cUhuEaYPHo' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3bWxyaWZveG5la2hncHBpa3hhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2NTE3OTQsImV4cCI6MjA5NTIyNzc5NH0.6VIS72AJC8VOArvXh-4sXDuyrYRkj3zP5cUhuEaYPHo' -w '\\\\nHTTP:%{http_code}\\\\n')",
+      "Bash(curl -s 'https://wwmlrifoxnekhgppikxa.supabase.co/rest/v1/ordens?select=id,numero&limit=3' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3bWxyaWZveG5la2hncHBpa3hhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2NTE3OTQsImV4cCI6MjA5NTIyNzc5NH0.6VIS72AJC8VOArvXh-4sXDuyrYRkj3zP5cUhuEaYPHo' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3bWxyaWZveG5la2hncHBpa3hhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2NTE3OTQsImV4cCI6MjA5NTIyNzc5NH0.6VIS72AJC8VOArvXh-4sXDuyrYRkj3zP5cUhuEaYPHo' -w '\\\\nHTTP:%{http_code}\\\\n')"
     ],
     "defaultMode": "acceptEdits"
   }

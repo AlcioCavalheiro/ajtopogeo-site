@@ -126,6 +126,19 @@ para drenagem, terraplenagem, talvegue, APP.
 `topo_rotulo` · `agua` (bool) · `curvas` (bool) · `lancamento` (bool) ·
 `marcas`: lista de `[posicao_0a1, "TEXTO", "solo|meio|copa"]`.
 
+`corte_via_pv` — corte transversal da via para locação de poço de visita (PV)
+de esgoto. Capa asfáltica como faixa na superfície (greide no topo), o fuste
+do poço descendo abaixo dela (tubo com anéis e centro tracejado), o tampão em
+destaque no nível do greide, e o meio-fio na lateral separando a pista (mais
+baixa) do terreno/passeio (mais alto). Uma cota de amarração lateral, em
+laranja, liga o centro do poço à face do meio-fio — a referência que sobrevive
+ao corte do asfalto. Traz seu próprio degradê de leitura, então funciona sobre
+foto clara. Rótulos clampados à margem.
+`cota` (texto da medida, ex.: `"amarração lateral ao meio-fio"`) ·
+`rotulos`: lista `[capa, fuste, tampão, meio-fio]` (padrão
+`["CAPA ASFÁLTICA", "FUSTE DO POÇO", "TAMPÃO NO GREIDE", "MEIO-FIO"]`) ·
+`top` (padrão 760).
+
 Diagrama novo: escreva a função, registre em `DIAGRAMAS` e documente aqui.
 Quem lê os cards é topógrafo e engenheiro — diagrama errado custa mais caro
 que diagrama ausente.

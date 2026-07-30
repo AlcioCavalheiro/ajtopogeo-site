@@ -21,9 +21,9 @@ from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-from reportlab.platypus import (BaseDocTemplate, Frame, Image, PageBreak,
-                                PageTemplate, Paragraph, Spacer, Table,
-                                TableStyle)
+from reportlab.platypus import (BaseDocTemplate, Frame, Image, KeepTogether,
+                                PageBreak, PageTemplate, Paragraph, Spacer,
+                                Table, TableStyle)
 
 _F = "C:/Windows/Fonts/"
 pdfmetrics.registerFont(TTFont("SUI", _F + "segoeui.ttf"))
@@ -85,7 +85,9 @@ def tabela(dados, larguras, com_cabecalho=True):
     corpo = [[Paragraph(str(c).replace("\n", "<br/>"),
                         S_CAB if (com_cabecalho and r == 0) else S_CEL)
               for c in linha] for r, linha in enumerate(dados)]
-    t = Table(corpo, colWidths=larguras)
+    # repeatRows: quando a tabela quebra de página, o cabeçalho reaparece em vez
+    # de deixar linhas órfãs sem título na página seguinte.
+    t = Table(corpo, colWidths=larguras, repeatRows=1 if com_cabecalho else 0)
     est = [("VALIGN", (0, 0), (-1, -1), "TOP"),
            ("LINEBELOW", (0, 0), (-1, -2), 0.4, LINHA),
            ("TOPPADDING", (0, 0), (-1, -1), 2.6 * mm),
@@ -111,15 +113,25 @@ def caixa_legenda(texto):
     return t
 
 
-def tira(caminhos, legendas, altura):
+def tira(caminhos, legendas, altura, max_w=None):
+    if max_w is None:
+        max_w = PAG_W - 2 * ML
     imgs = []
     for c in caminhos:
         im = Image(c)
         im.drawHeight = altura
         im.drawWidth = altura * (im.imageWidth / im.imageHeight)
         imgs.append(im)
+    gap = 3 * mm
+    total = sum(im.drawWidth for im in imgs) + gap * len(imgs)
+    if total > max_w:  # contact sheet largo (Reel) não pode estourar a página
+        k = max_w / total
+        for im in imgs:
+            im.drawHeight *= k
+            im.drawWidth *= k
+        gap *= k
     t = Table([imgs, [Paragraph(l, S_PEQ) for l in legendas]],
-              colWidths=[im.drawWidth + 3 * mm for im in imgs])
+              colWidths=[im.drawWidth + gap for im in imgs])
     t.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"),
                            ("LEFTPADDING", (0, 0), (-1, -1), 0),
                            ("TOPPADDING", (0, 1), (-1, 1), 2)]))
@@ -198,8 +210,11 @@ def build(caminho_pauta):
                          [[str(i), t] for i, t in enumerate(p["passos"], 1)],
                          [14 * mm, 160 * mm])]
         if p.get("montagem"):
-            E += [Spacer(1, 5 * mm), Paragraph("Observações de montagem", H2),
-                  Paragraph(p["montagem"], S)]
+            # mantém título e parágrafo juntos: evita a linha órfã numa página
+            # quase em branco quando a observação é longa (caso do Reel).
+            E += [Spacer(1, 5 * mm),
+                  KeepTogether([Paragraph("Observações de montagem", H2),
+                                Paragraph(p["montagem"], S)])]
 
     E.append(PageBreak())
     E += [rotulo("regras da casa"), Spacer(1, 1.5 * mm),
