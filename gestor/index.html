@@ -1991,9 +1991,30 @@ function atualizarTotalOrca(){const tot=OI.reduce((s,it)=>s+(it.qt||0)*(it.vu||0
 function oiChange(i,f,v){if(OI[i])OI[i][f]=parseFloat(v)||0;atualizarSubtotal(i);}
 
 let _orcamentosCache=[];
+const _ORCA_STATUS_LISTA=['Rascunho','Enviado','Aprovado','Finalizado','Recusado'];
+let _orcaFiltroStatus='Enviado';
+let _orcaOSFinalizada=new Set(); // ids de orçamentos cuja OS já foi concluída/recebida
+function _orcaBadgeCls(s){return s==='Aprovado'?'bs':s==='Recusado'?'br':s==='Enviado'?'bi':s==='Finalizado'?'bp':'bn';}
+function _orcaStatusTabsHTML(ors){
+  return '<div class="tabs" id="orca-status-tabs" style="margin-bottom:1rem">'
+    +_ORCA_STATUS_LISTA.map(function(s){
+      const cnt=ors.filter(function(o){return(o.status||'Rascunho')===s;}).length;
+      const active=_orcaFiltroStatus===s;
+      return '<div class="tab'+(active?' active':'')+'" data-status="'+s+'" onclick="orcaStatusTab(\''+s+'\')">'+s+' ('+cnt+')</div>';
+    }).join('')
+    +'</div>';
+}
+function orcaStatusTab(status){
+  _orcaFiltroStatus=status;
+  document.querySelectorAll('#orca-status-tabs .tab').forEach(function(t){
+    t.classList.toggle('active',t.dataset.status===status);
+  });
+  _renderOrcamentosTabela(_orcamentosCache,(document.getElementById('si')?.value||'').trim());
+}
 function _renderOrcamentosTabela(ors,q){
   const hj=new Date();
-  const t=q?ors.filter(o=>{const s=_normOS((o.numero||'')+(o.clientes?.nome||'')+(o.obras?.nome||'')+(o.status||''));return s.includes(_normOS(q));}):ors;
+  const base=ors.filter(o=>(o.status||'Rascunho')===_orcaFiltroStatus);
+  const t=q?base.filter(o=>{const s=_normOS((o.numero||'')+(o.clientes?.nome||'')+(o.obras?.nome||'')+(o.status||''));return s.includes(_normOS(q));}):base;
   const tb=document.getElementById('orcamentos-tbody');
   if(!tb)return;
   tb.innerHTML=t.map(o=>{
@@ -2009,15 +2030,16 @@ function _renderOrcamentosTabela(ors,q){
       <td class="w6">${fmt(o.valor_total)}</td>
       <td class="mu sm">${o.status==='Enviado'?diasEnv+'d':'—'}</td>
       <td>${fd(o.validade)}</td>
-      <td><span class="bd ${o.status==='Aprovado'?'bs':o.status==='Recusado'?'br':o.status==='Enviado'?'bi':'bn'}">${o.status}</span></td>
+      <td><span class="bd ${_orcaBadgeCls(o.status)}">${o.status}</span></td>
       <td>${al?`<span class="bd bw"><i class="ti ti-bell" style="font-size:12px"></i> vence ${diff}d</span>`:fu}</td>
       <td class="fx g8">
+        ${o.status==='Aprovado'&&_orcaOSFinalizada.has(o.id)?`<button class="btn bsm" style="background:#EEEDFE;color:#3C3489;border:1px solid #c9c6f5" title="OS concluída — finalizar orçamento" onclick="finalizarOrca('${o.id}')"><i class="ti ti-flag-check"></i> Finalizar</button>`:''}
         <button class="btn bsm" onclick="editRecord('orcamentos','${o.id}')"><i class="ti ti-edit"></i></button>
         <button class="btn bsm" onclick="verOrca('${o.id}')"><i class="ti ti-eye"></i></button>
         <button class="btn bxs bdr" onclick="excluirReg('orcamentos','${o.id}','${o.numero}')"><i class="ti ti-trash"></i></button>
       </td>
     </tr>`;
-  }).join('')||(q?`<tr><td colspan="9" style="text-align:center;color:#888;padding:2rem">Nenhum orçamento encontrado para "<strong>${q}</strong>"</td></tr>`:nd(9));
+  }).join('')||(q?`<tr><td colspan="9" style="text-align:center;color:#888;padding:2rem">Nenhum orçamento encontrado para "<strong>${q}</strong>"</td></tr>`:`<tr><td colspan="9" style="text-align:center;color:#888;padding:2rem">Nenhum orçamento na aba <strong>${_orcaFiltroStatus}</strong>.</td></tr>`);
 }
 async function rOrcamentos(){
   const{data}=await sb.from('orcamentos').select('*,clientes(nome)').order('created_at',{ascending:false});
@@ -2029,16 +2051,29 @@ async function rOrcamentos(){
     const obraMap={};(obrasData||[]).forEach(ob=>{obraMap[ob.id]=ob;});
     _orcamentosCache.forEach(o=>{o.obras=o.obra_id?obraMap[o.obra_id]||null:null;});
   }
+  // Quais orçamentos já têm OS concluída/recebida → habilita "Finalizar"
+  _orcaOSFinalizada=new Set();
+  const{data:osFin}=await sb.from('ordens').select('orcamento_id,orcamento_numero,status').in('status',['Concluída','Recebido']);
+  if(osFin){
+    const numMap={};_orcamentosCache.forEach(o=>{if(o.numero)numMap[o.numero]=o.id;});
+    osFin.forEach(os=>{
+      if(os.orcamento_id)_orcaOSFinalizada.add(os.orcamento_id);
+      else if(os.orcamento_numero&&numMap[os.orcamento_numero])_orcaOSFinalizada.add(numMap[os.orcamento_numero]);
+    });
+  }
   const ors=_orcamentosCache;
+  if(!_ORCA_STATUS_LISTA.includes(_orcaFiltroStatus))_orcaFiltroStatus='Enviado';
   document.getElementById('ct').innerHTML=`
   <div class="g3 mb1" style="grid-template-columns:repeat(5,1fr)">
     <div class="mc"><div class="ml">Total</div><div class="mv">${ors.length}</div></div>
-    <div class="mc"><div class="ml">Aprovados</div><div class="mv" style="color:#27500A">${ors.filter(o=>o.status==='Aprovado').length}</div></div>
     <div class="mc"><div class="ml">Enviados</div><div class="mv" style="color:#854F0B">${ors.filter(o=>o.status==='Enviado').length}</div></div>
-    <div class="mc"><div class="ml">Rascunhos</div><div class="mv" style="color:#555">${ors.filter(o=>o.status==='Rascunho').length}</div></div>
-    <div class="mc"><div class="ml">Cancelados</div><div class="mv" style="color:#A32D2D">${ors.filter(o=>o.status==='Recusado').length}</div></div>
+    <div class="mc"><div class="ml">Aprovados</div><div class="mv" style="color:#27500A">${ors.filter(o=>o.status==='Aprovado').length}</div></div>
+    <div class="mc"><div class="ml">Finalizados</div><div class="mv" style="color:#3C3489">${ors.filter(o=>o.status==='Finalizado').length}</div></div>
+    <div class="mc"><div class="ml">Recusados</div><div class="mv" style="color:#A32D2D">${ors.filter(o=>o.status==='Recusado').length}</div></div>
   </div>
-  <div class="card"><div class="tw"><table>
+  <div class="card">
+  ${_orcaStatusTabsHTML(ors)}
+  <div class="tw"><table>
     <thead><tr><th>Número</th><th>Cliente</th><th>Obra</th><th>Valor Total</th><th>Enviado há</th><th>Validade</th><th>Status</th><th>Follow-up</th><th></th></tr></thead>
     <tbody id="orcamentos-tbody"></tbody>
   </table></div></div>`;
@@ -2054,6 +2089,15 @@ async function updOrca(id,status){
     if(o){ await sincPipelineOrçamento(o,id); await gerarPrevisaoRecebimento(o); }
   }
   toast('Status atualizado!');closeModal2();rOrcamentos();
+}
+
+// Finaliza um orçamento cujo serviço (OS) já foi concluído — move para a aba Finalizados.
+async function finalizarOrca(id){
+  if(!confirm('Finalizar este orçamento? Ele será movido para a aba Finalizados.'))return;
+  const{error}=await sb.from('orcamentos').update({status:'Finalizado'}).eq('id',id);
+  if(error){toast('Erro ao finalizar: '+error.message,true);return;}
+  _orcaFiltroStatus='Finalizado';
+  toast('Orçamento finalizado!');closeModal2();rOrcamentos();
 }
 
 // Gera previsões de recebimento (pendentes, datadas) ao aprovar um orçamento.
@@ -2093,7 +2137,7 @@ async function verOrca(id){
   document.getElementById('mb2').innerHTML=`
     <div class="g2 mb1">
       <div><div class="w6">Cliente</div><div class="w5">${o.clientes?.nome||'—'}</div><div class="mu sm">${o.clientes?.cpfcnpj||''}</div><div class="mu sm">${o.clientes?.telefone||''}</div></div>
-      <div><div class="w6">Validade</div><div>${fd(o.validade)}</div><div class="w6 mt1">Status</div><span class="bd ${o.status==='Aprovado'?'bs':o.status==='Recusado'?'br':'bi'}">${o.status}</span></div>
+      <div><div class="w6">Validade</div><div>${fd(o.validade)}</div><div class="w6 mt1">Status</div><span class="bd ${_orcaBadgeCls(o.status)}">${o.status}</span></div>
     </div>
     ${o.descricao?`<div class="mu sm mb1">${o.descricao}</div>`:''}
     <div class="oh"><span>Serviço</span><span>Qtd</span><span>Vlr Unit.</span><span>Subtotal</span><span></span></div>
@@ -2105,7 +2149,9 @@ async function verOrca(id){
   const osHtml=_osVinc.length?('<div style="margin-top:1rem;border-top:1px solid var(--bor);padding-top:1rem"><div class="w6 sm" style="margin-bottom:.5rem">OS vinculadas ('+_osVinc.length+')</div><table><thead><tr><th>Número</th><th>Tipo</th><th>Resp.</th><th>Data</th><th>Status</th><th>Vlr.Orç.</th><th></th></tr></thead><tbody>'+_osVinc.map(os=>'<tr><td class="w6">'+os.numero+'</td><td>'+os.tipo+'</td><td>'+(os.responsavel||'—')+'</td><td>'+fd(os.data)+'</td><td>'+bos(os.status)+'</td><td class="w5">'+fmt(os.orcamento_valor||0)+'</td><td><button class="btn bsm" onclick="atualizarTipoOS(\''+os.id+'\',\''+os.tipo+'\')" title="Alterar tipo"><i class="ti ti-edit"></i></button></td></tr>').join('')+'</tbody></table></div>'):'';
   document.getElementById('mb2').innerHTML+=osHtml;
   var _btnSinc=_osVinc.length?('<button class="btn" style="background:#FAEEDA;color:#633806;border:1px solid #EF9F27" onclick="sincOrcamentoParaOS(\''+id+'\')"><i class="ti ti-refresh"></i> Sincronizar OS</button>'):'';
-  document.getElementById('mf2').innerHTML='<button class="btn" onclick="closeModal2()">Fechar</button><button class="btn" onclick="editRecord(\'orcamentos\',\''+id+'\');closeModal2()"><i class="ti ti-edit"></i> Editar</button><button class="btn" style="background:#EAF0FB;color:#0D4FA0;border:1px solid #b3c9ef" onclick="gerarPDFOrcamento(\''+id+'\')"><i class="ti ti-file-invoice"></i> Gerar PDF</button>'+_btnSinc+(o.status==='Enviado'?'<button class="btn bdr" onclick="updOrca(\''+id+'\',\'Recusado\')">Recusado</button><button class="btn bp2" onclick="updOrca(\''+id+'\',\'Aprovado\')"><i class="ti ti-check"></i> Aprovado</button>':'')+(o.status==='Aprovado'?'<button class="btn bp2" onclick="orcaToOS(\''+id+'\')"><i class="ti ti-clipboard-plus"></i> Criar OS</button>':'');
+  var _osFinalizada=_osVinc.some(function(os){return os.status==='Concluída'||os.status==='Recebido';});
+  var _btnFinalizar=(o.status==='Aprovado'&&_osFinalizada)?('<button class="btn" style="background:#EEEDFE;color:#3C3489;border:1px solid #c9c6f5" onclick="finalizarOrca(\''+id+'\')"><i class="ti ti-flag-check"></i> Finalizar Orçamento</button>'):'';
+  document.getElementById('mf2').innerHTML='<button class="btn" onclick="closeModal2()">Fechar</button><button class="btn" onclick="editRecord(\'orcamentos\',\''+id+'\');closeModal2()"><i class="ti ti-edit"></i> Editar</button><button class="btn" style="background:#EAF0FB;color:#0D4FA0;border:1px solid #b3c9ef" onclick="gerarPDFOrcamento(\''+id+'\')"><i class="ti ti-file-invoice"></i> Gerar PDF</button>'+_btnSinc+(o.status==='Enviado'?'<button class="btn bdr" onclick="updOrca(\''+id+'\',\'Recusado\')">Recusado</button><button class="btn bp2" onclick="updOrca(\''+id+'\',\'Aprovado\')"><i class="ti ti-check"></i> Aprovado</button>':'')+(o.status==='Aprovado'?'<button class="btn bp2" onclick="orcaToOS(\''+id+'\')"><i class="ti ti-clipboard-plus"></i> Criar OS</button>':'')+_btnFinalizar;
   document.getElementById('ov2').classList.add('open');
 }
 
