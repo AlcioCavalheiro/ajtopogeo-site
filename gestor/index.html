@@ -353,6 +353,7 @@ select.fc{cursor:pointer}
       <div class="ni" onclick="nav('rotinas')"><i class="ti ti-rotate"></i>Rotinas Recorrentes</div>
       <div class="ni" onclick="nav('administrativo')"><i class="ti ti-building"></i>Administrativo</div>
       <div class="ni" onclick="nav('funcionarios')"><i class="ti ti-id-badge"></i>Funcionários</div>
+      <div class="ni" onclick="nav('frotas')"><i class="ti ti-car"></i>Frotas</div>
       <div class="ni" onclick="nav('relatorios')"><i class="ti ti-printer"></i>Relatórios / PDF</div>
       <div class="ni" onclick="nav('config')"><i class="ti ti-settings"></i>Configuração</div>
     </nav>
@@ -515,6 +516,20 @@ const PCFG={
   rotinas:{t:'Rotinas Recorrentes',a:'Nova Rotina'},
   administrativo:{t:'Administrativo',tb:'documentos_empresa',a:'Novo Documento',h:function(o){return '<div class="fg"><label class="fl">Nome do documento *</label><input class="fc" id="f-nome" placeholder="Ex: Alvará de funcionamento..."></div><div class="g2"><div class="fg"><label class="fl">Categoria</label><select class="fc" id="f-categoria"><option>Licença</option><option>Certidão</option><option>Contrato</option><option>Certificado</option><option>Registro</option><option>Outro</option></select></div><div class="fg"><label class="fl">Número / Código</label><input class="fc" id="f-numero"></div></div><div class="g2"><div class="fg"><label class="fl">Data emissão</label><input class="fc" type="date" id="f-data_emissao"></div><div class="fg"><label class="fl">Validade</label><input class="fc" type="date" id="f-validade"></div></div><div class="fg"><label class="fl">Responsável</label><input class="fc" id="f-responsavel"></div><div class="fg"><label class="fl">Observações</label><textarea class="fc" id="f-obs" rows="2"></textarea></div><div class="fg"><label class="fl">Arquivo (PDF, imagem, Word, Excel)</label><div id="adm-upload-area" class="upload-area" onclick="document.getElementById(\'adm-file-input\').click()"><i class="ti ti-file-upload"></i><p>Clique ou arraste o arquivo aqui</p></div><div id="adm-file-preview" style="display:none"></div><input type="file" id="adm-file-input" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" style="display:none" onchange="handleFileSelect(this,\'adm\')"><input type="hidden" id="f-arquivo_url" value=""></div>';}},
   funcionarios:{t:'Novo Funcionário',tb:'funcionarios',a:'Novo Funcionário',h:function(o){return '<div class="fg"><label class="fl">Nome *</label><input class="fc" id="f-nome"></div><div class="g2"><div class="fg"><label class="fl">CPF</label><input class="fc" id="f-cpf"></div><div class="fg"><label class="fl">Cargo</label><input class="fc" id="f-cargo" placeholder="Ex: Técnico em Topografia"></div></div><div class="g2"><div class="fg"><label class="fl">Telefone</label><input class="fc" id="f-telefone"></div><div class="fg"><label class="fl">E-mail</label><input class="fc" type="email" id="f-email"></div></div><div class="g2"><div class="fg"><label class="fl">Valor hora (R$)</label><input class="fc" type="number" step="0.01" id="f-valor_hora"></div><div class="fg"><label class="fl">Valor diária (R$)</label><input class="fc" type="number" step="0.01" id="f-valor_diaria"></div></div><div class="g2"><div class="fg"><label class="fl">Data admissão</label><input class="fc" type="date" id="f-data_admissao"></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-ativo"><option value="true">Ativo</option><option value="false">Inativo</option></select></div></div>';}},
+  frotas:{t:'Frotas',a:'Novo Veículo',tb:'veiculos',h:function(o){return ''
+    +'<div class="g2"><div class="fg"><label class="fl">Apelido / Nome *</label><input class="fc" id="f-nome" placeholder="Ex: Hilux branca"></div>'
+    +'<div class="fg"><label class="fl">Placa</label><input class="fc" id="f-placa" placeholder="ABC1D23"></div></div>'
+    +'<div class="g3"><div class="fg"><label class="fl">Marca</label><input class="fc" id="f-marca"></div>'
+    +'<div class="fg"><label class="fl">Modelo</label><input class="fc" id="f-modelo"></div>'
+    +'<div class="fg"><label class="fl">Ano</label><input class="fc" type="number" id="f-ano"></div></div>'
+    +'<div class="g3"><div class="fg"><label class="fl">Tipo</label><select class="fc" id="f-tipo"><option>Caminhonete</option><option>Carro</option><option>Moto</option><option>Caminhão</option><option>Máquina</option><option>Outro</option></select></div>'
+    +'<div class="fg"><label class="fl">Combustível</label><select class="fc" id="f-combustivel"><option>Flex</option><option>Gasolina</option><option>Etanol</option><option>Diesel</option><option>GNV</option></select></div>'
+    +'<div class="fg"><label class="fl">Cor</label><input class="fc" id="f-cor"></div></div>'
+    +'<div class="g2"><div class="fg"><label class="fl">Hodômetro atual (km)</label><input class="fc" type="number" id="f-km_atual" placeholder="0"></div>'
+    +'<div class="fg"><label class="fl">Responsável</label><input class="fc" id="f-responsavel" placeholder="Quem usa"></div></div>'
+    +'<div class="g2"><div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option>Ativo</option><option>Em manutenção</option><option>Inativo</option><option>Vendido</option></select></div>'
+    +'<div class="fg"><label class="fl">RENAVAM</label><input class="fc" id="f-renavam"></div></div>'
+    +'<div class="fg"><label class="fl">Observações</label><textarea class="fc" id="f-obs" rows="2"></textarea></div>';}},
   relatorios:{t:'Relatórios / PDF',a:null},
   config:{t:'Configuração',a:null},
   tributario:{t:'Controle Tributário',a:null},
@@ -5490,7 +5505,7 @@ async function openModal(){
 async function editRecord(table,id){
   EID=id;CM=table;
   const prevPage=CP;
-  const pmap={'notas_fiscais':'nfe','documentos_empresa':'administrativo','custos_os':'custos_os','medicoes':'medicao','contas_bancarias':'contas'};
+  const pmap={'notas_fiscais':'nfe','documentos_empresa':'administrativo','custos_os':'custos_os','medicoes':'medicao','contas_bancarias':'contas','veiculos':'frotas'};
   CP=pmap[table]||table;
   await openModal();
   CP=prevPage;EID=id;
@@ -7125,6 +7140,7 @@ function addDocChecklist(osId){
 }
 
 async function abrirOS(id){
+  window._osAtualId=id;
   // Busca OS + cliente sem join obras (FK obra_id pode não existir ainda → evita 400)
   let[{data:o,error:errOS},{data:funcsOS}]=await Promise.all([
     sb.from('ordens').select('*,clientes(nome,cpfcnpj,telefone)').eq('id',id).single(),
@@ -7171,6 +7187,7 @@ async function abrirOS(id){
     +'<div class="tab" onclick="osTab(\'and\')">Andamento</div>'
     +'<div class="tab" onclick="osTab(\'ck\')">Checklist docs</div>'
     +'<div class="tab" onclick="osTab(\'fi\')">Financeiro</div>'
+    +'<div class="tab" onclick="osTab(\'campo\')">Campo</div>'
     +'</div>'
 
     // ─── ABA GERAL (somente leitura + status editável) ──────
@@ -7257,7 +7274,8 @@ async function abrirOS(id){
     +'</div>'
 
     // ─── ABA FINANCEIRO ──────────────────────────────────────
-    +'<div class="tp" id="tp-fi"><div id="osfi"><div class="ld"><div class="sp"></div></div></div></div>';
+    +'<div class="tp" id="tp-fi"><div id="osfi"><div class="ld"><div class="sp"></div></div></div></div>'
+    +'<div class="tp" id="tp-campo"><div id="os-campo"><div class="ld"><div class="sp"></div></div></div></div>';
 
   document.getElementById('mf2').innerHTML=
     '<button class="btn" onclick="closeModal2()">Fechar</button>'
@@ -7273,14 +7291,15 @@ async function abrirOS(id){
 
 // ─── TROCA DE ABAS DA OS ─────────────────────────────────
 function osTab(tab){
-  const panels={geral:'tp-geral',and:'tp-and',ck:'tp-ck',fi:'tp-fi'};
-  const idxMap={geral:0,and:1,ck:2,fi:3};
+  const panels={geral:'tp-geral',and:'tp-and',ck:'tp-ck',fi:'tp-fi',campo:'tp-campo'};
+  const idxMap={geral:0,and:1,ck:2,fi:3,campo:4};
   document.querySelectorAll('#mb2 .tp').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('#os-tabs .tab').forEach(t=>t.classList.remove('active'));
   const panel=document.getElementById(panels[tab]);
   if(panel)panel.classList.add('active');
   const tabs=document.querySelectorAll('#os-tabs .tab');
   if(tabs[idxMap[tab]])tabs[idxMap[tab]].classList.add('active');
+  if(tab==='campo')loadOSCampo(window._osAtualId);
 }
 
 // ─── REGISTRAR ANDAMENTO DA OS ───────────────────────────
@@ -13602,6 +13621,311 @@ async function baixarDocumento(docId, nomeEnc){
 }
 
 pageMap.administrativo=rDocumentos;
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PONTO / ATENDIMENTOS DE CAMPO — aba "Campo" dentro da OS
+   Lê a tabela atendimentos_campo (gravada pelo app de campo /campo).
+   ═══════════════════════════════════════════════════════════════════════ */
+function gid(x){return document.getElementById(x);}
+function fnum(n){return Number(n||0).toLocaleString('pt-BR');}
+function addDias(iso,n){const d=new Date((iso||hojeLocal())+'T12:00');d.setDate(d.getDate()+n);return hojeLocal(d);}
+
+async function loadOSCampo(osId){
+  const box=gid('os-campo');if(!box||!osId)return;
+  box.innerHTML='<div class="ld"><div class="sp"></div></div>';
+  const{data,error}=await sb.from('atendimentos_campo').select('*').eq('os_id',osId).order('ts_entrada',{ascending:false});
+  if(error){box.innerHTML='<div class="card"><div class="st">Campo indisponível</div><div class="mu sm">Rode a migration <b>add_atendimentos_campo.sql</b> no Supabase para ativar.<br>'+error.message+'</div></div>';return;}
+  if(!data||!data.length){box.innerHTML='<div style="background:#F8FBFF;border:1px dashed var(--bor);border-radius:8px;padding:1.2rem;text-align:center;color:#888"><i class="ti ti-map-pin-off" style="font-size:26px"></i><div style="margin-top:6px">Nenhum atendimento de campo nesta OS.</div><div class="sm">Entrada/saída, km, foto e GPS batidos no app de campo aparecem aqui.</div></div>';return;}
+  const concl=data.filter(a=>a.status==='concluido');
+  const kmTot=concl.reduce((s,a)=>s+((a.km_final!=null&&a.km_inicial!=null)?Number(a.km_final)-Number(a.km_inicial):0),0);
+  box.innerHTML='<div class="g3 mb1">'
+    +'<div class="card" style="padding:.6rem"><div class="mu sm">Atendimentos</div><div style="font-size:18px;font-weight:700">'+data.length+'</div></div>'
+    +'<div class="card" style="padding:.6rem"><div class="mu sm">Km rodado</div><div style="font-size:18px;font-weight:700">'+fnum(kmTot)+'</div></div>'
+    +'<div class="card" style="padding:.6rem"><div class="mu sm">Em aberto</div><div style="font-size:18px;font-weight:700">'+data.filter(a=>a.status==='em_andamento').length+'</div></div>'
+    +'</div>'+data.map(cardAtendimento).join('');
+}
+function cardAtendimento(a){
+  const fmtDT=iso=>iso?new Date(iso).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
+  const km=(a.km_final!=null&&a.km_inicial!=null)?(Number(a.km_final)-Number(a.km_inicial)):null;
+  const mapL=(lat,lng)=>lat&&lng?'<a class="btn bxs" target="_blank" href="https://www.google.com/maps/search/?api=1&query='+lat+','+lng+'"><i class="ti ti-map-pin"></i> mapa</a>':'';
+  const foto=(url,lbl)=>url?'<a href="'+url+'" target="_blank" style="display:block"><img src="'+url+'" style="width:100%;height:120px;object-fit:cover;border-radius:8px"><div class="mu sm" style="text-align:center;margin-top:2px">'+lbl+'</div></a>':'<div class="mu sm" style="text-align:center;padding:1.4rem .5rem;background:#f4f4f0;border-radius:8px">sem foto<br>'+lbl+'</div>';
+  const bdg=a.status==='concluido'?'<span style="background:#E9F4EA;color:#2f7d32;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700">Concluído</span>':'<span style="background:#FFF2E0;color:#9a5a06;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700">Em andamento</span>';
+  return '<div class="card mb1"><div class="fxb mb1"><div style="font-weight:700"><i class="ti ti-user" style="color:#666"></i> '+(a.operador||'Operador')+'</div>'+bdg+'</div>'
+    +'<div class="g2"><div><div class="mu sm">Entrada</div><div class="sm" style="font-weight:600">'+fmtDT(a.ts_entrada)+'</div><div class="mu sm">km '+(a.km_inicial!=null?fnum(a.km_inicial):'—')+'</div>'+mapL(a.geo_entrada_lat,a.geo_entrada_lng)+'</div>'
+    +'<div><div class="mu sm">Saída</div><div class="sm" style="font-weight:600">'+fmtDT(a.ts_saida)+'</div><div class="mu sm">km '+(a.km_final!=null?fnum(a.km_final):'—')+'</div>'+mapL(a.geo_saida_lat,a.geo_saida_lng)+'</div></div>'
+    +(km!=null?'<div class="sm" style="margin-top:6px">Rodou <b>'+fnum(km)+' km</b></div>':'')
+    +(a.obs?'<div class="sm mu" style="margin-top:4px">'+a.obs+'</div>':'')
+    +'<div class="g2" style="margin-top:8px">'+foto(a.foto_entrada_url,'entrada')+foto(a.foto_saida_url,'saída')+'</div></div>';
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   FROTAS — veículos, abastecimentos, manutenções, documentos
+   ═══════════════════════════════════════════════════════════════════════ */
+function calcConsumo(abastList){
+  const rows=(abastList||[]).filter(a=>a.km!=null&&a.litros!=null).sort((a,b)=>Number(a.km)-Number(b.km));
+  const pares=[];
+  for(let i=1;i<rows.length;i++){
+    if(rows[i].tanque_cheio!==false){
+      const dkm=Number(rows[i].km)-Number(rows[i-1].km), lit=Number(rows[i].litros);
+      if(dkm>0&&lit>0)pares.push(dkm/lit);
+    }
+  }
+  const kmL=pares.length?pares.reduce((s,x)=>s+x,0)/pares.length:null;
+  const kmRodado=rows.length>=2?Number(rows[rows.length-1].km)-Number(rows[0].km):0;
+  const totalComb=(abastList||[]).reduce((s,a)=>s+Number(a.valor_total||0),0);
+  return {kmL,kmRodado,totalComb};
+}
+
+async function rFrotas(){
+  const el=gid('ct');if(!el)return;
+  el.innerHTML='<div class="ld"><div class="sp"></div></div>';
+  const[{data:veics,error},aRes,mRes,dRes]=await Promise.all([
+    sb.from('veiculos').select('*').order('nome'),
+    sb.from('abastecimentos').select('veiculo_id,data,km,litros,valor_total,tanque_cheio'),
+    sb.from('manutencoes').select('veiculo_id,data,valor,proxima_data,proxima_km,categoria,descricao'),
+    sb.from('documentos_veiculo').select('veiculo_id,tipo,validade'),
+  ]);
+  if(error){el.innerHTML='<div class="card"><div class="st">Frotas indisponível</div><div class="mu sm">Rode a migration <b>add_frotas.sql</b> no Supabase para ativar este módulo.<br>'+error.message+'</div></div>';return;}
+  const abast=aRes.data||[], manut=mRes.data||[], docs=dRes.data||[];
+  if(!veics||!veics.length){el.innerHTML='<div style="text-align:center;padding:3rem 1rem;color:#888"><i class="ti ti-car" style="font-size:44px;opacity:.4"></i><div style="margin-top:8px;font-size:15px">Nenhum veículo cadastrado.</div><div class="sm">Clique em <b>Novo Veículo</b> para começar.</div></div>';return;}
+  const mesAtual=hojeLocal().slice(0,7);
+  const hj=hojeLocal(), lim30=addDias(hj,30), lim15=addDias(hj,15);
+  // Alertas
+  const alertas=[];
+  const nomeV=id=>{const v=veics.find(x=>x.id===id);return v?(v.nome||v.placa||'Veículo'):'Veículo';};
+  docs.forEach(d=>{if(d.validade&&d.validade<=lim30){const venc=d.validade<hj;alertas.push({cor:venc?'#A32D2D':'#BA7517',veic:nomeV(d.veiculo_id),txt:(d.tipo||'Documento')+(venc?' VENCIDO em ':' vence ')+fd(d.validade)});}});
+  manut.forEach(m=>{
+    const v=veics.find(x=>x.id===m.veiculo_id);
+    if(m.proxima_data&&m.proxima_data<=lim15){const at=m.proxima_data<hj;alertas.push({cor:at?'#A32D2D':'#BA7517',veic:nomeV(m.veiculo_id),txt:'Manutenção '+(m.categoria||'')+(at?' atrasada ('+fd(m.proxima_data)+')':' prevista '+fd(m.proxima_data))});}
+    else if(m.proxima_km&&v&&v.km_atual&&Number(m.proxima_km)<=Number(v.km_atual)+500){alertas.push({cor:'#BA7517',veic:nomeV(m.veiculo_id),txt:'Manutenção '+(m.categoria||'')+' prevista em '+fnum(m.proxima_km)+' km (atual '+fnum(v.km_atual)+')'});}
+  });
+  const gastoCombMes=abast.filter(a=>(a.data||'').slice(0,7)===mesAtual).reduce((s,a)=>s+Number(a.valor_total||0),0);
+  const gastoManutMes=manut.filter(m=>(m.data||'').slice(0,7)===mesAtual).reduce((s,m)=>s+Number(m.valor||0),0);
+
+  let html='<div class="g3 mb1">'
+    +'<div class="card"><div class="mu sm">Veículos ativos</div><div style="font-size:22px;font-weight:700">'+veics.filter(v=>v.status==='Ativo'||!v.status).length+'<span class="mu sm" style="font-weight:400"> / '+veics.length+'</span></div></div>'
+    +'<div class="card"><div class="mu sm">Combustível (mês)</div><div style="font-size:22px;font-weight:700">'+fmt(gastoCombMes)+'</div></div>'
+    +'<div class="card"><div class="mu sm">Manutenção (mês)</div><div style="font-size:22px;font-weight:700">'+fmt(gastoManutMes)+'</div></div>'
+    +'</div>';
+  if(alertas.length){
+    html+='<div class="card mb1" style="border-left:3px solid #BA7517"><div class="st mb1"><i class="ti ti-alert-triangle" style="color:#BA7517"></i> Alertas ('+alertas.length+')</div>'
+      +alertas.map(a=>'<div style="display:flex;gap:8px;align-items:center;padding:5px 0;border-bottom:.5px solid var(--bor)"><span style="width:8px;height:8px;border-radius:50%;background:'+a.cor+';flex-shrink:0"></span><span style="font-size:13px"><b>'+a.veic+'</b> — '+a.txt+'</span></div>').join('')
+      +'</div>';
+  }
+  html+='<div class="gr" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px">';
+  veics.forEach(v=>{
+    const ab=abast.filter(a=>a.veiculo_id===v.id);
+    const c=calcConsumo(ab);
+    const gm=ab.filter(a=>(a.data||'').slice(0,7)===mesAtual).reduce((s,a)=>s+Number(a.valor_total||0),0);
+    const stCor={'Ativo':'#2f7d32','Em manutenção':'#BA7517','Inativo':'#666','Vendido':'#A32D2D'}[v.status]||'#2f7d32';
+    html+='<div class="card tap" style="cursor:pointer" onclick="abrirVeiculo(\''+v.id+'\')">'
+      +'<div class="fxb mb1"><div style="font-weight:700">'+(v.nome||v.placa||'Veículo')+'</div><span style="background:'+stCor+'22;color:'+stCor+';border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700">'+(v.status||'Ativo')+'</span></div>'
+      +'<div class="mu sm">'+[v.placa,v.marca,v.modelo,v.ano].filter(Boolean).join(' · ')+'</div>'
+      +'<div class="g2" style="margin-top:8px">'
+        +'<div><div class="mu sm">Hodômetro</div><div style="font-weight:600">'+fnum(v.km_atual)+' km</div></div>'
+        +'<div><div class="mu sm">Consumo</div><div style="font-weight:600">'+(c.kmL?c.kmL.toFixed(1)+' km/l':'—')+'</div></div>'
+      +'</div>'
+      +'<div class="mu sm" style="margin-top:6px">Combustível no mês: <b style="color:#333">'+fmt(gm)+'</b></div>'
+      +'</div>';
+  });
+  html+='</div>';
+  el.innerHTML=html;
+  const si=gid('si');if(si)si.oninput=null;
+}
+pageMap.frotas=rFrotas;
+
+async function abrirVeiculo(id){
+  window._veicAtualId=id;
+  const[{data:v},{data:ab},{data:mn},{data:dc}]=await Promise.all([
+    sb.from('veiculos').select('*').eq('id',id).single(),
+    sb.from('abastecimentos').select('*').eq('veiculo_id',id).order('data',{ascending:false}),
+    sb.from('manutencoes').select('*').eq('veiculo_id',id).order('data',{ascending:false}),
+    sb.from('documentos_veiculo').select('*').eq('veiculo_id',id).order('validade'),
+  ]);
+  if(!v){toast('Veículo não encontrado',true);return;}
+  const abast=ab||[], manut=mn||[], docs=dc||[];
+  const c=calcConsumo(abast);
+  const totalManut=manut.reduce((s,m)=>s+Number(m.valor||0),0);
+  const custoKm=c.kmRodado>0?(c.totalComb+totalManut)/c.kmRodado:null;
+
+  gid('mt2').textContent=(v.nome||v.placa||'Veículo');
+  gid('mb2').innerHTML=
+    '<div class="tabs" id="veic-tabs">'
+    +'<div class="tab active" id="vtab-resumo" onclick="veicTab(\'resumo\')">Resumo</div>'
+    +'<div class="tab" id="vtab-abast" onclick="veicTab(\'abast\')">Abastecimentos</div>'
+    +'<div class="tab" id="vtab-manut" onclick="veicTab(\'manut\')">Manutenções</div>'
+    +'<div class="tab" id="vtab-doc" onclick="veicTab(\'doc\')">Documentos</div>'
+    +'</div>'
+    // RESUMO
+    +'<div id="vtp-resumo">'
+    +'<div style="background:#f4f4f0;border-radius:10px;padding:1rem;margin-bottom:1rem"><div class="g2">'
+      +'<div><div class="w6 sm">Placa</div><div style="font-weight:600">'+(v.placa||'—')+'</div></div>'
+      +'<div><div class="w6 sm">Marca / Modelo</div><div style="font-weight:600">'+[v.marca,v.modelo,v.ano].filter(Boolean).join(' ')+'</div></div>'
+      +'<div style="margin-top:.5rem"><div class="w6 sm">Combustível</div><div>'+(v.combustivel||'—')+'</div></div>'
+      +'<div style="margin-top:.5rem"><div class="w6 sm">Responsável</div><div>'+(v.responsavel||'—')+'</div></div>'
+    +'</div></div>'
+    +'<div class="g3 mb1">'
+      +'<div class="card" style="padding:.6rem"><div class="mu sm">Hodômetro</div><div style="font-size:17px;font-weight:700">'+fnum(v.km_atual)+' km</div></div>'
+      +'<div class="card" style="padding:.6rem"><div class="mu sm">Consumo médio</div><div style="font-size:17px;font-weight:700">'+(c.kmL?c.kmL.toFixed(1)+' km/l':'—')+'</div></div>'
+      +'<div class="card" style="padding:.6rem"><div class="mu sm">Custo por km</div><div style="font-size:17px;font-weight:700">'+(custoKm?fmt(custoKm):'—')+'</div></div>'
+    +'</div>'
+    +'<div class="g2 mb1">'
+      +'<div class="card" style="padding:.6rem"><div class="mu sm">Total combustível</div><div style="font-size:16px;font-weight:700">'+fmt(c.totalComb)+'</div><div class="mu sm">'+abast.length+' abastecimento(s)</div></div>'
+      +'<div class="card" style="padding:.6rem"><div class="mu sm">Total manutenção</div><div style="font-size:16px;font-weight:700">'+fmt(totalManut)+'</div><div class="mu sm">'+manut.length+' registro(s)</div></div>'
+    +'</div>'
+    +(v.obs?'<div class="card mb1"><div class="w6 sm mb1">Observações</div><div class="sm">'+v.obs+'</div></div>':'')
+    +'</div>'
+    // ABASTECIMENTOS
+    +'<div id="vtp-abast" style="display:none">'
+    +'<button class="btn bp2 bsm mb1" onclick="novoAbast(\''+id+'\')"><i class="ti ti-gas-station"></i> Novo abastecimento</button>'
+    +(abast.length?'<div class="tw"><table><thead><tr><th>Data</th><th>Km</th><th>Litros</th><th>R$/l</th><th>Total</th><th>Posto</th><th></th></tr></thead><tbody>'
+      +abast.map(a=>'<tr><td>'+fd(a.data)+'</td><td>'+(a.km!=null?fnum(a.km):'—')+'</td><td>'+(a.litros!=null?a.litros:'—')+'</td><td>'+(a.valor_litro!=null?fmt(a.valor_litro):'—')+'</td><td>'+fmt(a.valor_total)+(a.pagamento_id?' <i class="ti ti-cash" title="Lançado no financeiro" style="color:#1a6fc4;font-size:12px"></i>':'')+'</td><td>'+(a.posto||'—')+'</td><td><button class="btn bxs bdr" onclick="excluirAbast(\''+a.id+'\',\''+id+'\')"><i class="ti ti-trash"></i></button></td></tr>').join('')
+      +'</tbody></table></div>':'<div class="mu sm" style="padding:1rem">Nenhum abastecimento lançado.</div>')
+    +'</div>'
+    // MANUTENÇÕES
+    +'<div id="vtp-manut" style="display:none">'
+    +'<button class="btn bp2 bsm mb1" onclick="novaManut(\''+id+'\')"><i class="ti ti-tools"></i> Nova manutenção</button>'
+    +(manut.length?manut.map(m=>'<div class="card mb1" style="padding:.7rem"><div class="fxb mb1"><div><b>'+(m.categoria||m.tipo||'Manutenção')+'</b> <span class="mu sm">'+(m.tipo||'')+'</span></div><div style="font-weight:700">'+fmt(m.valor)+(m.pagamento_id?' <i class="ti ti-cash" title="Lançado no financeiro" style="color:#1a6fc4;font-size:12px"></i>':'')+'</div></div>'
+      +'<div class="mu sm">'+fd(m.data)+(m.km!=null?' · '+fnum(m.km)+' km':'')+(m.oficina?' · '+m.oficina:'')+'</div>'
+      +(m.descricao?'<div class="sm" style="margin-top:3px">'+m.descricao+'</div>':'')
+      +((m.proxima_data||m.proxima_km)?'<div class="sm" style="margin-top:4px;color:#BA7517"><i class="ti ti-bell"></i> Próxima: '+[m.proxima_data?fd(m.proxima_data):'',m.proxima_km?fnum(m.proxima_km)+' km':''].filter(Boolean).join(' / ')+'</div>':'')
+      +'<button class="btn bxs bdr" style="margin-top:6px" onclick="excluirManut(\''+m.id+'\',\''+id+'\')"><i class="ti ti-trash"></i> Excluir</button></div>').join('')
+      :'<div class="mu sm" style="padding:1rem">Nenhuma manutenção registrada.</div>')
+    +'</div>'
+    // DOCUMENTOS
+    +'<div id="vtp-doc" style="display:none">'
+    +'<button class="btn bp2 bsm mb1" onclick="novoDocV(\''+id+'\')"><i class="ti ti-file-text"></i> Novo documento</button>'
+    +(docs.length?'<div class="tw"><table><thead><tr><th>Tipo</th><th>Número</th><th>Validade</th><th>Valor</th><th></th></tr></thead><tbody>'
+      +docs.map(d=>{const venc=d.validade&&d.validade<hojeLocal();const per=d.validade&&d.validade<=addDias(hojeLocal(),30);return '<tr><td>'+(d.tipo||'—')+'</td><td>'+(d.numero||'—')+'</td><td'+(venc?' style="color:#A32D2D;font-weight:700"':per?' style="color:#BA7517;font-weight:600"':'')+'>'+(d.validade?fd(d.validade):'—')+'</td><td>'+(d.valor!=null?fmt(d.valor):'—')+'</td><td><button class="btn bxs bdr" onclick="excluirDocV(\''+d.id+'\',\''+id+'\')"><i class="ti ti-trash"></i></button></td></tr>';}).join('')
+      +'</tbody></table></div>':'<div class="mu sm" style="padding:1rem">Nenhum documento cadastrado.</div>')
+    +'</div>';
+
+  gid('mf2').innerHTML='<button class="btn" onclick="closeModal2()">Fechar</button>'
+    +'<button class="btn" onclick="editRecord(\'veiculos\',\''+id+'\')"><i class="ti ti-edit"></i> Editar</button>'
+    +'<button class="btn bdr" onclick="excluirVeiculo(\''+id+'\')"><i class="ti ti-trash"></i></button>';
+  gid('ov2').classList.add('open');
+  veicTab('resumo');
+}
+function veicTab(tab){
+  ['resumo','abast','manut','doc'].forEach(t=>{const p=gid('vtp-'+t);if(p)p.style.display=t===tab?'block':'none';const b=gid('vtab-'+t);if(b)b.classList.toggle('active',t===tab);});
+  window._veicTab=tab;
+}
+
+/* ── Sub-formulários (usam o modal ov elevado sobre o ov2) ── */
+function frotaSub(title,body,saveJs){
+  gid('mt').textContent=title;gid('mb').innerHTML=body;
+  gid('mf').innerHTML='<button class="btn" onclick="closeFrotaSub()">Cancelar</button><button class="btn bp2" onclick="'+saveJs+'"><i class="ti ti-device-floppy"></i> Salvar</button>';
+  const ov=gid('ov');ov.style.zIndex='200';ov.classList.add('open');
+}
+function closeFrotaSub(){const ov=gid('ov');ov.classList.remove('open');ov.style.zIndex='';}
+
+function novoAbast(veicId){
+  frotaSub('Novo abastecimento',
+    '<div class="g2"><div class="fg"><label class="fl">Data</label><input class="fc" type="date" id="ab-data" value="'+hojeLocal()+'"></div>'
+    +'<div class="fg"><label class="fl">Hodômetro (km)</label><input class="fc" type="number" id="ab-km" placeholder="km atual"></div></div>'
+    +'<div class="g3"><div class="fg"><label class="fl">Litros</label><input class="fc" type="number" step="0.01" id="ab-litros" oninput="calcAbTotal()"></div>'
+    +'<div class="fg"><label class="fl">R$/litro</label><input class="fc" type="number" step="0.001" id="ab-vlrl" oninput="calcAbTotal()"></div>'
+    +'<div class="fg"><label class="fl">Total (R$)</label><input class="fc" type="number" step="0.01" id="ab-total"></div></div>'
+    +'<div class="g2"><div class="fg"><label class="fl">Combustível</label><select class="fc" id="ab-comb"><option>Gasolina</option><option>Etanol</option><option>Diesel</option><option>GNV</option></select></div>'
+    +'<div class="fg"><label class="fl">Posto</label><input class="fc" id="ab-posto"></div></div>'
+    +'<div class="g2"><div class="fg"><label class="fl">Motorista</label><input class="fc" id="ab-motorista"></div>'
+    +'<div class="fg" style="display:flex;align-items:flex-end"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="ab-cheio" checked style="width:16px;height:16px;accent-color:var(--brand)"> Tanque cheio</label></div></div>'
+    +'<div class="mu sm">Marque "tanque cheio" para o cálculo de consumo (km/l entre dois tanques cheios).</div>'
+    +'<div class="fg" style="margin-top:.5rem"><label class="fl">Observação</label><input class="fc" id="ab-obs"></div>'
+    +'<div class="fg" style="background:#EEF4FB;border-radius:8px;padding:.6rem"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0"><input type="checkbox" id="ab-fin" checked style="width:16px;height:16px;accent-color:var(--brand)"> <span class="fl" style="margin:0"><i class="ti ti-cash" style="color:#1a6fc4"></i> Lançar também no financeiro (Pagamentos → Combustível)</span></label><div class="mu sm" style="margin-top:.25rem">Cria uma saída paga que entra no DRE. Ao excluir o abastecimento, o lançamento também é removido.</div></div>',
+    'salvarAbast(\''+veicId+'\')');
+}
+function calcAbTotal(){const l=parseFloat(gid('ab-litros')?.value)||0,v=parseFloat(gid('ab-vlrl')?.value)||0;if(l&&v&&gid('ab-total'))gid('ab-total').value=(Math.round(l*v*100)/100).toFixed(2);}
+async function salvarAbast(veicId){
+  const km=gid('ab-km').value?Number(gid('ab-km').value):null;
+  const litros=gid('ab-litros').value?Number(gid('ab-litros').value):null;
+  const vlrl=gid('ab-vlrl').value?Number(gid('ab-vlrl').value):null;
+  let total=gid('ab-total').value?Number(gid('ab-total').value):(litros&&vlrl?Math.round(litros*vlrl*100)/100:null);
+  if(!litros&&!total){toast('Informe litros ou valor total.',true);return;}
+  const data=gid('ab-data').value||hojeLocal(), posto=gid('ab-posto').value||null;
+  const{data:v}=await sb.from('veiculos').select('nome,placa,km_atual').eq('id',veicId).single();
+  const{data:ab,error}=await sb.from('abastecimentos').insert({veiculo_id:veicId,data,km,litros,valor_litro:vlrl,valor_total:total,combustivel:gid('ab-comb').value||null,posto,tanque_cheio:gid('ab-cheio').checked,motorista:gid('ab-motorista').value||null,obs:gid('ab-obs').value||null}).select().single();
+  if(error){toast('Erro: '+error.message,true);return;}
+  if(km&&(!v||km>Number(v.km_atual||0)))await sb.from('veiculos').update({km_atual:km}).eq('id',veicId);
+  // Lançar também no financeiro (Pagamentos → Combustível)
+  if(gid('ab-fin')?.checked&&total){
+    const vNome=(v?.nome||v?.placa||'Veículo');
+    const{data:pg,error:ep}=await sb.from('pagamentos').insert({descricao:'Combustível — '+vNome+(posto?' · '+posto:''),categoria:'Combustível',valor:total,vencimento:data,data_pagamento:data,status:'Pago',natureza:'Variável'}).select('id').single();
+    if(ep)toast('Abastecimento salvo, mas não lançou no financeiro: '+ep.message,true);
+    else await sb.from('abastecimentos').update({pagamento_id:pg.id}).eq('id',ab.id);
+  }
+  closeFrotaSub();toast('Abastecimento lançado!');abrirVeiculo(veicId);
+}
+
+function novaManut(veicId){
+  frotaSub('Nova manutenção',
+    '<div class="g2"><div class="fg"><label class="fl">Data</label><input class="fc" type="date" id="mn-data" value="'+hojeLocal()+'"></div>'
+    +'<div class="fg"><label class="fl">Hodômetro (km)</label><input class="fc" type="number" id="mn-km"></div></div>'
+    +'<div class="g2"><div class="fg"><label class="fl">Tipo</label><select class="fc" id="mn-tipo"><option>Preventiva</option><option>Corretiva</option></select></div>'
+    +'<div class="fg"><label class="fl">Categoria</label><select class="fc" id="mn-cat"><option>Troca de óleo</option><option>Pneus</option><option>Freios</option><option>Suspensão</option><option>Motor</option><option>Elétrica</option><option>Revisão</option><option>Outro</option></select></div></div>'
+    +'<div class="fg"><label class="fl">Descrição</label><input class="fc" id="mn-desc" placeholder="O que foi feito"></div>'
+    +'<div class="g2"><div class="fg"><label class="fl">Oficina</label><input class="fc" id="mn-of"></div>'
+    +'<div class="fg"><label class="fl">Valor (R$)</label><input class="fc" type="number" step="0.01" id="mn-valor"></div></div>'
+    +'<div class="fg" style="background:#FFF8E7;border-radius:8px;padding:.6rem"><div class="fl" style="color:#854F0B"><i class="ti ti-bell"></i> Lembrete da próxima (opcional)</div><div class="g2"><div class="fg"><label class="fl">Próxima data</label><input class="fc" type="date" id="mn-pdata"></div><div class="fg"><label class="fl">Próximo km</label><input class="fc" type="number" id="mn-pkm"></div></div></div>'
+    +'<div class="fg" style="background:#EEF4FB;border-radius:8px;padding:.6rem"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0"><input type="checkbox" id="mn-fin" checked style="width:16px;height:16px;accent-color:var(--brand)"> <span class="fl" style="margin:0"><i class="ti ti-cash" style="color:#1a6fc4"></i> Lançar também no financeiro (Pagamentos)</span></label><div class="mu sm" style="margin-top:.25rem">Cria uma saída paga que entra no DRE. Ao excluir a manutenção, o lançamento também é removido.</div></div>',
+    'salvarManut(\''+veicId+'\')');
+}
+async function salvarManut(veicId){
+  const valor=gid('mn-valor').value?Number(gid('mn-valor').value):null;
+  const data=gid('mn-data').value||hojeLocal(), cat=gid('mn-cat').value;
+  const{data:mn,error}=await sb.from('manutencoes').insert({veiculo_id:veicId,data,km:gid('mn-km').value?Number(gid('mn-km').value):null,tipo:gid('mn-tipo').value,categoria:cat,descricao:gid('mn-desc').value||null,oficina:gid('mn-of').value||null,valor,proxima_data:gid('mn-pdata').value||null,proxima_km:gid('mn-pkm').value?Number(gid('mn-pkm').value):null,status:'Realizada'}).select().single();
+  if(error){toast('Erro: '+error.message,true);return;}
+  // Lançar também no financeiro (Pagamentos → Manutenção Veículo)
+  if(gid('mn-fin')?.checked&&valor){
+    const{data:v}=await sb.from('veiculos').select('nome,placa').eq('id',veicId).single();
+    const vNome=(v?.nome||v?.placa||'Veículo');
+    const{data:pg,error:ep}=await sb.from('pagamentos').insert({descricao:'Manutenção — '+vNome+(cat?' · '+cat:''),categoria:'Manutenção Veículo',valor,vencimento:data,data_pagamento:data,status:'Pago',natureza:'Variável'}).select('id').single();
+    if(ep)toast('Manutenção salva, mas não lançou no financeiro: '+ep.message,true);
+    else await sb.from('manutencoes').update({pagamento_id:pg.id}).eq('id',mn.id);
+  }
+  closeFrotaSub();toast('Manutenção registrada!');abrirVeiculo(veicId);
+}
+
+function novoDocV(veicId){
+  frotaSub('Novo documento',
+    '<div class="g2"><div class="fg"><label class="fl">Tipo</label><select class="fc" id="dv-tipo"><option>CRLV</option><option>IPVA</option><option>Seguro</option><option>Licenciamento</option><option>Multa</option><option>Outro</option></select></div>'
+    +'<div class="fg"><label class="fl">Número</label><input class="fc" id="dv-num"></div></div>'
+    +'<div class="g3"><div class="fg"><label class="fl">Emissão</label><input class="fc" type="date" id="dv-emissao"></div>'
+    +'<div class="fg"><label class="fl">Validade</label><input class="fc" type="date" id="dv-validade"></div>'
+    +'<div class="fg"><label class="fl">Valor (R$)</label><input class="fc" type="number" step="0.01" id="dv-valor"></div></div>'
+    +'<div class="mu sm">A validade alimenta o alerta de vencimento na tela de Frotas.</div>'
+    +'<div class="fg" style="margin-top:.5rem"><label class="fl">Observação</label><input class="fc" id="dv-obs"></div>',
+    'salvarDocV(\''+veicId+'\')');
+}
+async function salvarDocV(veicId){
+  const{error}=await sb.from('documentos_veiculo').insert({veiculo_id:veicId,tipo:gid('dv-tipo').value,numero:gid('dv-num').value||null,emissao:gid('dv-emissao').value||null,validade:gid('dv-validade').value||null,valor:gid('dv-valor').value?Number(gid('dv-valor').value):null,obs:gid('dv-obs').value||null});
+  if(error){toast('Erro: '+error.message,true);return;}
+  closeFrotaSub();toast('Documento salvo!');abrirVeiculo(veicId);
+}
+
+async function excluirVeiculo(id){
+  if(!confirm('Excluir este veículo e TODO o histórico (abastecimentos, manutenções, documentos)?'))return;
+  const{error}=await sb.from('veiculos').delete().eq('id',id);
+  if(error){toast('Erro: '+error.message,true);return;}
+  closeModal2();toast('Veículo excluído.');rFrotas();
+}
+async function excluirAbast(id,veicId){
+  const{data:row}=await sb.from('abastecimentos').select('pagamento_id').eq('id',id).single();
+  const fin=row&&row.pagamento_id;
+  if(!confirm('Excluir este abastecimento'+(fin?' e o lançamento no financeiro?':'?')))return;
+  if(fin)await sb.from('pagamentos').delete().eq('id',row.pagamento_id);
+  const{error}=await sb.from('abastecimentos').delete().eq('id',id);
+  if(error){toast('Erro: '+error.message,true);return;}toast('Removido.');abrirVeiculo(veicId);
+}
+async function excluirManut(id,veicId){
+  const{data:row}=await sb.from('manutencoes').select('pagamento_id').eq('id',id).single();
+  const fin=row&&row.pagamento_id;
+  if(!confirm('Excluir esta manutenção'+(fin?' e o lançamento no financeiro?':'?')))return;
+  if(fin)await sb.from('pagamentos').delete().eq('id',row.pagamento_id);
+  const{error}=await sb.from('manutencoes').delete().eq('id',id);
+  if(error){toast('Erro: '+error.message,true);return;}toast('Removido.');abrirVeiculo(veicId);
+}
+async function excluirDocV(id,veicId){if(!confirm('Excluir este documento?'))return;const{error}=await sb.from('documentos_veiculo').delete().eq('id',id);if(error){toast('Erro: '+error.message,true);return;}toast('Removido.');abrirVeiculo(veicId);}
 
 function kbCardReadonly(p){
   const pend=(p.pendencias||[]).filter(d=>!d.ok).length;

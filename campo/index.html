@@ -1,0 +1,803 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#1a6fc4">
+<title>AJ TopoGeo — Campo</title>
+<link rel="manifest" href="/campo/manifest.webmanifest">
+<link rel="apple-touch-icon" sizes="180x180" href="/campo/icon-180.png">
+<link rel="apple-touch-icon" href="/campo/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Campo">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<style>
+:root{
+  --brand:#1a6fc4; --brand-d:#155a9e;
+  --bg:#f4f4f0; --card:#fff; --tx:#1a1a18; --mu:#666;
+  --bor:rgba(0,0,0,.12); --bor2:rgba(0,0,0,.2);
+  --ok:#2f7d32; --warn:#BA7517; --erro:#A32D2D;
+  --r:14px; --sh:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.06);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg); color:var(--tx); font-size:15px; line-height:1.4;
+  -webkit-font-smoothing:antialiased;
+  padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom);
+}
+button,input,select,textarea{font-family:inherit;font-size:16px}
+.hidden,[hidden]{display:none!important}
+.mu{color:var(--mu)} .sm{font-size:13px} .xs{font-size:11px}
+.b{font-weight:700} .center{text-align:center}
+.row{display:flex;gap:10px;align-items:center}
+.col{display:flex;flex-direction:column;gap:10px}
+.between{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.grow{flex:1;min-width:0}
+.mt1{margin-top:12px}.mb1{margin-bottom:12px}.mt2{margin-top:20px}
+.wrap{word-break:break-word;overflow-wrap:anywhere}
+
+/* ── Botões (alvos grandes p/ dedo) ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  border:1px solid var(--bor2);background:#fff;color:var(--tx);
+  padding:13px 16px;border-radius:12px;font-size:15px;font-weight:600;
+  cursor:pointer;min-height:48px;line-height:1;transition:filter .1s}
+.btn:active{filter:brightness(.94)}
+.btn.pri{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+.btn.warn{background:var(--warn);border-color:var(--warn);color:#fff}
+.btn.dang{background:#fff;border-color:var(--erro);color:var(--erro)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--brand);min-height:auto;padding:8px}
+.btn.wide{width:100%}
+.btn.sm{padding:9px 12px;min-height:40px;font-size:14px}
+.btn:disabled{opacity:.5;pointer-events:none}
+.btn i{font-size:19px}
+
+/* ── Form ── */
+.f{margin-bottom:12px} .fl{display:block;font-size:13px;font-weight:600;color:var(--mu);margin-bottom:5px}
+.fc{width:100%;padding:12px;border:1px solid var(--bor2);border-radius:10px;background:#fff;color:var(--tx)}
+.fc:focus{outline:none;border-color:var(--brand)}
+textarea.fc{min-height:72px;resize:vertical}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* ── Cards ── */
+.card{background:var(--card);border:1px solid var(--bor);border-radius:var(--r);padding:14px;box-shadow:var(--sh)}
+.card+.card{margin-top:12px}
+.tap{cursor:pointer} .tap:active{filter:brightness(.97)}
+
+/* ── Badge status ── */
+.bdg{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:700;white-space:nowrap}
+.bdg::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.st-agendada{background:#e8f0fb;color:#155a9e}
+.st-campo{background:#fff2e0;color:#9a5a06}
+.st-andamento{background:#e9f4ea;color:#2f7d32}
+.st-aguardando{background:#fdf3e0;color:#a06d12}
+.st-concluida{background:#e9f4ea;color:#2f7d32}
+.st-cancelada{background:#fbeaea;color:#a32d2d}
+.st-outro{background:#eee;color:#555}
+
+/* ── Top bar ── */
+#topbar{position:sticky;top:0;z-index:20;background:var(--brand);color:#fff;
+  padding:calc(env(safe-area-inset-top) + 10px) 14px 10px;
+  display:flex;align-items:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+#topbar .logo{width:32px;height:32px;border-radius:8px;background:#fff;object-fit:contain;flex-shrink:0}
+#topbar .who{line-height:1.1;min-width:0}
+#topbar .who b{font-size:14px;display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#topbar .who span{font-size:11px;opacity:.85}
+.dot{width:9px;height:9px;border-radius:50%;background:#7CFC7C;flex-shrink:0}
+.dot.off{background:#ff6b6b}
+.syncb{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.16);border:none;color:#fff;
+  padding:6px 10px;border-radius:999px;font-weight:700;font-size:13px}
+.syncb i{font-size:17px} .syncb b{background:#fff;color:var(--brand);border-radius:999px;padding:0 6px;font-size:12px}
+#installbar{background:#fff8ec;border-bottom:1px solid var(--bor);padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:13px}
+#installbar .grow{line-height:1.3} #installbar .btn{padding:8px 12px;min-height:auto}
+.cachehint{display:inline-flex;align-items:center;gap:5px;background:#fff3e0;color:#9a5a06;border-radius:8px;padding:3px 9px;font-size:11px;font-weight:600}
+#topbar .ic{color:#fff;background:rgba(255,255,255,.15);border:none;width:40px;height:40px;border-radius:10px;font-size:20px;display:flex;align-items:center;justify-content:center}
+
+#content{padding:14px;max-width:640px;margin:0 auto;padding-bottom:96px}
+
+/* ── Tab bar ── */
+#tabbar{position:fixed;bottom:0;left:0;right:0;z-index:20;background:#fff;
+  border-top:1px solid var(--bor);display:flex;
+  padding-bottom:env(safe-area-inset-bottom)}
+#tabbar button{flex:1;border:none;background:none;padding:9px 4px;color:var(--mu);
+  display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-weight:600}
+#tabbar button i{font-size:23px}
+#tabbar button.on{color:var(--brand)}
+
+/* ── Sticky action bar (detalhe OS) ── */
+.actionbar{position:fixed;bottom:0;left:0;right:0;z-index:19;background:#fff;
+  border-top:1px solid var(--bor);padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+  display:flex;gap:8px;max-width:640px;margin:0 auto}
+.actionbar .btn{flex:1;padding:12px 6px;font-size:13px;flex-direction:column;gap:4px;min-height:56px}
+.actionbar .btn i{font-size:21px}
+
+/* ── Modal / bottom sheet ── */
+.ov{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.45);display:none;align-items:flex-end}
+.ov.open{display:flex}
+.sheet{background:var(--bg);width:100%;max-width:640px;margin:0 auto;border-radius:18px 18px 0 0;
+  max-height:92vh;display:flex;flex-direction:column;animation:up .22s ease}
+@keyframes up{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.sheet header{padding:16px;font-weight:700;font-size:17px;border-bottom:1px solid var(--bor);
+  display:flex;justify-content:space-between;align-items:center}
+.sheet .body{padding:16px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.sheet footer{padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--bor);display:flex;gap:10px}
+.sheet footer .btn{flex:1}
+.x{background:none;border:none;font-size:26px;color:var(--mu);line-height:1;padding:0 4px}
+
+/* ── Segmented ── */
+.seg{display:flex;background:#e7e7e2;border-radius:12px;padding:4px;margin-bottom:14px}
+.seg button{flex:1;border:none;background:none;padding:10px;border-radius:9px;font-weight:600;font-size:14px;color:var(--mu)}
+.seg button.on{background:#fff;color:var(--tx);box-shadow:var(--sh)}
+
+/* ── Login ── */
+#scr-login{min-height:100dvh;display:flex;flex-direction:column;justify-content:center;padding:24px;max-width:420px;margin:0 auto}
+#scr-login .brandwrap{text-align:center;margin-bottom:28px}
+#scr-login img{width:84px;height:84px;border-radius:20px;box-shadow:var(--sh);background:#fff}
+#scr-login h1{font-size:20px;margin:14px 0 2px} #scr-login p{margin:0;color:var(--mu);font-size:14px}
+
+.tl{border-left:2px solid var(--bor);padding-left:12px;margin-left:4px}
+.tl .it{position:relative;padding:0 0 12px}
+.tl .it::before{content:"";position:absolute;left:-17px;top:4px;width:9px;height:9px;border-radius:50%;background:var(--brand)}
+
+.pill{display:inline-block;background:#eef4fb;color:var(--brand-d);border-radius:8px;padding:3px 8px;font-size:12px;font-weight:600}
+.empty{text-align:center;color:var(--mu);padding:40px 16px}
+.empty i{font-size:40px;opacity:.4;display:block;margin-bottom:8px}
+
+#toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 12px);transform:translateX(-50%);
+  z-index:100;background:#222;color:#fff;padding:12px 18px;border-radius:12px;font-size:14px;font-weight:600;
+  box-shadow:0 6px 20px rgba(0,0,0,.3);display:none;max-width:90%;text-align:center}
+#toast.err{background:var(--erro)} #toast.show{display:block;animation:tin .2s}
+@keyframes tin{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
+
+.sp{width:20px;height:20px;border:2.5px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+.sp.dark{border-color:var(--bor2);border-top-color:var(--brand)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.photo-prev{width:100%;border-radius:12px;margin-top:8px;max-height:220px;object-fit:cover}
+</style>
+</head>
+<body>
+
+<!-- ═══════════ LOGIN ═══════════ -->
+<section id="scr-login">
+  <div class="brandwrap">
+    <img id="login-logo" alt="AJ TopoGeo">
+    <h1>AJ TopoGeo — Campo</h1>
+    <p>App do operador em obra</p>
+  </div>
+  <div class="f"><label class="fl">E-mail</label><input class="fc" id="le" type="email" autocomplete="username" inputmode="email" placeholder="voce@ajtopogeo.com.br"></div>
+  <div class="f"><label class="fl">Senha</label><input class="fc" id="lp" type="password" autocomplete="current-password" placeholder="••••••••"></div>
+  <div id="lerr" class="sm" style="color:var(--erro);display:none;margin-bottom:10px"></div>
+  <button class="btn pri wide" id="bl" onclick="doLogin()"><i class="ti ti-login-2"></i> Entrar</button>
+  <p class="sm mu center mt2">Use o mesmo login do Gestor.</p>
+</section>
+
+<!-- ═══════════ APP ═══════════ -->
+<div id="main" hidden>
+  <div id="topbar">
+    <img class="logo" id="top-logo" alt="">
+    <div class="who grow"><b id="op-nome">—</b><span id="op-email"></span></div>
+    <button class="syncb" id="sync" hidden onclick="flush()" title="Sincronizar pendências"><i class="ti ti-cloud-upload"></i><b>0</b></button>
+    <span class="dot" id="conn" title="Conexão"></span>
+    <button class="ic" onclick="doLogout()" title="Sair"><i class="ti ti-logout-2"></i></button>
+  </div>
+  <div id="installbar" hidden></div>
+  <div id="content"></div>
+  <nav id="tabbar">
+    <button data-tab="agenda" class="on" onclick="go('agenda')"><i class="ti ti-calendar-event"></i>Agenda</button>
+    <button data-tab="executar" onclick="go('executar')"><i class="ti ti-clipboard-list"></i>Executar</button>
+    <button data-tab="ponto" onclick="go('ponto')"><i class="ti ti-map-pin"></i>Ponto</button>
+  </nav>
+</div>
+
+<!-- Modal / bottom sheet -->
+<div class="ov" id="ov">
+  <div class="sheet">
+    <header><span id="mt">—</span><button class="x" onclick="closeSheet()">&times;</button></header>
+    <div class="body" id="mb"></div>
+    <footer id="mf"></footer>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ════════════════════════════════════════════════════════════════════
+   AJ TopoGeo — App de Campo (PWA)
+   Mesmo Supabase / mesma anon key / mesmo login do Gestor.
+   Escreve nas MESMAS tabelas: ordens, agenda, custos_os, pagamentos,
+   funcionarios, clientes, recebimentos + a nova atendimentos_campo.
+   ════════════════════════════════════════════════════════════════════ */
+const SUPABASE_URL='https://wwmlrifoxnekhgppikxa.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3bWxyaWZveG5la2hncHBpa3hhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2NTE3OTQsImV4cCI6MjA5NTIyNzc5NH0.6VIS72AJC8VOArvXh-4sXDuyrYRkj3zP5cUhuEaYPHo';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const BUCKET='campo-fotos';
+const LOGO='/gestor/LOGO.png';
+
+/* ── Estado ── */
+let CU=null;               // usuário logado (auth)
+let OPNOME='', OPUID='';   // nome e uid do operador
+let TAB='agenda';          // aba atual
+let VIEW={s:'agenda'};     // {s:'agenda'|'executar'|'ponto'|'os', osId}
+let FUNCS=[];              // cache funcionarios (p/ custo de equipe)
+let ATIVO=null;            // atendimento_campo em andamento do operador
+
+/* ── Constantes de domínio (do schema do Gestor) ── */
+const STATUS_EXEC=['Agendada','Em campo','Em andamento','Aguardando'];   // OS "disponível p/ execução"
+const STATUS_MOV =['Agendada','Em campo','Em andamento','Aguardando','Concluída','Cancelada']; // movimentações no campo
+const CAT_DESPESA=['Combustível','Alimentação','Pedágio','Estadia / Hospedagem','Material de Campo','Transporte / Frete','Manutenção de Equipamento','Aluguel de Equipamento','Terceiro / Subcontratado','Taxas e Emolumentos','Outros'];
+const TIPO_CUSTO =['Diária','Hora','Empreitada'];
+
+/* ════════════ Helpers ════════════ */
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const fmt=v=>'R$ '+Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const hoje=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+const horaAgora=()=>new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+const dataBR=iso=>{if(!iso)return '';const[y,m,d]=String(iso).slice(0,10).split('-');return d+'/'+m+'/'+y;};
+function statusClass(s){s=(s||'').toLowerCase();
+  if(s.includes('agend'))return 'st-agendada';
+  if(s.includes('campo'))return 'st-campo';
+  if(s.includes('andamento'))return 'st-andamento';
+  if(s.includes('aguard'))return 'st-aguardando';
+  if(s.includes('conclu')||s.includes('recebid'))return 'st-concluida';
+  if(s.includes('cancel'))return 'st-cancelada';
+  return 'st-outro';}
+const badge=s=>`<span class="bdg ${statusClass(s)}">${esc(s||'—')}</span>`;
+
+let _toastT;
+function toast(msg,err){const t=$('toast');t.textContent=msg;t.className='show'+(err?' err':'');clearTimeout(_toastT);_toastT=setTimeout(()=>t.className='',2600);}
+
+/* ════════════ Conexão ════════════ */
+function setConn(){const on=navigator.onLine;$('conn').className='dot'+(on?'':' off');$('conn').title=on?'Online':'Sem conexão';}
+addEventListener('online',()=>{setConn();toast('Conexão restabelecida');flush();});
+addEventListener('offline',setConn);
+
+/* ════════════════════════════════════════════════════════════════════
+   OFFLINE — IndexedDB (fila de escrita + cache de leitura)
+   Campo tem sinal ruim: toda ação é gravada online se der; senão vai pra
+   fila local (com foto) e sincroniza sozinha quando o sinal volta.
+   ════════════════════════════════════════════════════════════════════ */
+let _db=null,_flushing=false,_pend=0;
+function idb(){return _db?Promise.resolve(_db):new Promise((res,rej)=>{
+  const r=indexedDB.open('campo-db',1);
+  r.onupgradeneeded=()=>{const d=r.result;
+    if(!d.objectStoreNames.contains('outbox'))d.createObjectStore('outbox',{keyPath:'id'});
+    if(!d.objectStoreNames.contains('kv'))d.createObjectStore('kv',{keyPath:'k'});};
+  r.onsuccess=()=>{_db=r.result;res(_db);};r.onerror=()=>rej(r.error);
+});}
+function _tx(store,mode,fn){return idb().then(d=>new Promise((res,rej)=>{
+  const tx=d.transaction(store,mode),rq=fn(tx.objectStore(store));
+  tx.oncomplete=()=>res(rq&&rq.result);tx.onerror=()=>rej(tx.error);tx.onabort=()=>rej(tx.error);
+})).catch(e=>{console.warn('idb',e);return null;});}
+const obPut=it=>_tx('outbox','readwrite',s=>s.put(it));
+const obDel=id=>_tx('outbox','readwrite',s=>s.delete(id));
+const obAll=()=>_tx('outbox','readonly',s=>s.getAll()).then(r=>r||[]);
+const kvPut=(k,v)=>_tx('kv','readwrite',s=>s.put({k,v}));
+const kvGet=k=>_tx('kv','readonly',s=>s.get(k)).then(r=>r?r.v:null);
+const kvDel=k=>_tx('kv','readwrite',s=>s.delete(k));
+function uid(){return crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random().toString(36).slice(2);}
+function isNetErr(e){const m=String(e&&e.message||e||'').toLowerCase();
+  return !navigator.onLine||m.includes('failed to fetch')||m.includes('load failed')||m.includes('networkerror')||m.includes('timeout')||m.includes('fetch');}
+
+// executa 1 operação contra o Supabase (usado no online direto e no flush)
+async function execOp(it){
+  if(it.kind==='mov'){
+    const{data:os}=await sb.from('ordens').select('andamento').eq('id',it.osId).single();
+    const lista=Array.isArray(os?.andamento)?os.andamento.slice():[];
+    if(it.andamento)lista.push(it.andamento);
+    const patch={andamento:lista,atualizado_em:new Date().toISOString()};
+    if(it.status)patch.status=it.status;
+    const{error}=await sb.from('ordens').update(patch).eq('id',it.osId);if(error)throw error;
+  }else{
+    const payload={...it.payload};
+    for(const ph of (it.photos||[]))if(ph.blob)payload[ph.field]=await upload(ph.blob,ph.prefix||'campo');
+    if(it.kind==='insert'){const{error}=await sb.from(it.table).insert(payload);if(error)throw error;}
+    else if(it.kind==='update'){const{error}=await sb.from(it.table).update(payload).eq(it.matchCol,it.matchVal);if(error)throw error;}
+  }
+}
+async function enqueue(op){op.id=uid();op.seq=Date.now();op.tries=0;await obPut(op);await refreshPend();}
+// grava online se possível; senão enfileira. Retorna {synced}
+async function doWrite(op){
+  if(navigator.onLine){try{await execOp(op);return{synced:true};}catch(e){if(!isNetErr(e))throw e;}}
+  await enqueue(op);return{synced:false};
+}
+async function flush(silent){
+  if(_flushing||!navigator.onLine)return;
+  _flushing=true;
+  try{
+    const items=(await obAll()).sort((a,b)=>a.seq-b.seq);let ok=0;
+    for(const it of items){
+      try{await execOp(it);await obDel(it.id);ok++;}
+      catch(e){it.tries=(it.tries||0)+1;it.err=String(e.message||e);await obPut(it);if(isNetErr(e))break;/* erro permanente: deixa na fila e segue */}
+    }
+    await refreshPend();
+    if(!silent&&ok)toast(ok+' pendência(s) sincronizada(s)!');
+  }finally{_flushing=false;}
+}
+async function refreshPend(){_pend=(await obAll()).length;const el=$('sync');if(!el)return;
+  if(_pend>0){el.hidden=false;el.querySelector('b').textContent=_pend;}else el.hidden=true;}
+setInterval(()=>{if(_pend>0&&navigator.onLine)flush(true);},25000);
+
+/* ── Cache de leitura (kv) ── */
+const cacheList=(k,d)=>kvPut('list:'+k,d);
+const getList=k=>kvGet('list:'+k).then(d=>d||[]);
+const cacheOSD=(id,os,e,d)=>kvPut('osd:'+id,{os,e,d,ts:Date.now()});
+const getOSD=id=>kvGet('osd:'+id);
+async function patchOSD(id,status,entry){
+  const c=await getOSD(id);if(!c)return;
+  if(status)c.os.status=status;
+  c.os.andamento=Array.isArray(c.os.andamento)?c.os.andamento:[];
+  if(entry)c.os.andamento.push(entry);
+  await cacheOSD(id,c.os,c.e,c.d);
+  const list=await getList('exec');const row=list.find(o=>o.id===id);if(row&&status){row.status=status;await cacheList('exec',list);}
+}
+async function patchTot(id,eq,de){const c=await getOSD(id);if(!c)return;c.e=(c.e||0)+(eq||0);c.d=(c.d||0)+(de||0);await cacheOSD(id,c.os,c.e,c.d);}
+
+/* ════════════ Auth ════════════ */
+addEventListener('load',async()=>{
+  $('login-logo').src=LOGO;$('top-logo').src=LOGO;
+  setConn();
+  const{data:{session}}=await sb.auth.getSession();
+  if(session)enterApp(session.user);
+});
+sb.auth.onAuthStateChange((_,s)=>{if(!s){CU=null;$('main').hidden=true;$('scr-login').style.display='';}});
+
+async function doLogin(){
+  const email=$('le').value.trim(), pass=$('lp').value;
+  const b=$('bl'),err=$('lerr');err.style.display='none';
+  if(!email||!pass){err.textContent='Preencha e-mail e senha.';err.style.display='block';return;}
+  b.disabled=true;b.innerHTML='<span class="sp"></span>';
+  const{data,error}=await sb.auth.signInWithPassword({email,password:pass});
+  b.disabled=false;b.innerHTML='<i class="ti ti-login-2"></i> Entrar';
+  if(error){err.textContent='Não entrou: '+error.message;err.style.display='block';return;}
+  enterApp(data.user);
+}
+async function doLogout(){if(!confirm('Sair do app?'))return;await sb.auth.signOut();location.reload();}
+
+async function enterApp(u){
+  CU=u;OPUID=u.id;
+  OPNOME=u.user_metadata?.name||u.email.split('@')[0];
+  $('op-nome').textContent=OPNOME;$('op-email').textContent=u.email;
+  $('scr-login').style.display='none';$('main').hidden=false;
+  // funcionarios (p/ custo de equipe) — cacheia p/ usar offline
+  if(navigator.onLine){
+    sb.from('funcionarios').select('id,nome,valor_hora,valor_diaria').order('nome').then(({data})=>{if(data){FUNCS=data;kvPut('funcs',data);}});
+  }else{FUNCS=await kvGet('funcs')||[];}
+  await refreshPend();flush(true);
+  await carregarAtivo();
+  maybeInstallHint();
+  go('agenda');
+}
+
+async function carregarAtivo(){
+  const local=await kvGet('ativo_local');
+  if(local){ATIVO=local;return;}                 // ponto aberto ainda não sincronizado
+  if(navigator.onLine){
+    const{data}=await sb.from('atendimentos_campo').select('*').eq('operador_uid',OPUID).eq('status','em_andamento').order('criado_em',{ascending:false}).limit(1);
+    ATIVO=(data&&data[0])||null;
+    if(ATIVO)await kvPut('ativo_cache',ATIVO);else await kvDel('ativo_cache');
+  }else{ATIVO=await kvGet('ativo_cache');}         // offline: usa o último conhecido
+}
+
+/* ════════════ Navegação ════════════ */
+function go(tab){TAB=tab;VIEW={s:tab};document.querySelectorAll('#tabbar button').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));render();}
+function openOS(id){VIEW={s:'os',osId:id};render();}
+function back(){go(TAB==='os'?'agenda':TAB);}
+
+function render(){
+  const c=$('content');
+  if(VIEW.s==='os')return renderOS(VIEW.osId);
+  document.querySelectorAll('#tabbar button').forEach(b=>b.classList.toggle('on',b.dataset.tab===VIEW.s));
+  if(VIEW.s==='agenda')renderAgenda();
+  else if(VIEW.s==='executar')renderExecutar();
+  else if(VIEW.s==='ponto')renderPonto();
+}
+
+function bannerAtivo(){
+  if(!ATIVO)return '';
+  return `<div class="card tap mb1" style="border-color:var(--warn);background:#fff8ec" onclick="openOS('${ATIVO.os_id}')">
+    <div class="between"><div class="row"><i class="ti ti-map-pin-filled" style="color:var(--warn);font-size:22px"></i>
+    <div><div class="b">Ponto em aberto</div><div class="sm mu">${esc(ATIVO.os_numero||'OS')} · entrada ${new Date(ATIVO.ts_entrada).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div></div></div>
+    <span class="pill">Finalizar ›</span></div></div>`;
+}
+
+/* ════════════ AGENDA ════════════ */
+async function renderAgenda(){
+  const c=$('content');
+  c.innerHTML=bannerAtivo()+'<div class="between" style="margin:4px 0 12px"><h2 style="margin:0">Agenda</h2><span id="ag-off"></span></div><div id="ag-list"><div class="center mt2"><span class="sp dark"></span></div></div>';
+  let data=null;
+  if(navigator.onLine){const r=await sb.from('agenda').select('*').gte('data',hoje()).order('data').limit(120);if(!r.error){data=r.data;cacheList('ag',data);}}
+  if(!data){data=await getList('ag');$('ag-off')&&($('ag-off').innerHTML='<span class="cachehint"><i class="ti ti-cloud-off"></i>offline</span>');}
+  const box=$('ag-list');if(!box)return;
+  const itens=(data||[]).filter(a=>!(a.concluida||a.concluido));
+  if(!itens.length){box.innerHTML='<div class="empty"><i class="ti ti-calendar-off"></i>Nenhum compromisso agendado.</div>';return;}
+  // agrupa por data
+  const grupos={};itens.forEach(a=>{(grupos[a.data]=grupos[a.data]||[]).push(a);});
+  box.innerHTML=Object.keys(grupos).sort().map(d=>{
+    const eHoje=d===hoje();
+    return `<div style="margin-bottom:6px;margin-top:10px" class="between">
+        <div class="b">${eHoje?'Hoje':dataBR(d)}</div><div class="sm mu">${new Date(d+'T12:00').toLocaleDateString('pt-BR',{weekday:'short'})}</div></div>`
+      +grupos[d].map(a=>{
+        const clic=a.os_id?`onclick="openOS('${a.os_id}')"`:'';
+        return `<div class="card tap" ${clic} style="padding:12px">
+          <div class="between"><div class="grow"><div class="b wrap">${esc(a.titulo||'(sem título)')}</div>
+          <div class="sm mu">${esc(a.tipo||'')}${a.os_numero?' · '+esc(a.os_numero):''}${a.hora?' · '+esc(a.hora):''}</div></div>
+          ${a.os_id?'<i class="ti ti-chevron-right mu"></i>':''}</div></div>`;
+      }).join('');
+  }).join('');
+}
+
+/* ════════════ EXECUTAR (OS disponíveis) ════════════ */
+async function renderExecutar(){
+  const c=$('content');
+  c.innerHTML=bannerAtivo()+`<div class="between" style="margin:4px 0 12px"><h2 style="margin:0">Executar</h2>
+    <button class="btn ghost sm" id="fmine" onclick="toggleMine()"><i class="ti ti-user"></i> <span>Todas</span></button></div>
+    <div id="ex-off"></div><div id="ex-list"><div class="center mt2"><span class="sp dark"></span></div></div>`;
+  let data=null;
+  if(navigator.onLine){const r=await sb.from('ordens').select('id,numero,tipo,status,responsavel,orcamento_valor,local_endereco,local_lat,local_lng,obs,data,cliente_id,clientes(nome,cpfcnpj,telefone)').in('status',STATUS_EXEC).order('atualizado_em',{ascending:false}).limit(150);if(!r.error){data=r.data;cacheList('exec',data);}}
+  if(!data){data=await getList('exec');const off=$('ex-off');if(off)off.innerHTML='<div class="cachehint" style="margin-bottom:10px"><i class="ti ti-cloud-off"></i>Offline — mostrando a última lista baixada</div>';}
+  const box=$('ex-list');if(!box)return;
+  window._OSCACHE=data||[];
+  pintarExecutar();
+}
+let _MINE=false;
+function toggleMine(){_MINE=!_MINE;const b=$('fmine');b.classList.toggle('pri',_MINE);b.querySelector('span').textContent=_MINE?'Minhas':'Todas';pintarExecutar();}
+function pintarExecutar(){
+  const box=$('ex-list');if(!box)return;
+  let lista=window._OSCACHE||[];
+  if(_MINE){const n=OPNOME.toLowerCase();lista=lista.filter(o=>(o.responsavel||'').toLowerCase().includes(n));}
+  if(!lista.length){box.innerHTML='<div class="empty"><i class="ti ti-clipboard-off"></i>Nenhuma OS '+(_MINE?'sua ':'')+'para executar.</div>';return;}
+  box.innerHTML=lista.map(o=>`<div class="card tap" onclick="openOS('${o.id}')">
+    <div class="between mb1"><div class="b">${esc(o.numero||'—')}</div>${badge(o.status)}</div>
+    <div class="wrap">${esc(o.tipo||'')}</div>
+    <div class="sm mu wrap">${esc(o.clientes?.nome||'Sem cliente')}${o.local_endereco?' · '+esc(o.local_endereco):''}</div>
+    ${o.responsavel?`<div class="sm mu mt1"><i class="ti ti-user"></i> ${esc(o.responsavel)}</div>`:''}
+  </div>`).join('');
+}
+
+/* ════════════ PONTO ════════════ */
+async function renderPonto(){
+  const c=$('content');
+  await carregarAtivo();
+  if(ATIVO){
+    c.innerHTML=`<h2 style="margin:4px 0 14px">Ponto</h2>
+      <div class="card" style="border-color:var(--warn)">
+        <div class="row mb1"><i class="ti ti-map-pin-filled" style="color:var(--warn);font-size:24px"></i><div><div class="b">Atendimento em andamento</div><div class="sm mu">${esc(ATIVO.os_numero||'')}</div></div></div>
+        <div class="g2 sm"><div><div class="mu">Entrada</div><div class="b">${new Date(ATIVO.ts_entrada).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div></div>
+        <div><div class="mu">Km inicial</div><div class="b">${ATIVO.km_inicial??'—'}</div></div></div>
+        <button class="btn warn wide mt2" onclick="abrirSaida()"><i class="ti ti-flag-check"></i> Finalizar atendimento</button>
+        <button class="btn ghost wide" onclick="openOS('${ATIVO.os_id}')">Ver OS</button>
+      </div>`;
+  }else{
+    c.innerHTML=`<h2 style="margin:4px 0 14px">Ponto</h2>
+      <div class="card center"><i class="ti ti-map-pin" style="font-size:40px;color:var(--mu);opacity:.5"></i>
+      <p class="mu">Nenhum ponto aberto.<br>Escolha uma OS para iniciar o atendimento.</p>
+      <div id="ponto-os"><span class="sp dark"></span></div></div>`;
+    const{data}=await sb.from('ordens').select('id,numero,tipo,status,clientes(nome)').in('status',STATUS_EXEC).order('atualizado_em',{ascending:false}).limit(60);
+    const box=$('ponto-os');if(!box)return;
+    box.innerHTML=(data||[]).length?data.map(o=>`<button class="btn wide sm mt1" style="justify-content:space-between" onclick="abrirEntrada('${o.id}','${esc(o.numero)}')">
+        <span>${esc(o.numero)} · ${esc(o.tipo||'')}</span><i class="ti ti-arrow-right"></i></button>`).join('')
+      :'<div class="mu sm mt1">Nenhuma OS disponível.</div>';
+  }
+}
+
+/* ════════════ DETALHE DA OS ════════════ */
+async function renderOS(id){
+  const c=$('content');
+  c.innerHTML='<button class="btn ghost" onclick="back()"><i class="ti ti-arrow-left"></i> Voltar</button><div class="center mt2"><span class="sp dark"></span></div>';
+  let os=null,totEquipe=0,totDesp=0,fromCache=false;
+  if(navigator.onLine){
+    const r=await sb.from('ordens').select('*, clientes(nome,cpfcnpj,telefone)').eq('id',id).single();
+    if(!r.error&&r.data){os=r.data;
+      const[{data:ce},{data:pg}]=await Promise.all([
+        sb.from('custos_os').select('valor_total').eq('os_id',id),
+        sb.from('pagamentos').select('valor').eq('os_id',id)]);
+      totEquipe=(ce||[]).reduce((s,x)=>s+Number(x.valor_total||0),0);
+      totDesp=(pg||[]).reduce((s,x)=>s+Number(x.valor||0),0);
+      await cacheOSD(id,os,totEquipe,totDesp);
+    }
+  }
+  if(!os){ // offline (ou falhou): usa o detalhe cacheado, ou a linha da lista Executar
+    const cached=await getOSD(id);
+    if(cached){os=cached.os;totEquipe=cached.e||0;totDesp=cached.d||0;fromCache=true;}
+    else{const row=(await getList('exec')).find(o=>o.id===id);if(row){os=row;fromCache=true;}}
+  }
+  if(!os){c.innerHTML='<button class="btn ghost" onclick="back()"><i class="ti ti-arrow-left"></i> Voltar</button><div class="empty"><i class="ti ti-cloud-off"></i>OS indisponível offline.<br><span class="sm">Abra esta OS uma vez com sinal para poder usá-la em campo.</span></div>';return;}
+  const cli=os.clientes||{};
+  const tel=(cli.telefone||'').replace(/\D/g,'');
+  const and=Array.isArray(os.andamento)?os.andamento.slice(-6).reverse():[];
+  const temGeo=os.local_lat&&os.local_lng;
+  const mapQ=temGeo?`${os.local_lat},${os.local_lng}`:encodeURIComponent(os.local_endereco||'');
+
+  c.innerHTML=`
+  <button class="btn ghost" onclick="back()"><i class="ti ti-arrow-left"></i> Voltar</button>
+  ${fromCache?'<div class="cachehint mt1"><i class="ti ti-cloud-off"></i>Dados offline — pode lançar; sincroniza ao pegar sinal</div>':''}
+  <div class="between mt1 mb1"><h2 style="margin:0">${esc(os.numero||'OS')}</h2>${badge(os.status)}</div>
+  <div class="card">
+    <div class="b wrap">${esc(os.tipo||'')}</div>
+    ${os.orcamento_valor?`<div class="mt1">Valor orçado: <b>${fmt(os.orcamento_valor)}</b></div>`:''}
+    ${os.responsavel?`<div class="sm mu mt1"><i class="ti ti-user"></i> ${esc(os.responsavel)}</div>`:''}
+    ${os.data?`<div class="sm mu"><i class="ti ti-calendar"></i> ${dataBR(os.data)}</div>`:''}
+  </div>
+
+  <div class="card">
+    <div class="b mb1"><i class="ti ti-user-circle"></i> Cliente</div>
+    <div class="wrap">${esc(cli.nome||'—')}</div>
+    ${cli.cpfcnpj?`<div class="sm mu">${esc(cli.cpfcnpj)}</div>`:''}
+    ${tel?`<div class="row mt1"><a class="btn sm" href="tel:${tel}"><i class="ti ti-phone"></i> Ligar</a>
+      <a class="btn sm" href="https://wa.me/55${tel}" target="_blank"><i class="ti ti-brand-whatsapp"></i> WhatsApp</a></div>`:''}
+  </div>
+
+  ${(os.local_endereco||temGeo)?`<div class="card">
+    <div class="b mb1"><i class="ti ti-map-2"></i> Local</div>
+    ${os.local_endereco?`<div class="wrap sm">${esc(os.local_endereco)}</div>`:''}
+    <a class="btn sm wide mt1" href="https://www.google.com/maps/search/?api=1&query=${mapQ}" target="_blank"><i class="ti ti-navigation"></i> Abrir no mapa</a>
+  </div>`:''}
+
+  ${os.obs?`<div class="card"><div class="b mb1"><i class="ti ti-note"></i> Observações</div><div class="wrap sm">${esc(os.obs)}</div></div>`:''}
+
+  <div class="card">
+    <div class="between"><div><div class="mu sm">Equipe</div><div class="b">${fmt(totEquipe)}</div></div>
+    <div><div class="mu sm">Despesas</div><div class="b">${fmt(totDesp)}</div></div>
+    <div><div class="mu sm">Total gasto</div><div class="b" style="color:var(--erro)">${fmt(totEquipe+totDesp)}</div></div></div>
+  </div>
+
+  <div class="card">
+    <div class="b mb1"><i class="ti ti-history"></i> Andamento</div>
+    ${and.length?`<div class="tl">${and.map(a=>`<div class="it"><div class="sm">${esc(a.txt||'')}</div><div class="xs mu">${esc(a.data||'')}${a.hora?' '+esc(a.hora):''}${a.user?' · '+esc(a.user):''}</div></div>`).join('')}</div>`:'<div class="mu sm">Sem registros ainda.</div>'}
+  </div>
+  <div style="height:8px"></div>
+  <div class="actionbar">
+    <button class="btn pri" onclick="abrirMov('${os.id}','${esc(os.status)}','${esc(os.numero)}')"><i class="ti ti-arrow-badge-right"></i>Movimentar</button>
+    <button class="btn" onclick="abrirGasto('${os.id}','${esc(os.numero)}')"><i class="ti ti-cash"></i>Gasto</button>
+    <button class="btn warn" onclick="pontoNaOS('${os.id}','${esc(os.numero)}')"><i class="ti ti-map-pin"></i>Ponto</button>
+  </div>`;
+}
+
+/* ════════════ Bottom sheet ════════════ */
+function openSheet(titulo,body,footer){$('mt').textContent=titulo;$('mb').innerHTML=body;$('mf').innerHTML=footer;$('ov').classList.add('open');}
+function closeSheet(){$('ov').classList.remove('open');}
+
+/* ════════════ MOVIMENTAR OS ════════════ */
+function abrirMov(osId,statusAtual,numero){
+  const opts=STATUS_MOV.map(s=>`<option ${s===statusAtual?'selected':''}>${s}</option>`).join('');
+  openSheet('Movimentar '+numero,
+    `<div class="f"><label class="fl">Status atual</label><div>${badge(statusAtual)}</div></div>
+     <div class="f"><label class="fl">Novo status</label><select class="fc" id="mv-status">${opts}</select></div>
+     <div class="f"><label class="fl">Anotação (o que aconteceu)</label><textarea class="fc" id="mv-nota" placeholder="Ex: Cheguei na fazenda, iniciei o levantamento do perímetro..."></textarea></div>`,
+    `<button class="btn" onclick="closeSheet()">Cancelar</button><button class="btn pri" id="mv-b" onclick="salvarMov('${osId}','${esc(statusAtual)}')">Salvar</button>`);
+}
+async function salvarMov(osId,statusAtual){
+  const novo=$('mv-status').value, nota=$('mv-nota').value.trim();
+  if(novo===statusAtual&&!nota){toast('Mude o status ou escreva uma anotação.',true);return;}
+  const b=$('mv-b');b.disabled=true;b.innerHTML='<span class="sp"></span>';
+  const txt=(novo!==statusAtual?`Status: ${statusAtual} → ${novo}`:'Anotação')+(nota?' — '+nota:'');
+  const entry={txt,data:new Date().toLocaleDateString('pt-BR'),hora:horaAgora(),user:OPNOME};
+  try{
+    const{synced}=await doWrite({kind:'mov',osId,status:novo,andamento:entry});
+    await patchOSD(osId,novo,entry);
+    closeSheet();toast(synced?'OS movimentada!':'Salvo offline — sincroniza ao pegar sinal');renderOS(osId);
+  }catch(e){b.disabled=false;b.textContent='Salvar';toast('Erro: '+e.message,true);}
+}
+
+/* ════════════ LANÇAR GASTO ════════════ */
+function abrirGasto(osId,numero){
+  const funcOpts=FUNCS.map(f=>`<option value="${f.id}" data-h="${f.valor_hora||0}" data-d="${f.valor_diaria||0}">${esc(f.nome)}</option>`).join('');
+  const catOpts=CAT_DESPESA.map(c=>`<option>${c}</option>`).join('');
+  const tcOpts=TIPO_CUSTO.map(c=>`<option>${c}</option>`).join('');
+  openSheet('Lançar gasto — '+numero,
+    `<div class="seg"><button id="gt-eq" class="on" onclick="gTab('eq')">Equipe / Diária</button><button id="gt-de" onclick="gTab('de')">Despesa</button></div>
+     <div id="g-eq">
+       <div class="f"><label class="fl">Funcionário</label><select class="fc" id="ge-func" onchange="autoVlr()">${funcOpts||'<option value="">(cadastre no Gestor)</option>'}</select></div>
+       <div class="g2"><div class="f"><label class="fl">Tipo</label><select class="fc" id="ge-tipo" onchange="autoVlr()">${tcOpts}</select></div>
+       <div class="f"><label class="fl">Qtd</label><input class="fc" id="ge-qtd" type="number" inputmode="decimal" step="0.5" value="1" oninput="calcEq()"></div></div>
+       <div class="g2"><div class="f"><label class="fl">Valor unit. (R$)</label><input class="fc" id="ge-vu" type="number" inputmode="decimal" step="0.01" oninput="calcEq()"></div>
+       <div class="f"><label class="fl">Total</label><input class="fc" id="ge-tot" readonly style="background:#f0f0ec;font-weight:700"></div></div>
+       <div class="f"><label class="fl">Data</label><input class="fc" id="ge-data" type="date" value="${hoje()}"></div>
+       <div class="f"><label class="fl">Observação</label><input class="fc" id="ge-obs" placeholder="Opcional"></div>
+     </div>
+     <div id="g-de" hidden>
+       <div class="f"><label class="fl">Descrição *</label><input class="fc" id="gd-desc" placeholder="Ex: Gasolina ida à fazenda"></div>
+       <div class="g2"><div class="f"><label class="fl">Categoria</label><select class="fc" id="gd-cat">${catOpts}</select></div>
+       <div class="f"><label class="fl">Valor (R$) *</label><input class="fc" id="gd-valor" type="number" inputmode="decimal" step="0.01" placeholder="0,00"></div></div>
+       <div class="g2"><div class="f"><label class="fl">Data</label><input class="fc" id="gd-data" type="date" value="${hoje()}"></div>
+       <div class="f"><label class="fl">Situação</label><select class="fc" id="gd-status"><option value="Pago">Pago</option><option value="Pendente">A pagar</option></select></div></div>
+       <div class="f"><label class="fl">Comprovante (foto)</label><button type="button" class="btn wide" onclick="fotoComprov()"><i class="ti ti-camera"></i> <span id="gd-foto-lbl">Tirar foto do comprovante</span></button><img id="gd-foto-prev" class="photo-prev" hidden></div>
+     </div>`,
+    `<button class="btn" onclick="closeSheet()">Cancelar</button><button class="btn pri" id="g-b" onclick="salvarGasto('${osId}','${esc(numero)}')">Lançar</button>`);
+  setTimeout(autoVlr,50);
+}
+let _GTAB='eq', _comprovBlob=null;
+function gTab(t){_GTAB=t;$('g-eq').hidden=t!=='eq';$('g-de').hidden=t!=='de';$('gt-eq').classList.toggle('on',t==='eq');$('gt-de').classList.toggle('on',t==='de');}
+function autoVlr(){const sel=$('ge-func');const o=sel?.selectedOptions[0];const tipo=$('ge-tipo')?.value;if(!o)return;
+  const v=tipo==='Hora'?parseFloat(o.dataset.h):tipo==='Diária'?parseFloat(o.dataset.d):0;
+  if(v){$('ge-vu').value=Number(v).toFixed(2);}calcEq();}
+function calcEq(){const q=parseFloat($('ge-qtd')?.value)||0,v=parseFloat($('ge-vu')?.value)||0;if($('ge-tot'))$('ge-tot').value=(Math.round(q*v*100)/100).toFixed(2);}
+async function fotoComprov(){const blob=await tirarFoto();if(!blob)return;_comprovBlob=blob;$('gd-foto-lbl').textContent='Foto anexada ✓';const img=$('gd-foto-prev');img.src=URL.createObjectURL(blob);img.hidden=false;}
+
+async function salvarGasto(osId,numero){
+  const b=$('g-b');
+  if(_GTAB==='eq'){
+    const funcId=$('ge-func').value||null, tipo=$('ge-tipo').value;
+    const q=parseFloat($('ge-qtd').value)||1, vu=parseFloat($('ge-vu').value)||0;
+    if(!vu){toast('Informe o valor unitário.',true);return;}
+    b.disabled=true;b.innerHTML='<span class="sp"></span>';
+    const total=Math.round(q*vu*100)/100;
+    try{
+      const{synced}=await doWrite({kind:'insert',table:'custos_os',payload:{os_id:osId,func_id:funcId,tipo_custo:tipo,quantidade:q,valor_unit:vu,valor_total:total,data:$('ge-data').value||hoje(),obs:$('ge-obs').value||null}});
+      await patchTot(osId,total,0);
+      closeSheet();toast(synced?'Custo de equipe lançado!':'Salvo offline — sincroniza ao pegar sinal');renderOS(osId);
+    }catch(e){b.disabled=false;b.textContent='Lançar';toast('Erro: '+e.message,true);}
+  }else{
+    const desc=$('gd-desc').value.trim(), valor=parseFloat($('gd-valor').value)||0;
+    if(!desc){toast('Informe a descrição.',true);return;}
+    if(!valor){toast('Informe o valor.',true);return;}
+    b.disabled=true;b.innerHTML='<span class="sp"></span>';
+    const status=$('gd-status').value, data=$('gd-data').value||hoje();
+    const payload={descricao:desc,categoria:$('gd-cat').value,valor,vencimento:data,data_pagamento:status==='Pago'?data:null,status,os_id:osId,os_manual:numero};
+    const photos=_comprovBlob?[{field:'comprovante_url',prefix:'comprovantes',blob:_comprovBlob}]:[];
+    try{
+      const{synced}=await doWrite({kind:'insert',table:'pagamentos',payload,photos});
+      await patchTot(osId,0,valor);
+      closeSheet();toast(synced?'Despesa lançada!':'Salvo offline — sincroniza ao pegar sinal');renderOS(osId);
+    }catch(e){b.disabled=false;b.textContent='Lançar';toast('Erro: '+e.message,true);}
+  }
+}
+
+/* ════════════ PONTO — entrada / saída ════════════ */
+let _fotoBlob=null, _geo=null;
+function pontoNaOS(osId,numero){
+  if(ATIVO){if(ATIVO.os_id===osId){abrirSaida();}else{toast('Você já tem um ponto aberto em '+(ATIVO.os_numero||'outra OS')+'. Finalize antes.',true);go('ponto');}return;}
+  abrirEntrada(osId,numero);
+}
+function abrirEntrada(osId,numero){
+  _fotoBlob=null;_geo=null;
+  openSheet('Iniciar atendimento — '+numero,
+    `<div class="f"><label class="fl">Km inicial</label><input class="fc" id="pt-km" type="number" inputmode="decimal" step="1" placeholder="Ex: 145820"></div>
+     <div class="f"><label class="fl">Foto de entrada * <span class="mu">(ponto/obra)</span></label>
+       <button type="button" class="btn wide" onclick="tirarFotoPonto()"><i class="ti ti-camera"></i> <span id="pt-foto-lbl">Tirar foto</span></button>
+       <img id="pt-foto-prev" class="photo-prev" hidden></div>
+     <div class="f"><label class="fl">Localização</label><div id="pt-geo" class="sm mu">Capturando GPS…</div></div>
+     <div class="f"><label class="fl">Observação</label><input class="fc" id="pt-obs" placeholder="Opcional"></div>`,
+    `<button class="btn" onclick="closeSheet()">Cancelar</button><button class="btn warn" id="pt-b" onclick="salvarEntrada('${osId}','${esc(numero)}')"><i class="ti ti-player-play"></i> Iniciar</button>`);
+  capturarGeo('pt-geo');
+}
+function abrirSaida(){
+  const a=ATIVO;if(!a){toast('Nenhum ponto aberto.',true);return;}
+  _fotoBlob=null;_geo=null;
+  openSheet('Finalizar — '+(a.os_numero||''),
+    `<div class="sm mu mb1">Entrada: km ${a.km_inicial??'—'} · ${new Date(a.ts_entrada).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>
+     <div class="f"><label class="fl">Km final</label><input class="fc" id="pt-kmf" type="number" inputmode="decimal" step="1" placeholder="Deve ser ≥ ${a.km_inicial??0}"></div>
+     <div class="f"><label class="fl">Foto de saída *</label>
+       <button type="button" class="btn wide" onclick="tirarFotoPonto()"><i class="ti ti-camera"></i> <span id="pt-foto-lbl">Tirar foto</span></button>
+       <img id="pt-foto-prev" class="photo-prev" hidden></div>
+     <div class="f"><label class="fl">Localização</label><div id="pt-geo" class="sm mu">Capturando GPS…</div></div>
+     <div class="f"><label class="fl">O que foi feito / pendências</label><textarea class="fc" id="pt-obs" placeholder="Resumo do serviço executado..."></textarea></div>`,
+    `<button class="btn" onclick="closeSheet()">Cancelar</button><button class="btn ok" id="pt-b" onclick="salvarSaida()"><i class="ti ti-flag-check"></i> Finalizar</button>`);
+  capturarGeo('pt-geo');
+}
+async function tirarFotoPonto(){const blob=await tirarFoto();if(!blob)return;_fotoBlob=blob;$('pt-foto-lbl').textContent='Foto ok ✓';const img=$('pt-foto-prev');img.src=URL.createObjectURL(blob);img.hidden=false;}
+
+async function salvarEntrada(osId,numero){
+  if(!_fotoBlob){toast('Tire a foto de entrada.',true);return;}
+  const b=$('pt-b');b.disabled=true;b.innerHTML='<span class="sp"></span>';
+  const km=$('pt-km').value?Number($('pt-km').value):null;
+  const obs=$('pt-obs').value||null;
+  const base={os_id:osId,os_numero:numero,operador:OPNOME,operador_uid:OPUID,km_inicial:km,
+    geo_entrada_lat:_geo?.lat,geo_entrada_lng:_geo?.lng,ts_entrada:new Date().toISOString(),status:'em_andamento',obs};
+  try{
+    if(navigator.onLine){
+      try{
+        const foto=await upload(_fotoBlob,'ponto');
+        const{data,error}=await sb.from('atendimentos_campo').insert({...base,foto_entrada_url:foto}).select().single();
+        if(error)throw error;
+        ATIVO=data;await kvPut('ativo_cache',data);
+        await movAuto(osId,'Em campo',`Ponto de entrada${km?` — km ${km}`:''}`);
+        closeSheet();toast('Atendimento iniciado!');go('ponto');return;
+      }catch(e){
+        if(String(e.message||'').includes('uq_atend')){b.disabled=false;b.innerHTML='Iniciar';toast('Você já tem um ponto aberto.',true);return;}
+        if(!isNetErr(e))throw e;   // erro real: mostra. Rede caindo: segue pro offline abaixo.
+      }
+    }
+    // offline: guarda o atendimento local (com a foto) até a saída
+    const local={...base,_local:true,_entradaBlob:_fotoBlob};
+    await kvPut('ativo_local',local);ATIVO=local;
+    await movAuto(osId,'Em campo',`Ponto de entrada${km?` — km ${km}`:''}`);
+    closeSheet();toast('Entrada salva offline — sincroniza ao pegar sinal');go('ponto');
+  }catch(e){b.disabled=false;b.innerHTML='Iniciar';toast('Erro: '+e.message,true);}
+}
+async function salvarSaida(){
+  const a=ATIVO;if(!a)return;
+  if(!_fotoBlob){toast('Tire a foto de saída.',true);return;}
+  const kmf=$('pt-kmf').value?Number($('pt-kmf').value):null;
+  if(kmf!=null&&a.km_inicial!=null&&kmf<a.km_inicial){toast('Km final não pode ser menor que o inicial.',true);return;}
+  const b=$('pt-b');b.disabled=true;b.innerHTML='<span class="sp"></span>';
+  const obs=$('pt-obs').value||null;
+  const saida={km_final:kmf,geo_saida_lat:_geo?.lat,geo_saida_lng:_geo?.lng,ts_saida:new Date().toISOString(),status:'concluido'};
+  const obsFinal=[a.obs,obs].filter(Boolean).join(' | ')||null;
+  try{
+    let synced;
+    if(a._local){ // nunca sincronizou — insere entrada + saída de uma vez
+      const payload={os_id:a.os_id,os_numero:a.os_numero,operador:OPNOME,operador_uid:OPUID,
+        km_inicial:a.km_inicial,geo_entrada_lat:a.geo_entrada_lat,geo_entrada_lng:a.geo_entrada_lng,ts_entrada:a.ts_entrada,
+        ...saida,obs:obsFinal};
+      const photos=[{field:'foto_entrada_url',prefix:'ponto',blob:a._entradaBlob},{field:'foto_saida_url',prefix:'ponto',blob:_fotoBlob}];
+      ({synced}=await doWrite({kind:'insert',table:'atendimentos_campo',payload,photos}));
+      await kvDel('ativo_local');
+    }else{        // já existe no servidor — atualiza a saída
+      ({synced}=await doWrite({kind:'update',table:'atendimentos_campo',matchCol:'id',matchVal:a.id,
+        payload:{...saida,obs:obsFinal},photos:[{field:'foto_saida_url',prefix:'ponto',blob:_fotoBlob}]}));
+      await kvDel('ativo_cache');
+    }
+    await movAuto(a.os_id,'Em andamento',`Ponto de saída${kmf?` — km ${kmf} (rodou ${kmf-(a.km_inicial||0)} km)`:''}${obs?' — '+obs:''}`);
+    ATIVO=null;closeSheet();toast(synced?'Atendimento finalizado!':'Saída salva offline — sincroniza ao pegar sinal');go('agenda');
+  }catch(e){b.disabled=false;b.innerHTML='Finalizar';toast('Erro: '+e.message,true);}
+}
+// movimenta status + andamento (fila offline + patch do cache); não bloqueia o ponto
+async function movAuto(osId,status,txt){
+  const entry={txt,data:new Date().toLocaleDateString('pt-BR'),hora:horaAgora(),user:OPNOME};
+  try{await doWrite({kind:'mov',osId,status,andamento:entry});await patchOSD(osId,status,entry);}catch(e){}
+}
+
+/* ════════════ Câmera / GPS / Upload ════════════ */
+function tirarFoto(){return new Promise(res=>{
+  const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.capture='environment';
+  inp.onchange=async()=>{const f=inp.files&&inp.files[0];if(!f){res(null);return;}try{res(await comprimir(f));}catch(e){res(f);}};
+  inp.click();
+});}
+function comprimir(file,max=1280,q=0.72){return new Promise((res,rej)=>{
+  const img=new Image();img.onload=()=>{
+    let{width:w,height:h}=img;if(w>h&&w>max){h=h*max/w;w=max;}else if(h>=w&&h>max){w=w*max/h;h=max;}
+    const cv=document.createElement('canvas');cv.width=w;cv.height=h;cv.getContext('2d').drawImage(img,0,0,w,h);
+    cv.toBlob(b=>b?res(b):rej(new Error('falha na imagem')),'image/jpeg',q);
+  };img.onerror=rej;img.src=URL.createObjectURL(file);
+});}
+function capturarGeo(elId){const el=$(elId);
+  if(!navigator.geolocation){if(el)el.textContent='GPS indisponível';return;}
+  navigator.geolocation.getCurrentPosition(p=>{
+    _geo={lat:p.coords.latitude,lng:p.coords.longitude,acc:Math.round(p.coords.accuracy)};
+    if($(elId))$(elId).innerHTML=`<i class="ti ti-map-pin"></i> ${_geo.lat.toFixed(5)}, ${_geo.lng.toFixed(5)} <span class="xs">(±${_geo.acc}m)</span>`;
+  },err=>{if($(elId))$(elId).textContent='GPS: '+(err.code===1?'permissão negada':'não obtido');},
+  {enableHighAccuracy:true,timeout:12000,maximumAge:0});}
+async function upload(blob,prefix){
+  const path=`${prefix}/${OPUID.slice(0,8)}_${Date.now()}.jpg`;
+  const{error}=await sb.storage.from(BUCKET).upload(path,blob,{contentType:'image/jpeg',upsert:false});
+  if(error)throw new Error('upload: '+error.message);
+  return sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+}
+
+/* ════════════ Instalação (Android: prompt nativo · iOS: dica manual) ════════════ */
+let _deferredPrompt=null;
+addEventListener('beforeinstallprompt',e=>{e.preventDefault();_deferredPrompt=e;if(CU)showInstallBar('android');});
+addEventListener('appinstalled',dismissInstall);
+function isStandalone(){return matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;}
+function isIOS(){return /iphone|ipad|ipod/i.test(navigator.userAgent)&&!window.MSStream;}
+function maybeInstallHint(){
+  if(isStandalone()||localStorage.getItem('inst-dismiss')==='1')return;
+  if(_deferredPrompt)showInstallBar('android');
+  else if(isIOS())showInstallBar('ios');
+}
+function showInstallBar(kind){
+  const bar=$('installbar');if(!bar||isStandalone())return;
+  bar.innerHTML=kind==='android'
+    ?`<i class="ti ti-download" style="font-size:22px;color:var(--brand)"></i>
+       <div class="grow"><b>Instalar o app</b><div class="mu">Fica na tela inicial e abre em tela cheia.</div></div>
+       <button class="btn pri" onclick="doInstall()">Instalar</button><button class="x" onclick="dismissInstall()">&times;</button>`
+    :`<i class="ti ti-device-mobile-share" style="font-size:22px;color:var(--brand)"></i>
+       <div class="grow"><b>Instalar no iPhone</b><div class="mu">Toque em <b>Compartilhar</b> e depois em <b>“Adicionar à Tela de Início”</b>.</div></div>
+       <button class="x" onclick="dismissInstall()">&times;</button>`;
+  bar.hidden=false;
+}
+async function doInstall(){if(!_deferredPrompt)return;_deferredPrompt.prompt();try{await _deferredPrompt.userChoice;}catch(e){}_deferredPrompt=null;dismissInstall();}
+function dismissInstall(){localStorage.setItem('inst-dismiss','1');const b=$('installbar');if(b)b.hidden=true;}
+
+/* ── Service worker (instalável + abre offline) ── */
+if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('/campo/sw.js').catch(()=>{}));
+</script>
+</body>
+</html>
