@@ -190,6 +190,7 @@ textarea.fc{min-height:72px;resize:vertical}
     <button data-tab="agenda" class="on" onclick="go('agenda')"><i class="ti ti-calendar-event"></i>Agenda</button>
     <button data-tab="executar" onclick="go('executar')"><i class="ti ti-clipboard-list"></i>Executar</button>
     <button data-tab="ponto" onclick="go('ponto')"><i class="ti ti-map-pin"></i>Ponto</button>
+    <button data-tab="abastecer" onclick="go('abastecer')"><i class="ti ti-gas-station"></i>Abastecer</button>
   </nav>
 </div>
 
@@ -224,7 +225,9 @@ let OPNOME='', OPUID='';   // nome e uid do operador
 let TAB='agenda';          // aba atual
 let VIEW={s:'agenda'};     // {s:'agenda'|'executar'|'ponto'|'os', osId}
 let FUNCS=[];              // cache funcionarios (p/ custo de equipe)
+let VEICS=[];              // cache veiculos (p/ abastecimento)
 let ATIVO=null;            // atendimento_campo em andamento do operador
+let _abzGeo=null;          // GPS capturado na tela de abastecimento
 
 /* ── Constantes de domínio (do schema do Gestor) ── */
 const STATUS_EXEC=['Agendada','Em campo','Em andamento','Aguardando'];   // OS "disponível p/ execução"
@@ -367,7 +370,8 @@ async function enterApp(u){
   // funcionarios (p/ custo de equipe) — cacheia p/ usar offline
   if(navigator.onLine){
     sb.from('funcionarios').select('id,nome,valor_hora,valor_diaria').order('nome').then(({data})=>{if(data){FUNCS=data;kvPut('funcs',data);}});
-  }else{FUNCS=await kvGet('funcs')||[];}
+    sb.from('veiculos').select('id,nome,placa,km_atual,combustivel,status').order('nome').then(({data})=>{if(data){VEICS=data;kvPut('veics',data);}});
+  }else{FUNCS=await kvGet('funcs')||[];VEICS=await kvGet('veics')||[];}
   await refreshPend();flush(true);
   await carregarAtivo();
   maybeInstallHint();
@@ -391,11 +395,13 @@ function back(){go(TAB==='os'?'agenda':TAB);}
 
 function render(){
   const c=$('content');
+  $('tabbar').style.display=VIEW.s==='os'?'none':'';   // na OS a barra de abas some (evita cobrir os botões de ação)
   if(VIEW.s==='os')return renderOS(VIEW.osId);
   document.querySelectorAll('#tabbar button').forEach(b=>b.classList.toggle('on',b.dataset.tab===VIEW.s));
   if(VIEW.s==='agenda')renderAgenda();
   else if(VIEW.s==='executar')renderExecutar();
   else if(VIEW.s==='ponto')renderPonto();
+  else if(VIEW.s==='abastecer')renderAbastecer();
 }
 
 function bannerAtivo(){
@@ -486,6 +492,64 @@ async function renderPonto(){
   }
 }
 
+/* ════════════ ABASTECIMENTO (Frotas) ════════════ */
+async function renderAbastecer(){
+  const c=$('content');
+  if(!VEICS.length){VEICS=await kvGet('veics')||[];}
+  const opts=VEICS.map(v=>`<option value="${v.id}" data-km="${v.km_atual||0}">${esc(v.nome||v.placa||'Veículo')}${v.placa&&v.nome?' · '+esc(v.placa):''}</option>`).join('');
+  c.innerHTML=`<h2 style="margin:4px 0 12px">Abastecimento</h2>
+    ${VEICS.length?'':'<div class="card mb1"><div class="sm mu"><i class="ti ti-alert-triangle" style="color:var(--warn)"></i> Nenhum veículo. Cadastre em Gestor → Frotas (e rode a migration).</div></div>'}
+    <div class="card">
+      <div class="f"><label class="fl">Veículo *</label><select class="fc" id="abz-veic" onchange="abzAutoKm()"><option value="">Selecione...</option>${opts}</select></div>
+      <div class="g2"><div class="f"><label class="fl">Km / Horímetro</label><input class="fc" id="abz-km" type="number" inputmode="decimal" placeholder="hodômetro"></div>
+      <div class="f"><label class="fl">Hora</label><input class="fc" id="abz-hora" type="time" value="${horaAgora()}"></div></div>
+      <div class="f"><label class="fl">Local / Posto</label><div class="row"><input class="fc grow" id="abz-local" placeholder="Posto / cidade"><button class="btn sm" type="button" onclick="abzGeo()" title="Usar GPS"><i class="ti ti-map-pin"></i></button></div><div class="xs mu" id="abz-geo" style="margin-top:4px"></div></div>
+      <div class="g2"><div class="f"><label class="fl">Litros <span class="mu">(opcional)</span></label><input class="fc" id="abz-litros" type="number" inputmode="decimal" step="0.01" placeholder="p/ calcular consumo"></div>
+      <div class="f"><label class="fl">Valor total (R$) *</label><input class="fc" id="abz-valor" type="number" inputmode="decimal" step="0.01" placeholder="0,00"></div></div>
+      <div class="f"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0"><input type="checkbox" id="abz-cheio" checked style="width:18px;height:18px;accent-color:var(--brand)"> <span class="sm">Tanque cheio (para o cálculo de consumo)</span></label></div>
+      <div class="f"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0"><input type="checkbox" id="abz-fin" checked style="width:18px;height:18px;accent-color:var(--brand)"> <span class="sm">Lançar também no financeiro (Combustível)</span></label></div>
+      <button class="btn pri wide" id="abz-b" onclick="salvarAbastCampo()"><i class="ti ti-gas-station"></i> Registrar abastecimento</button>
+    </div>
+    <div id="abz-recentes"></div>`;
+  _abzGeo=null;abzGeo();
+  carregarAbastRecentes();
+}
+function abzAutoKm(){const o=$('abz-veic')?.selectedOptions[0];if(o&&$('abz-km'))$('abz-km').placeholder='atual: '+Number(o.dataset.km||0).toLocaleString('pt-BR');}
+function abzGeo(){const el=$('abz-geo');if(!navigator.geolocation){if(el)el.textContent='';return;}
+  if(el)el.textContent='Capturando GPS…';
+  navigator.geolocation.getCurrentPosition(p=>{_abzGeo={lat:p.coords.latitude,lng:p.coords.longitude};if($('abz-geo'))$('abz-geo').innerHTML='<i class="ti ti-map-pin"></i> '+_abzGeo.lat.toFixed(5)+', '+_abzGeo.lng.toFixed(5);},
+  ()=>{if($('abz-geo'))$('abz-geo').textContent='';},{enableHighAccuracy:true,timeout:12000,maximumAge:60000});}
+async function salvarAbastCampo(){
+  const veicId=$('abz-veic').value, valor=parseFloat($('abz-valor').value)||0;
+  if(!veicId){toast('Selecione o veículo.',true);return;}
+  if(!valor){toast('Informe o valor.',true);return;}
+  const b=$('abz-b');b.disabled=true;b.innerHTML='<span class="sp"></span>';
+  const km=$('abz-km').value?Number($('abz-km').value):null;
+  const litros=$('abz-litros').value?Number($('abz-litros').value):null;
+  const local=$('abz-local').value.trim()||null;
+  const obs=['Hora '+($('abz-hora').value||horaAgora())].concat(_abzGeo?['GPS '+_abzGeo.lat.toFixed(5)+','+_abzGeo.lng.toFixed(5)]:[]).concat(['via app de campo']).join(' · ');
+  const payload={veiculo_id:veicId,data:hoje(),km,litros,valor_litro:(litros&&valor?Math.round(valor/litros*1000)/1000:null),valor_total:valor,posto:local,tanque_cheio:$('abz-cheio').checked,motorista:OPNOME,obs};
+  try{
+    const{synced}=await doWrite({kind:'insert',table:'abastecimentos',payload});
+    const v=VEICS.find(x=>x.id===veicId);
+    if(km&&navigator.onLine&&v&&km>Number(v.km_atual||0)){v.km_atual=km;sb.from('veiculos').update({km_atual:km}).eq('id',veicId);}
+    if($('abz-fin')?.checked){
+      const vNome=v?(v.nome||v.placa||'Veículo'):'Veículo';
+      await doWrite({kind:'insert',table:'pagamentos',payload:{descricao:'Combustível — '+vNome+(local?' · '+local:''),categoria:'Combustível',valor,vencimento:hoje(),data_pagamento:hoje(),status:'Pago',natureza:'Variável'}});
+    }
+    toast(synced?'Abastecimento registrado!':'Salvo offline — sincroniza ao pegar sinal');
+    renderAbastecer();
+  }catch(e){b.disabled=false;b.innerHTML='Registrar abastecimento';toast('Erro: '+e.message,true);}
+}
+async function carregarAbastRecentes(){
+  const box=$('abz-recentes');if(!box)return;
+  if(!navigator.onLine){box.innerHTML='';return;}
+  const{data,error}=await sb.from('abastecimentos').select('data,km,litros,valor_total,posto,veiculo_id').order('data',{ascending:false}).limit(8);
+  if(error||!data||!data.length){box.innerHTML='';return;}
+  const nome=id=>{const v=VEICS.find(x=>x.id===id);return v?(v.nome||v.placa||'Veículo'):'Veículo';};
+  box.innerHTML='<h3 style="margin:16px 0 8px;font-size:15px">Últimos abastecimentos</h3>'+data.map(a=>`<div class="card" style="padding:10px;margin-bottom:8px"><div class="between"><div class="grow"><div class="b sm">${esc(nome(a.veiculo_id))}</div><div class="mu xs">${dataBR(a.data)}${a.km?' · '+Number(a.km).toLocaleString('pt-BR')+' km':''}${a.litros?' · '+a.litros+' L':''}${a.posto?' · '+esc(a.posto):''}</div></div><div class="b">${fmt(a.valor_total)}</div></div></div>`).join('');
+}
+
 /* ════════════ DETALHE DA OS ════════════ */
 async function renderOS(id){
   const c=$('content');
@@ -551,7 +615,7 @@ async function renderOS(id){
     <div class="b mb1"><i class="ti ti-history"></i> Andamento</div>
     ${and.length?`<div class="tl">${and.map(a=>`<div class="it"><div class="sm">${esc(a.txt||'')}</div><div class="xs mu">${esc(a.data||'')}${a.hora?' '+esc(a.hora):''}${a.user?' · '+esc(a.user):''}</div></div>`).join('')}</div>`:'<div class="mu sm">Sem registros ainda.</div>'}
   </div>
-  <div style="height:8px"></div>
+  <div style="height:96px"></div>
   <div class="actionbar">
     <button class="btn pri" onclick="abrirMov('${os.id}','${esc(os.status)}','${esc(os.numero)}')"><i class="ti ti-arrow-badge-right"></i>Movimentar</button>
     <button class="btn" onclick="abrirGasto('${os.id}','${esc(os.numero)}')"><i class="ti ti-cash"></i>Gasto</button>
