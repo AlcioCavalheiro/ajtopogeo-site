@@ -227,7 +227,8 @@ let VIEW={s:'agenda'};     // {s:'agenda'|'executar'|'ponto'|'os', osId}
 let FUNCS=[];              // cache funcionarios/diaristas (p/ custo de equipe)
 let VEICS=[];              // cache veiculos (p/ abastecimento, ponto e checklist)
 let ESTAB=[];              // cache estabelecimentos (postos/restaurantes/materiais)
-let ATIVO=null;            // atendimento_campo em andamento do operador
+let ATIVO=null;            // turno (atendimento_campo) em aberto do operador — independente de OS
+let OS_ASSUMIDA=null;      // OS atualmente assumida dentro do turno aberto (atendimentos_campo_os)
 let _abzGeo=null;          // GPS capturado na tela de abastecimento
 
 /* ── Constantes de domínio (do schema do Gestor) ── */
@@ -310,6 +311,16 @@ async function doWrite(op){
   if(navigator.onLine){try{await execOp(op);return{synced:true};}catch(e){if(!isNetErr(e))throw e;}}
   await enqueue(op);return{synced:false};
 }
+// Como turno/assumida usam id gerado no app (uid()), uma escrita que depende de
+// outra ainda não sincronizada (ex: concluir uma OS cujo "assumir" está na fila)
+// precisa entrar na fila também, na ordem certa — senão o update roda direto
+// contra um id que ainda não existe no servidor e não acha nada pra atualizar.
+async function doWriteChained(op,dependsTable,dependsId){
+  const pend=await obAll();
+  const aindaPendente=pend.some(o=>o.table===dependsTable&&o.kind==='insert'&&o.payload&&o.payload.id===dependsId);
+  if(aindaPendente){await enqueue(op);return{synced:false};}
+  return doWrite(op);
+}
 async function flush(silent){
   if(_flushing||!navigator.onLine)return;
   _flushing=true;
@@ -375,19 +386,29 @@ async function enterApp(u){
     sb.from('estabelecimentos').select('id,nome,tipo,cidade').eq('ativo',true).order('tipo').order('nome').then(({data})=>{if(data){ESTAB=data;kvPut('estab',data);}});
   }else{FUNCS=await kvGet('funcs')||[];VEICS=await kvGet('veics')||[];ESTAB=await kvGet('estab')||[];}
   await refreshPend();flush(true);
-  await carregarAtivo();
+  await carregarAtivo();await carregarAssumida();
   maybeInstallHint();
   go('agenda');
 }
 
 async function carregarAtivo(){
-  const local=await kvGet('ativo_local');
-  if(local){ATIVO=local;return;}                 // ponto aberto ainda não sincronizado
+  const cached=await kvGet('ativo_cache');
+  if(cached){ATIVO=cached;return;}                // turno aberto (sincronizado ou ainda na fila)
   if(navigator.onLine){
     const{data}=await sb.from('atendimentos_campo').select('*').eq('operador_uid',OPUID).eq('status','em_andamento').order('criado_em',{ascending:false}).limit(1);
     ATIVO=(data&&data[0])||null;
-    if(ATIVO)await kvPut('ativo_cache',ATIVO);else await kvDel('ativo_cache');
-  }else{ATIVO=await kvGet('ativo_cache');}         // offline: usa o último conhecido
+    if(ATIVO)await kvPut('ativo_cache',ATIVO);
+  }else{ATIVO=null;}
+}
+async function carregarAssumida(){
+  if(!ATIVO){OS_ASSUMIDA=null;await kvDel('assumida_cache');return;}
+  const cached=await kvGet('assumida_cache');
+  if(cached){OS_ASSUMIDA=cached;return;}
+  if(navigator.onLine){
+    const{data}=await sb.from('atendimentos_campo_os').select('*').eq('operador_uid',OPUID).eq('status','assumida').limit(1);
+    OS_ASSUMIDA=(data&&data[0])||null;
+    if(OS_ASSUMIDA)await kvPut('assumida_cache',OS_ASSUMIDA);
+  }else{OS_ASSUMIDA=null;}
 }
 
 /* ════════════ Navegação ════════════ */
@@ -408,15 +429,19 @@ function render(){
 
 function bannerAtivo(){
   if(!ATIVO)return '';
-  return `<div class="card tap mb1" style="border-color:var(--warn);background:#fff8ec" onclick="openOS('${ATIVO.os_id}')">
-    <div class="between"><div class="row"><i class="ti ti-map-pin-filled" style="color:var(--warn);font-size:22px"></i>
-    <div><div class="b">Ponto em aberto</div><div class="sm mu">${esc(ATIVO.os_numero||'OS')} · entrada ${new Date(ATIVO.ts_entrada).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}${ATIVO.veiculo_nome?' · '+esc(ATIVO.veiculo_nome):''}</div></div></div>
-    <span class="pill">Finalizar ›</span></div></div>`;
+  const linhaAssumida=OS_ASSUMIDA
+    ?`<div class="sm" style="margin-top:2px"><i class="ti ti-clipboard-list"></i> Trabalhando em <b>${esc(OS_ASSUMIDA.os_numero||'')}</b></div>`
+    :`<div class="sm mu" style="margin-top:2px">Nenhuma OS assumida ainda</div>`;
+  return `<div class="card tap mb1" style="border-color:var(--warn);background:#fff8ec" onclick="go('ponto')">
+    <div class="between"><div class="row"><i class="ti ti-clock-hour-4" style="color:var(--warn);font-size:22px"></i>
+    <div><div class="b">Expediente aberto</div><div class="sm mu">Entrada ${new Date(ATIVO.ts_entrada).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}${ATIVO.veiculo_nome?' · '+esc(ATIVO.veiculo_nome):''}</div>${linhaAssumida}</div></div>
+    <span class="pill">Ver ›</span></div></div>`;
 }
 
 /* ════════════ AGENDA ════════════ */
 async function renderAgenda(){
   const c=$('content');
+  await carregarAtivo();await carregarAssumida();
   c.innerHTML=bannerAtivo()+'<div class="between" style="margin:4px 0 12px"><h2 style="margin:0">Agenda</h2><span id="ag-off"></span></div><div id="ag-list"><div class="center mt2"><span class="sp dark"></span></div></div>';
   let data=null;
   if(navigator.onLine){const r=await sb.from('agenda').select('*').gte('data',hoje()).order('data').limit(120);if(!r.error){data=r.data;cacheList('ag',data);}}
@@ -443,6 +468,7 @@ async function renderAgenda(){
 /* ════════════ EXECUTAR (OS disponíveis) ════════════ */
 async function renderExecutar(){
   const c=$('content');
+  await carregarAtivo();await carregarAssumida();
   c.innerHTML=bannerAtivo()+`<div class="between" style="margin:4px 0 12px"><h2 style="margin:0">Executar</h2>
     <button class="btn ghost sm" id="fmine" onclick="toggleMine()"><i class="ti ti-user"></i> <span>Todas</span></button></div>
     <div id="ex-off"></div><div id="ex-list"><div class="center mt2"><span class="sp dark"></span></div></div>`;
@@ -460,38 +486,53 @@ function pintarExecutar(){
   let lista=window._OSCACHE||[];
   if(_MINE){const n=OPNOME.toLowerCase();lista=lista.filter(o=>(o.responsavel||'').toLowerCase().includes(n));}
   if(!lista.length){box.innerHTML='<div class="empty"><i class="ti ti-clipboard-off"></i>Nenhuma OS '+(_MINE?'sua ':'')+'para executar.</div>';return;}
-  box.innerHTML=lista.map(o=>`<div class="card tap" onclick="openOS('${o.id}')">
-    <div class="between mb1"><div class="b">${esc(o.numero||'—')}</div>${badge(o.status)}</div>
+  box.innerHTML=lista.map(o=>{
+    const souEu=OS_ASSUMIDA&&OS_ASSUMIDA.os_id===o.id;
+    return `<div class="card tap" style="${souEu?'border-color:var(--ok)':''}" onclick="openOS('${o.id}')">
+    <div class="between mb1"><div class="b">${esc(o.numero||'—')}</div>${souEu?'<span class="bdg st-concluida"><i class="ti ti-player-play"></i> Você está aqui</span>':badge(o.status)}</div>
     <div class="wrap">${esc(o.tipo||'')}</div>
     <div class="sm mu wrap">${esc(o.clientes?.nome||'Sem cliente')}${o.local_endereco?' · '+esc(o.local_endereco):''}</div>
     ${o.responsavel?`<div class="sm mu mt1"><i class="ti ti-user"></i> ${esc(o.responsavel)}</div>`:''}
-  </div>`).join('');
+  </div>`;}).join('');
 }
 
-/* ════════════ PONTO ════════════ */
+/* ════════════ PONTO (expediente/turno — independente da OS) ════════════ */
 async function renderPonto(){
   const c=$('content');
-  await carregarAtivo();
-  if(ATIVO){
+  await carregarAtivo();await carregarAssumida();
+  if(!ATIVO){
     c.innerHTML=`<h2 style="margin:4px 0 14px">Ponto</h2>
-      <div class="card" style="border-color:var(--warn)">
-        <div class="row mb1"><i class="ti ti-map-pin-filled" style="color:var(--warn);font-size:24px"></i><div><div class="b">Atendimento em andamento</div><div class="sm mu">${esc(ATIVO.os_numero||'')}${ATIVO.veiculo_nome?' · '+esc(ATIVO.veiculo_nome):''}</div></div></div>
-        <div class="g2 sm"><div><div class="mu">Entrada</div><div class="b">${new Date(ATIVO.ts_entrada).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div></div>
-        <div><div class="mu">Km inicial</div><div class="b">${ATIVO.km_inicial??'—'}</div></div></div>
-        <button class="btn warn wide mt2" onclick="abrirSaida()"><i class="ti ti-flag-check"></i> Finalizar atendimento</button>
-        <button class="btn ghost wide" onclick="openOS('${ATIVO.os_id}')">Ver OS</button>
+      <div class="card center"><i class="ti ti-clock-hour-4" style="font-size:40px;color:var(--mu);opacity:.5"></i>
+      <p class="mu">Nenhum expediente aberto.</p>
+      <button class="btn warn wide mt1" onclick="abrirEntradaTurno()"><i class="ti ti-player-play"></i> Bater ponto (iniciar expediente)</button>
       </div>`;
-  }else{
-    c.innerHTML=`<h2 style="margin:4px 0 14px">Ponto</h2>
-      <div class="card center"><i class="ti ti-map-pin" style="font-size:40px;color:var(--mu);opacity:.5"></i>
-      <p class="mu">Nenhum ponto aberto.<br>Escolha uma OS para iniciar o atendimento.</p>
-      <div id="ponto-os"><span class="sp dark"></span></div></div>`;
-    const{data}=await sb.from('ordens').select('id,numero,tipo,status,clientes(nome)').in('status',STATUS_EXEC).order('atualizado_em',{ascending:false}).limit(60);
-    const box=$('ponto-os');if(!box)return;
-    box.innerHTML=(data||[]).length?data.map(o=>`<button class="btn wide sm mt1" style="justify-content:space-between" onclick="abrirEntrada('${o.id}','${esc(o.numero)}')">
-        <span>${esc(o.numero)} · ${esc(o.tipo||'')}</span><i class="ti ti-arrow-right"></i></button>`).join('')
-      :'<div class="mu sm mt1">Nenhuma OS disponível.</div>';
+    return;
   }
+  const podeEncerrar=!OS_ASSUMIDA;
+  c.innerHTML=`<h2 style="margin:4px 0 14px">Ponto</h2>
+    <div class="card" style="border-color:var(--warn)">
+      <div class="row mb1"><i class="ti ti-clock-hour-4" style="color:var(--warn);font-size:24px"></i><div><div class="b">Expediente em andamento</div><div class="sm mu">${ATIVO.veiculo_nome?esc(ATIVO.veiculo_nome):'Sem veículo informado'}</div></div></div>
+      <div class="g2 sm"><div><div class="mu">Entrada</div><div class="b">${new Date(ATIVO.ts_entrada).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div></div>
+      <div><div class="mu">Km inicial</div><div class="b">${ATIVO.km_inicial??'—'}</div></div></div>
+    </div>
+    <div class="card">
+      <div class="b mb1"><i class="ti ti-clipboard-list"></i> OS deste expediente</div>
+      ${OS_ASSUMIDA
+        ?`<div class="between tap" onclick="openOS('${OS_ASSUMIDA.os_id}')" style="padding:8px 0"><div><div class="b sm">${esc(OS_ASSUMIDA.os_numero||'')}</div><div class="xs mu">assumida às ${new Date(OS_ASSUMIDA.ts_assumida).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div></div><span class="pill">Abrir ›</span></div>`
+        :`<div class="mu sm">Nenhuma OS assumida agora. Abra uma OS em <b>Executar</b> e toque em <b>Assumir OS</b>.</div>`}
+      <div id="pt-historico"></div>
+    </div>
+    ${podeEncerrar?''
+      :'<div class="cachehint mb1"><i class="ti ti-alert-triangle"></i> Conclua a OS assumida antes de encerrar o expediente.</div>'}
+    <button class="btn ${podeEncerrar?'ok':'ghost'} wide" ${podeEncerrar?'':'disabled'} onclick="abrirEncerrar()"><i class="ti ti-flag-check"></i> Encerrar expediente</button>`;
+  carregarHistoricoTurno();
+}
+async function carregarHistoricoTurno(){
+  const box=$('pt-historico');if(!box||!ATIVO||!navigator.onLine)return;
+  const{data}=await sb.from('atendimentos_campo_os').select('os_numero,ts_assumida,ts_concluida,status').eq('atendimento_id',ATIVO.id).eq('status','concluida').order('ts_assumida',{ascending:false});
+  if(!data||!data.length)return;
+  box.innerHTML='<div class="xs mu" style="margin:8px 0 4px">Já concluídas neste expediente</div>'
+    +data.map(r=>`<div class="sm" style="padding:4px 0;border-top:1px solid var(--bor)">${esc(r.os_numero||'')} <span class="xs mu">— concluída às ${r.ts_concluida?new Date(r.ts_concluida).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):''}</span></div>`).join('');
 }
 
 /* ════════════ VEÍCULO — Abastecimento + Checklist (Frotas) ════════════ */
@@ -632,6 +673,7 @@ async function carregarAbastRecentes(){
 async function renderOS(id){
   const c=$('content');
   c.innerHTML='<button class="btn ghost" onclick="back()"><i class="ti ti-arrow-left"></i> Voltar</button><div class="center mt2"><span class="sp dark"></span></div>';
+  await carregarAtivo();await carregarAssumida();
   let os=null,totEquipe=0,totDesp=0,fromCache=false;
   if(navigator.onLine){
     const r=await sb.from('ordens').select('*, clientes(nome,cpfcnpj,telefone)').eq('id',id).single();
@@ -697,7 +739,9 @@ async function renderOS(id){
   <div class="actionbar">
     <button class="btn pri" onclick="abrirMov('${os.id}','${esc(os.status)}','${esc(os.numero)}')"><i class="ti ti-arrow-badge-right"></i>Movimentar</button>
     <button class="btn" onclick="abrirGasto('${os.id}','${esc(os.numero)}')"><i class="ti ti-cash"></i>Gasto</button>
-    <button class="btn warn" onclick="pontoNaOS('${os.id}','${esc(os.numero)}')"><i class="ti ti-map-pin"></i>Ponto</button>
+    ${OS_ASSUMIDA&&OS_ASSUMIDA.os_id===os.id
+      ?`<button class="btn ok" onclick="concluirOS('${os.id}','${esc(os.numero)}')"><i class="ti ti-flag-check"></i>Concluir OS</button>`
+      :`<button class="btn warn" onclick="assumirOS('${os.id}','${esc(os.numero)}','${esc(os.status)}')"><i class="ti ti-player-play"></i>Assumir OS</button>`}
   </div>`;
 }
 
@@ -830,33 +874,31 @@ async function salvarGasto(osId,numero){
   }
 }
 
-/* ════════════ PONTO — entrada / saída ════════════ */
+/* ════════════ PONTO — expediente (entrada/saída) independente da OS ════════════ */
 let _fotoBlob=null, _geo=null;
-function pontoNaOS(osId,numero){
-  if(ATIVO){if(ATIVO.os_id===osId){abrirSaida();}else{toast('Você já tem um ponto aberto em '+(ATIVO.os_numero||'outra OS')+'. Finalize antes.',true);go('ponto');}return;}
-  abrirEntrada(osId,numero);
-}
 function veicOptions(sel){return VEICS.map(v=>`<option value="${v.id}" data-km="${v.km_atual||0}" ${sel===v.id?'selected':''}>${esc(v.nome||v.placa||'Veículo')}${v.placa&&v.nome?' · '+esc(v.placa):''}</option>`).join('');}
 function ptVeicKm(){const o=$('pt-veic')?.selectedOptions[0];const k=$('pt-km');if(o&&o.value&&k){k.placeholder='atual: '+Number(o.dataset.km||0).toLocaleString('pt-BR');if(!k.value&&o.dataset.km&&Number(o.dataset.km)>0)k.value=o.dataset.km;}}
-function abrirEntrada(osId,numero){
+function abrirEntradaTurno(){
+  if(ATIVO){toast('Você já tem um expediente aberto.',true);return;}
   _fotoBlob=null;_geo=null;
   const agora=new Date().toLocaleString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
-  openSheet('Iniciar atendimento — '+numero,
+  openSheet('Bater ponto — iniciar expediente',
     `<div class="f"><div class="row" style="background:#eef4fb;border-radius:10px;padding:10px 12px;gap:8px"><i class="ti ti-clock" style="color:var(--brand);font-size:20px"></i><div><div class="sm b">Data e hora automáticas</div><div class="xs mu" id="pt-agora">${agora}</div></div></div></div>
      <div class="f"><label class="fl">Veículo operado</label><select class="fc" id="pt-veic" onchange="ptVeicKm()"><option value="">Selecione o veículo...</option>${veicOptions()}</select></div>
      <div class="f"><label class="fl">Km inicial</label><input class="fc" id="pt-km" type="number" inputmode="decimal" step="1" placeholder="Ex: 145820"></div>
-     <div class="f"><label class="fl">Foto de entrada * <span class="mu">(ponto/obra)</span></label>
+     <div class="f"><label class="fl">Foto de entrada * <span class="mu">(ponto)</span></label>
        <button type="button" class="btn wide" onclick="tirarFotoPonto()"><i class="ti ti-camera"></i> <span id="pt-foto-lbl">Tirar foto</span></button>
        <img id="pt-foto-prev" class="photo-prev" hidden></div>
      <div class="f"><label class="fl">Localização</label><div id="pt-geo" class="sm mu">Capturando GPS…</div></div>
      <div class="f"><label class="fl">Observação</label><input class="fc" id="pt-obs" placeholder="Opcional"></div>`,
-    `<button class="btn" onclick="closeSheet()">Cancelar</button><button class="btn warn" id="pt-b" onclick="salvarEntrada('${osId}','${esc(numero)}')"><i class="ti ti-player-play"></i> Iniciar</button>`);
+    `<button class="btn" onclick="closeSheet()">Cancelar</button><button class="btn warn" id="pt-b" onclick="salvarEntradaTurno()"><i class="ti ti-player-play"></i> Iniciar expediente</button>`);
   capturarGeo('pt-geo');
 }
-function abrirSaida(){
-  const a=ATIVO;if(!a){toast('Nenhum ponto aberto.',true);return;}
+function abrirEncerrar(){
+  const a=ATIVO;if(!a){toast('Nenhum expediente aberto.',true);return;}
+  if(OS_ASSUMIDA){toast('Conclua a OS '+(OS_ASSUMIDA.os_numero||'atual')+' antes de encerrar o expediente.',true);return;}
   _fotoBlob=null;_geo=null;
-  openSheet('Finalizar — '+(a.os_numero||''),
+  openSheet('Encerrar expediente',
     `<div class="row" style="background:#eef4fb;border-radius:10px;padding:10px 12px;gap:8px;margin-bottom:12px"><i class="ti ti-clock" style="color:var(--brand);font-size:20px"></i><div><div class="sm b">Saída registrada agora automaticamente</div><div class="xs mu">${new Date().toLocaleString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div></div></div>
      <div class="sm mu mb1">Entrada: km ${a.km_inicial??'—'} · ${new Date(a.ts_entrada).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}${a.veiculo_nome?' · '+esc(a.veiculo_nome):''}</div>
      <div class="f"><label class="fl">Km final</label><input class="fc" id="pt-kmf" type="number" inputmode="decimal" step="1" placeholder="Deve ser ≥ ${a.km_inicial??0}"></div>
@@ -864,72 +906,82 @@ function abrirSaida(){
        <button type="button" class="btn wide" onclick="tirarFotoPonto()"><i class="ti ti-camera"></i> <span id="pt-foto-lbl">Tirar foto</span></button>
        <img id="pt-foto-prev" class="photo-prev" hidden></div>
      <div class="f"><label class="fl">Localização</label><div id="pt-geo" class="sm mu">Capturando GPS…</div></div>
-     <div class="f"><label class="fl">O que foi feito / pendências</label><textarea class="fc" id="pt-obs" placeholder="Resumo do serviço executado..."></textarea></div>`,
-    `<button class="btn" onclick="closeSheet()">Cancelar</button><button class="btn ok" id="pt-b" onclick="salvarSaida()"><i class="ti ti-flag-check"></i> Finalizar</button>`);
+     <div class="f"><label class="fl">Observação</label><input class="fc" id="pt-obs" placeholder="Como foi o dia..."></div>`,
+    `<button class="btn" onclick="closeSheet()">Cancelar</button><button class="btn ok" id="pt-b" onclick="salvarEncerrar()"><i class="ti ti-flag-check"></i> Encerrar</button>`);
   capturarGeo('pt-geo');
 }
 async function tirarFotoPonto(){const blob=await tirarFoto();if(!blob)return;_fotoBlob=blob;$('pt-foto-lbl').textContent='Foto ok ✓';const img=$('pt-foto-prev');img.src=URL.createObjectURL(blob);img.hidden=false;}
 
-async function salvarEntrada(osId,numero){
+async function salvarEntradaTurno(){
   if(!_fotoBlob){toast('Tire a foto de entrada.',true);return;}
   const b=$('pt-b');b.disabled=true;b.innerHTML='<span class="sp"></span>';
   const km=$('pt-km').value?Number($('pt-km').value):null;
   const obs=$('pt-obs').value||null;
   const veicId=$('pt-veic')?.value||null;
   const veicNome=veicId?(()=>{const v=VEICS.find(x=>x.id===veicId);return v?(v.nome||v.placa||'Veículo'):null;})():null;
-  const base={os_id:osId,os_numero:numero,operador:OPNOME,operador_uid:OPUID,km_inicial:km,veiculo_id:veicId,veiculo_nome:veicNome,
+  const turnoId=uid();
+  const payload={id:turnoId,os_id:null,os_numero:null,operador:OPNOME,operador_uid:OPUID,km_inicial:km,veiculo_id:veicId,veiculo_nome:veicNome,
     geo_entrada_lat:_geo?.lat,geo_entrada_lng:_geo?.lng,ts_entrada:new Date().toISOString(),status:'em_andamento',obs};
+  const photos=[{field:'foto_entrada_url',prefix:'ponto',blob:_fotoBlob}];
   try{
-    if(navigator.onLine){
-      try{
-        const foto=await upload(_fotoBlob,'ponto');
-        const{data,error}=await sb.from('atendimentos_campo').insert({...base,foto_entrada_url:foto}).select().single();
-        if(error)throw error;
-        ATIVO=data;await kvPut('ativo_cache',data);
-        await movAuto(osId,'Em campo',`Ponto de entrada${km?` — km ${km}`:''}`);
-        closeSheet();toast('Atendimento iniciado!');go('ponto');return;
-      }catch(e){
-        if(String(e.message||'').includes('uq_atend')){b.disabled=false;b.innerHTML='Iniciar';toast('Você já tem um ponto aberto.',true);return;}
-        if(!isNetErr(e))throw e;   // erro real: mostra. Rede caindo: segue pro offline abaixo.
-      }
-    }
-    // offline: guarda o atendimento local (com a foto) até a saída
-    const local={...base,_local:true,_entradaBlob:_fotoBlob};
-    await kvPut('ativo_local',local);ATIVO=local;
-    await movAuto(osId,'Em campo',`Ponto de entrada${km?` — km ${km}`:''}`);
-    closeSheet();toast('Entrada salva offline — sincroniza ao pegar sinal');go('ponto');
-  }catch(e){b.disabled=false;b.innerHTML='Iniciar';toast('Erro: '+e.message,true);}
+    const{synced}=await doWrite({kind:'insert',table:'atendimentos_campo',payload,photos});
+    ATIVO=payload;await kvPut('ativo_cache',payload);
+    closeSheet();toast(synced?'Expediente iniciado!':'Entrada salva offline — sincroniza ao pegar sinal');go('ponto');
+  }catch(e){
+    b.disabled=false;b.innerHTML='Iniciar expediente';
+    toast(String(e.message||'').includes('uq_atend')?'Você já tem um expediente aberto.':'Erro: '+e.message,true);
+  }
 }
-async function salvarSaida(){
+async function salvarEncerrar(){
   const a=ATIVO;if(!a)return;
   if(!_fotoBlob){toast('Tire a foto de saída.',true);return;}
   const kmf=$('pt-kmf').value?Number($('pt-kmf').value):null;
   if(kmf!=null&&a.km_inicial!=null&&kmf<a.km_inicial){toast('Km final não pode ser menor que o inicial.',true);return;}
   const b=$('pt-b');b.disabled=true;b.innerHTML='<span class="sp"></span>';
   const obs=$('pt-obs').value||null;
-  const saida={km_final:kmf,geo_saida_lat:_geo?.lat,geo_saida_lng:_geo?.lng,ts_saida:new Date().toISOString(),status:'concluido'};
-  const obsFinal=[a.obs,obs].filter(Boolean).join(' | ')||null;
+  const payload={km_final:kmf,geo_saida_lat:_geo?.lat,geo_saida_lng:_geo?.lng,ts_saida:new Date().toISOString(),status:'concluido',
+    obs:[a.obs,obs].filter(Boolean).join(' | ')||null};
+  const photos=[{field:'foto_saida_url',prefix:'ponto',blob:_fotoBlob}];
   try{
-    let synced;
-    if(a._local){ // nunca sincronizou — insere entrada + saída de uma vez
-      const payload={os_id:a.os_id,os_numero:a.os_numero,operador:OPNOME,operador_uid:OPUID,
-        km_inicial:a.km_inicial,veiculo_id:a.veiculo_id||null,veiculo_nome:a.veiculo_nome||null,
-        geo_entrada_lat:a.geo_entrada_lat,geo_entrada_lng:a.geo_entrada_lng,ts_entrada:a.ts_entrada,
-        ...saida,obs:obsFinal};
-      const photos=[{field:'foto_entrada_url',prefix:'ponto',blob:a._entradaBlob},{field:'foto_saida_url',prefix:'ponto',blob:_fotoBlob}];
-      ({synced}=await doWrite({kind:'insert',table:'atendimentos_campo',payload,photos}));
-      await kvDel('ativo_local');
-    }else{        // já existe no servidor — atualiza a saída
-      ({synced}=await doWrite({kind:'update',table:'atendimentos_campo',matchCol:'id',matchVal:a.id,
-        payload:{...saida,obs:obsFinal},photos:[{field:'foto_saida_url',prefix:'ponto',blob:_fotoBlob}]}));
-      await kvDel('ativo_cache');
-    }
-    await movAuto(a.os_id,'Em andamento',`Ponto de saída${kmf?` — km ${kmf} (rodou ${kmf-(a.km_inicial||0)} km)`:''}${obs?' — '+obs:''}`);
-    // atualiza o hodômetro do veículo (melhor esforço, só online)
+    const{synced}=await doWriteChained({kind:'update',table:'atendimentos_campo',matchCol:'id',matchVal:a.id,payload,photos},'atendimentos_campo',a.id);
     if(a.veiculo_id&&kmf!=null&&navigator.onLine){const v=VEICS.find(x=>x.id===a.veiculo_id);if(!v||kmf>Number(v.km_atual||0)){sb.from('veiculos').update({km_atual:kmf}).eq('id',a.veiculo_id);if(v)v.km_atual=kmf;}}
-    ATIVO=null;closeSheet();toast(synced?'Atendimento finalizado!':'Saída salva offline — sincroniza ao pegar sinal');go('agenda');
-  }catch(e){b.disabled=false;b.innerHTML='Finalizar';toast('Erro: '+e.message,true);}
+    ATIVO=null;await kvDel('ativo_cache');
+    closeSheet();toast(synced?'Expediente encerrado!':'Encerrado offline — sincroniza ao pegar sinal');go('agenda');
+  }catch(e){b.disabled=false;b.innerHTML='Encerrar';toast('Erro: '+e.message,true);}
 }
+
+/* ════════════ ASSUMIR / CONCLUIR OS (dentro do expediente aberto) ════════════ */
+async function assumirOS(osId,numero,statusAtual){
+  if(!ATIVO){toast('Bata o ponto para iniciar o expediente antes de assumir uma OS.',true);return;}
+  if(OS_ASSUMIDA){
+    if(OS_ASSUMIDA.os_id===osId){toast('Você já está nesta OS.');return;}
+    toast('Conclua a OS '+(OS_ASSUMIDA.os_numero||'atual')+' antes de assumir outra.',true);return;
+  }
+  if(navigator.onLine){
+    const{data:outros}=await sb.from('atendimentos_campo_os').select('operador').eq('os_id',osId).eq('status','assumida').neq('operador_uid',OPUID).limit(1);
+    if(outros&&outros.length){toast('Esta OS já está sendo executada por '+(outros[0].operador||'outro operador')+'.',true);return;}
+  }
+  const rowId=uid();
+  const payload={id:rowId,atendimento_id:ATIVO.id,os_id:osId,os_numero:numero,operador:OPNOME,operador_uid:OPUID,ts_assumida:new Date().toISOString(),status:'assumida'};
+  try{
+    const{synced}=await doWriteChained({kind:'insert',table:'atendimentos_campo_os',payload},'atendimentos_campo',ATIVO.id);
+    OS_ASSUMIDA=payload;await kvPut('assumida_cache',payload);
+    const novoStatus=(statusAtual==='Agendada'||statusAtual==='Aguardando')?'Em campo':statusAtual;
+    await movAuto(osId,novoStatus,'OS assumida'+(ATIVO.veiculo_nome?' · veículo '+ATIVO.veiculo_nome:''));
+    toast(synced?'OS assumida!':'Assumida offline — sincroniza ao pegar sinal');renderOS(osId);
+  }catch(e){toast('Erro: '+e.message,true);}
+}
+async function concluirOS(osId,numero){
+  if(!OS_ASSUMIDA||OS_ASSUMIDA.os_id!==osId){toast('Esta OS não está assumida por você agora.',true);return;}
+  try{
+    const{synced}=await doWriteChained({kind:'update',table:'atendimentos_campo_os',matchCol:'id',matchVal:OS_ASSUMIDA.id,
+      payload:{status:'concluida',ts_concluida:new Date().toISOString()}},'atendimentos_campo_os',OS_ASSUMIDA.id);
+    await movAuto(osId,'Aguardando','OS concluída neste atendimento');
+    OS_ASSUMIDA=null;await kvDel('assumida_cache');
+    toast(synced?'OS concluída!':'Concluída offline — sincroniza ao pegar sinal');renderOS(osId);
+  }catch(e){toast('Erro: '+e.message,true);}
+}
+
 // movimenta status + andamento (fila offline + patch do cache); não bloqueia o ponto
 async function movAuto(osId,status,txt){
   const entry={txt,data:new Date().toLocaleDateString('pt-BR'),hora:horaAgora(),user:OPNOME};

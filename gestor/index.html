@@ -13691,29 +13691,32 @@ function addDias(iso,n){const d=new Date((iso||hojeLocal())+'T12:00');d.setDate(
 async function loadOSCampo(osId){
   const box=gid('os-campo');if(!box||!osId)return;
   box.innerHTML='<div class="ld"><div class="sp"></div></div>';
-  const{data,error}=await sb.from('atendimentos_campo').select('*').eq('os_id',osId).order('ts_entrada',{ascending:false});
-  if(error){box.innerHTML='<div class="card"><div class="st">Campo indisponível</div><div class="mu sm">Rode a migration <b>add_atendimentos_campo.sql</b> no Supabase para ativar.<br>'+error.message+'</div></div>';return;}
-  if(!data||!data.length){box.innerHTML='<div style="background:#F8FBFF;border:1px dashed var(--bor);border-radius:8px;padding:1.2rem;text-align:center;color:#888"><i class="ti ti-map-pin-off" style="font-size:26px"></i><div style="margin-top:6px">Nenhum atendimento de campo nesta OS.</div><div class="sm">Entrada/saída, km, foto e GPS batidos no app de campo aparecem aqui.</div></div>';return;}
-  const concl=data.filter(a=>a.status==='concluido');
-  const kmTot=concl.reduce((s,a)=>s+((a.km_final!=null&&a.km_inicial!=null)?Number(a.km_final)-Number(a.km_inicial):0),0);
+  const{data,error}=await sb.from('atendimentos_campo_os').select('*').eq('os_id',osId).order('ts_assumida',{ascending:false});
+  if(error){box.innerHTML='<div class="card"><div class="st">Campo indisponível</div><div class="mu sm">Rode a migration <b>add_campo_v3_turno.sql</b> (ou o SQL único <b>completo_app_campo_e_frotas.sql</b>) no Supabase para ativar.<br>'+error.message+'</div></div>';return;}
+  if(!data||!data.length){box.innerHTML='<div style="background:#F8FBFF;border:1px dashed var(--bor);border-radius:8px;padding:1.2rem;text-align:center;color:#888"><i class="ti ti-map-pin-off" style="font-size:26px"></i><div style="margin-top:6px">Nenhum atendimento de campo nesta OS.</div><div class="sm">Quando o operador "assumir" esta OS no app de campo, aparece aqui.</div></div>';return;}
+  // busca os turnos (expedientes) referenciados — é lá que ficam foto/km/GPS/veículo
+  const turnoIds=[...new Set(data.map(r=>r.atendimento_id).filter(Boolean))];
+  const{data:turnos}=turnoIds.length?await sb.from('atendimentos_campo').select('*').in('id',turnoIds):{data:[]};
+  const turnoMap={};(turnos||[]).forEach(t=>turnoMap[t.id]=t);
   box.innerHTML='<div class="g3 mb1">'
     +'<div class="card" style="padding:.6rem"><div class="mu sm">Atendimentos</div><div style="font-size:18px;font-weight:700">'+data.length+'</div></div>'
-    +'<div class="card" style="padding:.6rem"><div class="mu sm">Km rodado</div><div style="font-size:18px;font-weight:700">'+fnum(kmTot)+'</div></div>'
-    +'<div class="card" style="padding:.6rem"><div class="mu sm">Em aberto</div><div style="font-size:18px;font-weight:700">'+data.filter(a=>a.status==='em_andamento').length+'</div></div>'
-    +'</div>'+data.map(cardAtendimento).join('');
+    +'<div class="card" style="padding:.6rem"><div class="mu sm">Concluídos</div><div style="font-size:18px;font-weight:700">'+data.filter(a=>a.status==='concluida').length+'</div></div>'
+    +'<div class="card" style="padding:.6rem"><div class="mu sm">Em andamento</div><div style="font-size:18px;font-weight:700">'+data.filter(a=>a.status==='assumida').length+'</div></div>'
+    +'</div>'+data.map(r=>cardAtendimentoOS(r,turnoMap[r.atendimento_id])).join('');
 }
-function cardAtendimento(a){
+function cardAtendimentoOS(r,turno){
   const fmtDT=iso=>iso?new Date(iso).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
-  const km=(a.km_final!=null&&a.km_inicial!=null)?(Number(a.km_final)-Number(a.km_inicial)):null;
   const mapL=(lat,lng)=>lat&&lng?'<a class="btn bxs" target="_blank" href="https://www.google.com/maps/search/?api=1&query='+lat+','+lng+'"><i class="ti ti-map-pin"></i> mapa</a>':'';
   const foto=(url,lbl)=>url?'<a href="'+url+'" target="_blank" style="display:block"><img src="'+url+'" style="width:100%;height:120px;object-fit:cover;border-radius:8px"><div class="mu sm" style="text-align:center;margin-top:2px">'+lbl+'</div></a>':'<div class="mu sm" style="text-align:center;padding:1.4rem .5rem;background:#f4f4f0;border-radius:8px">sem foto<br>'+lbl+'</div>';
-  const bdg=a.status==='concluido'?'<span style="background:#E9F4EA;color:#2f7d32;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700">Concluído</span>':'<span style="background:#FFF2E0;color:#9a5a06;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700">Em andamento</span>';
-  return '<div class="card mb1"><div class="fxb mb1"><div style="font-weight:700"><i class="ti ti-user" style="color:#666"></i> '+(a.operador||'Operador')+'</div>'+bdg+'</div>'
-    +'<div class="g2"><div><div class="mu sm">Entrada</div><div class="sm" style="font-weight:600">'+fmtDT(a.ts_entrada)+'</div><div class="mu sm">km '+(a.km_inicial!=null?fnum(a.km_inicial):'—')+'</div>'+mapL(a.geo_entrada_lat,a.geo_entrada_lng)+'</div>'
-    +'<div><div class="mu sm">Saída</div><div class="sm" style="font-weight:600">'+fmtDT(a.ts_saida)+'</div><div class="mu sm">km '+(a.km_final!=null?fnum(a.km_final):'—')+'</div>'+mapL(a.geo_saida_lat,a.geo_saida_lng)+'</div></div>'
-    +(km!=null?'<div class="sm" style="margin-top:6px">Rodou <b>'+fnum(km)+' km</b></div>':'')
-    +(a.obs?'<div class="sm mu" style="margin-top:4px">'+a.obs+'</div>':'')
-    +'<div class="g2" style="margin-top:8px">'+foto(a.foto_entrada_url,'entrada')+foto(a.foto_saida_url,'saída')+'</div></div>';
+  const bdg=r.status==='concluida'?'<span style="background:#E9F4EA;color:#2f7d32;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700">Concluído</span>':'<span style="background:#FFF2E0;color:#9a5a06;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700">Em andamento</span>';
+  return '<div class="card mb1"><div class="fxb mb1"><div style="font-weight:700"><i class="ti ti-user" style="color:#666"></i> '+(r.operador||'Operador')+'</div>'+bdg+'</div>'
+    +'<div class="g2"><div><div class="mu sm">Assumida</div><div class="sm" style="font-weight:600">'+fmtDT(r.ts_assumida)+'</div></div>'
+    +'<div><div class="mu sm">Concluída</div><div class="sm" style="font-weight:600">'+fmtDT(r.ts_concluida)+'</div></div></div>'
+    +(turno?'<div class="sm mu" style="margin-top:6px"><i class="ti ti-car"></i> Expediente'+(turno.veiculo_nome?' · '+turno.veiculo_nome:'')+' · entrada '+fmtDT(turno.ts_entrada)+'</div>':'<div class="sm mu" style="margin-top:6px">Expediente não encontrado (ainda sincronizando?)</div>')
+    +(r.obs?'<div class="sm mu" style="margin-top:4px">'+r.obs+'</div>':'')
+    +(turno?'<div class="g2" style="margin-top:8px">'+foto(turno.foto_entrada_url,'entrada do expediente')+foto(turno.foto_saida_url,'saída do expediente')+'</div>'
+      +'<div class="fx g8" style="margin-top:6px">'+mapL(turno.geo_entrada_lat,turno.geo_entrada_lng)+mapL(turno.geo_saida_lat,turno.geo_saida_lng)+'</div>':'')
+    +'</div>';
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -14020,56 +14023,73 @@ function _pcKm(r){return (r.km_rodado!=null)?r.km_rodado:((r.km_final!=null&&r.k
 async function rPontoCampo(){
   const el=gid('ct');if(!el)return;
   el.innerHTML='<div class="ld"><div class="sp"></div></div>';
-  const{data,error}=await sb.from('atendimentos_campo').select('*').order('ts_entrada',{ascending:false,nullsFirst:false}).limit(400);
-  if(error){el.innerHTML='<div class="card"><div class="st">Ponto de Campo indisponível</div><div class="mu sm">Rode a migration <b>add_atendimentos_campo.sql</b> e <b>add_campo_v2.sql</b> no Supabase.<br>'+error.message+'</div></div>';return;}
-  const regs=data||[];window._pontoCache=regs;
+  const[{data,error},{data:vinc}]=await Promise.all([
+    sb.from('atendimentos_campo').select('*').order('ts_entrada',{ascending:false,nullsFirst:false}).limit(400),
+    sb.from('atendimentos_campo_os').select('atendimento_id,os_numero,status'),
+  ]);
+  if(error){el.innerHTML='<div class="card"><div class="st">Ponto de Campo indisponível</div><div class="mu sm">Rode a migration <b>add_atendimentos_campo.sql</b> e <b>add_campo_v3_turno.sql</b> (ou o SQL único) no Supabase.<br>'+error.message+'</div></div>';return;}
+  // agrupa as OS assumidas/concluídas por turno, p/ mostrar e p/ buscar
+  const osPorTurno={};(vinc||[]).forEach(v=>{(osPorTurno[v.atendimento_id]=osPorTurno[v.atendimento_id]||[]).push(v);});
+  const regs=(data||[]).map(r=>({...r,_os:osPorTurno[r.id]||[]}));
+  window._pontoCache=regs;
   const mesAtual=hojeLocal().slice(0,7);
   const doMes=regs.filter(r=>(r.ts_entrada||r.criado_em||'').slice(0,7)===mesAtual);
   const kmMes=doMes.reduce((s,r)=>s+(Number(_pcKm(r))||0),0);
   const abertos=regs.filter(r=>r.status==='em_andamento').length;
   el.innerHTML='<div class="g3 mb1">'
-    +'<div class="card"><div class="mu sm">Atendimentos no mês</div><div style="font-size:22px;font-weight:700">'+doMes.length+'</div></div>'
+    +'<div class="card"><div class="mu sm">Expedientes no mês</div><div style="font-size:22px;font-weight:700">'+doMes.length+'</div></div>'
     +'<div class="card"><div class="mu sm">Km rodado no mês</div><div style="font-size:22px;font-weight:700">'+fnum(kmMes)+' km</div></div>'
     +'<div class="card"><div class="mu sm">Em campo agora</div><div style="font-size:22px;font-weight:700;color:'+(abertos?'#9a5a06':'#2f7d32')+'">'+abertos+'</div></div>'
     +'</div>'
-    +'<div class="card"><div class="tw"><table><thead><tr><th>Operador</th><th>OS</th><th>Veículo</th><th>Entrada</th><th>Saída</th><th>Km rodado</th><th>Status</th></tr></thead>'
+    +'<div class="card"><div class="tw"><table><thead><tr><th>Operador</th><th>Veículo</th><th>OS no turno</th><th>Entrada</th><th>Saída</th><th>Km rodado</th><th>Status</th></tr></thead>'
     +'<tbody id="pc-tbody"></tbody></table></div></div>';
   _pintaPonto(regs,'');
   const si=gid('si');if(si)si.oninput=function(){_pintaPonto(window._pontoCache||[],this.value.trim());};
 }
+function _pcOsResumo(lista){
+  if(!lista||!lista.length)return'<span class="mu sm">—</span>';
+  const conclu=lista.filter(x=>x.status==='concluida').length;
+  return lista.length+' OS'+(lista.length>1?'s':'')+' <span class="mu sm">('+conclu+' concluída'+(conclu!==1?'s':'')+')</span>';
+}
 function _pintaPonto(regs,q){
   const tb=gid('pc-tbody');if(!tb)return;
   const nq=(q||'').toLowerCase();
-  const t=nq?regs.filter(r=>((r.operador||'')+(r.os_numero||'')+(r.veiculo_nome||'')).toLowerCase().includes(nq)):regs;
+  const t=nq?regs.filter(r=>((r.operador||'')+(r.veiculo_nome||'')+(r._os||[]).map(o=>o.os_numero||'').join(' ')).toLowerCase().includes(nq)):regs;
   tb.innerHTML=t.map(r=>{const km=_pcKm(r);return '<tr style="cursor:pointer" onclick="abrirAtendimento(\''+r.id+'\')">'
     +'<td class="w5">'+(r.operador||'—')+'</td>'
-    +'<td>'+(r.os_numero||'—')+'</td>'
     +'<td>'+(r.veiculo_nome||'—')+'</td>'
+    +'<td>'+_pcOsResumo(r._os)+'</td>'
     +'<td class="sm">'+_fdt(r.ts_entrada)+'</td>'
     +'<td class="sm">'+_fdt(r.ts_saida)+'</td>'
     +'<td>'+(km!=null?fnum(km)+' km':'—')+'</td>'
     +'<td>'+_pcStatus(r.status)+'</td></tr>';}).join('')||(q?'<tr><td colspan="7" style="text-align:center;color:#888;padding:2rem">Nenhum ponto para "<strong>'+q+'</strong>"</td></tr>':nd(7));
 }
 async function abrirAtendimento(id){
-  const{data:r}=await sb.from('atendimentos_campo').select('*').eq('id',id).single();
+  const[{data:r},{data:osList}]=await Promise.all([
+    sb.from('atendimentos_campo').select('*').eq('id',id).single(),
+    sb.from('atendimentos_campo_os').select('*').eq('atendimento_id',id).order('ts_assumida'),
+  ]);
   if(!r){toast('Atendimento não encontrado',true);return;}
   const mapa=(lat,lng)=>lat&&lng?'<a class="btn bxs" href="https://www.google.com/maps/search/?api=1&query='+lat+','+lng+'" target="_blank"><i class="ti ti-map-pin"></i> '+Number(lat).toFixed(5)+', '+Number(lng).toFixed(5)+'</a>':'<span class="mu sm">sem GPS</span>';
   const foto=(url,lbl)=>url?'<div style="flex:1"><div class="w6 sm mb1">'+lbl+'</div><a href="'+url+'" target="_blank"><img src="'+url+'" style="width:100%;border-radius:10px;max-height:200px;object-fit:cover"></a></div>':'';
   const km=_pcKm(r);
-  gid('mt2').textContent='Ponto — '+(r.os_numero||'atendimento');
+  gid('mt2').textContent='Ponto — expediente de '+(r.operador||'—');
   gid('mb2').innerHTML=
     '<div style="background:#f4f4f0;border-radius:10px;padding:1rem;margin-bottom:1rem"><div class="g2">'
       +'<div><div class="w6 sm">Operador</div><div style="font-weight:600">'+(r.operador||'—')+'</div></div>'
       +'<div><div class="w6 sm">Veículo</div><div style="font-weight:600">'+(r.veiculo_nome||'—')+'</div></div>'
-      +'<div style="margin-top:.5rem"><div class="w6 sm">OS</div><div>'+(r.os_numero||'—')+'</div></div>'
       +'<div style="margin-top:.5rem"><div class="w6 sm">Status</div><div>'+_pcStatus(r.status)+'</div></div>'
     +'</div></div>'
     +'<div class="g2 mb1">'
       +'<div class="card" style="padding:.7rem"><div class="w6 sm mb1"><i class="ti ti-login-2" style="color:#2f7d32"></i> Entrada</div><div class="sm">'+_fdt(r.ts_entrada)+'</div><div class="sm mu">Km: '+(r.km_inicial!=null?fnum(r.km_inicial):'—')+'</div><div style="margin-top:5px">'+mapa(r.geo_entrada_lat,r.geo_entrada_lng)+'</div></div>'
       +'<div class="card" style="padding:.7rem"><div class="w6 sm mb1"><i class="ti ti-logout-2" style="color:#A32D2D"></i> Saída</div><div class="sm">'+_fdt(r.ts_saida)+'</div><div class="sm mu">Km: '+(r.km_final!=null?fnum(r.km_final):'—')+'</div><div style="margin-top:5px">'+mapa(r.geo_saida_lat,r.geo_saida_lng)+'</div></div>'
     +'</div>'
-    +(km!=null?'<div class="card mb1" style="padding:.6rem"><div class="mu sm">Km rodado no atendimento</div><div style="font-size:18px;font-weight:700">'+fnum(km)+' km</div></div>':'')
+    +(km!=null?'<div class="card mb1" style="padding:.6rem"><div class="mu sm">Km rodado no expediente</div><div style="font-size:18px;font-weight:700">'+fnum(km)+' km</div></div>':'')
     +(r.obs?'<div class="card mb1"><div class="w6 sm mb1">Observações</div><div class="sm">'+(''+r.obs).replace(/</g,'&lt;')+'</div></div>':'')
+    +'<div class="card mb1"><div class="w6 sm mb1"><i class="ti ti-clipboard-list"></i> OS trabalhadas neste expediente ('+(osList?osList.length:0)+')</div>'
+      +((osList&&osList.length)?osList.map(o=>'<div class="fxb tap" style="padding:6px 0;border-bottom:.5px solid var(--bor)" onclick="closeModal2();abrirOS(\''+o.os_id+'\')"><div><div class="sm" style="font-weight:600">'+(o.os_numero||'—')+'</div><div class="mu sm">assumida '+_fdt(o.ts_assumida)+(o.ts_concluida?' · concluída '+_fdt(o.ts_concluida):'')+'</div></div>'+(o.status==='concluida'?'<span class="mu sm">Concluída</span>':'<span style="color:#9a5a06;font-size:11px;font-weight:700">Em andamento</span>')+'</div>').join('')
+        :'<div class="mu sm">Nenhuma OS assumida neste expediente ainda.</div>')
+    +'</div>'
     +((r.foto_entrada_url||r.foto_saida_url)?'<div style="display:flex;gap:10px;margin-top:6px">'+foto(r.foto_entrada_url,'Foto de entrada')+foto(r.foto_saida_url,'Foto de saída')+'</div>':'');
   gid('mf2').innerHTML='<button class="btn" onclick="closeModal2()">Fechar</button>'
     +'<button class="btn bdr" onclick="excluirAtendimento(\''+id+'\')"><i class="ti ti-trash"></i> Excluir</button>';

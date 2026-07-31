@@ -177,11 +177,6 @@ begin
   end loop;
 end $$;
 
--- ═══════════════════════════════════════════════════════════════════════════
--- FIM. Depois de rodar: recarregue o Gestor (Frotas no menu) e use o app /campo.
--- ═══════════════════════════════════════════════════════════════════════════
-
-
 -- ╔═══════════════════════════════════════════════════════════════════════╗
 -- ║ PARTE 3 — APP DE CAMPO v2 (veículo no ponto, diaristas,               ║
 -- ║ estabelecimentos e checklist diário do veículo)                       ║
@@ -236,3 +231,41 @@ begin
     execute format('create policy %I on %I for all to authenticated using (true) with check (true)', t||'_rw_auth', t);
   end loop;
 end $$;
+
+
+-- ╔═══════════════════════════════════════════════════════════════════════╗
+-- ║ PARTE 4 — TURNO INDEPENDENTE DA OS (v3)                                ║
+-- ║ Ponto vira "expediente": bate uma vez, depois assume/conclui OS's à    ║
+-- ║ vontade, encerra o ponto no fim. Ver add_campo_v3_turno.sql.           ║
+-- ╚═══════════════════════════════════════════════════════════════════════╝
+
+create table if not exists atendimentos_campo_os (
+  id uuid primary key default gen_random_uuid(),
+  atendimento_id uuid references atendimentos_campo(id) on delete cascade not null,
+  os_id uuid references ordens(id) not null,
+  os_numero text,
+  operador text,
+  operador_uid uuid,
+  ts_assumida timestamptz default now(),
+  ts_concluida timestamptz,
+  status text not null default 'assumida' check (status in ('assumida','concluida')),
+  obs text,
+  criado_em timestamptz default now()
+);
+
+create index if not exists idx_atend_os_turno on atendimentos_campo_os (atendimento_id);
+create index if not exists idx_atend_os_os    on atendimentos_campo_os (os_id);
+
+create unique index if not exists uq_atend_os_assumida_por_operador
+  on atendimentos_campo_os (operador_uid)
+  where status = 'assumida';
+
+alter table atendimentos_campo_os enable row level security;
+drop policy if exists atend_campo_os_rw_auth on atendimentos_campo_os;
+create policy atend_campo_os_rw_auth
+  on atendimentos_campo_os for all to authenticated
+  using (true) with check (true);
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- FIM. Depois de rodar: recarregue o Gestor e o app /campo.
+-- ═══════════════════════════════════════════════════════════════════════════
