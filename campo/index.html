@@ -190,7 +190,7 @@ textarea.fc{min-height:72px;resize:vertical}
     <button data-tab="agenda" class="on" onclick="go('agenda')"><i class="ti ti-calendar-event"></i>Agenda</button>
     <button data-tab="executar" onclick="go('executar')"><i class="ti ti-clipboard-list"></i>Executar</button>
     <button data-tab="ponto" onclick="go('ponto')"><i class="ti ti-map-pin"></i>Ponto</button>
-    <button data-tab="abastecer" onclick="go('abastecer')"><i class="ti ti-gas-station"></i>Abastecer</button>
+    <button data-tab="abastecer" onclick="go('abastecer')"><i class="ti ti-car"></i>Veículo</button>
   </nav>
 </div>
 
@@ -224,8 +224,9 @@ let CU=null;               // usuário logado (auth)
 let OPNOME='', OPUID='';   // nome e uid do operador
 let TAB='agenda';          // aba atual
 let VIEW={s:'agenda'};     // {s:'agenda'|'executar'|'ponto'|'os', osId}
-let FUNCS=[];              // cache funcionarios (p/ custo de equipe)
-let VEICS=[];              // cache veiculos (p/ abastecimento)
+let FUNCS=[];              // cache funcionarios/diaristas (p/ custo de equipe)
+let VEICS=[];              // cache veiculos (p/ abastecimento, ponto e checklist)
+let ESTAB=[];              // cache estabelecimentos (postos/restaurantes/materiais)
 let ATIVO=null;            // atendimento_campo em andamento do operador
 let _abzGeo=null;          // GPS capturado na tela de abastecimento
 
@@ -369,9 +370,10 @@ async function enterApp(u){
   $('scr-login').style.display='none';$('main').hidden=false;
   // funcionarios (p/ custo de equipe) — cacheia p/ usar offline
   if(navigator.onLine){
-    sb.from('funcionarios').select('id,nome,valor_hora,valor_diaria').order('nome').then(({data})=>{if(data){FUNCS=data;kvPut('funcs',data);}});
+    sb.from('funcionarios').select('id,nome,valor_hora,valor_diaria,tipo').eq('ativo',true).order('nome').then(({data})=>{if(data){FUNCS=data;kvPut('funcs',data);}});
     sb.from('veiculos').select('id,nome,placa,km_atual,combustivel,status').order('nome').then(({data})=>{if(data){VEICS=data;kvPut('veics',data);}});
-  }else{FUNCS=await kvGet('funcs')||[];VEICS=await kvGet('veics')||[];}
+    sb.from('estabelecimentos').select('id,nome,tipo,cidade').eq('ativo',true).order('tipo').order('nome').then(({data})=>{if(data){ESTAB=data;kvPut('estab',data);}});
+  }else{FUNCS=await kvGet('funcs')||[];VEICS=await kvGet('veics')||[];ESTAB=await kvGet('estab')||[];}
   await refreshPend();flush(true);
   await carregarAtivo();
   maybeInstallHint();
@@ -408,7 +410,7 @@ function bannerAtivo(){
   if(!ATIVO)return '';
   return `<div class="card tap mb1" style="border-color:var(--warn);background:#fff8ec" onclick="openOS('${ATIVO.os_id}')">
     <div class="between"><div class="row"><i class="ti ti-map-pin-filled" style="color:var(--warn);font-size:22px"></i>
-    <div><div class="b">Ponto em aberto</div><div class="sm mu">${esc(ATIVO.os_numero||'OS')} · entrada ${new Date(ATIVO.ts_entrada).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div></div></div>
+    <div><div class="b">Ponto em aberto</div><div class="sm mu">${esc(ATIVO.os_numero||'OS')} · entrada ${new Date(ATIVO.ts_entrada).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}${ATIVO.veiculo_nome?' · '+esc(ATIVO.veiculo_nome):''}</div></div></div>
     <span class="pill">Finalizar ›</span></div></div>`;
 }
 
@@ -473,7 +475,7 @@ async function renderPonto(){
   if(ATIVO){
     c.innerHTML=`<h2 style="margin:4px 0 14px">Ponto</h2>
       <div class="card" style="border-color:var(--warn)">
-        <div class="row mb1"><i class="ti ti-map-pin-filled" style="color:var(--warn);font-size:24px"></i><div><div class="b">Atendimento em andamento</div><div class="sm mu">${esc(ATIVO.os_numero||'')}</div></div></div>
+        <div class="row mb1"><i class="ti ti-map-pin-filled" style="color:var(--warn);font-size:24px"></i><div><div class="b">Atendimento em andamento</div><div class="sm mu">${esc(ATIVO.os_numero||'')}${ATIVO.veiculo_nome?' · '+esc(ATIVO.veiculo_nome):''}</div></div></div>
         <div class="g2 sm"><div><div class="mu">Entrada</div><div class="b">${new Date(ATIVO.ts_entrada).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div></div>
         <div><div class="mu">Km inicial</div><div class="b">${ATIVO.km_inicial??'—'}</div></div></div>
         <button class="btn warn wide mt2" onclick="abrirSaida()"><i class="ti ti-flag-check"></i> Finalizar atendimento</button>
@@ -492,13 +494,23 @@ async function renderPonto(){
   }
 }
 
-/* ════════════ ABASTECIMENTO (Frotas) ════════════ */
+/* ════════════ VEÍCULO — Abastecimento + Checklist (Frotas) ════════════ */
+let _frotaView='abast';
+function frotaView(v){_frotaView=v;renderAbastecer();}
 async function renderAbastecer(){
   const c=$('content');
   if(!VEICS.length){VEICS=await kvGet('veics')||[];}
-  const opts=VEICS.map(v=>`<option value="${v.id}" data-km="${v.km_atual||0}">${esc(v.nome||v.placa||'Veículo')}${v.placa&&v.nome?' · '+esc(v.placa):''}</option>`).join('');
-  c.innerHTML=`<h2 style="margin:4px 0 12px">Abastecimento</h2>
+  c.innerHTML=`<h2 style="margin:4px 0 12px">Veículo</h2>
+    <div class="seg"><button class="${_frotaView==='abast'?'on':''}" onclick="frotaView('abast')">Abastecimento</button><button class="${_frotaView==='check'?'on':''}" onclick="frotaView('check')">Checklist do dia</button></div>
     ${VEICS.length?'':'<div class="card mb1"><div class="sm mu"><i class="ti ti-alert-triangle" style="color:var(--warn)"></i> Nenhum veículo. Cadastre em Gestor → Frotas (e rode a migration).</div></div>'}
+    <div id="frota-body"></div>`;
+  if(_frotaView==='check')return renderChecklist();
+  renderAbastForm();
+}
+function renderAbastForm(){
+  const c=$('frota-body');if(!c)return;
+  const opts=VEICS.map(v=>`<option value="${v.id}" data-km="${v.km_atual||0}">${esc(v.nome||v.placa||'Veículo')}${v.placa&&v.nome?' · '+esc(v.placa):''}</option>`).join('');
+  c.innerHTML=`
     <div class="card">
       <div class="f"><label class="fl">Veículo *</label><select class="fc" id="abz-veic" onchange="abzAutoKm()"><option value="">Selecione...</option>${opts}</select></div>
       <div class="g2"><div class="f"><label class="fl">Km / Horímetro</label><input class="fc" id="abz-km" type="number" inputmode="decimal" placeholder="hodômetro"></div>
@@ -513,6 +525,72 @@ async function renderAbastecer(){
     <div id="abz-recentes"></div>`;
   _abzGeo=null;abzGeo();
   carregarAbastRecentes();
+}
+
+/* ════════════ CHECKLIST DIÁRIO DO VEÍCULO ════════════ */
+const CHECK_ITENS=['Óleo do motor','Água / arrefecimento','Nível de combustível','Pneus (calibragem e estado)','Estepe','Freios','Luzes, faróis e setas','Buzina','Retrovisores','Palhetas / água do para-brisa','Cinto de segurança','Documento do veículo (CRLV)','Segurança (triângulo, macaco, chave de roda)','Limpeza geral'];
+let _checkState={}, _checkFotoBlob=null;
+function renderChecklist(){
+  const c=$('frota-body');if(!c)return;
+  _checkState={};CHECK_ITENS.forEach((_,i)=>_checkState[i]=true);_checkFotoBlob=null;
+  const opts=VEICS.map(v=>`<option value="${v.id}" data-km="${v.km_atual||0}">${esc(v.nome||v.placa||'Veículo')}${v.placa&&v.nome?' · '+esc(v.placa):''}</option>`).join('');
+  const linhas=CHECK_ITENS.map((it,i)=>`<div class="between" style="padding:9px 0;border-bottom:1px solid var(--bor)">
+      <div class="sm grow">${esc(it)}</div>
+      <div class="row" style="gap:6px;flex-shrink:0">
+        <button type="button" class="btn sm ok" id="ck-ok-${i}" onclick="checkSet(${i},true)"><i class="ti ti-check"></i></button>
+        <button type="button" class="btn sm" id="ck-no-${i}" onclick="checkSet(${i},false)"><i class="ti ti-alert-triangle"></i></button>
+      </div></div>`).join('');
+  c.innerHTML=`
+    <div class="card mb1"><div class="sm mu"><i class="ti ti-clipboard-check" style="color:var(--brand)"></i> Confira o veículo antes de sair. Marque <b>✓</b> se está OK ou <b>⚠</b> se há problema. Data: <b>${dataBR(hoje())}</b>.</div></div>
+    <div class="card">
+      <div class="f"><label class="fl">Veículo *</label><select class="fc" id="ck-veic" onchange="ckVeicSel()"><option value="">Selecione...</option>${opts}</select></div>
+      <div id="ck-hoje" class="sm" style="margin-bottom:8px"></div>
+      <div class="f"><label class="fl">Km / Horímetro atual</label><input class="fc" id="ck-km" type="number" inputmode="decimal" placeholder="hodômetro"></div>
+      <div class="mb1" style="margin-top:4px">${linhas}</div>
+      <div class="f"><label class="fl">Observações / problemas encontrados</label><textarea class="fc" id="ck-obs" placeholder="Ex: pneu dianteiro esquerdo careca, farol baixo queimado..."></textarea></div>
+      <div class="f"><label class="fl">Foto <span class="mu">(opcional)</span></label><button type="button" class="btn wide" onclick="fotoChecklist()"><i class="ti ti-camera"></i> <span id="ck-foto-lbl">Tirar foto</span></button><img id="ck-foto-prev" class="photo-prev" hidden></div>
+      <button class="btn pri wide" id="ck-b" onclick="salvarChecklist()"><i class="ti ti-clipboard-check"></i> Salvar checklist do dia</button>
+    </div>
+    <div id="ck-recentes"></div>`;
+  CHECK_ITENS.forEach((_,i)=>checkPaint(i));
+  carregarChecklistRecentes();
+}
+function checkSet(i,ok){_checkState[i]=ok;checkPaint(i);}
+function checkPaint(i){const okb=$('ck-ok-'+i),nob=$('ck-no-'+i);if(!okb||!nob)return;const ok=_checkState[i]!==false;
+  okb.classList.toggle('ok',ok);nob.classList.toggle('dang',!ok);
+  okb.style.opacity=ok?'1':'.5';nob.style.opacity=ok?'.5':'1';}
+async function fotoChecklist(){const blob=await tirarFoto();if(!blob)return;_checkFotoBlob=blob;$('ck-foto-lbl').textContent='Foto ok ✓';const img=$('ck-foto-prev');img.src=URL.createObjectURL(blob);img.hidden=false;}
+function ckVeicSel(){
+  const o=$('ck-veic')?.selectedOptions[0];const k=$('ck-km');
+  if(o&&o.value&&k){k.placeholder='atual: '+Number(o.dataset.km||0).toLocaleString('pt-BR');}
+  const box=$('ck-hoje');if(box)box.innerHTML='';
+  if(!o||!o.value||!navigator.onLine)return;
+  sb.from('checklists_veiculo').select('id,ok,operador').eq('veiculo_id',o.value).eq('data',hoje()).order('created_at',{ascending:false}).limit(1).then(({data})=>{
+    if(box&&data&&data[0]){const r=data[0];box.innerHTML=`<span class="cachehint" style="background:${r.ok?'#e9f4ea':'#fdf3e0'};color:${r.ok?'#2f7d32':'#a06d12'}"><i class="ti ti-${r.ok?'check':'alert-triangle'}"></i> Checklist de hoje já feito${r.operador?' por '+esc(r.operador):''}${r.ok?'':' — com pendências'}. Pode refazer.</span>`;}
+  });
+}
+async function salvarChecklist(){
+  const veicId=$('ck-veic').value;
+  if(!veicId){toast('Selecione o veículo.',true);return;}
+  const b=$('ck-b');b.disabled=true;b.innerHTML='<span class="sp"></span>';
+  const v=VEICS.find(x=>x.id===veicId);
+  const itens=CHECK_ITENS.map((item,i)=>({item,ok:_checkState[i]!==false}));
+  const okGeral=itens.every(x=>x.ok);
+  const km=$('ck-km').value?Number($('ck-km').value):null;
+  const payload={veiculo_id:veicId,veiculo_nome:v?(v.nome||v.placa||'Veículo'):null,data:hoje(),operador:OPNOME,operador_uid:OPUID,km,itens,ok:okGeral,obs:$('ck-obs').value||null};
+  const photos=_checkFotoBlob?[{field:'foto_url',prefix:'checklist',blob:_checkFotoBlob}]:[];
+  try{
+    const{synced}=await doWrite({kind:'insert',table:'checklists_veiculo',payload,photos});
+    if(km&&navigator.onLine&&v&&km>Number(v.km_atual||0)){v.km_atual=km;sb.from('veiculos').update({km_atual:km}).eq('id',veicId);}
+    toast(synced?(okGeral?'Checklist salvo — veículo OK!':'Checklist salvo com pendências.'):'Salvo offline — sincroniza ao pegar sinal');
+    renderChecklist();
+  }catch(e){b.disabled=false;b.innerHTML='Salvar checklist do dia';toast('Erro: '+e.message,true);}
+}
+async function carregarChecklistRecentes(){
+  const box=$('ck-recentes');if(!box||!navigator.onLine)return;
+  const{data}=await sb.from('checklists_veiculo').select('data,veiculo_nome,ok,operador,obs').order('created_at',{ascending:false}).limit(6);
+  if(!data||!data.length){box.innerHTML='';return;}
+  box.innerHTML='<h3 style="margin:16px 0 8px;font-size:15px">Últimos checklists</h3>'+data.map(r=>`<div class="card" style="padding:10px;margin-bottom:8px"><div class="between"><div class="grow"><div class="b sm">${esc(r.veiculo_nome||'Veículo')}</div><div class="mu xs">${dataBR(r.data)}${r.operador?' · '+esc(r.operador):''}${r.obs?' · '+esc(r.obs):''}</div></div><span class="bdg ${r.ok?'st-concluida':'st-aguardando'}">${r.ok?'OK':'Pendência'}</span></div></div>`).join('');
 }
 function abzAutoKm(){const o=$('abz-veic')?.selectedOptions[0];if(o&&$('abz-km'))$('abz-km').placeholder='atual: '+Number(o.dataset.km||0).toLocaleString('pt-BR');}
 function abzGeo(){const el=$('abz-geo');if(!navigator.geolocation){if(el)el.textContent='';return;}
@@ -651,13 +729,14 @@ async function salvarMov(osId,statusAtual){
 
 /* ════════════ LANÇAR GASTO ════════════ */
 function abrirGasto(osId,numero){
-  const funcOpts=FUNCS.map(f=>`<option value="${f.id}" data-h="${f.valor_hora||0}" data-d="${f.valor_diaria||0}">${esc(f.nome)}</option>`).join('');
+  const funcOpts=FUNCS.map(f=>`<option value="${f.id}" data-h="${f.valor_hora||0}" data-d="${f.valor_diaria||0}" data-tipo="${esc(f.tipo||'Funcionário')}">${esc(f.nome)}${(f.tipo==='Diarista')?' · Diarista':''}</option>`).join('');
   const catOpts=CAT_DESPESA.map(c=>`<option>${c}</option>`).join('');
   const tcOpts=TIPO_CUSTO.map(c=>`<option>${c}</option>`).join('');
+  const estabOpts=estabOptionsHtml();
   openSheet('Lançar gasto — '+numero,
     `<div class="seg"><button id="gt-eq" class="on" onclick="gTab('eq')">Equipe / Diária</button><button id="gt-de" onclick="gTab('de')">Despesa</button></div>
      <div id="g-eq">
-       <div class="f"><label class="fl">Funcionário</label><select class="fc" id="ge-func" onchange="autoVlr()">${funcOpts||'<option value="">(cadastre no Gestor)</option>'}</select></div>
+       <div class="f"><label class="fl">Funcionário / Diarista</label><select class="fc" id="ge-func" onchange="geFuncSel()">${funcOpts||'<option value="">(cadastre no Gestor)</option>'}</select></div>
        <div class="g2"><div class="f"><label class="fl">Tipo</label><select class="fc" id="ge-tipo" onchange="autoVlr()">${tcOpts}</select></div>
        <div class="f"><label class="fl">Qtd</label><input class="fc" id="ge-qtd" type="number" inputmode="decimal" step="0.5" value="1" oninput="calcEq()"></div></div>
        <div class="g2"><div class="f"><label class="fl">Valor unit. (R$)</label><input class="fc" id="ge-vu" type="number" inputmode="decimal" step="0.01" oninput="calcEq()"></div>
@@ -666,6 +745,11 @@ function abrirGasto(osId,numero){
        <div class="f"><label class="fl">Observação</label><input class="fc" id="ge-obs" placeholder="Opcional"></div>
      </div>
      <div id="g-de" hidden>
+       <div class="f"><label class="fl">Onde comprou <span class="mu">(posto / restaurante / material)</span></label>
+         <select class="fc" id="gd-estab" onchange="gdEstabSel()"><option value="">Selecione ou cadastre...</option>${estabOpts}<option value="__novo__">➕ Cadastrar novo estabelecimento</option></select></div>
+       <div class="f" id="gd-estab-novo" hidden style="background:#eef4fb;border-radius:10px;padding:10px">
+         <div class="f" style="margin-bottom:8px"><label class="fl">Nome do estabelecimento *</label><input class="fc" id="gd-estab-nome" placeholder="Ex: Posto Ipiranga BR-163"></div>
+         <div class="f" style="margin:0"><label class="fl">Tipo</label><select class="fc" id="gd-estab-tipo" onchange="gdEstabTipoCat()"><option>Posto</option><option>Restaurante</option><option>Material de Construção</option><option>Outro</option></select></div></div>
        <div class="f"><label class="fl">Descrição *</label><input class="fc" id="gd-desc" placeholder="Ex: Gasolina ida à fazenda"></div>
        <div class="g2"><div class="f"><label class="fl">Categoria</label><select class="fc" id="gd-cat">${catOpts}</select></div>
        <div class="f"><label class="fl">Valor (R$) *</label><input class="fc" id="gd-valor" type="number" inputmode="decimal" step="0.01" placeholder="0,00"></div></div>
@@ -678,9 +762,29 @@ function abrirGasto(osId,numero){
 }
 let _GTAB='eq', _comprovBlob=null;
 function gTab(t){_GTAB=t;$('g-eq').hidden=t!=='eq';$('g-de').hidden=t!=='de';$('gt-eq').classList.toggle('on',t==='eq');$('gt-de').classList.toggle('on',t==='de');}
+function geFuncSel(){const o=$('ge-func')?.selectedOptions[0];if(o&&o.dataset.tipo==='Diarista'){const t=$('ge-tipo');if(t)t.value='Diária';}autoVlr();}
 function autoVlr(){const sel=$('ge-func');const o=sel?.selectedOptions[0];const tipo=$('ge-tipo')?.value;if(!o)return;
   const v=tipo==='Hora'?parseFloat(o.dataset.h):tipo==='Diária'?parseFloat(o.dataset.d):0;
   if(v){$('ge-vu').value=Number(v).toFixed(2);}calcEq();}
+/* ── Estabelecimentos (postos/restaurantes/materiais) ── */
+function estabOptionsHtml(){
+  if(!ESTAB.length)return '';
+  const grupos={};ESTAB.forEach(e=>{(grupos[e.tipo||'Outro']=grupos[e.tipo||'Outro']||[]).push(e);});
+  const ordem=['Posto','Restaurante','Material de Construção','Outro'];
+  const rank=t=>{const i=ordem.indexOf(t);return i<0?99:i;};
+  const tipos=Object.keys(grupos).sort((a,b)=>rank(a)-rank(b));
+  return tipos.map(t=>`<optgroup label="${esc(t)}">`+grupos[t].map(e=>`<option value="${e.id}" data-nome="${esc(e.nome)}" data-tipo="${esc(e.tipo||'Outro')}">${esc(e.nome)}${e.cidade?' — '+esc(e.cidade):''}</option>`).join('')+`</optgroup>`).join('');
+}
+function estabCat(tipo){return tipo==='Posto'?'Combustível':tipo==='Restaurante'?'Alimentação':tipo==='Material de Construção'?'Material de Campo':null;}
+function gdEstabSel(){
+  const sel=$('gd-estab');if(!sel)return;const novo=$('gd-estab-novo');
+  if(sel.value==='__novo__'){if(novo)novo.hidden=false;gdEstabTipoCat();setTimeout(()=>$('gd-estab-nome')?.focus(),40);return;}
+  if(novo)novo.hidden=true;
+  const o=sel.selectedOptions[0];
+  if(o&&o.value){const cat=estabCat(o.dataset.tipo);if(cat){const c=$('gd-cat');if(c)c.value=cat;}
+    const d=$('gd-desc');if(d&&!d.value.trim())d.value=o.dataset.nome||'';}
+}
+function gdEstabTipoCat(){const cat=estabCat($('gd-estab-tipo')?.value);if(cat){const c=$('gd-cat');if(c)c.value=cat;}}
 function calcEq(){const q=parseFloat($('ge-qtd')?.value)||0,v=parseFloat($('ge-vu')?.value)||0;if($('ge-tot'))$('ge-tot').value=(Math.round(q*v*100)/100).toFixed(2);}
 async function fotoComprov(){const blob=await tirarFoto();if(!blob)return;_comprovBlob=blob;$('gd-foto-lbl').textContent='Foto anexada ✓';const img=$('gd-foto-prev');img.src=URL.createObjectURL(blob);img.hidden=false;}
 
@@ -703,7 +807,20 @@ async function salvarGasto(osId,numero){
     if(!valor){toast('Informe o valor.',true);return;}
     b.disabled=true;b.innerHTML='<span class="sp"></span>';
     const status=$('gd-status').value, data=$('gd-data').value||hoje();
-    const payload={descricao:desc,categoria:$('gd-cat').value,valor,vencimento:data,data_pagamento:status==='Pago'?data:null,status,os_id:osId,os_manual:numero};
+    // Estabelecimento: usa o selecionado, ou cadastra um novo p/ reuso futuro
+    let fornecedor=null;
+    const es=$('gd-estab');
+    if(es){
+      if(es.value==='__novo__'){
+        const nome=($('gd-estab-nome').value||'').trim();
+        if(nome){fornecedor=nome;
+          const tipo=$('gd-estab-tipo').value||'Outro';
+          const novo={id:uid(),nome,tipo,cidade:null};
+          try{await doWrite({kind:'insert',table:'estabelecimentos',payload:{id:novo.id,nome,tipo}});ESTAB.push(novo);kvPut('estab',ESTAB);}catch(e){}
+        }
+      }else if(es.value){fornecedor=es.selectedOptions[0]?.dataset.nome||null;}
+    }
+    const payload={descricao:desc,categoria:$('gd-cat').value,valor,fornecedor,vencimento:data,data_pagamento:status==='Pago'?data:null,status,os_id:osId,os_manual:numero};
     const photos=_comprovBlob?[{field:'comprovante_url',prefix:'comprovantes',blob:_comprovBlob}]:[];
     try{
       const{synced}=await doWrite({kind:'insert',table:'pagamentos',payload,photos});
@@ -719,10 +836,15 @@ function pontoNaOS(osId,numero){
   if(ATIVO){if(ATIVO.os_id===osId){abrirSaida();}else{toast('Você já tem um ponto aberto em '+(ATIVO.os_numero||'outra OS')+'. Finalize antes.',true);go('ponto');}return;}
   abrirEntrada(osId,numero);
 }
+function veicOptions(sel){return VEICS.map(v=>`<option value="${v.id}" data-km="${v.km_atual||0}" ${sel===v.id?'selected':''}>${esc(v.nome||v.placa||'Veículo')}${v.placa&&v.nome?' · '+esc(v.placa):''}</option>`).join('');}
+function ptVeicKm(){const o=$('pt-veic')?.selectedOptions[0];const k=$('pt-km');if(o&&o.value&&k){k.placeholder='atual: '+Number(o.dataset.km||0).toLocaleString('pt-BR');if(!k.value&&o.dataset.km&&Number(o.dataset.km)>0)k.value=o.dataset.km;}}
 function abrirEntrada(osId,numero){
   _fotoBlob=null;_geo=null;
+  const agora=new Date().toLocaleString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
   openSheet('Iniciar atendimento — '+numero,
-    `<div class="f"><label class="fl">Km inicial</label><input class="fc" id="pt-km" type="number" inputmode="decimal" step="1" placeholder="Ex: 145820"></div>
+    `<div class="f"><div class="row" style="background:#eef4fb;border-radius:10px;padding:10px 12px;gap:8px"><i class="ti ti-clock" style="color:var(--brand);font-size:20px"></i><div><div class="sm b">Data e hora automáticas</div><div class="xs mu" id="pt-agora">${agora}</div></div></div></div>
+     <div class="f"><label class="fl">Veículo operado</label><select class="fc" id="pt-veic" onchange="ptVeicKm()"><option value="">Selecione o veículo...</option>${veicOptions()}</select></div>
+     <div class="f"><label class="fl">Km inicial</label><input class="fc" id="pt-km" type="number" inputmode="decimal" step="1" placeholder="Ex: 145820"></div>
      <div class="f"><label class="fl">Foto de entrada * <span class="mu">(ponto/obra)</span></label>
        <button type="button" class="btn wide" onclick="tirarFotoPonto()"><i class="ti ti-camera"></i> <span id="pt-foto-lbl">Tirar foto</span></button>
        <img id="pt-foto-prev" class="photo-prev" hidden></div>
@@ -735,7 +857,8 @@ function abrirSaida(){
   const a=ATIVO;if(!a){toast('Nenhum ponto aberto.',true);return;}
   _fotoBlob=null;_geo=null;
   openSheet('Finalizar — '+(a.os_numero||''),
-    `<div class="sm mu mb1">Entrada: km ${a.km_inicial??'—'} · ${new Date(a.ts_entrada).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</div>
+    `<div class="row" style="background:#eef4fb;border-radius:10px;padding:10px 12px;gap:8px;margin-bottom:12px"><i class="ti ti-clock" style="color:var(--brand);font-size:20px"></i><div><div class="sm b">Saída registrada agora automaticamente</div><div class="xs mu">${new Date().toLocaleString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div></div></div>
+     <div class="sm mu mb1">Entrada: km ${a.km_inicial??'—'} · ${new Date(a.ts_entrada).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}${a.veiculo_nome?' · '+esc(a.veiculo_nome):''}</div>
      <div class="f"><label class="fl">Km final</label><input class="fc" id="pt-kmf" type="number" inputmode="decimal" step="1" placeholder="Deve ser ≥ ${a.km_inicial??0}"></div>
      <div class="f"><label class="fl">Foto de saída *</label>
        <button type="button" class="btn wide" onclick="tirarFotoPonto()"><i class="ti ti-camera"></i> <span id="pt-foto-lbl">Tirar foto</span></button>
@@ -752,7 +875,9 @@ async function salvarEntrada(osId,numero){
   const b=$('pt-b');b.disabled=true;b.innerHTML='<span class="sp"></span>';
   const km=$('pt-km').value?Number($('pt-km').value):null;
   const obs=$('pt-obs').value||null;
-  const base={os_id:osId,os_numero:numero,operador:OPNOME,operador_uid:OPUID,km_inicial:km,
+  const veicId=$('pt-veic')?.value||null;
+  const veicNome=veicId?(()=>{const v=VEICS.find(x=>x.id===veicId);return v?(v.nome||v.placa||'Veículo'):null;})():null;
+  const base={os_id:osId,os_numero:numero,operador:OPNOME,operador_uid:OPUID,km_inicial:km,veiculo_id:veicId,veiculo_nome:veicNome,
     geo_entrada_lat:_geo?.lat,geo_entrada_lng:_geo?.lng,ts_entrada:new Date().toISOString(),status:'em_andamento',obs};
   try{
     if(navigator.onLine){
@@ -788,7 +913,8 @@ async function salvarSaida(){
     let synced;
     if(a._local){ // nunca sincronizou — insere entrada + saída de uma vez
       const payload={os_id:a.os_id,os_numero:a.os_numero,operador:OPNOME,operador_uid:OPUID,
-        km_inicial:a.km_inicial,geo_entrada_lat:a.geo_entrada_lat,geo_entrada_lng:a.geo_entrada_lng,ts_entrada:a.ts_entrada,
+        km_inicial:a.km_inicial,veiculo_id:a.veiculo_id||null,veiculo_nome:a.veiculo_nome||null,
+        geo_entrada_lat:a.geo_entrada_lat,geo_entrada_lng:a.geo_entrada_lng,ts_entrada:a.ts_entrada,
         ...saida,obs:obsFinal};
       const photos=[{field:'foto_entrada_url',prefix:'ponto',blob:a._entradaBlob},{field:'foto_saida_url',prefix:'ponto',blob:_fotoBlob}];
       ({synced}=await doWrite({kind:'insert',table:'atendimentos_campo',payload,photos}));
@@ -799,6 +925,8 @@ async function salvarSaida(){
       await kvDel('ativo_cache');
     }
     await movAuto(a.os_id,'Em andamento',`Ponto de saída${kmf?` — km ${kmf} (rodou ${kmf-(a.km_inicial||0)} km)`:''}${obs?' — '+obs:''}`);
+    // atualiza o hodômetro do veículo (melhor esforço, só online)
+    if(a.veiculo_id&&kmf!=null&&navigator.onLine){const v=VEICS.find(x=>x.id===a.veiculo_id);if(!v||kmf>Number(v.km_atual||0)){sb.from('veiculos').update({km_atual:kmf}).eq('id',a.veiculo_id);if(v)v.km_atual=kmf;}}
     ATIVO=null;closeSheet();toast(synced?'Atendimento finalizado!':'Saída salva offline — sincroniza ao pegar sinal');go('agenda');
   }catch(e){b.disabled=false;b.innerHTML='Finalizar';toast('Erro: '+e.message,true);}
 }

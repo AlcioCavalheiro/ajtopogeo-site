@@ -180,3 +180,59 @@ end $$;
 -- ═══════════════════════════════════════════════════════════════════════════
 -- FIM. Depois de rodar: recarregue o Gestor (Frotas no menu) e use o app /campo.
 -- ═══════════════════════════════════════════════════════════════════════════
+
+
+-- ╔═══════════════════════════════════════════════════════════════════════╗
+-- ║ PARTE 3 — APP DE CAMPO v2 (veículo no ponto, diaristas,               ║
+-- ║ estabelecimentos e checklist diário do veículo)                       ║
+-- ╚═══════════════════════════════════════════════════════════════════════╝
+
+-- Veículo usado no ponto
+alter table atendimentos_campo add column if not exists veiculo_id uuid references veiculos(id);
+alter table atendimentos_campo add column if not exists veiculo_nome text;
+
+-- Tipo de vínculo do trabalhador (Funcionário / Diarista)
+alter table funcionarios add column if not exists tipo text default 'Funcionário';
+
+-- Estabelecimentos (postos, restaurantes, materiais de construção...)
+create table if not exists estabelecimentos (
+  id uuid primary key default gen_random_uuid(),
+  nome text not null,
+  tipo text default 'Outro',
+  cidade text,
+  telefone text,
+  obs text,
+  ativo boolean default true,
+  created_at timestamptz default now()
+);
+create index if not exists idx_estab_tipo on estabelecimentos (tipo, nome);
+
+-- Onde a despesa foi feita
+alter table pagamentos add column if not exists fornecedor text;
+
+-- Checklist diário do veículo
+create table if not exists checklists_veiculo (
+  id uuid primary key default gen_random_uuid(),
+  veiculo_id uuid references veiculos(id) on delete cascade,
+  veiculo_nome text,
+  data date default current_date,
+  operador text,
+  operador_uid uuid,
+  km numeric,
+  itens jsonb,
+  ok boolean,
+  obs text,
+  foto_url text,
+  created_at timestamptz default now()
+);
+create index if not exists idx_checklist_veic on checklists_veiculo (veiculo_id, data);
+
+do $$
+declare t text;
+begin
+  foreach t in array array['estabelecimentos','checklists_veiculo'] loop
+    execute format('alter table %I enable row level security', t);
+    execute format('drop policy if exists %I on %I', t||'_rw_auth', t);
+    execute format('create policy %I on %I for all to authenticated using (true) with check (true)', t||'_rw_auth', t);
+  end loop;
+end $$;
