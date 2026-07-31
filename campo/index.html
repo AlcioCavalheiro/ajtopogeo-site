@@ -233,7 +233,14 @@ let _abzGeo=null;          // GPS capturado na tela de abastecimento
 
 /* ── Constantes de domínio (do schema do Gestor) ── */
 const STATUS_EXEC=['Agendada','Em campo','Em andamento','Aguardando'];   // OS "disponível p/ execução"
-const STATUS_MOV =['Agendada','Em campo','Em andamento','Aguardando','Concluída','Cancelada']; // movimentações no campo
+// Mesma lista de status usada no Gestor (abrirOS) — o operador pode mover a OS
+// para qualquer etapa do fluxo, não só as de campo.
+const STATUS_MOV=['Agendada','Logística / Preparação','Em campo','Em andamento',
+  'Processamento','Desenho','Revisão Técnica','Análise Jurídica','Pendência Documental',
+  'Pronto para Protocolo','Protocolada',
+  'Encaminhada para Medição','Medição Realizada','NF Gerada','Recebido',
+  'Pronto para Enviar ao Cliente','Documentos Enviados ao Cliente',
+  'Concluída','Cancelada'];
 const CAT_DESPESA=['Combustível','Alimentação','Pedágio','Estadia / Hospedagem','Material de Campo','Transporte / Frete','Manutenção de Equipamento','Aluguel de Equipamento','Terceiro / Subcontratado','Taxas e Emolumentos','Outros'];
 const TIPO_CUSTO =['Diária','Hora','Empreitada'];
 
@@ -768,7 +775,68 @@ async function salvarMov(osId,statusAtual){
     const{synced}=await doWrite({kind:'mov',osId,status:novo,andamento:entry});
     await patchOSD(osId,novo,entry);
     closeSheet();toast(synced?'OS movimentada!':'Salvo offline — sincroniza ao pegar sinal');renderOS(osId);
+    // Mesma sincronização que o Gestor faz ao trocar status (Pipeline/Kanban + Agenda) —
+    // sem isso a OS fica certa, mas o Kanban e a Agenda ficam desatualizados quando a
+    // mudança vem do app de campo. Melhor esforço, só quando online (não entra na fila).
+    if(synced&&novo!==statusAtual)movSincStatus(osId,novo);
   }catch(e){b.disabled=false;b.textContent='Salvar';toast('Erro: '+e.message,true);}
+}
+async function movSincStatus(osId,novoStatus){
+  try{
+    const{data:os}=await sb.from('ordens').select('numero,tipo,cliente_id,data,orcamento_numero,clientes(nome)').eq('id',osId).single();
+    if(!os)return;
+    await Promise.all([
+      movSincPipeline(os.numero,novoStatus,os.tipo,os.cliente_id),
+      movSincAgenda(osId,os.numero,novoStatus,os.data,os.clientes?.nome,os.tipo),
+    ]);
+  }catch(e){/* best-effort — a OS já foi salva, isto é só reflexo no Kanban/Agenda */}
+}
+// Réplica de sincPipelineOS do Gestor (gestor/index.html) — mesma lógica, mesmas tabelas.
+async function movSincPipeline(osNumero,osStatus,osTipo,clienteId){
+  try{
+    const etapaMap={
+      'Agendada':'campo','Logística / Preparação':'campo',
+      'Em campo':'execucao','Em andamento':'execucao',
+      'Processamento':'processamento','Desenho':'processamento','Revisão Técnica':'processamento',
+      'Análise Jurídica':'protocolo','Pronto para Protocolo':'protocolo','Protocolada':'protocolo',
+      'Encaminhada para Medição':'entrega','Medição Realizada':'entrega',
+      'NF Gerada':'entrega','Recebido':'entrega',
+      'Pronto para Enviar ao Cliente':'entrega','Documentos Enviados ao Cliente':'entrega',
+      'Concluída':'entrega','Cancelada':'crm'
+    };
+    const novaEtapa=etapaMap[osStatus];if(!novaEtapa)return;
+    let proj=null;
+    if(osNumero){
+      const{data:osData}=await sb.from('ordens').select('orcamento_numero').eq('numero',osNumero).single();
+      if(osData?.orcamento_numero){
+        const{data:p1}=await sb.from('projetos').select('id,etapa,historico,nome').eq('orcamento_numero',osData.orcamento_numero).limit(1);
+        if(p1?.length)proj=p1[0];
+      }
+    }
+    if(!proj&&clienteId){
+      const{data:p2}=await sb.from('projetos').select('id,etapa,historico,nome').eq('cliente_id',clienteId).not('etapa','in','(entrega,crm)').order('created_at',{ascending:false}).limit(1);
+      if(p2?.length)proj=p2[0];
+    }
+    if(!proj)return;
+    const ORDEM=['crm','orcamento','contrato','aguard_doc','campo','execucao','processamento','protocolo','entrega'];
+    if(ORDEM.indexOf(novaEtapa)<=ORDEM.indexOf(proj.etapa))return; // não regride
+    const hist=(proj.historico||[]).concat([{txt:`OS ${osNumero} — ${osStatus} (${osTipo}) → etapa atualizada para ${novaEtapa}`,data:new Date().toLocaleDateString('pt-BR'),hora:horaAgora(),user:OPNOME}]);
+    await sb.from('projetos').update({etapa:novaEtapa,historico:hist}).eq('id',proj.id);
+  }catch(e){}
+}
+// Réplica de sincAgendaOS do Gestor.
+async function movSincAgenda(osId,osNumero,osStatus,osData,clienteNome,osTipo){
+  try{
+    if(!osNumero)return;
+    if(osStatus==='Agendada'&&osData){
+      const{data:existing}=await sb.from('agenda').select('id').eq('os_numero',osNumero).limit(1);
+      const titulo='Execução OS '+osNumero+(clienteNome?' — '+clienteNome:'')+(osTipo?' ('+osTipo+')':'');
+      if(existing&&existing.length)await sb.from('agenda').update({titulo,data:osData,concluido:false,concluida:false}).eq('id',existing[0].id);
+      else await sb.from('agenda').insert({titulo,tipo:'OS',data:osData,os_numero:osNumero,os_id:osId||null,descricao:osTipo||null,concluido:false,concluida:false});
+    }else if(osStatus&&osStatus!=='Agendada'){
+      await sb.from('agenda').update({concluido:true,concluida:true}).eq('os_numero',osNumero).or('concluido.eq.false,concluido.is.null');
+    }
+  }catch(e){}
 }
 
 /* ════════════ LANÇAR GASTO ════════════ */
