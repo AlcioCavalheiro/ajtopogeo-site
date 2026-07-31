@@ -2,6 +2,38 @@
   "_comentario": "Histórico da rotina radar-noticias. Cada post de notícia já feito entra aqui para não repetir tema na semana seguinte. Sem dado sigiloso — notícia é pública. Semeado com os posts de notícia que já existiam no site antes da rotina.",
   "posts": [
     {
+      "data": "2026-07-30",
+      "titulo": "ITR 2026: a declaração agora cruza com o CAR",
+      "tema": "documentação / ITR / DITR / CAR / Receita Federal",
+      "fonte": "Jornal Opção",
+      "fonte_url": "https://www.jornalopcao.com.br/ultimas-noticias/receita-federal-publica-novas-regras-do-itr-2026-e-produtores-rurais-devem-ficar-atentos-as-mudancas-diz-especialista-852347/",
+      "slug": "itr-2026-novas-regras-car"
+    },
+    {
+      "data": "2026-07-30",
+      "titulo": "Semadesc atualiza as regras do licenciamento ambiental em MS",
+      "tema": "meio ambiente / licenciamento ambiental / Semadesc / Imasul / MS",
+      "fonte": "Capital News",
+      "fonte_url": "https://www.capitalnews.com.br/politica-e-poder/executivo/semadesc-atualiza-regras-do-licenciamento-ambiental-em-mato-grosso-do-sul/444543",
+      "slug": "semadesc-novas-regras-licenciamento-ms"
+    },
+    {
+      "data": "2026-07-30",
+      "titulo": "Modelo unificado avalia a recuperação de vegetação nativa",
+      "tema": "meio ambiente / reserva legal / APP / PRA / recuperação de vegetação nativa",
+      "fonte": "Embrapa Amapá",
+      "fonte_url": "https://www.embrapa.br/web/amapa/busca-de-noticias/-/noticia/146081335/novo-sistema-regulamenta-a-recuperacao-da-vegetacao-nativa-brasileira",
+      "slug": "sistema-recuperacao-vegetacao-nativa"
+    },
+    {
+      "data": "2026-07-30",
+      "titulo": "IBAMA lança o Prisma e passa a cruzar o CAR de imóveis rurais",
+      "tema": "meio ambiente / CAR / crédito rural / IBAMA",
+      "fonte": "Geocracia — O Portal da Geoinformação",
+      "fonte_url": "https://geocracia.com/ibama-cria-sistema-para-cruzar-dados-ambientais-de-imoveis-rurais/",
+      "slug": "prisma-ibama-car-credito-rural"
+    },
+    {
       "data": "2026-07-29",
       "titulo": "INCRA unifica seus sistemas de terras: o que muda em agosto",
       "tema": "georreferenciamento / INCRA / SIGEF / SNCR / certificação",

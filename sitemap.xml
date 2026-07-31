@@ -185,4 +185,24 @@
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
+  <url>
+    <loc>https://ajtopogeo.com.br/blog-prisma-ibama-car-credito-rural</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://ajtopogeo.com.br/blog-sistema-recuperacao-vegetacao-nativa</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://ajtopogeo.com.br/blog-semadesc-novas-regras-licenciamento-ms</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://ajtopogeo.com.br/blog-itr-2026-novas-regras-car</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
 </urlset>
