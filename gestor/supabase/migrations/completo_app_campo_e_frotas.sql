@@ -266,6 +266,29 @@ create policy atend_campo_os_rw_auth
   on atendimentos_campo_os for all to authenticated
   using (true) with check (true);
 
+-- ╔═══════════════════════════════════════════════════════════════════════╗
+-- ║ PARTE 5 — KM POR OS (v4)                                               ║
+-- ║ Bater/encerrar ponto não pede mais km — o km passa a ser digitado ao   ║
+-- ║ assumir/concluir cada OS. Ver add_campo_v4_km_por_os.sql.              ║
+-- ╚═══════════════════════════════════════════════════════════════════════╝
+
+alter table atendimentos_campo_os add column if not exists km_inicial numeric;
+alter table atendimentos_campo_os add column if not exists km_final numeric;
+
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+     where table_name='atendimentos_campo_os' and column_name='km_rodado'
+  ) then
+    alter table atendimentos_campo_os add column km_rodado numeric
+      generated always as (
+        case when km_final is not null and km_inicial is not null
+             then km_final - km_inicial end
+      ) stored;
+  end if;
+end $$;
+
 -- ═══════════════════════════════════════════════════════════════════════════
 -- FIM. Depois de rodar: recarregue o Gestor e o app /campo.
 -- ═══════════════════════════════════════════════════════════════════════════

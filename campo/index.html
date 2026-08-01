@@ -519,8 +519,7 @@ async function renderPonto(){
   c.innerHTML=`<h2 style="margin:4px 0 14px">Ponto</h2>
     <div class="card" style="border-color:var(--warn)">
       <div class="row mb1"><i class="ti ti-clock-hour-4" style="color:var(--warn);font-size:24px"></i><div><div class="b">Expediente em andamento</div><div class="sm mu">${ATIVO.veiculo_nome?esc(ATIVO.veiculo_nome):'Sem veículo informado'}</div></div></div>
-      <div class="g2 sm"><div><div class="mu">Entrada</div><div class="b">${new Date(ATIVO.ts_entrada).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div></div>
-      <div><div class="mu">Km inicial</div><div class="b">${ATIVO.km_inicial??'—'}</div></div></div>
+      <div class="sm"><div class="mu">Entrada</div><div class="b">${new Date(ATIVO.ts_entrada).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div></div>
     </div>
     <div class="card">
       <div class="b mb1"><i class="ti ti-clipboard-list"></i> OS deste expediente</div>
@@ -536,10 +535,10 @@ async function renderPonto(){
 }
 async function carregarHistoricoTurno(){
   const box=$('pt-historico');if(!box||!ATIVO||!navigator.onLine)return;
-  const{data}=await sb.from('atendimentos_campo_os').select('os_numero,ts_assumida,ts_concluida,status').eq('atendimento_id',ATIVO.id).eq('status','concluida').order('ts_assumida',{ascending:false});
+  const{data}=await sb.from('atendimentos_campo_os').select('os_numero,ts_assumida,ts_concluida,status,km_rodado').eq('atendimento_id',ATIVO.id).eq('status','concluida').order('ts_assumida',{ascending:false});
   if(!data||!data.length)return;
   box.innerHTML='<div class="xs mu" style="margin:8px 0 4px">Já concluídas neste expediente</div>'
-    +data.map(r=>`<div class="sm" style="padding:4px 0;border-top:1px solid var(--bor)">${esc(r.os_numero||'')} <span class="xs mu">— concluída às ${r.ts_concluida?new Date(r.ts_concluida).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):''}</span></div>`).join('');
+    +data.map(r=>`<div class="sm" style="padding:4px 0;border-top:1px solid var(--bor)">${esc(r.os_numero||'')} <span class="xs mu">— concluída às ${r.ts_concluida?new Date(r.ts_concluida).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):''}${r.km_rodado!=null?' · '+r.km_rodado+' km':''}</span></div>`).join('');
 }
 
 /* ════════════ VEÍCULO — Abastecimento + Checklist (Frotas) ════════════ */
@@ -945,15 +944,13 @@ async function salvarGasto(osId,numero){
 /* ════════════ PONTO — expediente (entrada/saída) independente da OS ════════════ */
 let _fotoBlob=null, _geo=null;
 function veicOptions(sel){return VEICS.map(v=>`<option value="${v.id}" data-km="${v.km_atual||0}" ${sel===v.id?'selected':''}>${esc(v.nome||v.placa||'Veículo')}${v.placa&&v.nome?' · '+esc(v.placa):''}</option>`).join('');}
-function ptVeicKm(){const o=$('pt-veic')?.selectedOptions[0];const k=$('pt-km');if(o&&o.value&&k){k.placeholder='atual: '+Number(o.dataset.km||0).toLocaleString('pt-BR');if(!k.value&&o.dataset.km&&Number(o.dataset.km)>0)k.value=o.dataset.km;}}
 function abrirEntradaTurno(){
   if(ATIVO){toast('Você já tem um expediente aberto.',true);return;}
   _fotoBlob=null;_geo=null;
   const agora=new Date().toLocaleString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
   openSheet('Bater ponto — iniciar expediente',
     `<div class="f"><div class="row" style="background:#eef4fb;border-radius:10px;padding:10px 12px;gap:8px"><i class="ti ti-clock" style="color:var(--brand);font-size:20px"></i><div><div class="sm b">Data e hora automáticas</div><div class="xs mu" id="pt-agora">${agora}</div></div></div></div>
-     <div class="f"><label class="fl">Veículo operado</label><select class="fc" id="pt-veic" onchange="ptVeicKm()"><option value="">Selecione o veículo...</option>${veicOptions()}</select></div>
-     <div class="f"><label class="fl">Km inicial</label><input class="fc" id="pt-km" type="number" inputmode="decimal" step="1" placeholder="Ex: 145820"></div>
+     <div class="f"><label class="fl">Veículo operado</label><select class="fc" id="pt-veic"><option value="">Selecione o veículo...</option>${veicOptions()}</select></div>
      <div class="f"><label class="fl">Foto de entrada * <span class="mu">(ponto)</span></label>
        <button type="button" class="btn wide" onclick="tirarFotoPonto()"><i class="ti ti-camera"></i> <span id="pt-foto-lbl">Tirar foto</span></button>
        <img id="pt-foto-prev" class="photo-prev" hidden></div>
@@ -968,8 +965,7 @@ function abrirEncerrar(){
   _fotoBlob=null;_geo=null;
   openSheet('Encerrar expediente',
     `<div class="row" style="background:#eef4fb;border-radius:10px;padding:10px 12px;gap:8px;margin-bottom:12px"><i class="ti ti-clock" style="color:var(--brand);font-size:20px"></i><div><div class="sm b">Saída registrada agora automaticamente</div><div class="xs mu">${new Date().toLocaleString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div></div></div>
-     <div class="sm mu mb1">Entrada: km ${a.km_inicial??'—'} · ${new Date(a.ts_entrada).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}${a.veiculo_nome?' · '+esc(a.veiculo_nome):''}</div>
-     <div class="f"><label class="fl">Km final</label><input class="fc" id="pt-kmf" type="number" inputmode="decimal" step="1" placeholder="Deve ser ≥ ${a.km_inicial??0}"></div>
+     <div class="sm mu mb1">Entrada: ${new Date(a.ts_entrada).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}${a.veiculo_nome?' · '+esc(a.veiculo_nome):''}</div>
      <div class="f"><label class="fl">Foto de saída *</label>
        <button type="button" class="btn wide" onclick="tirarFotoPonto()"><i class="ti ti-camera"></i> <span id="pt-foto-lbl">Tirar foto</span></button>
        <img id="pt-foto-prev" class="photo-prev" hidden></div>
@@ -983,12 +979,11 @@ async function tirarFotoPonto(){const blob=await tirarFoto();if(!blob)return;_fo
 async function salvarEntradaTurno(){
   if(!_fotoBlob){toast('Tire a foto de entrada.',true);return;}
   const b=$('pt-b');b.disabled=true;b.innerHTML='<span class="sp"></span>';
-  const km=$('pt-km').value?Number($('pt-km').value):null;
   const obs=$('pt-obs').value||null;
   const veicId=$('pt-veic')?.value||null;
   const veicNome=veicId?(()=>{const v=VEICS.find(x=>x.id===veicId);return v?(v.nome||v.placa||'Veículo'):null;})():null;
   const turnoId=uid();
-  const payload={id:turnoId,os_id:null,os_numero:null,operador:OPNOME,operador_uid:OPUID,km_inicial:km,veiculo_id:veicId,veiculo_nome:veicNome,
+  const payload={id:turnoId,os_id:null,os_numero:null,operador:OPNOME,operador_uid:OPUID,veiculo_id:veicId,veiculo_nome:veicNome,
     geo_entrada_lat:_geo?.lat,geo_entrada_lng:_geo?.lng,ts_entrada:new Date().toISOString(),status:'em_andamento',obs};
   const photos=[{field:'foto_entrada_url',prefix:'ponto',blob:_fotoBlob}];
   try{
@@ -1003,51 +998,72 @@ async function salvarEntradaTurno(){
 async function salvarEncerrar(){
   const a=ATIVO;if(!a)return;
   if(!_fotoBlob){toast('Tire a foto de saída.',true);return;}
-  const kmf=$('pt-kmf').value?Number($('pt-kmf').value):null;
-  if(kmf!=null&&a.km_inicial!=null&&kmf<a.km_inicial){toast('Km final não pode ser menor que o inicial.',true);return;}
   const b=$('pt-b');b.disabled=true;b.innerHTML='<span class="sp"></span>';
   const obs=$('pt-obs').value||null;
-  const payload={km_final:kmf,geo_saida_lat:_geo?.lat,geo_saida_lng:_geo?.lng,ts_saida:new Date().toISOString(),status:'concluido',
+  const payload={geo_saida_lat:_geo?.lat,geo_saida_lng:_geo?.lng,ts_saida:new Date().toISOString(),status:'concluido',
     obs:[a.obs,obs].filter(Boolean).join(' | ')||null};
   const photos=[{field:'foto_saida_url',prefix:'ponto',blob:_fotoBlob}];
   try{
     const{synced}=await doWriteChained({kind:'update',table:'atendimentos_campo',matchCol:'id',matchVal:a.id,payload,photos},'atendimentos_campo',a.id);
-    if(a.veiculo_id&&kmf!=null&&navigator.onLine){const v=VEICS.find(x=>x.id===a.veiculo_id);if(!v||kmf>Number(v.km_atual||0)){sb.from('veiculos').update({km_atual:kmf}).eq('id',a.veiculo_id);if(v)v.km_atual=kmf;}}
     ATIVO=null;await kvDel('ativo_cache');
     closeSheet();toast(synced?'Expediente encerrado!':'Encerrado offline — sincroniza ao pegar sinal');go('agenda');
   }catch(e){b.disabled=false;b.innerHTML='Encerrar';toast('Erro: '+e.message,true);}
 }
 
-/* ════════════ ASSUMIR / CONCLUIR OS (dentro do expediente aberto) ════════════ */
-async function assumirOS(osId,numero,statusAtual){
+/* ════════════ ASSUMIR / CONCLUIR OS (dentro do expediente aberto) ════════════
+   O km agora é digitado aqui — km inicial ao assumir (indo pra obra), km
+   final ao concluir — em vez de um único km pro expediente inteiro. */
+function assumirOS(osId,numero,statusAtual){
   if(!ATIVO){toast('Bata o ponto para iniciar o expediente antes de assumir uma OS.',true);return;}
   if(OS_ASSUMIDA){
     if(OS_ASSUMIDA.os_id===osId){toast('Você já está nesta OS.');return;}
     toast('Conclua a OS '+(OS_ASSUMIDA.os_numero||'atual')+' antes de assumir outra.',true);return;
   }
+  const v=ATIVO.veiculo_id?VEICS.find(x=>x.id===ATIVO.veiculo_id):null;
+  const kmAtual=v?Number(v.km_atual||0):null;
+  openSheet('Assumir '+numero,
+    `<div class="f"><label class="fl">Km inicial <span class="mu">(indo pra obra — opcional)</span></label>
+       <input class="fc" id="as-km" type="number" inputmode="decimal" step="1" placeholder="${kmAtual?('atual: '+kmAtual.toLocaleString('pt-BR')):'Ex: 145820'}"${kmAtual?` value="${kmAtual}"`:''}></div>`,
+    `<button class="btn" onclick="closeSheet()">Cancelar</button><button class="btn warn" id="as-b" onclick="confirmarAssumirOS('${osId}','${esc(numero)}','${esc(statusAtual)}')"><i class="ti ti-player-play"></i> Assumir</button>`);
+}
+async function confirmarAssumirOS(osId,numero,statusAtual){
+  const b=$('as-b');b.disabled=true;b.innerHTML='<span class="sp"></span>';
   if(navigator.onLine){
     const{data:outros}=await sb.from('atendimentos_campo_os').select('operador').eq('os_id',osId).eq('status','assumida').neq('operador_uid',OPUID).limit(1);
-    if(outros&&outros.length){toast('Esta OS já está sendo executada por '+(outros[0].operador||'outro operador')+'.',true);return;}
+    if(outros&&outros.length){b.disabled=false;b.innerHTML='<i class="ti ti-player-play"></i> Assumir';toast('Esta OS já está sendo executada por '+(outros[0].operador||'outro operador')+'.',true);return;}
   }
+  const km=$('as-km').value?Number($('as-km').value):null;
   const rowId=uid();
-  const payload={id:rowId,atendimento_id:ATIVO.id,os_id:osId,os_numero:numero,operador:OPNOME,operador_uid:OPUID,ts_assumida:new Date().toISOString(),status:'assumida'};
+  const payload={id:rowId,atendimento_id:ATIVO.id,os_id:osId,os_numero:numero,operador:OPNOME,operador_uid:OPUID,ts_assumida:new Date().toISOString(),status:'assumida',km_inicial:km};
   try{
     const{synced}=await doWriteChained({kind:'insert',table:'atendimentos_campo_os',payload},'atendimentos_campo',ATIVO.id);
     OS_ASSUMIDA=payload;await kvPut('assumida_cache',payload);
     const novoStatus=(statusAtual==='Agendada'||statusAtual==='Aguardando')?'Em campo':statusAtual;
-    await movAuto(osId,novoStatus,'OS assumida'+(ATIVO.veiculo_nome?' · veículo '+ATIVO.veiculo_nome:''));
-    toast(synced?'OS assumida!':'Assumida offline — sincroniza ao pegar sinal');renderOS(osId);
-  }catch(e){toast('Erro: '+e.message,true);}
+    await movAuto(osId,novoStatus,'OS assumida'+(km?` — km ${km}`:'')+(ATIVO.veiculo_nome?' · veículo '+ATIVO.veiculo_nome:''));
+    closeSheet();toast(synced?'OS assumida!':'Assumida offline — sincroniza ao pegar sinal');renderOS(osId);
+  }catch(e){b.disabled=false;b.innerHTML='<i class="ti ti-player-play"></i> Assumir';toast('Erro: '+e.message,true);}
 }
-async function concluirOS(osId,numero){
+function concluirOS(osId,numero){
   if(!OS_ASSUMIDA||OS_ASSUMIDA.os_id!==osId){toast('Esta OS não está assumida por você agora.',true);return;}
+  const kmIni=OS_ASSUMIDA.km_inicial;
+  openSheet('Concluir '+numero,
+    `<div class="f"><label class="fl">Km final <span class="mu">(opcional)</span></label>
+       <input class="fc" id="co-km" type="number" inputmode="decimal" step="1" placeholder="${kmIni!=null?('deve ser ≥ '+Number(kmIni).toLocaleString('pt-BR')):'Ex: 145900'}"></div>`,
+    `<button class="btn" onclick="closeSheet()">Cancelar</button><button class="btn ok" id="co-b" onclick="confirmarConcluirOS('${osId}','${esc(numero)}')"><i class="ti ti-flag-check"></i> Concluir</button>`);
+}
+async function confirmarConcluirOS(osId,numero){
+  const kmf=$('co-km').value?Number($('co-km').value):null;
+  const kmIni=OS_ASSUMIDA?.km_inicial;
+  if(kmf!=null&&kmIni!=null&&kmf<kmIni){toast('Km final não pode ser menor que o inicial.',true);return;}
+  const b=$('co-b');b.disabled=true;b.innerHTML='<span class="sp"></span>';
   try{
     const{synced}=await doWriteChained({kind:'update',table:'atendimentos_campo_os',matchCol:'id',matchVal:OS_ASSUMIDA.id,
-      payload:{status:'concluida',ts_concluida:new Date().toISOString()}},'atendimentos_campo_os',OS_ASSUMIDA.id);
-    await movAuto(osId,'Aguardando','OS concluída neste atendimento');
+      payload:{status:'concluida',ts_concluida:new Date().toISOString(),km_final:kmf}},'atendimentos_campo_os',OS_ASSUMIDA.id);
+    if(ATIVO?.veiculo_id&&kmf!=null&&navigator.onLine){const v=VEICS.find(x=>x.id===ATIVO.veiculo_id);if(!v||kmf>Number(v.km_atual||0)){sb.from('veiculos').update({km_atual:kmf}).eq('id',ATIVO.veiculo_id);if(v)v.km_atual=kmf;}}
+    await movAuto(osId,'Aguardando','OS concluída neste atendimento'+(kmf!=null?` — km ${kmf}`:''));
     OS_ASSUMIDA=null;await kvDel('assumida_cache');
-    toast(synced?'OS concluída!':'Concluída offline — sincroniza ao pegar sinal');renderOS(osId);
-  }catch(e){toast('Erro: '+e.message,true);}
+    closeSheet();toast(synced?'OS concluída!':'Concluída offline — sincroniza ao pegar sinal');renderOS(osId);
+  }catch(e){b.disabled=false;b.innerHTML='<i class="ti ti-flag-check"></i> Concluir';toast('Erro: '+e.message,true);}
 }
 
 // movimenta status + andamento (fila offline + patch do cache); não bloqueia o ponto

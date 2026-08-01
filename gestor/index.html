@@ -13709,9 +13709,12 @@ function cardAtendimentoOS(r,turno){
   const mapL=(lat,lng)=>lat&&lng?'<a class="btn bxs" target="_blank" href="https://www.google.com/maps/search/?api=1&query='+lat+','+lng+'"><i class="ti ti-map-pin"></i> mapa</a>':'';
   const foto=(url,lbl)=>url?'<a href="'+url+'" target="_blank" style="display:block"><img src="'+url+'" style="width:100%;height:120px;object-fit:cover;border-radius:8px"><div class="mu sm" style="text-align:center;margin-top:2px">'+lbl+'</div></a>':'<div class="mu sm" style="text-align:center;padding:1.4rem .5rem;background:#f4f4f0;border-radius:8px">sem foto<br>'+lbl+'</div>';
   const bdg=r.status==='concluida'?'<span style="background:#E9F4EA;color:#2f7d32;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700">Concluído</span>':'<span style="background:#FFF2E0;color:#9a5a06;border-radius:999px;padding:3px 10px;font-size:11px;font-weight:700">Em andamento</span>';
+  const kmTxt=r.km_rodado!=null?fnum(r.km_rodado)+' km rodado ('+(r.km_inicial!=null?fnum(r.km_inicial):'—')+' → '+(r.km_final!=null?fnum(r.km_final):'—')+')'
+    :(r.km_inicial!=null?'Km inicial: '+fnum(r.km_inicial):null);
   return '<div class="card mb1"><div class="fxb mb1"><div style="font-weight:700"><i class="ti ti-user" style="color:#666"></i> '+(r.operador||'Operador')+'</div>'+bdg+'</div>'
     +'<div class="g2"><div><div class="mu sm">Assumida</div><div class="sm" style="font-weight:600">'+fmtDT(r.ts_assumida)+'</div></div>'
     +'<div><div class="mu sm">Concluída</div><div class="sm" style="font-weight:600">'+fmtDT(r.ts_concluida)+'</div></div></div>'
+    +(kmTxt?'<div class="sm" style="margin-top:6px"><i class="ti ti-road" style="color:#666"></i> '+kmTxt+'</div>':'')
     +(turno?'<div class="sm mu" style="margin-top:6px"><i class="ti ti-car"></i> Expediente'+(turno.veiculo_nome?' · '+turno.veiculo_nome:'')+' · entrada '+fmtDT(turno.ts_entrada)+'</div>':'<div class="sm mu" style="margin-top:6px">Expediente não encontrado (ainda sincronizando?)</div>')
     +(r.obs?'<div class="sm mu" style="margin-top:4px">'+r.obs+'</div>':'')
     +(turno?'<div class="g2" style="margin-top:8px">'+foto(turno.foto_entrada_url,'entrada do expediente')+foto(turno.foto_saida_url,'saída do expediente')+'</div>'
@@ -14087,7 +14090,7 @@ async function abrirAtendimento(id){
     +(km!=null?'<div class="card mb1" style="padding:.6rem"><div class="mu sm">Km rodado no expediente</div><div style="font-size:18px;font-weight:700">'+fnum(km)+' km</div></div>':'')
     +(r.obs?'<div class="card mb1"><div class="w6 sm mb1">Observações</div><div class="sm">'+(''+r.obs).replace(/</g,'&lt;')+'</div></div>':'')
     +'<div class="card mb1"><div class="w6 sm mb1"><i class="ti ti-clipboard-list"></i> OS trabalhadas neste expediente ('+(osList?osList.length:0)+')</div>'
-      +((osList&&osList.length)?osList.map(o=>'<div class="fxb tap" style="padding:6px 0;border-bottom:.5px solid var(--bor)" onclick="closeModal2();abrirOS(\''+o.os_id+'\')"><div><div class="sm" style="font-weight:600">'+(o.os_numero||'—')+'</div><div class="mu sm">assumida '+_fdt(o.ts_assumida)+(o.ts_concluida?' · concluída '+_fdt(o.ts_concluida):'')+'</div></div>'+(o.status==='concluida'?'<span class="mu sm">Concluída</span>':'<span style="color:#9a5a06;font-size:11px;font-weight:700">Em andamento</span>')+'</div>').join('')
+      +((osList&&osList.length)?osList.map(o=>'<div class="fxb tap" style="padding:6px 0;border-bottom:.5px solid var(--bor)" onclick="closeModal2();abrirOS(\''+o.os_id+'\')"><div><div class="sm" style="font-weight:600">'+(o.os_numero||'—')+'</div><div class="mu sm">assumida '+_fdt(o.ts_assumida)+(o.ts_concluida?' · concluída '+_fdt(o.ts_concluida):'')+(o.km_rodado!=null?' · '+fnum(o.km_rodado)+' km':(o.km_inicial!=null?' · km '+fnum(o.km_inicial)+'…':''))+'</div></div>'+(o.status==='concluida'?'<span class="mu sm">Concluída</span>':'<span style="color:#9a5a06;font-size:11px;font-weight:700">Em andamento</span>')+'</div>').join('')
         :'<div class="mu sm">Nenhuma OS assumida neste expediente ainda.</div>')
     +'</div>'
     +((r.foto_entrada_url||r.foto_saida_url)?'<div style="display:flex;gap:10px;margin-top:6px">'+foto(r.foto_entrada_url,'Foto de entrada')+foto(r.foto_saida_url,'Foto de saída')+'</div>':'');
