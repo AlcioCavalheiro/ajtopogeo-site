@@ -232,7 +232,6 @@ let OS_ASSUMIDA=null;      // OS atualmente assumida dentro do turno aberto (ate
 let _abzGeo=null;          // GPS capturado na tela de abastecimento
 
 /* ── Constantes de domínio (do schema do Gestor) ── */
-const STATUS_EXEC=['Agendada','Em campo','Em andamento','Aguardando'];   // OS "disponível p/ execução"
 // Mesma lista de status usada no Gestor (abrirOS) — o operador pode mover a OS
 // para qualquer etapa do fluxo, não só as de campo.
 const STATUS_MOV=['Agendada','Logística / Preparação','Em campo','Em andamento',
@@ -241,6 +240,12 @@ const STATUS_MOV=['Agendada','Logística / Preparação','Em campo','Em andament
   'Encaminhada para Medição','Medição Realizada','NF Gerada','Recebido',
   'Pronto para Enviar ao Cliente','Documentos Enviados ao Cliente',
   'Concluída','Cancelada'];
+// OS "disponível p/ execução" na lista Executar: qualquer status em aberto, não só os de
+// campo — senão a OS some da lista (e fica impossível abrir/movimentar) assim que sai de
+// "Agendada/Em campo/Em andamento", seja ANTES de assumir (ainda em "Logística /
+// Preparação") ou DEPOIS de encerrar a assunção (já em "Processamento" em diante). Mesma
+// regra de "OS em aberto" que o Gestor usa (exclui só os status realmente terminais).
+const STATUS_EXEC=STATUS_MOV.filter(s=>!['Concluída','Cancelada','Recebido'].includes(s));
 const CAT_DESPESA=['Combustível','Alimentação','Pedágio','Estadia / Hospedagem','Material de Campo','Transporte / Frete','Manutenção de Equipamento','Aluguel de Equipamento','Terceiro / Subcontratado','Taxas e Emolumentos','Outros'];
 const TIPO_CUSTO =['Diária','Hora','Empreitada'];
 
