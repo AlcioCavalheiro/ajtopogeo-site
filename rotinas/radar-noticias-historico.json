@@ -2,6 +2,14 @@
   "_comentario": "Histórico da rotina radar-noticias. Cada post de notícia já feito entra aqui para não repetir tema na semana seguinte. Sem dado sigiloso — notícia é pública. Semeado com os posts de notícia que já existiam no site antes da rotina.",
   "posts": [
     {
+      "data": "2026-08-01",
+      "titulo": "ITR 2026: sistema fica obrigatório para quem tem mais de 100 hectares",
+      "tema": "documentação / ITR / DITR / Receita Federal / IN RFB 2.330/2026",
+      "fonte": "Canal Rural",
+      "fonte_url": "https://www.canalrural.com.br/economia/declaracao-do-itr-2026-comeca-em-agosto-com-mudancas-no-envio/",
+      "slug": "itr-2026-sistema-obrigatorio-100-hectares"
+    },
+    {
       "data": "2026-07-30",
       "titulo": "ITR 2026: a declaração agora cruza com o CAR",
       "tema": "documentação / ITR / DITR / CAR / Receita Federal",

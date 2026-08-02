@@ -205,4 +205,9 @@
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
+  <url>
+    <loc>https://ajtopogeo.com.br/blog-itr-2026-sistema-obrigatorio-100-hectares</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
 </urlset>
