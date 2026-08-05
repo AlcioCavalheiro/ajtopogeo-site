@@ -31,10 +31,6 @@ _vazio — Pipeline de Projetos reativado em 2026-08-05, ver Histórico._
 
 ## P3 — Ideias / dívida técnica
 
-- **Função órfã `preencherContratoPorOrca`** — `gestor/index.html:1617`. Nunca
-  é chamada; foi substituída por `preencherContratoDoOrca` (`:2302`) e não foi
-  removida. Zero risco, zero urgência — remover na próxima vez que alguém
-  estiver mexendo perto.
 - **Padrão de telas duplicadas (`rX` / `rXFixed`).** Várias páginas têm duas
   implementações no arquivo (`rConfig`/`rConfigFixed`, `rPendencias`/
   `rPendenciasFixed`, `rMedicao`/`rMedicaoFixed`, `rPipeline`/
@@ -57,3 +53,4 @@ _vazio — Pipeline de Projetos reativado em 2026-08-05, ver Histórico._
 | 2026-08-05 | Primeiro checkpoint rodado: 4 itens levantados e confirmados no código (status Aguardando, Pipeline inacessível, função órfã, padrão Fixed) | — |
 | 2026-08-05 | Status "Aguardando" trocado por "Processamento" em `campo/index.html` (linhas 1046 e 1068); as 6 OS que já estavam presas em "Aguardando" no banco (OS-JUL-020, OS-JUL-021, OS-AGO-001, OS-AGO-002, OS-AGO-004, OS-AGO-005) foram corrigidas via API do Supabase | a seguir |
 | 2026-08-05 | Pipeline de Projetos reativado: `pageMap.pipeline` nunca tinha sido atribuído (achado só ao implementar — não era só falta de menu) foi adicionado ao `Object.assign(pageMap,...)`, e o item de menu voltou pro grupo "Produção" em `gestor/index.html` | a seguir |
+| 2026-08-05 | Função órfã `preencherContratoPorOrca` removida de `gestor/index.html` (nunca era chamada; substituída por `preencherContratoDoOrca`) | a seguir |

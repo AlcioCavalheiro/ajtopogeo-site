@@ -1615,25 +1615,6 @@ function handleFileDrop(event,prefix){
   mostrarPreviewArquivo(prefix,file);
 }
 
-function preencherContratoPorOrca(orcId, orcList){
-  if(!orcId) return;
-  const orc = orcList.find(o=>o.id===orcId);
-  if(!orc) return;
-  // Preencher valor
-  const fValor = document.getElementById('f-valor');
-  if(fValor && !fValor.value) fValor.value = orc.valor;
-  // Preencher cliente
-  const fCli = document.getElementById('f-cliente_id');
-  if(fCli && orc.cliente_id) fCli.value = orc.cliente_id;
-  // Preencher descrição com número do orçamento
-  const fDesc = document.getElementById('f-descricao');
-  if(fDesc && !fDesc.value) fDesc.value = 'Serviços conforme Orçamento ' + orc.numero;
-  // Preencher número do contrato sugerido
-  const fNum = document.getElementById('f-numero');
-  if(fNum && !fNum.value) fNum.value = 'CTR-' + new Date().getFullYear() + '-' + orc.numero.replace(/[^0-9]/g,'');
-}
-
-
 // ═══════════════════════════════════════════════════════════
 // EXCLUSÃO DE REGISTROS
 // ═══════════════════════════════════════════════════════════
