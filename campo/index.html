@@ -1043,7 +1043,7 @@ async function confirmarAssumirOS(osId,numero,statusAtual){
   try{
     const{synced}=await doWriteChained({kind:'insert',table:'atendimentos_campo_os',payload},'atendimentos_campo',ATIVO.id);
     OS_ASSUMIDA=payload;await kvPut('assumida_cache',payload);
-    const novoStatus=(statusAtual==='Agendada'||statusAtual==='Aguardando')?'Em campo':statusAtual;
+    const novoStatus=(statusAtual==='Agendada'||statusAtual==='Processamento')?'Em campo':statusAtual;
     await movAuto(osId,novoStatus,'OS assumida'+(km?` — km ${km}`:'')+(ATIVO.veiculo_nome?' · veículo '+ATIVO.veiculo_nome:''));
     closeSheet();toast(synced?'OS assumida!':'Assumida offline — sincroniza ao pegar sinal');renderOS(osId);
   }catch(e){b.disabled=false;b.innerHTML='<i class="ti ti-player-play"></i> Assumir';toast('Erro: '+e.message,true);}
@@ -1065,7 +1065,7 @@ async function confirmarConcluirOS(osId,numero){
     const{synced}=await doWriteChained({kind:'update',table:'atendimentos_campo_os',matchCol:'id',matchVal:OS_ASSUMIDA.id,
       payload:{status:'concluida',ts_concluida:new Date().toISOString(),km_final:kmf}},'atendimentos_campo_os',OS_ASSUMIDA.id);
     if(ATIVO?.veiculo_id&&kmf!=null&&navigator.onLine){const v=VEICS.find(x=>x.id===ATIVO.veiculo_id);if(!v||kmf>Number(v.km_atual||0)){sb.from('veiculos').update({km_atual:kmf}).eq('id',ATIVO.veiculo_id);if(v)v.km_atual=kmf;}}
-    await movAuto(osId,'Aguardando','OS concluída neste atendimento'+(kmf!=null?` — km ${kmf}`:''));
+    await movAuto(osId,'Processamento','OS concluída neste atendimento'+(kmf!=null?` — km ${kmf}`:''));
     OS_ASSUMIDA=null;await kvDel('assumida_cache');
     closeSheet();toast(synced?'OS concluída!':'Concluída offline — sincroniza ao pegar sinal');renderOS(osId);
   }catch(e){b.disabled=false;b.innerHTML='<i class="ti ti-flag-check"></i> Concluir';toast('Erro: '+e.message,true);}

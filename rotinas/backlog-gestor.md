@@ -3,14 +3,15 @@
 Alimentado pela rotina `/checkpoint-gestor` toda sexta.
 Sem dado de cliente neste arquivo — ele é versionado no Git.
 
-**Último checkpoint:** — (ainda não realizado)
-**Escopo da semana atual:** — (definir no primeiro checkpoint)
+**Último checkpoint:** 2026-08-05
+**Escopo da semana atual (05 a 12/08):** P0 do "Aguardando" resolvido no mesmo dia. Falta ainda
+reativar o menu do Pipeline de Projetos (P2, baixo risco).
 
 ---
 
 ## P0 — Quebra fluxo
 
-_vazio_
+_vazio — o único item (status "Aguardando" órfão) foi resolvido em 2026-08-05, ver Histórico._
 
 ## P1 — Atrito
 
@@ -26,11 +27,36 @@ _vazio_
 
 ## P2 — Incremental
 
-_vazio_
+- **"Pipeline de Projetos" existe mas está inacessível.** `gestor/index.html`,
+  `rPipeline()` (~linha 4613): o kanban está pronto e a tabela `projetos` já é
+  alimentada automaticamente a cada orçamento/OS (linhas ~838-904), mas não há
+  item de menu nem botão chamando `nav('pipeline')` em lugar nenhum — só
+  restam resíduos do menu antigo (linhas 516 e 5521) e `pageMap.pipeline` já
+  aponta para `rPipeline` (comentário na linha 14177 confirma: a versão
+  "Fixed" foi descartada por ser menos completa).
+  - **Onde mexe:** bloco do menu lateral em `gestor/index.html` (~linhas
+    328-360, mesmo padrão das outras `<div class="ni" onclick="nav(...)">`).
+  - **O que muda:** só adicionar o item de menu — rota e dados já funcionam.
+  - **Risco:** baixo. Vale abrir o kanban antes de reativar o menu e conferir
+    visualmente se os cards batem com os projetos/orçamentos atuais, já que
+    ninguém olha essa tela há um tempo.
 
-## P3 — Ideias
+## P3 — Ideias / dívida técnica
 
-_vazio_
+- **Função órfã `preencherContratoPorOrca`** — `gestor/index.html:1617`. Nunca
+  é chamada; foi substituída por `preencherContratoDoOrca` (`:2302`) e não foi
+  removida. Zero risco, zero urgência — remover na próxima vez que alguém
+  estiver mexendo perto.
+- **Padrão de telas duplicadas (`rX` / `rXFixed`).** Várias páginas têm duas
+  implementações no arquivo (`rConfig`/`rConfigFixed`, `rPendencias`/
+  `rPendenciasFixed`, `rMedicao`/`rMedicaoFixed`, `rPipeline`/
+  `rPipelineFixed`, `rOS`/`rOSFixed`), e qual está ativa depende de uma linha
+  `pageMap.x = yFixed` estar comentada mais adiante no arquivo (ex.:
+  `gestor/index.html:13580,13606,13616,14177`). Já confundiu na hora de
+  escrever o manual — a tela de Configuração real (`rConfigFixed`, ativa) tem
+  mais campos que a `rConfig` "morta". Risco real: mexer na cópia errada não
+  tem efeito nenhum no sistema. Não é tarefa de uma sexta — é candidata a uma
+  semana dedicada só a limpar código morto, sem misturar com feature nova.
 
 ---
 
@@ -40,3 +66,5 @@ _vazio_
 |---|---|---|
 | 2026-07-19 | Backlog criado junto com a estruturação das rotinas | — |
 | 2026-07-19 | Recebimento passa a exigir OS vinculada, ou marcação explícita de receita avulsa | a seguir |
+| 2026-08-05 | Primeiro checkpoint rodado: 4 itens levantados e confirmados no código (status Aguardando, Pipeline inacessível, função órfã, padrão Fixed) | — |
+| 2026-08-05 | Status "Aguardando" trocado por "Processamento" em `campo/index.html` (linhas 1046 e 1068); as 6 OS que já estavam presas em "Aguardando" no banco (OS-JUL-020, OS-JUL-021, OS-AGO-001, OS-AGO-002, OS-AGO-004, OS-AGO-005) foram corrigidas via API do Supabase | a seguir |
