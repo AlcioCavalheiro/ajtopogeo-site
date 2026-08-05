@@ -330,6 +330,7 @@ select.fc{cursor:pointer}
       <div class="ng">Produção</div>
       <div class="ni" id="nav-pendencias" onclick="nav('pendencias')"><i class="ti ti-alert-triangle"></i>Pendências<span id="pend-dot" style="display:none;width:8px;height:8px;background:#E24B4A;border-radius:50%;flex-shrink:0;animation:pulse-pend 1.6s ease-in-out infinite"></span><span class="nb" id="bnp" style="display:none">0</span></div>
       <div class="ni" onclick="nav('ordens')"><i class="ti ti-clipboard-list"></i>Ordens de Serviço</div>
+      <div class="ni" onclick="nav('pipeline')"><i class="ti ti-layout-kanban"></i>Pipeline de Projetos</div>
       <div class="ng">Comercial</div>
       <div class="ni" onclick="nav('clientes')"><i class="ti ti-users"></i>Clientes</div>
           <div class="ni" onclick="nav('obras')"><i class="ti ti-building-community"></i>Obras</div>
@@ -5491,7 +5492,7 @@ async function gerarPDFPassivo(){
 // ═══════════════════════════════════════════════════════════
 Object.assign(pageMap, {
   dashboard:rDash, agenda:rAgenda,
-  pendencias:rPendencias, ordens:rOS,
+  pendencias:rPendencias, ordens:rOS, pipeline:rPipeline,
   clientes:rClientes, servicos:rServicos, orcamentos:rOrcamentos, contratos:rContratos,
   recebimentos:rRec, pagamentos:rPag, contas:rContas,
   impostos:rImpostos, medicao:rMedicao, nfe:rNFe, folha:rFolha, dre:rDRE, acompanhamento:rAcompObras,

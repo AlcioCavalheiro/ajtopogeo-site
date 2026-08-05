@@ -4,8 +4,8 @@ Alimentado pela rotina `/checkpoint-gestor` toda sexta.
 Sem dado de cliente neste arquivo — ele é versionado no Git.
 
 **Último checkpoint:** 2026-08-05
-**Escopo da semana atual (05 a 12/08):** P0 do "Aguardando" resolvido no mesmo dia. Falta ainda
-reativar o menu do Pipeline de Projetos (P2, baixo risco).
+**Escopo da semana atual (05 a 12/08):** fechado — P0 do "Aguardando" e reativação do Pipeline de
+Projetos, ambos resolvidos no mesmo dia do checkpoint.
 
 ---
 
@@ -27,19 +27,7 @@ _vazio — o único item (status "Aguardando" órfão) foi resolvido em 2026-08-
 
 ## P2 — Incremental
 
-- **"Pipeline de Projetos" existe mas está inacessível.** `gestor/index.html`,
-  `rPipeline()` (~linha 4613): o kanban está pronto e a tabela `projetos` já é
-  alimentada automaticamente a cada orçamento/OS (linhas ~838-904), mas não há
-  item de menu nem botão chamando `nav('pipeline')` em lugar nenhum — só
-  restam resíduos do menu antigo (linhas 516 e 5521) e `pageMap.pipeline` já
-  aponta para `rPipeline` (comentário na linha 14177 confirma: a versão
-  "Fixed" foi descartada por ser menos completa).
-  - **Onde mexe:** bloco do menu lateral em `gestor/index.html` (~linhas
-    328-360, mesmo padrão das outras `<div class="ni" onclick="nav(...)">`).
-  - **O que muda:** só adicionar o item de menu — rota e dados já funcionam.
-  - **Risco:** baixo. Vale abrir o kanban antes de reativar o menu e conferir
-    visualmente se os cards batem com os projetos/orçamentos atuais, já que
-    ninguém olha essa tela há um tempo.
+_vazio — Pipeline de Projetos reativado em 2026-08-05, ver Histórico._
 
 ## P3 — Ideias / dívida técnica
 
@@ -68,3 +56,4 @@ _vazio — o único item (status "Aguardando" órfão) foi resolvido em 2026-08-
 | 2026-07-19 | Recebimento passa a exigir OS vinculada, ou marcação explícita de receita avulsa | a seguir |
 | 2026-08-05 | Primeiro checkpoint rodado: 4 itens levantados e confirmados no código (status Aguardando, Pipeline inacessível, função órfã, padrão Fixed) | — |
 | 2026-08-05 | Status "Aguardando" trocado por "Processamento" em `campo/index.html` (linhas 1046 e 1068); as 6 OS que já estavam presas em "Aguardando" no banco (OS-JUL-020, OS-JUL-021, OS-AGO-001, OS-AGO-002, OS-AGO-004, OS-AGO-005) foram corrigidas via API do Supabase | a seguir |
+| 2026-08-05 | Pipeline de Projetos reativado: `pageMap.pipeline` nunca tinha sido atribuído (achado só ao implementar — não era só falta de menu) foi adicionado ao `Object.assign(pageMap,...)`, e o item de menu voltou pro grupo "Produção" em `gestor/index.html` | a seguir |
