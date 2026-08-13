@@ -9420,6 +9420,7 @@ const REQ_TIPOS={
   anuencia:{lb:'Solicitação de Anuência',arquivo:'requerimento_anuencia_modelo.docx',quali:'QUALIFICACAO_XML',certs:false,cartorio:false,cancel:false},
   cartorio:{lb:'Requerimento ao Cartório (averbação do georreferenciamento)',arquivo:'requerimento_cartorio_modelo.docx',quali:'QUALIFICACAO_XML',certs:true,cartorio:true,cancel:false},
   cancelamento:{lb:'Cancelamento de Georreferenciamento (INCRA)',arquivo:'requerimento_cancelamento_modelo.docx',quali:'QUALIFICACAO_PESSOAS_XML',certs:true,cartorio:false,cancel:true},
+  desmembramento:{lb:'Desmembramento de Georreferenciamento (INCRA)',arquivo:'requerimento_desmembramento_modelo.docx',quali:'QUALIFICACAO_PESSOAS_XML',certs:true,cartorio:false,cancel:true},
   comprobatoria:{lb:'Certidão Comprobatória + Aprovação de Memorial Descritivo',arquivo:'requerimento_comprobatoria_modelo.docx',quali:'QUALIFICACAO_XML',certs:false,cartorio:false,cancel:false,finalidade:'identificação dos confrontantes atuais do respectivo imóvel, para posterior protocolo de retificação da matrícula do mesmo junto ao Cartório de Registro de Imóveis desta comarca'},
   zoneamento:{lb:'Certidão de Zoneamento',arquivo:'requerimento_zoneamento_modelo.docx',quali:'QUALIFICACAO_XML',certs:false,cartorio:false,cancel:false,finalidade:'descaracterização de imóvel rural do respectivo imóvel'},
   procuracao:{lb:'Procuração Particular (CCIR/INCRA)',arquivo:'procuracao_ccir_modelo.docx',quali:'OUTORGANTE_XML',certs:false,cartorio:false,cancel:false,proc:true},
@@ -9740,7 +9741,7 @@ async function reqGerarDocx(){
     });
     zip.file('word/document.xml',xml);
     const blob=await zip.generateAsync({type:'blob'});
-    const nomes={anuencia:'Solicitacao_Anuencia',cartorio:'Requerimento_Cartorio',cancelamento:'Requerimento_Cancelamento',procuracao:'Procuracao_CCIR',comprobatoria:'Requerimento_Certidao_Comprobatoria',zoneamento:'Requerimento_Certidao_Zoneamento',decl_prof:'Declaracao_Responsabilidade_Profissional',decl_prop:'Declaracao_Proprietarios',decl_213:'Declaracao_Art213'};
+    const nomes={anuencia:'Solicitacao_Anuencia',cartorio:'Requerimento_Cartorio',cancelamento:'Requerimento_Cancelamento',desmembramento:'Requerimento_Desmembramento',procuracao:'Procuracao_CCIR',comprobatoria:'Requerimento_Certidao_Comprobatoria',zoneamento:'Requerimento_Certidao_Zoneamento',decl_prof:'Declaracao_Responsabilidade_Profissional',decl_prop:'Declaracao_Proprietarios',decl_213:'Declaracao_Art213'};
     const nomeBase=(_reqObra&&_reqObra.nome)||(cfg.proc&&vals.IMOVEL_NOME!=='—'?vals.IMOVEL_NOME:'')||'obra';
     downloadBlobGeo(blob,nomes[tipo]+'_'+nomeBase.replace(/[^a-zA-Z0-9_-]+/g,'_')+'.docx');
     toast('Requerimento gerado com sucesso!');
