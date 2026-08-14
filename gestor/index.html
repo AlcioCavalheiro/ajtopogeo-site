@@ -9435,6 +9435,8 @@ const REQ_PROF_NOME_PADRAO='ALCIO MARQUES CAVALHEIRO JUNIOR';
 const REQ_PROF_CARGO_PADRAO='Técnico em Agrimensura';
 const REQ_PROF_CFT_PADRAO='05037122139';
 const REQ_PROF_CRED_PADRAO='FUOH';
+const REQ_DESMEMBRAMENTO_MOTIVOS_PADRAO='O desmembramento tem o objetivo de realizar a venda da parte desmembrada conforme contrato de compra e venda lavrado pelo proprietário, o mesmo será executado pelo senhor ALCIO MARQUES CAVALHEIRO JUNIOR, Técnico em Agrimensura, com registro no Conselho Federal dos Técnicos n° 0503712213-9 e certificação no INCRA FUOH, de acordo com a plailha ODS anexo, solicitamos o desmembramento do georreferenciamento acima citado.';
+var _reqSolicAutoVal='',_reqMotivosAutoVal='';
 function reqEsc(s){return xmlEscapeGeo(s).replace(/"/g,'&quot;');}
 // Converte **texto** (markdown) em negrito para os documentos (usa os marcadores de anuBold)
 function reqMarkdownBold(s){return String(s||'').replace(/\*\*([\s\S]+?)\*\*/g,function(_,t){return anuBold(t);});}
@@ -9514,6 +9516,30 @@ function reqTipoChange(){
   document.getElementById('rq-sec-finalidade').style.display=cfg.finalidade?'':'none';
   if(cfg.finalidade) document.getElementById('rq-finalidade').value=cfg.finalidade;
   if(cfg.certs){if(!_reqCerts.length)_reqCerts.push(reqCertNova());reqRenderCerts();}
+  reqAtualizarAutoTextos();
+}
+// Preenche Solicitação/Exposição de motivos automaticamente a partir dos dados da certificação
+// (imóvel/código/área) sempre que o tipo é Desmembramento. Não sobrescreve texto editado à mão:
+// só atualiza se o campo estiver vazio ou ainda igual ao último valor gerado automaticamente.
+function reqAtualizarAutoTextos(){
+  const tipoEl=document.getElementById('rq-tipo');if(!tipoEl)return;
+  const tipo=tipoEl.value,cfg=REQ_TIPOS[tipo];
+  if(!cfg||!cfg.cancel)return;
+  const c0=_reqCerts[0]||{};
+  const elSol=document.getElementById('rq-solicitacao');
+  if(elSol){
+    const auto=(tipo==='desmembramento')
+      ?'A solicitação para o DESMEMBRAMENTO em relação a área '+(c0.nome||'')+', certificação n° '+(c0.codigo||'—')+', com área de '+(c0.area||'—')+' hectares está de acordo com a Lei n° 5.868/1972, Lei n° 10.267/2001 e Lei n° 6.015/1973.'
+      :'';
+    if(auto&&(elSol.value===''||elSol.value===_reqSolicAutoVal))elSol.value=auto;
+    _reqSolicAutoVal=auto;
+  }
+  const elMot=document.getElementById('rq-motivos');
+  if(elMot){
+    const auto=(tipo==='desmembramento')?REQ_DESMEMBRAMENTO_MOTIVOS_PADRAO:'';
+    if(auto&&(elMot.value===''||elMot.value===_reqMotivosAutoVal))elMot.value=auto;
+    _reqMotivosAutoVal=auto;
+  }
 }
 function reqIsUrbano(){return (document.getElementById('rq-tipo-imovel')?.value)==='urbano';}
 function reqCertAreaFromObra(){
@@ -9560,6 +9586,7 @@ async function reqObraChange(){
   _reqCerts=[reqCertNova()];
   reqRenderProprietarios();
   reqRenderCerts();
+  reqAtualizarAutoTextos();
 }
 function reqRenderProprietarios(){
   const lista=(_reqObra&&_reqObra.proprietarios)||[];
@@ -9578,7 +9605,7 @@ function reqCertNova(){
 }
 function reqAddCert(){_reqCerts.push(reqCertNova());reqRenderCerts();}
 function reqDelCert(i){_reqCerts.splice(i,1);reqRenderCerts();}
-function reqCertCampo(i,campo,v){_reqCerts[i][campo]=v;}
+function reqCertCampo(i,campo,v){_reqCerts[i][campo]=v;reqAtualizarAutoTextos();}
 function reqRenderCerts(){
   const el=document.getElementById('rq-sec-certs');if(!el)return;
   const urbano=reqIsUrbano();
@@ -9729,9 +9756,12 @@ async function reqGerarDocx(){
     if(cfg.certs) xml=reqSubstituirParagrafo(xml,'CERTIFICACOES_XML',reqCertsXml());
     if(cfg.cancel){
       const c0=_reqCerts[0]||{};
-      const solicitacao=document.getElementById('rq-solicitacao').value
-        ||'A solicitação para o cancelamento da área "'+(c0.nome||'')+'" com '+(c0.area||'—')+' hectares está sendo realizada para [DESCREVER O MOTIVO].';
-      const motivos=document.getElementById('rq-motivos').value||'[DESCREVER A EXPOSIÇÃO DE MOTIVOS].';
+      const solicitacaoPadrao=(tipo==='desmembramento')
+        ?'A solicitação para o DESMEMBRAMENTO em relação a área '+(c0.nome||'')+', certificação n° '+(c0.codigo||'—')+', com área de '+(c0.area||'—')+' hectares está de acordo com a Lei n° 5.868/1972, Lei n° 10.267/2001 e Lei n° 6.015/1973.'
+        :'A solicitação para o cancelamento da área "'+(c0.nome||'')+'" com '+(c0.area||'—')+' hectares está sendo realizada para [DESCREVER O MOTIVO].';
+      const motivosPadrao=(tipo==='desmembramento')?REQ_DESMEMBRAMENTO_MOTIVOS_PADRAO:'[DESCREVER A EXPOSIÇÃO DE MOTIVOS].';
+      const solicitacao=document.getElementById('rq-solicitacao').value||solicitacaoPadrao;
+      const motivos=document.getElementById('rq-motivos').value||motivosPadrao;
       xml=reqSubstituirTexto(xml,'SOLICITACAO_TEXTO',solicitacao);
       xml=reqSubstituirTexto(xml,'MOTIVOS_TEXTO',motivos);
     }
