@@ -70,7 +70,7 @@ Itens de agenda vinculados a uma OS aparecem também na tela daquela OS e no app
 
 ## 4. Pendências
 
-Painel somente leitura que reúne tudo que está **atrasado** no sistema: rotinas recorrentes vencidas, compromissos de agenda atrasados, pagamentos em atraso e obras/projetos do Pipeline com documentos pendentes. Cada bloco tem atalhos diretos para resolver (Concluir, Editar, Pagar) sem precisar navegar até o módulo original. Quando não há nada pendente, mostra uma mensagem de "Nenhuma pendência!".
+Painel somente leitura que reúne tudo que está **atrasado** no sistema: rotinas recorrentes vencidas, compromissos de agenda atrasados, pagamentos em atraso e projetos com documentos pendentes. Cada bloco tem atalhos diretos para resolver (Concluir, Editar, Pagar) sem precisar navegar até o módulo original. Quando não há nada pendente, mostra uma mensagem de "Nenhuma pendência!".
 
 📸 *[Print sugerido: tela de Pendências com os blocos "Rotinas atrasadas", "Compromissos atrasados" e "Pagamentos em atraso" preenchidos]*
 

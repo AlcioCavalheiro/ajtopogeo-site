@@ -27,20 +27,22 @@ _vazio — o único item (status "Aguardando" órfão) foi resolvido em 2026-08-
 
 ## P2 — Incremental
 
-_vazio — Pipeline de Projetos reativado em 2026-08-05, ver Histórico._
+_vazio — Pipeline de Projetos removida do sistema em 2026-08-16 (tinha sido reativada em
+2026-08-05), ver Histórico._
 
 ## P3 — Ideias / dívida técnica
 
 - **Padrão de telas duplicadas (`rX` / `rXFixed`).** Várias páginas têm duas
   implementações no arquivo (`rConfig`/`rConfigFixed`, `rPendencias`/
-  `rPendenciasFixed`, `rMedicao`/`rMedicaoFixed`, `rPipeline`/
-  `rPipelineFixed`, `rOS`/`rOSFixed`), e qual está ativa depende de uma linha
-  `pageMap.x = yFixed` estar comentada mais adiante no arquivo (ex.:
-  `gestor/index.html:13580,13606,13616,14177`). Já confundiu na hora de
-  escrever o manual — a tela de Configuração real (`rConfigFixed`, ativa) tem
-  mais campos que a `rConfig` "morta". Risco real: mexer na cópia errada não
-  tem efeito nenhum no sistema. Não é tarefa de uma sexta — é candidata a uma
-  semana dedicada só a limpar código morto, sem misturar com feature nova.
+  `rPendenciasFixed`, `rMedicao`/`rMedicaoFixed`, `rOS`/`rOSFixed`), e qual
+  está ativa depende de uma linha `pageMap.x = yFixed` estar comentada mais
+  adiante no arquivo. Já confundiu na hora de escrever o manual — a tela de
+  Configuração real (`rConfigFixed`, ativa) tem mais campos que a `rConfig`
+  "morta". Risco real: mexer na cópia errada não tem efeito nenhum no
+  sistema. Não é tarefa de uma sexta — é candidata a uma semana dedicada só a
+  limpar código morto, sem misturar com feature nova. (O par `rPipeline`/
+  `rPipelineFixed` foi removido inteiro em 2026-08-16 junto com a Pipeline de
+  Projetos — um a menos.)
 
 ---
 
@@ -54,3 +56,4 @@ _vazio — Pipeline de Projetos reativado em 2026-08-05, ver Histórico._
 | 2026-08-05 | Status "Aguardando" trocado por "Processamento" em `campo/index.html` (linhas 1046 e 1068); as 6 OS que já estavam presas em "Aguardando" no banco (OS-JUL-020, OS-JUL-021, OS-AGO-001, OS-AGO-002, OS-AGO-004, OS-AGO-005) foram corrigidas via API do Supabase | a seguir |
 | 2026-08-05 | Pipeline de Projetos reativado: `pageMap.pipeline` nunca tinha sido atribuído (achado só ao implementar — não era só falta de menu) foi adicionado ao `Object.assign(pageMap,...)`, e o item de menu voltou pro grupo "Produção" em `gestor/index.html` | a seguir |
 | 2026-08-05 | Função órfã `preencherContratoPorOrca` removida de `gestor/index.html` (nunca era chamada; substituída por `preencherContratoDoOrca`) | a seguir |
+| 2026-08-16 | Pipeline de Projetos removida de `gestor/index.html`: item de menu, `pageMap.pipeline`, `rPipeline`/`kbCard` (kanban), `salvarProjeto`/`openNovoProjeto`/`criarNovoProjeto` (órfãs, nunca chamadas por botão nenhum) e o trio morto `rPipelineFixed`/`kbCardReadonly`/`verOSdoCard`. A sincronização automática pra tabela `projetos` (`sincPipelineOrçamento`, `sincPipelineOS` no Gestor e `movSincPipeline` no App de Campo) foi mantida de propósito, porque alimenta o contador/PDF de Pendências e a lista de Tarefas vencidas, que não são a Pipeline e continuam ativos | a seguir |

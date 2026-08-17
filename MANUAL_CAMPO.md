@@ -82,7 +82,7 @@ Na parte de baixo da tela da OS ficam os botões de ação:
 3. Escreva uma **anotação** sobre o que aconteceu (obrigatória se você não mudar o status).
 4. Toque em **Salvar**.
 
-Isso fica registrado no histórico de "Andamento" da OS e sincroniza com o Pipeline e a Agenda do Gestor automaticamente (quando há sinal).
+Isso fica registrado no histórico de "Andamento" da OS e sincroniza automaticamente com o Gestor (status do projeto e Agenda), quando há sinal.
 
 ### 4.3 Assumir uma OS
 

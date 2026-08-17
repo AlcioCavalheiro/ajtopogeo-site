@@ -234,7 +234,6 @@ select.fc{cursor:pointer}
   /* Grids */
   .g2,.g3,.g4{grid-template-columns:1fr!important}
   .stat-grid{grid-template-columns:1fr 1fr!important}
-  #dash-pipeline-grid{grid-template-columns:repeat(2,1fr)!important}
 
   /* Tabelas — scroll suave com momentum */
   .tw{overflow-x:auto;-webkit-overflow-scrolling:touch;scroll-behavior:smooth}
@@ -330,7 +329,6 @@ select.fc{cursor:pointer}
       <div class="ng">Produção</div>
       <div class="ni" id="nav-pendencias" onclick="nav('pendencias')"><i class="ti ti-alert-triangle"></i>Pendências<span id="pend-dot" style="display:none;width:8px;height:8px;background:#E24B4A;border-radius:50%;flex-shrink:0;animation:pulse-pend 1.6s ease-in-out infinite"></span><span class="nb" id="bnp" style="display:none">0</span></div>
       <div class="ni" onclick="nav('ordens')"><i class="ti ti-clipboard-list"></i>Ordens de Serviço</div>
-      <div class="ni" onclick="nav('pipeline')"><i class="ti ti-layout-kanban"></i>Pipeline de Projetos</div>
       <div class="ng">Comercial</div>
       <div class="ni" onclick="nav('clientes')"><i class="ti ti-users"></i>Clientes</div>
           <div class="ni" onclick="nav('obras')"><i class="ti ti-building-community"></i>Obras</div>
@@ -514,7 +512,6 @@ const PCFG={
   dre:{t:'DRE / Resultado',a:null},
   acompanhamento:{t:'Acompanhamento por Obra',a:null},
   folha:{t:'Folha / Pró-labore',a:'Lançar Pró-labore'},
-  pipeline:{t:'Pipeline de Projetos',a:null},
   pendencias:{t:'Pendências',a:null},
   rotinas:{t:'Rotinas Recorrentes',a:'Nova Rotina'},
   administrativo:{t:'Administrativo',tb:'documentos_empresa',a:'Novo Documento',h:function(o){return '<div class="fg"><label class="fl">Nome do documento *</label><input class="fc" id="f-nome" placeholder="Ex: Alvará de funcionamento..."></div><div class="g2"><div class="fg"><label class="fl">Categoria</label><select class="fc" id="f-categoria"><option>Licença</option><option>Certidão</option><option>Contrato</option><option>Certificado</option><option>Registro</option><option>Outro</option></select></div><div class="fg"><label class="fl">Número / Código</label><input class="fc" id="f-numero"></div></div><div class="g2"><div class="fg"><label class="fl">Data emissão</label><input class="fc" type="date" id="f-data_emissao"></div><div class="fg"><label class="fl">Validade</label><input class="fc" type="date" id="f-validade"></div></div><div class="fg"><label class="fl">Responsável</label><input class="fc" id="f-responsavel"></div><div class="fg"><label class="fl">Observações</label><textarea class="fc" id="f-obs" rows="2"></textarea></div><div class="fg"><label class="fl">Arquivo (PDF, imagem, Word, Excel)</label><div id="adm-upload-area" class="upload-area" onclick="document.getElementById(\'adm-file-input\').click()"><i class="ti ti-file-upload"></i><p>Clique ou arraste o arquivo aqui</p></div><div id="adm-file-preview" style="display:none"></div><input type="file" id="adm-file-input" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" style="display:none" onchange="handleFileSelect(this,\'adm\')"><input type="hidden" id="f-arquivo_url" value=""></div>';}},
@@ -595,7 +592,7 @@ function nav(page){
   document.getElementById('pt').textContent=cfg.t;
   const ba=document.getElementById('ba');
   if(cfg.a){ba.style.display='flex';document.getElementById('bal').textContent=cfg.a;}else ba.style.display='none';
-  const _semBusca=new Set(['dashboard','agenda','dre','medicao','pipeline','pendencias','relatorios','config','geoferramentas','tributario','contas','pontocampo']);
+  const _semBusca=new Set(['dashboard','agenda','dre','medicao','pendencias','relatorios','config','geoferramentas','tributario','contas','pontocampo']);
   const siWrap=document.querySelector('.sb2');
   const si=document.getElementById('si');
   si.value='';
@@ -4589,40 +4586,6 @@ function autoCalcCusto(){
   if(el)el.value=(qt*vu).toFixed(2);
 }
 
-// ═══════════════════════════════════════════════════════════
-// PIPELINE
-// ═══════════════════════════════════════════════════════════
-async function rPipeline(){
-  const{data:projs}=await sb.from('projetos').select('*,clientes(nome,telefone)').order('updated_at',{ascending:false});
-  const ps=projs||[];
-  const etapas=[
-    {k:'crm',l:'CRM',cor:'#666'},
-    {k:'orcamento',l:'Orçamento',cor:'#854F0B'},
-    {k:'contrato',l:'Contrato',cor:'#185FA5'},
-    {k:'aguard_doc',l:'Aguard. Docs',cor:'#A32D2D'},
-    {k:'campo',l:'Pronto Campo',cor:'#1a6fc4'},
-    {k:'execucao',l:'Em Execução',cor:'#27500A'},
-    {k:'processamento',l:'Processamento',cor:'#3C3489'},
-    {k:'protocolo',l:'Protocolo',cor:'#854F0B'},
-    {k:'entrega',l:'Entrega',cor:'#27500A'},
-  ];
-  let kanban='<div class="kb-wrap" style="display:flex;gap:12px;overflow-x:auto;padding-bottom:1rem;align-items:flex-start">';
-  etapas.forEach(({k,l,cor})=>{
-    const cards=ps.filter(p=>p.etapa===k);
-    kanban+='<div class="kb-col" style="min-width:200px;background:#f4f4f0;border-radius:10px;padding:.75rem;flex-shrink:0"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem"><div style="font-size:11px;font-weight:600;text-transform:uppercase;color:'+cor+'">'+l+'</div><span style="background:#fff;border-radius:99px;padding:1px 8px;font-size:11px;font-weight:600;color:#666">'+cards.length+'</span></div>';
-    cards.forEach(p=>{kanban+=kbCard(p);});
-    kanban+='</div>';
-  });
-  kanban+='</div>';
-  document.getElementById('ct').innerHTML='<div class="fxb mb1"><div style="font-weight:600">Pipeline de Projetos ('+ps.length+')</div></div>'+kanban;
-}
-
-function kbCard(p){
-  const pend=(p.pendencias||[]).filter(d=>!d.ok).length;
-  const tarefasPend=(p.tarefas||[]).filter(t=>!t.feita).length;
-  return'<div class="card" style="margin-bottom:8px;padding:.75rem;cursor:pointer;border-left:3px solid '+( pend>0?'#A32D2D':'#1a6fc4')+'" onclick="abrirProjeto(\''+p.id+'\')">'+'<div style="font-size:12px;font-weight:600;margin-bottom:4px">'+p.nome+'</div>'+'<div style="font-size:11px;color:#666;margin-bottom:4px">'+(p.clientes?.nome||'Sem cliente')+'</div>'+(p.servico_tipo?'<div style="font-size:10px;background:#E6F1FB;color:#185FA5;border-radius:4px;padding:1px 6px;display:inline-block;margin-bottom:4px">'+p.servico_tipo+'</div>':'')+(pend>0?'<div style="font-size:10px;color:#A32D2D;margin-top:2px">'+pend+' doc(s) pendente(s)</div>':'')+(tarefasPend>0?'<div style="font-size:10px;color:#854F0B;margin-top:2px">'+tarefasPend+' tarefa(s)</div>':'')+'</div>';
-}
-
 async function rPendencias(){
   const hj=hojeLocal();
   const[{data:todos},{data:agendaAtrasada},{data:pagAtrasados},{data:rotinasTodas}]=await Promise.all([
@@ -4816,56 +4779,6 @@ async function addHistProjeto(projId){
   toast('Histórico adicionado!');
 }
 
-async function salvarProjeto(id){
-  const payload={
-    nome:document.getElementById('pf-nome')?.value||'',
-    etapa:document.getElementById('pf-etapa')?.value,
-    servico_tipo:document.getElementById('pf-servico_tipo')?.value,
-    municipio:document.getElementById('pf-municipio')?.value||null,
-    area_ha:parseFloat(document.getElementById('pf-area_ha')?.value)||null,
-    ccir:document.getElementById('pf-ccir')?.value||null,
-    matricula:document.getElementById('pf-matricula')?.value||null,
-    nirf:document.getElementById('pf-nirf')?.value||null,
-    responsavel:document.getElementById('pf-responsavel')?.value||null,
-    orcamento_numero:document.getElementById('pf-orcamento_numero')?.value||null,
-    obs:document.getElementById('pf-obs')?.value||null,
-    cliente_id:document.getElementById('pf-cliente_id')?.value||null,
-  };
-  const{error}=await sb.from('projetos').update(payload).eq('id',id);
-  if(error){toast('Erro: '+error.message,true);return;}
-  toast('Projeto salvo!');closeModal2();rPipeline();checkPendencias();
-}
-
-async function openNovoProjeto(){
-  const{data:cls}=await sb.from('clientes').select('id,nome').order('nome');
-  document.getElementById('mt2').textContent='Novo Projeto';
-  document.getElementById('mb2').innerHTML=`
-    <div class="fg"><label class="fl">Nome *</label><input class="fc" id="np-nome" placeholder="Ex: Georreferenciamento Fazenda..."></div>
-    <div class="g2">
-      <div class="fg"><label class="fl">Cliente</label><select class="fc" id="np-cli"><option value="">Sem cliente</option>${(cls||[]).map(c=>'<option value="'+c.id+'">'+c.nome+'</option>').join('')}</select></div>
-      <div class="fg"><label class="fl">Tipo de serviço</label><select class="fc" id="np-tipo"><option>Georreferenciamento</option><option>Levantamento Planialtimétrico</option><option>Demarcação</option><option>Locação de Obras</option><option>Outro</option></select></div>
-    </div>
-    <div class="g2">
-      <div class="fg"><label class="fl">Número orçamento</label><input class="fc" id="np-orca" placeholder="ORC-2026-001"></div>
-    </div>
-    ${buildLocalizacao('np-uf','np-mun')}`;
-  document.getElementById('mf2').innerHTML=`<button class="btn" onclick="closeModal2()">Cancelar</button><button class="btn bp2" onclick="criarNovoProjeto()"><i class="ti ti-plus"></i> Criar projeto</button>`;
-  document.getElementById('ov2').classList.add('open');
-}
-
-async function criarNovoProjeto(){
-  const nome=document.getElementById('np-nome')?.value?.trim();
-  if(!nome){toast('Informe o nome do projeto!',true);return;}
-  const{error}=await sb.from('projetos').insert({
-    nome,cliente_id:document.getElementById('np-cli')?.value||null,
-    servico_tipo:document.getElementById('np-tipo')?.value,
-    orcamento_numero:document.getElementById('np-orca')?.value||null,
-    municipio:getMunicipio('np-uf','np-mun')||null,
-    etapa:'CRM',pendencias:[],historico:[],tarefas:[],
-  });
-  if(error){toast('Erro: '+error.message,true);return;}
-  toast('Projeto criado!');closeModal2();rPipeline();
-}
 
 // ═══════════════════════════════════════════════════════════
 // RELATÓRIOS
@@ -5473,7 +5386,7 @@ async function gerarPDFPassivo(){
 // ═══════════════════════════════════════════════════════════
 Object.assign(pageMap, {
   dashboard:rDash, agenda:rAgenda,
-  pendencias:rPendencias, ordens:rOS, pipeline:rPipeline,
+  pendencias:rPendencias, ordens:rOS,
   clientes:rClientes, servicos:rServicos, orcamentos:rOrcamentos, contratos:rContratos,
   recebimentos:rRec, pagamentos:rPag, contas:rContas,
   impostos:rImpostos, medicao:rMedicao, nfe:rNFe, folha:rFolha, dre:rDRE, acompanhamento:rAcompObras,
@@ -5500,7 +5413,6 @@ async function openModal(){
     toast('OS são criadas automaticamente ao aprovar um orçamento. Vá em Orçamentos, abra um orçamento aprovado e clique em "Criar OS".');
     return;
   }
-  if(CP==='pipeline'){return;} // projetos criados via orçamento
   if(CP==='pendencias'){return;}
   if(CP==='relatorios'||CP==='config'||CP==='dre'||CP==='dashboard'||CP==='agenda'&&false){return;}
   EID=null;const cfg=PCFG[CP];if(!cfg||!cfg.h){toast('Formulário não disponível para este módulo.',true);return;}
@@ -7871,7 +7783,7 @@ window.inserirPrevisaoProlabore2026H2 = async function() {
 </script>
 <script>
 // ═══════════════════════════════════════════════════════════
-// MÓDULOS: Obras, Config, Pendências, Medições, Docs, Pipeline
+// MÓDULOS: Obras, Config, Pendências, Medições, Docs
 // ═══════════════════════════════════════════════════════════
 
 const _obrasTiposCor={'Georreferenciamento':'#185FA5','Loteamento':'#27500A','Construção':'#854F0B','Levantamento Planialtimétrico':'#3C3489','Demarcação':'#A32D2D','Locação de Obras':'#633806','Regularização Fundiária':'#185FA5','Desmembramento':'#666','Incorporação Imobiliária':'#3C3489','Infraestrutura Urbana':'#27500A','Outro':'#666'};
@@ -14156,38 +14068,6 @@ async function rEstabelecimentos(){
   const si=gid('si');if(si)si.oninput=function(){_pintaEstab(_estabCache,this.value.trim());};
 }
 pageMap.estabelecimentos=rEstabelecimentos;
-
-function kbCardReadonly(p){
-  const pend=(p.pendencias||[]).filter(d=>!d.ok).length;
-  return'<div class="card" style="margin-bottom:8px;padding:.75rem;cursor:pointer;border-left:3px solid '+(pend>0?'#A32D2D':'#1a6fc4')+'" onclick="verOSdoCard(\''+p.id+'\')">'
-    +'<div style="font-size:12px;font-weight:600;margin-bottom:3px">'+p.nome+'</div>'
-    +'<div style="font-size:11px;color:#666">'+(p.clientes?.nome||'—')+'</div>'
-    +(pend>0?'<div style="font-size:10px;color:#A32D2D;margin-top:2px">⚠ '+pend+' pendência(s)</div>':'')
-    +'</div>';
-}
-
-async function verOSdoCard(projId){
-  const{data:p}=await sb.from('projetos').select('os_id,os_numero').eq('id',projId).single();
-  if(!p)return;
-  if(p.os_id){await abrirOS(p.os_id);return;}
-  if(p.os_numero){const{data:os}=await sb.from('ordens').select('id').eq('numero',p.os_numero).single();if(os){await abrirOS(os.id);return;}}
-  toast('Nenhuma OS vinculada ainda.',true);
-}
-
-async function rPipelineFixed(){
-  const{data:ps}=await sb.from('projetos').select('*,clientes(nome)').order('updated_at',{ascending:false});
-  const etapas=['CRM','Orçamento','Contrato','Aguard. Docs','Pronto Campo','Em Execução','Processamento','Protocolo','Entrega'];
-  const cores={'CRM':'#666','Orçamento':'#854F0B','Contrato':'#185FA5','Aguard. Docs':'#A32D2D','Pronto Campo':'#1a6fc4','Em Execução':'#27500A','Processamento':'#3C3489','Protocolo':'#854F0B','Entrega':'#27500A'};
-  let k='<div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:1rem;align-items:flex-start">';
-  etapas.forEach(etapa=>{
-    const cards=(ps||[]).filter(p=>p.etapa===etapa);
-    k+='<div style="min-width:200px;background:#f4f4f0;border-radius:10px;padding:.75rem;flex-shrink:0"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem"><div style="font-size:11px;font-weight:600;text-transform:uppercase;color:'+(cores[etapa]||'#666')+'">'+etapa+'</div><span style="background:#fff;border-radius:99px;padding:1px 8px;font-size:11px;font-weight:600;color:#666">'+cards.length+'</span></div>'+cards.map(p=>kbCardReadonly(p)).join('')+'</div>';
-  });
-  k+='</div>';
-  const el=document.getElementById('ct');if(!el)return;
-  el.innerHTML='<div class="fxb mb1"><div style="font-weight:600">Pipeline ('+(ps||[]).length+')</div><div class="mu sm" style="font-size:11px">Clique para abrir a OS</div></div>'+k;
-}
-// pageMap.pipeline=rPipelineFixed; // usa rPipeline original (mais completo, com kbCard e abrirProjeto)
 
 async function agendarTarefaOS(osId,osNumero){
   const{data:funcs}=await sb.from('funcionarios').select('id,nome').eq('ativo',true).order('nome');
