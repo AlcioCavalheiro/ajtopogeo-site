@@ -14,6 +14,8 @@
     { "source": "/empresa-topografia-drone",               "destination": "/mapeamento-com-drones",                  "permanent": true },
     { "source": "/empresa-topografia",                     "destination": "/sobre",                                  "permanent": true },
     { "source": "/empresa-topografia-georreferenciamento", "destination": "/sobre",                                  "permanent": true },
+    { "source": "/empresa-topografia-agrimensura",         "destination": "/agrimensura",                            "permanent": true },
+    { "source": "/escritorio-topografia",                  "destination": "/sobre",                                  "permanent": true },
     { "source": "/supressao-vegetal",                      "destination": "/blog-supressao-vegetal-dof",             "permanent": true },
     { "source": "/agricultura-precisao",                   "destination": "/blog-ndvi-agricultura-precisao",         "permanent": true },
     { "source": "/agricultura-precisao-fruticultura",      "destination": "/blog-agricultura-precisao-ms",           "permanent": true },
