@@ -335,6 +335,7 @@ select.fc{cursor:pointer}
       <div class="ni" onclick="nav('servicos')"><i class="ti ti-tools"></i>Serviços</div>
       <div class="ni" onclick="nav('orcamentos')"><i class="ti ti-file-dollar"></i>Orçamentos<span class="nb" id="bo" style="display:none">0</span></div>
       <div class="ni" onclick="nav('contratos')"><i class="ti ti-file-certificate"></i>Contratos</div>
+      <div class="ni" onclick="nav('fazendas')"><i class="ti ti-home-2"></i>Fazendas à Venda</div>
       <div class="ng">Financeiro</div>
       <div class="ni" onclick="nav('contas')"><i class="ti ti-building-bank"></i>Contas Bancárias</div>
       <div class="ni" onclick="nav('recebimentos')"><i class="ti ti-cash"></i>Recebimentos</div>
@@ -405,7 +406,7 @@ let MEU_PERFIL=null,MEUS_MODULOS=new Set();
 const PAGE_MODULO={
   dashboard:null, agenda:null, pendencias:null,
   ordens:'producao',
-  clientes:'comercial', obras:'comercial', servicos:'comercial', orcamentos:'comercial', contratos:'comercial',
+  clientes:'comercial', obras:'comercial', servicos:'comercial', orcamentos:'comercial', contratos:'comercial', fazendas:'comercial',
   contas:'financeiro', recebimentos:'financeiro', pagamentos:'financeiro', impostos:'financeiro', folha:'financeiro',
   medicao:'financeiro', nfe:'financeiro', dre:'financeiro', acompanhamento:'financeiro', tributario:'financeiro',
   geoferramentas:'ferramentas',
@@ -588,6 +589,32 @@ const PCFG={
     +'<div class="g2"><div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option>Ativo</option><option>Em manutenção</option><option>Inativo</option><option>Vendido</option></select></div>'
     +'<div class="fg"><label class="fl">RENAVAM</label><input class="fc" id="f-renavam"></div></div>'
     +'<div class="fg"><label class="fl">Observações</label><textarea class="fc" id="f-obs" rows="2"></textarea></div>';}},
+  fazendas:{t:'Fazendas à Venda',a:'Nova Fazenda',tb:'fazendas',h:function(o){return ''
+    +'<div class="fg"><label class="fl">Título *</label><input class="fc" id="f-titulo" placeholder="Ex: Fazenda Santa Rita — 240 ha"></div>'
+    +'<div class="g3"><div class="fg"><label class="fl">Área (ha)</label><input class="fc" type="number" step="0.01" id="f-area_ha"></div>'
+    +'<div class="fg"><label class="fl">Município</label><input class="fc" id="f-municipio" placeholder="Ex: Sidrolândia"></div>'
+    +'<div class="fg"><label class="fl">UF</label><select class="fc" id="f-uf"><option value="">—</option>'+['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(u=>'<option>'+u+'</option>').join('')+'</select></div></div>'
+    +'<div class="g2"><div class="fg"><label class="fl">Preço (R$)</label><input class="fc" type="number" step="0.01" id="f-preco"></div>'
+    +'<div class="fg"><label class="fl">Matrícula</label><input class="fc" id="f-matricula"></div></div>'
+    +'<div class="g2"><div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option>Rascunho</option><option>Disponível</option><option>Reservada</option><option>Vendida</option></select></div>'
+    +'<div class="fg"><label class="fl">&nbsp;</label><label style="display:flex;align-items:center;gap:8px;cursor:pointer;height:40px"><input type="checkbox" id="f-destaque" style="width:14px;height:14px;accent-color:var(--brand)"> Destacar no site</label></div></div>'
+    +'<div class="fg"><label class="fl">Descrição</label><textarea class="fc" id="f-descricao" rows="4" placeholder="Benfeitorias, água, energia, acesso, aptidão..."></textarea></div>'
+    +'<div class="fg"><label class="fl">Fotos</label>'
+    +'<input type="file" accept="image/*" multiple onchange="onFazendaFotoInput(this.files);this.value=\'\'" style="margin-bottom:8px">'
+    +'<div id="fz-fotos-grid" style="display:flex;flex-wrap:wrap;gap:8px"></div></div>'
+    +'<hr style="border:none;border-top:1px solid var(--bor);margin:20px 0">'
+    +'<div class="mu sm mb1"><i class="ti ti-file-certificate"></i> Dados do proprietário e condições da Autorização de Venda — usados só para gerar o documento assinado (CRECI exige contrato escrito antes de anunciar). Nunca aparecem no site.</div>'
+    +'<div class="g2"><div class="fg"><label class="fl">Nome completo do proprietário</label><input class="fc" id="f-proprietario_nome"></div>'
+    +'<div class="fg"><label class="fl">CPF/CNPJ</label><input class="fc" id="f-proprietario_cpf_cnpj"></div></div>'
+    +'<div class="g3"><div class="fg"><label class="fl">RG</label><input class="fc" id="f-proprietario_rg"></div>'
+    +'<div class="fg"><label class="fl">Estado civil</label><input class="fc" id="f-proprietario_estado_civil" placeholder="Ex: casado(a)"></div>'
+    +'<div class="fg"><label class="fl">Comissão (%)</label><input class="fc" type="number" step="0.01" id="f-comissao_percentual" placeholder="Ex: 6"></div></div>'
+    +'<div class="fg"><label class="fl">Endereço completo do proprietário</label><input class="fc" id="f-proprietario_endereco"></div>'
+    +'<div class="fg"><label class="fl">Condições de pagamento</label><input class="fc" id="f-condicoes_pagamento" placeholder="Ex: à vista, ou 30% entrada + saldo em 60 dias"></div>'
+    +'<div class="g3"><div class="fg"><label class="fl">Validade da autorização</label><input class="fc" type="date" id="f-validade_autorizacao"></div>'
+    +'<div class="fg"><label class="fl">&nbsp;</label><label style="display:flex;align-items:center;gap:8px;cursor:pointer;height:40px"><input type="checkbox" id="f-exclusividade" style="width:14px;height:14px;accent-color:var(--brand)" checked> Exclusividade (CC art. 726)</label></div>'
+    +'<div class="fg"><label class="fl">&nbsp;</label><label style="display:flex;align-items:center;gap:8px;cursor:pointer;height:40px"><input type="checkbox" id="f-autorizacao_assinada" style="width:14px;height:14px;accent-color:var(--brand)"> Autorização já assinada</label></div></div>'
+    +'<button type="button" class="btn bsm" onclick="gerarAutorizacaoVendaDocx()"><i class="ti ti-file-download"></i> Gerar Autorização de Venda (.docx)</button>';}},
   pontocampo:{t:'Ponto de Campo',a:null},
   usuarios:{t:'Usuários',a:null},
   estabelecimentos:{t:'Estabelecimentos',a:'Novo Estabelecimento',tb:'estabelecimentos',h:function(o){return ''
@@ -5522,6 +5549,7 @@ async function openModal(){
   document.getElementById('mb').innerHTML=html;
   document.getElementById('mf').innerHTML='<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn bp2" onclick="saveRecord()"><i class="ti ti-device-floppy"></i> Salvar</button>';
   document.getElementById('ov').classList.add('open');
+  if(CP==='fazendas'){_fazendaFotos=[];_fazendaFotoPrefix=(crypto.randomUUID?crypto.randomUUID():String(Date.now()));renderFazendaFotos();}
   if(CP==='orcamentos') setTimeout(async()=>{ if(typeof renderOrcaChecklist==='function') renderOrcaChecklist(); if(!EID){ const n=document.getElementById('f-numero'); if(n&&!n.value){ const ano=new Date().getFullYear(); const prefixo='ORC-'+ano+'-'; const{data:ults}=await sb.from('orcamentos').select('numero').like('numero',prefixo+'%').order('numero',{ascending:false}).limit(1); const ultimo=ults&&ults[0]?parseInt((ults[0].numero||'').replace(prefixo,''))||0:0; n.value=prefixo+String(ultimo+1).padStart(3,'0'); n.readOnly=true; n.style.background='#f0f7ff'; n.style.fontWeight='600'; n.style.color='#0d4fa0'; } } },0);
   if(CP==='contratos'&&!EID) setTimeout(async()=>{ const n=document.getElementById('f-numero'); if(n&&!n.value){ const ano=new Date().getFullYear(); const prefixo='CTR-'+ano+'-'; const{data:ults}=await sb.from('contratos').select('numero').like('numero',prefixo+'%').order('numero',{ascending:false}).limit(1); const ultimo=ults&&ults[0]?parseInt((ults[0].numero||'').replace(prefixo,''))||0:0; n.value=prefixo+String(ultimo+1).padStart(3,'0'); } },0);
 }
@@ -5568,6 +5596,7 @@ async function editRecord(table,id){
   // Recebimento já vinculado não mostra a opção de avulso. Os antigos sem
   // vínculo continuam mostrando — editar um deles obriga a conciliar.
   if(table==='recebimentos')recToggleAvulso();
+  if(table==='fazendas'){_fazendaFotos=Array.isArray(data.fotos)?data.fotos.slice():[];_fazendaFotoPrefix=id;renderFazendaFotos();}
 }
 
 async function saveRecord(){
@@ -5587,6 +5616,7 @@ async function saveRecord(){
     if(!EID && CU?.id) payload.user_id = CU.id;
   }
   if(CM==='clientes'){payload.cidade=document.getElementById('f-cidade')?.value||null;payload.estado=document.getElementById('f-estado')?.value||null;}
+  if(CM==='fazendas'){payload.fotos=_fazendaFotos;}
   if(CM==='orcamentos'){
     const items=[];
     OI.forEach((it,i)=>{
@@ -14140,6 +14170,136 @@ async function rEstabelecimentos(){
   const si=gid('si');if(si)si.oninput=function(){_pintaEstab(_estabCache,this.value.trim());};
 }
 pageMap.estabelecimentos=rEstabelecimentos;
+
+// ── FAZENDAS À VENDA ────────────────────────────────────────
+let _fazendasCache=[],_fazendaFotos=[],_fazendaFotoPrefix=null;
+async function rFazendas(){
+  const el=gid('ct');if(!el)return;
+  el.innerHTML='<div class="ld"><div class="sp"></div></div>';
+  const{data,error}=await sb.from('fazendas').select('*').order('destaque',{ascending:false}).order('created_at',{ascending:false});
+  if(error){el.innerHTML='<div class="card"><div class="st">Fazendas indisponível</div><div class="mu sm">Rode a migration <b>add_fazendas.sql</b> no Supabase para ativar este módulo.<br>'+error.message+'</div></div>';return;}
+  _fazendasCache=data||[];
+  if(!_fazendasCache.length){el.innerHTML='<div style="text-align:center;padding:3rem 1rem;color:#888"><i class="ti ti-home-2" style="font-size:44px;opacity:.4"></i><div style="margin-top:8px;font-size:15px">Nenhuma fazenda cadastrada.</div><div class="sm">Clique em <b>Nova Fazenda</b> para começar.</div></div>';return;}
+  _pintaFazendas('');
+  const si=gid('si');if(si)si.oninput=function(){_pintaFazendas(this.value.trim());};
+}
+function _pintaFazendas(q){
+  const el=gid('ct');if(!el)return;
+  const nq=(q||'').toLowerCase();
+  const list=nq?_fazendasCache.filter(f=>((f.titulo||'')+(f.municipio||'')+(f.uf||'')).toLowerCase().includes(nq)):_fazendasCache;
+  const stCor={'Disponível':'#2f7d32','Reservada':'#BA7517','Vendida':'#A32D2D','Rascunho':'#666'};
+  let html='<div class="mu sm mb1">Só entram no site fazendas com status <b>Disponível</b> ou <b>Reservada</b>. "Rascunho" fica visível só aqui no Gestor.</div>';
+  html+='<div class="gr" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px">';
+  html+=list.map(f=>{
+    const cor=stCor[f.status]||'#666';
+    const foto=(f.fotos&&f.fotos[0])||'';
+    return '<div class="card" style="padding:0;overflow:hidden">'
+      +(foto?'<img src="'+foto+'" style="width:100%;height:130px;object-fit:cover;display:block">':'<div style="width:100%;height:130px;background:#eee;display:flex;align-items:center;justify-content:center;color:#aaa"><i class="ti ti-home-2" style="font-size:32px"></i></div>')
+      +'<div style="padding:12px">'
+      +'<div class="fxb mb1"><div style="font-weight:700">'+(f.titulo||'Sem título')+'</div><span style="background:'+cor+'22;color:'+cor+';border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;white-space:nowrap">'+(f.status||'Rascunho')+'</span></div>'
+      +'<div class="mu sm">'+[f.municipio,f.uf].filter(Boolean).join(' - ')+(f.area_ha?' · '+fnum(f.area_ha)+' ha':'')+'</div>'
+      +(f.preco?'<div style="font-weight:700;margin-top:4px">'+fmt(f.preco)+'</div>':'')
+      +(f.destaque?'<div class="sm" style="margin-top:4px;color:#BA7517"><i class="ti ti-star"></i> Destaque</div>':'')
+      +'<div class="fx g8" style="margin-top:10px"><button class="btn bsm" onclick="editRecord(\'fazendas\',\''+f.id+'\')"><i class="ti ti-edit"></i> Editar</button>'
+      +'<button class="btn bxs bdr" onclick="excluirReg(\'fazendas\',\''+f.id+'\',\''+(f.titulo||'').replace(/'/g,"\\'")+'\')"><i class="ti ti-trash"></i></button></div>'
+      +'</div></div>';
+  }).join('')||'<div style="grid-column:1/-1;text-align:center;color:#888;padding:2rem">Nenhuma fazenda para "<strong>'+q+'</strong>"</div>';
+  html+='</div>';
+  el.innerHTML=html;
+}
+function comprimirFotoFazenda(file){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      const max=1280;let w=img.width,h=img.height;
+      if(w>max||h>max){if(w>h){h=Math.round(h*max/w);w=max;}else{w=Math.round(w*max/h);h=max;}}
+      const c=document.createElement('canvas');c.width=w;c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(url);
+      c.toBlob(b=>b?resolve(b):reject(new Error('Falha ao comprimir imagem')),'image/jpeg',0.75);
+    };
+    img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('Falha ao ler imagem'));};
+    img.src=url;
+  });
+}
+async function onFazendaFotoInput(files){
+  if(!files||!files.length)return;
+  if(!_fazendaFotoPrefix)_fazendaFotoPrefix=(crypto.randomUUID?crypto.randomUUID():String(Date.now()));
+  for(const file of Array.from(files)){
+    try{
+      const blob=await comprimirFotoFazenda(file);
+      const path=_fazendaFotoPrefix+'/'+Date.now()+'_'+Math.random().toString(36).slice(2,7)+'.jpg';
+      const{error}=await sb.storage.from('fazendas-fotos').upload(path,blob,{contentType:'image/jpeg',upsert:false});
+      if(error)throw error;
+      const url=sb.storage.from('fazendas-fotos').getPublicUrl(path).data.publicUrl;
+      _fazendaFotos.push(url);
+      renderFazendaFotos();
+    }catch(e){
+      toast('Erro ao enviar foto: '+(e.message||e)+'. Crie o bucket público "fazendas-fotos" no Supabase → Storage.',true);
+    }
+  }
+}
+function renderFazendaFotos(){
+  const grid=gid('fz-fotos-grid');if(!grid)return;
+  grid.innerHTML=_fazendaFotos.map((url,i)=>
+    '<div style="position:relative;width:84px;height:84px">'
+    +'<img src="'+url+'" style="width:84px;height:84px;object-fit:cover;border-radius:8px;border:1px solid var(--bor)">'
+    +'<button type="button" onclick="removerFazendaFoto('+i+')" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:#A32D2D;color:#fff;border:none;cursor:pointer;font-size:12px;line-height:1">✕</button>'
+    +'</div>'
+  ).join('')||'<div class="mu sm">Nenhuma foto ainda.</div>';
+}
+function removerFazendaFoto(i){_fazendaFotos.splice(i,1);renderFazendaFotos();}
+pageMap.fazendas=rFazendas;
+
+async function gerarAutorizacaoVendaDocx(){
+  const v=id=>(document.getElementById(id)?.value||'').trim();
+  const meses=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+  if(!v('f-proprietario_nome')||!v('f-titulo')){toast('Preencha ao menos o título da fazenda e o nome do proprietário antes de gerar o documento.',true);return;}
+  try{
+    const resp=await fetch('/gestor/templates/autorizacao_venda_modelo.docx');
+    if(!resp.ok) throw new Error('Template não encontrado (templates/autorizacao_venda_modelo.docx).');
+    const buf=await resp.arrayBuffer();
+    const zip=await JSZip.loadAsync(buf);
+    let xml=await zip.file('word/document.xml').async('string');
+    const hoje=new Date();
+    const validadeStr=v('f-validade_autorizacao');
+    const validade=validadeStr?new Date(validadeStr+'T00:00:00'):null;
+    const exclusiva=document.getElementById('f-exclusividade')?.checked;
+    const clausula=exclusiva
+      ?'A presente autorização é concedida em caráter de EXCLUSIVIDADE, nos termos do art. 726 do Código Civil Brasileiro, ficando o CONTRATANTE obrigado a pagar a comissão de corretagem ao CONTRATADO ainda que a venda se realize sem a intermediação direta deste, desde que dentro do prazo de vigência desta autorização.'
+      :'A presente autorização é concedida em caráter NÃO EXCLUSIVO, podendo o CONTRATANTE negociar o imóvel também por outros meios ou corretores, sendo devida a comissão ao CONTRATADO apenas em caso de venda concretizada por sua intermediação direta.';
+    const vals={
+      PROPRIETARIO_NOME:v('f-proprietario_nome')||'—',
+      PROPRIETARIO_ESTADO_CIVIL:v('f-proprietario_estado_civil')||'—',
+      PROPRIETARIO_CPF_CNPJ:v('f-proprietario_cpf_cnpj')||'—',
+      PROPRIETARIO_RG:v('f-proprietario_rg')||'—',
+      PROPRIETARIO_ENDERECO:v('f-proprietario_endereco')||'—',
+      IMOVEL_TITULO:v('f-titulo')||'—',
+      IMOVEL_MATRICULA:v('f-matricula')||'—',
+      IMOVEL_MUNICIPIO_UF:[v('f-municipio'),v('f-uf')].filter(Boolean).join(' - ')||'—',
+      IMOVEL_AREA:v('f-area_ha')?fnum(v('f-area_ha')):'—',
+      IMOVEL_DESCRICAO:v('f-descricao')||'—',
+      PRECO:v('f-preco')?fmt(v('f-preco')).replace('R$ ',''):'a combinar',
+      CONDICOES_PAGAMENTO:v('f-condicoes_pagamento')||'a combinar',
+      COMISSAO:v('f-comissao_percentual')||'—',
+      VALIDADE_EXTENSO:validade?(validade.getDate()+' de '+meses[validade.getMonth()]+' de '+validade.getFullYear()):'—',
+      CLAUSULA_EXCLUSIVIDADE:clausula,
+      LOCAL:'Sidrolândia-MS',
+      DATA_EXTENSO:hoje.getDate()+' de '+meses[hoje.getMonth()]+' de '+hoje.getFullYear(),
+    };
+    Object.keys(vals).forEach(function(k){
+      const re=new RegExp('\\{\\{'+k+'\\}\\}','g');
+      xml=xml.replace(re,function(){return xmlEscapeGeo(vals[k]);});
+    });
+    zip.file('word/document.xml',xml);
+    const blob=await zip.generateAsync({type:'blob'});
+    downloadBlobGeo(blob,'Autorizacao_Venda_'+(v('f-titulo')||'fazenda').replace(/[^a-zA-Z0-9_-]+/g,'_')+'.docx');
+    toast('Autorização de Venda gerada! Confira e assine com o proprietário antes de anunciar (marque "Autorização já assinada" ao salvar).');
+  }catch(e){
+    toast('Erro ao gerar autorização: '+e.message,true);
+  }
+}
 
 // ── USUÁRIOS (perfis de acesso, admin-only) ──
 const PERFIS_DISPONIVEIS=['admin','comercial','financeiro','ferramentas','empresa','campo'];
