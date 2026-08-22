@@ -1,6 +1,6 @@
 ---
 name: triagem-imovel
-description: Triagem inicial de matrícula e documentação de um imóvel novo — lê matrícula/CAR/CCIR/ITR, devolve resumo estruturado (cadeia dominial, ônus, áreas, inconsistências) e monta a pasta padrão no Drive. Use ao entrar projeto novo, ou quando o usuário mandar matrícula/CAR/CCIR para análise.
+description: Triagem inicial de matrícula e documentação de um imóvel novo — lê matrícula/CAR/CCIR/ITR, devolve resumo estruturado (cadeia dominial, ônus, áreas, inconsistências), monta a pasta padrão no Drive e cadastra cliente + obra no Gestor (Supabase). Use ao entrar projeto novo, ou quando o usuário mandar matrícula/CAR/CCIR para análise.
 ---
 
 # Rotina 2 — Triagem de matrícula/documentação
@@ -175,6 +175,45 @@ numeração, aviso de documento preliminar — e anexa o croqui na última pági
   qualificação obriga a voltar na matrícula.
 - Onde o documento estiver ilegível ou incompleto, escreva isso na tabela em
   vez de deixar a célula vazia.
+
+## Passo 6 — Cadastrar cliente e obra no Gestor
+
+Toda triagem termina com o cliente e a obra criados no Gestor (tabelas
+`clientes` e `obras` do Supabase), não só o resumo no Drive. Monte um
+`spec-gestor-<NOME>.json` em `10_TRIAGEM/` e rode:
+
+```
+C:\Users\ALCIO\.ajtopogeo\venv\Scripts\python.exe .claude\skills\triagem-imovel\scripts\cadastro_gestor.py "<pasta>\10_TRIAGEM\spec-gestor-<NOME>.json"
+```
+
+Formato do spec — bloco `cliente` com os campos de qualificação do item 2 do
+resumo (nome, tipo PF/PJ, cpfcnpj, endereço, cidade, estado, profissão,
+estado_civil) e bloco `obra` com os campos do item 1/5 (nome da obra,
+município, endereço, area_ha, ccir, matrícula, tipo_obra, comarca, cartório,
+codigo_incra_tipo/codigo_incra, obs com o resumo de 2-3 linhas e o caminho da
+triagem). Se o proprietário tiver qualificação completa (RG, profissão,
+estado civil, regime de bens), inclua também `obra.proprietarios` no mesmo
+formato usado pelo cadastro de vizinhos/anuência do app (`tipo`, `nome`,
+`sexo`, `nacionalidade`, `profissao`, `docTipo`, `docNumero`, `docOrgao`,
+`cpf`/`cnpj`, `estadoCivil`, `regimeBens`, `percentual`, `endereco`,
+`conjuge`, `representante`) — isso alimenta direto a geração de anuência
+depois. Não invente CPF/qualificação de confrontante que a matrícula não deu;
+deixe `vizinhos` de fora nesse caso e liste a pendência no item 9 do resumo.
+
+Regras:
+- **Dedup automático.** O script busca por CPF/CNPJ (cliente) e por nome da
+  obra antes de inserir; se achar, atualiza em vez de duplicar. Rodar de novo
+  na mesma triagem é seguro.
+- **Múltiplos proprietários / condomínio:** cadastre um cliente por CPF/CNPJ
+  que vai efetivamente contratar ou assinar; se o imóvel for de vários e não
+  estiver claro quem contrata, confirme com o usuário antes de rodar.
+- **Credenciais nunca no repositório.** O script lê
+  `C:\Users\ALCIO\.ajtopogeo\supabase_service_role.env` (fora do repo, já
+  configurado). Se o arquivo não existir, o script explica como criar — não
+  peça a chave em texto no chat de novo nem a escreva em nenhum arquivo
+  versionado.
+- Termine avisando os ids criados/atualizados e linkando qual pasta do Drive
+  ficou registrada em `obra.obs`.
 
 ## Regra de ouro
 

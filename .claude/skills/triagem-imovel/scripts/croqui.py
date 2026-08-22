@@ -117,14 +117,14 @@ def rumo_texto(rumo: str) -> str:
     n = [float(x.replace(",", ".")) for x in re.findall(r"\d+[.,]?\d*", texto)]
     if not n:
         return str(rumo)
-    if not quad:
-        return f"Az {n[0]:.4f}°"
+    if not quad and len(n) == 1:
+        return f"Az {n[0]:.4f}°"  # azimute decimal puro, sem minuto/segundo
     saida = f"{int(n[0])}°"
     if len(n) > 1:
         saida += f"{int(n[1]):02d}'"
     if len(n) > 2:
         saida += f'{int(n[2]):02d}"'
-    return f"{saida} {quad[0]}"
+    return f"{saida} {quad[0]}" if quad else f"Az {saida}"
 
 
 def caminhar(segmentos: list[dict]) -> list[tuple[float, float]]:
