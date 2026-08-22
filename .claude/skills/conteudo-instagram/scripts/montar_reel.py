@@ -46,6 +46,16 @@ def _atempo(vel):
     return ",".join(f"atempo={f:.6g}" for f in fatores)
 
 
+def _tem_audio(caminho):
+    """Nem toda fonte traz trilha. O MP4 que sai do cartão do drone é só vídeo:
+    a maioria dos DJI não grava áudio. Pedir [n:a] de um arquivo desses derruba
+    o filtergraph inteiro com 'matches no streams', e a mensagem não diz qual
+    arquivo é o culpado. Aqui a gente descobre antes e põe silêncio no lugar."""
+    r = subprocess.run([FF, "-hide_banner", "-i", caminho],
+                       capture_output=True, text=True, errors="replace")
+    return " Audio: " in r.stderr
+
+
 def _faixa(d, y0, y1, a_max=185):
     """Degradê atrás da legenda: sem isso o texto some no céu claro."""
     for y in range(y0, y1):
@@ -109,6 +119,8 @@ def montar(peca, pasta, trabalho):
     for f in fontes:
         if not os.path.exists(f):
             raise SystemExit("fonte de vídeo não existe: " + f)
+    com_audio = {f: _tem_audio(f) for f in fontes}
+    mudas = [f for f in fontes if not com_audio[f]]
 
     pngs, duracoes = [], []
     for i, c in enumerate(cenas):
@@ -135,10 +147,21 @@ def montar(peca, pasta, trabalho):
             f"[{src}:v]trim={c['ini']}:{c['fim']},{pts},"
             f"scale={RW}:{RH}:force_original_aspect_ratio=increase,"
             f"crop={RW}:{RH},fps=30,setsar=1[b{i}];")
-        atempo = f",{_atempo(vel)}" if vel != 1.0 else ""
-        fc.append(
-            f"[{src}:a]atrim={c['ini']}:{c['fim']},asetpts=PTS-STARTPTS{atempo},"
-            f"aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[a{i}];")
+        if com_audio[c["fonte"]]:
+            atempo = f",{_atempo(vel)}" if vel != 1.0 else ""
+            # cena que estreia o som depois de um trecho mudo entra com fade
+            # curto: sem ele o ambiente de campo "estala" no corte.
+            entra = (i > 0 and not com_audio[cenas[i - 1]["fonte"]])
+            fade = ",afade=t=in:st=0:d=0.45" if entra else ""
+            fc.append(
+                f"[{src}:a]atrim={c['ini']}:{c['fim']},asetpts=PTS-STARTPTS{atempo},"
+                f"aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo"
+                f"{fade}[a{i}];")
+        else:
+            fc.append(
+                f"anullsrc=channel_layout=stereo:sample_rate=48000,"
+                f"atrim=0:{dur:.3f},asetpts=PTS-STARTPTS,"
+                f"aformat=sample_fmts=fltp:channel_layouts=stereo[a{i}];")
         fc.append(
             f"[{base+i}:v]format=rgba,fade=t=in:st=0.25:d=0.4:alpha=1,"
             f"fade=t=out:st={max(dur-0.65, 0.3):.3f}:d=0.4:alpha=1[o{i}];")
@@ -164,6 +187,13 @@ def montar(peca, pasta, trabalho):
                 duracoes)
     mb = os.path.getsize(saida) / 1e6
     print(f"gerado: {os.path.basename(saida)}  {total:.1f}s  {mb:.1f} MB")
+    if mudas:
+        mudo = sum(d for c, d in zip(cenas, duracoes)
+                   if not com_audio[c["fonte"]])
+        print(f"  ATENÇÃO: {mudo:.1f}s de {total:.1f}s sem trilha - fonte sem "
+              f"áudio, entrou silêncio:")
+        for f in mudas:
+            print("    " + os.path.basename(f))
     if total < 7:
         print("  ATENÇÃO: abaixo de 7s o Reel tem pouca entrega.")
     if total > 90:

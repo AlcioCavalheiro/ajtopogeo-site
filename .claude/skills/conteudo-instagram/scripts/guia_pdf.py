@@ -204,6 +204,28 @@ def build(caminho_pauta):
               Paragraph("Hashtags", H2),
               Paragraph(" ".join(p["hashtags"]), S_TAG)]
 
+        if p["formato"] == "reel" and any(c.get("fala") for c in p.get("cenas", [])):
+            # Reel narrado: o texto da locução é conteúdo aprovável, não detalhe
+            # de produção - quem publica precisa ler o que a voz diz antes de subir.
+            cfg = p.get("narracao") or {}
+            voz = cfg.get("voz", "pt-BR-AntonioNeural")
+            rate = cfg.get("rate", "+7%")
+            # KeepTogether: o roteiro é lido de uma vez, comparando cena a cena.
+            # Sem isso a tabela quebra e sobra uma linha órfã na página seguinte.
+            E += [Spacer(1, 4 * mm),
+                  KeepTogether([
+                      Paragraph("Roteiro da locução", H2),
+                      Paragraph(f"Voz neural {voz}, velocidade {rate}, som "
+                                f"ambiente de campo abaixado por baixo da voz. "
+                                f"Sem música: se quiser uma batida, suba por "
+                                f"cima na edição do Instagram.", S_PEQ),
+                      Spacer(1, 2 * mm),
+                      tabela([["Cena", "Legenda na tela", "O que a voz diz"]] +
+                             [[str(i), c.get("texto", "—") or "—",
+                               c.get("fala", "—") or "—"]
+                              for i, c in enumerate(p["cenas"], 1)],
+                             [12 * mm, 48 * mm, 114 * mm])])]
+
         if p["formato"] == "reel" and p.get("passos"):
             E += [Spacer(1, 4 * mm), Paragraph("Como subir", H2),
                   tabela([["Passo", "O que fazer"]] +
@@ -225,18 +247,27 @@ def build(caminho_pauta):
                      [[i["material"], i["motivo"]] for i in pauta["fora"]],
                      [45 * mm, 129 * mm])]
     if pauta.get("liberado"):
-        E += [Spacer(1, 5 * mm), Paragraph("O que foi conferido e está liberado", H2),
-              Paragraph(pauta["liberado"], S)]
+        E += [Spacer(1, 5 * mm),
+              KeepTogether([Paragraph("O que foi conferido e está liberado", H2),
+                            Paragraph(pauta["liberado"], S)])]
     if pauta.get("pendencias"):
-        E += [Spacer(1, 5 * mm), Paragraph("Pendências", H2),
-              tabela([["Item", "Situação"]] +
-                     [[i["item"], i["situacao"]] for i in pauta["pendencias"]],
-                     [45 * mm, 129 * mm])]
+        # mesmo motivo do "Onde está tudo": sem KeepTogether o título "Pendências"
+        # fica sozinho no pé da página e a tabela abre na seguinte sem seção.
+        E += [Spacer(1, 5 * mm),
+              KeepTogether([Paragraph("Pendências", H2),
+                            tabela([["Item", "Situação"]] +
+                                   [[i["item"], i["situacao"]]
+                                    for i in pauta["pendencias"]],
+                                   [45 * mm, 129 * mm])])]
     if pauta.get("onde"):
-        E += [Spacer(1, 6 * mm), Paragraph("Onde está tudo", H2),
-              tabela([["Pasta", "Conteúdo"]] +
-                     [[i["pasta"], i["conteudo"]] for i in pauta["onde"]],
-                     [58 * mm, 116 * mm])]
+        # KeepTogether: sem isso o título fica sozinho no pé da página de sigilo
+        # e a tabela abre na página seguinte, órfã de cabeçalho de seção.
+        E += [Spacer(1, 6 * mm),
+              KeepTogether([Paragraph("Onde está tudo", H2),
+                            tabela([["Pasta", "Conteúdo"]] +
+                                   [[i["pasta"], i["conteudo"]]
+                                    for i in pauta["onde"]],
+                                   [58 * mm, 116 * mm])])]
 
     doc.build(E)
     print("gerado:", saida)

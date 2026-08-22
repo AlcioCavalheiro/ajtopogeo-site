@@ -93,12 +93,15 @@ def canvas(w=CARD_W, h=CARD_H):
 
 
 def foto_fundo(img, caminho, dim=0.58, blur=0.8, top_scrim=800, bot_scrim=330,
-               scrim_a=205, zoom=1.0, anchor_y=0.5):
+               scrim_a=205, zoom=1.0, anchor_y=0.5, anchor_x=0.5):
     """Frame de campo ao fundo: nítido, escurecido só o quanto o texto exige.
 
     dim mais alto = mais escuro. O degradê do topo é linear de propósito: com
     curva, a faixa do meio clareia demais e o corpo de texto perde contraste.
     anchor_y < 0.5 puxa o enquadramento para cima, jogando o assunto para baixo.
+    anchor_x > 0.5 puxa o recorte para a direita: é o que segura no quadro o
+    assunto encostado na borda direita quando o zoom sobe para empurrar esse
+    mesmo assunto para baixo, saindo de trás do título.
     """
     W, H = img.size
     # exif_transpose aplica a orientação EXIF (foto de celular/câmera vem com a
@@ -107,7 +110,7 @@ def foto_fundo(img, caminho, dim=0.58, blur=0.8, top_scrim=800, bot_scrim=330,
     ph = ImageOps.exif_transpose(Image.open(caminho)).convert("RGB")
     s = max(W / ph.width, H / ph.height) * zoom
     ph = ph.resize((int(ph.width * s) + 1, int(ph.height * s) + 1), Image.LANCZOS)
-    lx = (ph.width - W) // 2
+    lx = int((ph.width - W) * anchor_x)
     ty = int((ph.height - H) * anchor_y)
     ph = ph.crop((lx, ty, lx + W, ty + H))
     if blur:
@@ -127,6 +130,29 @@ def foto_fundo(img, caminho, dim=0.58, blur=0.8, top_scrim=800, bot_scrim=330,
         if a:
             gd.line([(0, y), (W, y)], fill=BG + (a,))
     img.alpha_composite(grad)
+
+
+def faixa_texto(img, y0, y1, a_max=132, fade=64):
+    """Degradê local atrás de um bloco de texto que caiu sobre foto clara.
+
+    O degradê do topo em foto_fundo morre onde o título acaba; a linha de apoio
+    da capa costuma cair logo abaixo, em cima de estrutura metálica ou concreto
+    claro, e o cinza do sub some. Esta faixa é local e tem borda esfumada dos
+    dois lados para não virar retângulo visível. Componha ANTES de desenhar o
+    texto - alpha_composite depois apagaria o próprio texto.
+    """
+    W, H = img.size
+    ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(ov)
+    for y in range(max(0, y0 - fade), min(H, y1 + fade)):
+        if y < y0:
+            a = a_max * (y - (y0 - fade)) / fade
+        elif y > y1:
+            a = a_max * (1 - (y - y1) / fade)
+        else:
+            a = a_max
+        d.line([(0, y), (W, y)], fill=BG + (int(max(a, 0)),))
+    img.alpha_composite(ov)
 
 
 def curvas_textura(img, y_start, densidade=9, alpha=40):

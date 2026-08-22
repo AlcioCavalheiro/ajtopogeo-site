@@ -1,6 +1,6 @@
 ---
 name: conteudo-instagram
-description: Gera automaticamente as peças de Instagram do @aj_topogeo a partir das fotos/vídeos de campo e da descrição do serviço — triagem de sigilo, legendas, hashtags, cards do carrossel, Reel montado com som ambiente e guia de publicação em PDF. Use nas quartas e sextas, ou quando o usuário mandar material de campo pedindo post, legenda ou pauta.
+description: Gera automaticamente as peças de Instagram do @aj_topogeo a partir das fotos/vídeos de campo e da descrição do serviço — triagem de sigilo, legendas, hashtags, cards do carrossel, Reel narrado com voz neural sobre som ambiente (nunca música) e guia de publicação em PDF. Use nas quartas e sextas, ou quando o usuário mandar material de campo pedindo post, legenda ou pauta.
 ---
 
 # Rotina 5 — Conteúdo Instagram (@aj_topogeo)
