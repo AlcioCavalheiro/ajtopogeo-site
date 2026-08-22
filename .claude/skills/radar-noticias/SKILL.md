@@ -16,6 +16,76 @@ coisa que você **não faz** é publicar: não commita, não dá push, não post
 
 Se o usuário já mandar um link de notícia, pule a busca e trabalhe aquele link.
 
+## Modo retomável — rodar sob `/loop` sem perder o trabalho no meio
+
+Esta rotina é longa e pode bater no limite de uso no meio do caminho. Para que
+ela **pause sozinha e retome de onde parou** (sem refazer nem pular etapa), ela
+trabalha a partir de um arquivo de estado (checkpoint) e é chamada em ciclo pelo
+`/loop`. Quando o limite estoura, a chamada em curso simplesmente não avança; a
+próxima chamada do `/loop` retoma pelo estado quando o limite resetar.
+
+**Arquivo de estado:** `C:\Users\ALCIO\.ajtopogeo\estado\radar-noticias.json`
+(fora do repo; sobrevive a reinício do app e a nova sessão).
+
+**No começo de TODA execução, carregue o estado e decida:**
+
+- **Não existe** → rodada nova. Crie-o com todos os passos em `pendente`,
+  `concluido: false`, e grave o caminho do scratchpad desta sessão.
+- **Existe com `concluido: true`** → a rodada anterior já terminou. Trate como
+  rodada **nova** (semana nova): sobrescreva com um estado zerado. (Só retome
+  aquela se o usuário disser explicitamente que quer continuá-la.)
+- **Existe com `concluido: false`** → **retome**: pule os passos marcados `feito`
+  e continue do primeiro `pendente`, reusando o que já foi gravado (notícia
+  escolhida, slug, pasta das peças).
+
+**Regra de ouro:** faça os passos pendentes **em ordem** e **grave o estado logo
+após concluir cada um**, antes de começar o próximo. É essa gravação que torna a
+retomada segura. Faça quantos passos couberem nesta execução — não precisa parar
+após um só; se o limite cortar no meio, o estado guarda até o último passo
+concluído e a próxima chamada do `/loop` continua dali.
+
+Mapa passo → campo do estado (`feito` só quando a condição estiver cumprida):
+
+| passo (seções abaixo) | campo | `feito` quando |
+| --- | --- | --- |
+| 1–3 Buscar, deduplicar, escolher | `buscar_escolher` | a notícia está escolhida e gravada no estado (slug, título, tema, fonte, url) |
+| 4 Post de blog | `post_blog` | `blog-<slug>.html` existe **e** o card está em `blog.html` **e** a URL está no `sitemap.xml` |
+| 5 Carrossel + Reel + guia | `pecas_instagram` | os arquivos existem na pasta de saída (cards do carrossel, `_REEL.mp4`, guia PDF) |
+| 6 Registrar no histórico | `registrar` | a entrada está em `rotinas/radar-noticias-historico.json` |
+| 7 Entregar ao usuário | `entregar` | o resumo em prosa foi apresentado |
+
+**Por que refazer um passo é seguro (idempotência):** `gerar_post_blog.py` recusa
+slug repetido e não duplica card nem sitemap; `render.py`, `reel_noticia.py` e
+`guia_pdf.py` sobrescrevem as saídas. Então reexecutar um passo que rodou pela
+metade não gera lixo. **Única exceção:** se `blog-<slug>.html` já existe mas o
+card ainda não está em `blog.html`, o script aborta com "já existe" — nesse caso
+não o rode de novo; insira à mão o card em `blog.html` e a URL no `sitemap.xml`
+(o formato está nos outros posts) e marque o passo `feito`.
+
+**Encerramento:** ao terminar o passo 7, grave `concluido: true`. Se estiver sob
+`/loop`, avise que a rotina terminou e **encerre o loop** (pare os disparos
+agendados); não reexecute.
+
+Esquema do estado:
+
+```json
+{
+  "rotina": "radar-noticias",
+  "atualizado_em": "2026-07-30T14:00:00-04:00",
+  "scratchpad": "C:\\...\\scratchpad",
+  "noticia": { "titulo": "", "tema": "", "fonte": "", "fonte_url": "", "slug": "", "resumo": "" },
+  "pasta_pecas": "",
+  "passos": {
+    "buscar_escolher": "pendente",
+    "post_blog": "pendente",
+    "pecas_instagram": "pendente",
+    "registrar": "pendente",
+    "entregar": "pendente"
+  },
+  "concluido": false
+}
+```
+
 ## Ambiente
 
 Todos os scripts rodam no venv da empresa (o mesmo das outras rotinas de
