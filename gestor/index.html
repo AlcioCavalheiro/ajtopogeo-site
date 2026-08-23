@@ -329,6 +329,7 @@ select.fc{cursor:pointer}
       <div class="ng">Produção</div>
       <div class="ni" id="nav-pendencias" onclick="nav('pendencias')"><i class="ti ti-alert-triangle"></i>Pendências<span id="pend-dot" style="display:none;width:8px;height:8px;background:#E24B4A;border-radius:50%;flex-shrink:0;animation:pulse-pend 1.6s ease-in-out infinite"></span><span class="nb" id="bnp" style="display:none">0</span></div>
       <div class="ni" onclick="nav('ordens')"><i class="ti ti-clipboard-list"></i>Ordens de Serviço</div>
+      <div class="ni" onclick="nav('tarefas')"><i class="ti ti-list-check"></i>Minhas Tarefas<span class="nb" id="bta" style="display:none">0</span></div>
       <div class="ng">Comercial</div>
       <div class="ni" onclick="nav('clientes')"><i class="ti ti-users"></i>Clientes</div>
           <div class="ni" onclick="nav('obras')"><i class="ti ti-building-community"></i>Obras</div>
@@ -359,6 +360,9 @@ select.fc{cursor:pointer}
       <div class="ni" onclick="nav('relatorios')"><i class="ti ti-printer"></i>Relatórios / PDF</div>
       <div class="ni" onclick="nav('config')"><i class="ti ti-settings"></i>Configuração</div>
       <div class="ni" onclick="nav('usuarios')"><i class="ti ti-users-group"></i>Usuários</div>
+      <div class="ng">Segurança e Trabalho</div>
+      <div class="ni" onclick="nav('epis_sst')"><i class="ti ti-shield-check"></i>EPIs &amp; Ordens de Serviço</div>
+      <div class="ni" onclick="nav('treinamentos_sst')"><i class="ti ti-clipboard-text"></i>Treinamentos</div>
     </nav>
     <div class="sf2">
       <div class="fx g8"><div class="av" id="ua">AJ</div><div><div class="w6 sm" id="un">—</div><div class="mu" style="font-size:11px" id="ue">—</div></div><button class="blo" onclick="doLogout()"><i class="ti ti-logout"></i></button></div>
@@ -412,7 +416,8 @@ const PAGE_MODULO={
   geoferramentas:'ferramentas',
   rotinas:'empresa', administrativo:'empresa', funcionarios:'empresa', frotas:'empresa', pontocampo:'empresa',
   estabelecimentos:'empresa', relatorios:'empresa', config:'empresa',
-  usuarios:'__admin__'
+  usuarios:'__admin__',
+  epis_sst:'empresa', treinamentos_sst:'empresa', tarefas:null
 };
 function moduloLiberado(modulo){
   if(modulo==='__admin__') return MEU_PERFIL==='admin';
@@ -627,6 +632,10 @@ const PCFG={
   relatorios:{t:'Relatórios / PDF',a:null},
   config:{t:'Configuração',a:null},
   tributario:{t:'Controle Tributário',a:null},
+  epis_sst:{t:'EPIs & Ordens de Serviço',a:null},
+  treinamentos_sst:{t:'Treinamentos',a:null},
+  tarefas:{t:'Minhas Tarefas',a:null},
+  epis:{t:'EPI',tb:'epis',h:function(o){return '<div class="fg"><label class="fl">Nome *</label><input class="fc" id="f-nome" placeholder="Ex: Capacete de proteção"></div><div class="g2"><div class="fg"><label class="fl">Categoria</label><select class="fc" id="f-categoria"><option>Cabeça</option><option>Auditivo</option><option>Visão</option><option>Respiratório</option><option>Mãos</option><option>Pés</option><option>Corpo</option><option>Outro</option></select></div><div class="fg"><label class="fl">C.A. padrão</label><input class="fc" id="f-ca_padrao" placeholder="Ex: 29638"></div></div><div class="fg"><label class="fl">Observações</label><textarea class="fc" id="f-obs" rows="2"></textarea></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-ativo"><option value="true">Ativo</option><option value="false">Inativo</option></select></div>';}},
   socios:{t:'Sócio',tb:'socios',h:function(o){return '<div class="fg"><label class="fl">Nome *</label><input class="fc" id="f-nome"></div><div class="g2"><div class="fg"><label class="fl">Participação (%)</label><input class="fc" type="number" step="0.01" id="f-percentual_participacao"></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-ativo"><option value="true">Ativo</option><option value="false">Inativo</option></select></div></div>';}},
   das_mensal:{t:'Registrar DAS',tb:'das_mensal',h:function(o){return '<div class="g2"><div class="fg"><label class="fl">Competência (AAAA-MM) *</label><input class="fc" id="f-competencia" placeholder="2026-07"></div><div class="fg"><label class="fl">Anexo aplicado</label><select class="fc" id="f-anexo_aplicado"><option>III</option><option>V</option></select></div></div><div class="g2"><div class="fg"><label class="fl">RBT12 (R$)</label><input class="fc" type="number" step="0.01" id="f-rbt12"></div><div class="fg"><label class="fl">Fator R (%)</label><input class="fc" type="number" step="0.01" id="f-fator_r"></div></div><div class="g2"><div class="fg"><label class="fl">Alíquota efetiva (%)</label><input class="fc" type="number" step="0.01" id="f-aliquota_efetiva"></div><div class="fg"><label class="fl">Valor DAS estimado (R$)</label><input class="fc" type="number" step="0.01" id="f-valor_das_estimado"></div></div><div class="fg"><label class="fl">Observação</label><input class="fc" id="f-observacao"></div>';}},
   retencoes:{t:'Registrar Retenção',tb:'retencoes',h:function(o){return '<div class="g2"><div class="fg"><label class="fl">Tipo *</label><select class="fc" id="f-tipo"><option>INSS</option><option>ISS</option><option>IRRF</option></select></div><div class="fg"><label class="fl">Valor retido (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor_retido"></div></div><div class="fg"><label class="fl">Tomador do serviço</label><input class="fc" id="f-tomador" placeholder="Nome do órgão/empresa que reteve"></div><div class="g2"><div class="fg"><label class="fl">OS Vinculada</label><select class="fc" id="f-os_id"><option value="">Sem OS</option>'+o.oOpts+'</select></div><div class="fg"><label class="fl">Competência</label><input class="fc" id="f-competencia" placeholder="2026-07"></div></div><div class="fg"><label class="fl">Data</label><input class="fc" type="date" id="f-data"></div><div class="fg"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="f-compensado" style="width:14px;height:14px;accent-color:var(--brand)"> Já compensada na apuração</label></div><div class="fg"><label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="f-orgao_publico" style="width:14px;height:14px;accent-color:var(--brand)"> Tomador é órgão público</label></div><div class="fg"><label class="fl">Observação</label><input class="fc" id="f-observacao"></div>';}},
@@ -7142,6 +7151,7 @@ async function checkPendencias(){
     if(b){b.textContent=total;b.style.display=total>0?'inline':'none';}
     setPendSidebar(ni,total>0);
   }catch(e){console.warn('checkPendencias erro:',e);}
+  if(typeof atualizarBadgeTarefas==='function') atualizarBadgeTarefas();
 }
 function setPendSidebar(ni,on){
   if(!ni)return;
@@ -14340,6 +14350,544 @@ async function salvarUsuario(id){
   toast('Salvo.');
 }
 pageMap.usuarios=rUsuarios;
+
+// ═══════════════════════════════════════════════════════════
+// SEGURANÇA E TRABALHO — EPIs, Ficha de EPI, Ordem de Serviço NR-1, Treinamentos
+// ═══════════════════════════════════════════════════════════
+let _sstPessoasCache=[], _sstEpisCache=[];
+async function _sstPessoas(){
+  const[{data:funcs},{data:socios}]=await Promise.all([
+    sb.from('funcionarios').select('id,nome,cargo,cpf,data_admissao').eq('ativo',true).order('nome'),
+    sb.from('socios').select('id,nome').eq('ativo',true).order('nome'),
+  ]);
+  const f=(funcs||[]).map(function(x){return{tipo:'funcionario',id:x.id,nome:x.nome,cargo:x.cargo||'',cpf:x.cpf||'',registro:'',admissao:x.data_admissao||''};});
+  const s=(socios||[]).map(function(x){return{tipo:'socio',id:x.id,nome:x.nome,cargo:'Sócio(a)',cpf:'',registro:'',admissao:''};});
+  _sstPessoasCache=[...f,...s];
+  return _sstPessoasCache;
+}
+function _sstAcharPessoa(tipo,id){return _sstPessoasCache.find(function(p){return p.tipo===tipo&&String(p.id)===String(id);});}
+
+const SST_CARGO_PADRAO={
+  topografo:{
+    atividades:'Locação de obras civis; execução de levantamentos topográficos e georreferenciamento em campo.',
+    fisicos:'Radiações não ionizantes (raios solares).',
+    quimicos:'Não identificado.',
+    biologicos:'Não identificado.',
+    ergonomicos:'Repetitividade de movimentos, posturas inadequadas, monotonia e estresse.',
+    acidentes:'Escorregão, tropeção e quedas do mesmo nível; exposição a animais peçonhentos em campo.',
+    epis:'Capacete;\nColete refletivo;\nProtetor auditivo;\nÓculos de proteção;\nBotina de proteção;\nToca de proteção solar.',
+    medidas:'Uso correto dos EPIs;\nTreinamento para execução das tarefas;\nCorreção das posturas de trabalho.',
+    orientacoes:'Não transite pela obra sem capacete e calçado de proteção;\nUse os EPIs apenas para a finalidade a que se destinam e mantenha-os sob sua guarda e conservação;\nObserve atentamente o ambiente de trabalho ao circular na obra e corrija imediatamente as condições inseguras encontradas;\nComunique imediatamente à supervisão qualquer acidente ou doença ocupacional;\nEm caso de acidente, solicite ao RH a abertura da CAT (Comunicação de Acidente do Trabalho) após a caracterização do acidente.'
+  },
+  campo:{
+    atividades:'Apoio em campo a levantamentos topográficos e locação de obras civis.',
+    fisicos:'Radiações não ionizantes (raios solares); ruído.',
+    quimicos:'Não identificado.',
+    biologicos:'Exposição a animais peçonhentos e insetos.',
+    ergonomicos:'Esforço físico, posturas inadequadas e monotonia.',
+    acidentes:'Escorregão, tropeção e quedas do mesmo nível; cortes e perfurações.',
+    epis:'Capacete;\nColete refletivo;\nProtetor auditivo;\nÓculos de proteção;\nBotina de proteção;\nLuvas de proteção;\nToca de proteção solar.',
+    medidas:'Uso correto dos EPIs;\nTreinamento para execução das tarefas;\nCorreção das posturas de trabalho.',
+    orientacoes:'Não transite pela obra sem capacete e calçado de proteção;\nUse os EPIs apenas para a finalidade a que se destinam e mantenha-os sob sua guarda e conservação;\nObserve atentamente o ambiente de trabalho ao circular na obra e corrija imediatamente as condições inseguras encontradas;\nComunique imediatamente à supervisão qualquer acidente ou doença ocupacional;\nEm caso de acidente, solicite ao RH a abertura da CAT (Comunicação de Acidente do Trabalho) após a caracterização do acidente.'
+  },
+  default:{
+    atividades:'Atividades administrativas e de escritório.',
+    fisicos:'Não identificado.',
+    quimicos:'Não identificado.',
+    biologicos:'Não identificado.',
+    ergonomicos:'Postura sentada prolongada, uso de computador e repetitividade de movimentos.',
+    acidentes:'Escorregão, tropeção e quedas do mesmo nível; choque elétrico.',
+    epis:'Não aplicável às atividades de escritório.',
+    medidas:'Pausas periódicas;\nOrganização do ambiente de trabalho;\nCorreção das posturas de trabalho.',
+    orientacoes:'Mantenha o ambiente de trabalho organizado e livre de obstáculos;\nComunique imediatamente à supervisão qualquer acidente ou doença ocupacional;\nEm caso de acidente, solicite ao RH a abertura da CAT (Comunicação de Acidente do Trabalho) após a caracterização do acidente.'
+  }
+};
+function riscoPadraoPorCargo(cargo){
+  const c=(cargo||'').toLowerCase();
+  if(c.includes('top')) return SST_CARGO_PADRAO.topografo;
+  if(c.includes('auxiliar')||c.includes('campo')||c.includes('assistente')) return SST_CARGO_PADRAO.campo;
+  return SST_CARGO_PADRAO.default;
+}
+
+async function rEpisSST(){
+  const el=gid('ct');el.innerHTML='<div class="ld"><div class="sp"></div></div>';
+  const[pessoas,{data:entregas},{data:oss},{data:epis}]=await Promise.all([
+    _sstPessoas(),
+    sb.from('epi_entregas').select('pessoa_tipo,pessoa_id,data_devolucao'),
+    sb.from('sst_ordens_servico').select('pessoa_tipo,pessoa_id,numero,data_emissao').order('numero',{ascending:false}),
+    sb.from('epis').select('*').order('nome'),
+  ]);
+  _sstEpisCache=epis||[];
+  if(!pessoas.length){el.innerHTML='<div style="text-align:center;padding:3rem 1rem;color:#888"><i class="ti ti-users" style="font-size:44px;opacity:.4"></i><div style="margin-top:8px;font-size:15px">Nenhum funcionário ou sócio ativo cadastrado.</div></div>';return;}
+  html='<div class="fxb mb1"><div class="mu sm">'+pessoas.length+' pessoa(s) — clique em um card para ver EPIs e Ordens de Serviço</div><button class="btn bsm" onclick="abrirCatalogoEpis()"><i class="ti ti-list-details"></i> Catálogo de EPIs ('+_sstEpisCache.length+')</button></div>';
+  html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px">';
+  pessoas.forEach(function(p){
+    const ativosEpi=(entregas||[]).filter(function(e){return e.pessoa_tipo===p.tipo&&String(e.pessoa_id)===String(p.id)&&!e.data_devolucao;}).length;
+    const ultimaOs=(oss||[]).find(function(o){return o.pessoa_tipo===p.tipo&&String(o.pessoa_id)===String(p.id);});
+    html+='<div class="card tap" style="cursor:pointer" onclick="abrirPessoaSST(\''+p.tipo+'\',\''+p.id+'\')">'
+      +'<div style="font-weight:700">'+p.nome+'</div>'
+      +'<div class="mu sm">'+(p.cargo||'—')+'</div>'
+      +'<div class="g2" style="margin-top:8px">'
+        +'<div><div class="mu sm">EPIs ativos</div><div style="font-weight:600">'+ativosEpi+'</div></div>'
+        +'<div><div class="mu sm">Última O.S.</div><div style="font-weight:600">'+(ultimaOs?('Nº '+ultimaOs.numero):'—')+'</div></div>'
+      +'</div>'
+      +'</div>';
+  });
+  html+='</div>';
+  el.innerHTML=html;
+  const si=gid('si');if(si)si.oninput=null;
+}
+pageMap.epis_sst=rEpisSST;
+
+function abrirPessoaSST(tipo,id){
+  const p=_sstAcharPessoa(tipo,id);if(!p)return;
+  gid('mt2').textContent=p.nome+' — '+(p.cargo||'');
+  gid('mb2').innerHTML=
+    '<div class="tabs" id="sst-tabs">'
+    +'<div class="tab active" onclick="sstTab(\'epi\')">Entregas de EPI</div>'
+    +'<div class="tab" onclick="sstTab(\'os\')">Ordens de Serviço</div>'
+    +'</div>'
+    +'<div class="tp active" id="sst-tp-epi"></div>'
+    +'<div class="tp" id="sst-tp-os"></div>';
+  gid('mf2').innerHTML='<button class="btn" onclick="closeModal2()">Fechar</button>';
+  gid('ov2').classList.add('open');
+  renderSstEpiTab(tipo,id);
+  renderSstOsTab(tipo,id);
+}
+function sstTab(tab){
+  document.querySelectorAll('#mb2 .tp').forEach(function(el){el.classList.remove('active');});
+  document.querySelectorAll('#sst-tabs .tab').forEach(function(el){el.classList.remove('active');});
+  gid('sst-tp-'+tab).classList.add('active');
+  const idx={epi:0,os:1}[tab];
+  document.querySelectorAll('#sst-tabs .tab')[idx].classList.add('active');
+}
+async function renderSstEpiTab(tipo,id){
+  const p=_sstAcharPessoa(tipo,id);if(!p)return;
+  const el=gid('sst-tp-epi');if(!el)return;
+  const{data}=await sb.from('epi_entregas').select('*').eq('pessoa_tipo',tipo).eq('pessoa_id',id).order('data_entrega',{ascending:false});
+  const itens=data||[];
+  let html='<div class="fxb mb1"><button class="btn bp2 bsm" onclick="abrirNovaEntregaEpi(\''+tipo+'\',\''+id+'\')"><i class="ti ti-plus"></i> Registrar entrega</button>'
+    +(itens.length?'<button class="btn bsm" onclick="gerarFichaEPI(\''+tipo+'\',\''+id+'\')"><i class="ti ti-file-download"></i> Gerar Ficha de EPI (PDF)</button>':'')
+    +'</div>';
+  html+='<div class="tw"><table><thead><tr><th>EPI</th><th>Qtd</th><th>C.A.</th><th>Entrega</th><th>Devolução</th><th></th></tr></thead><tbody>'
+    +(itens.map(function(i){return'<tr><td>'+(i.descricao||'—')+'</td><td>'+(i.quantidade||1)+'</td><td class="mu sm">'+(i.ca||'—')+'</td><td>'+fd(i.data_entrega)+'</td><td>'+(i.data_devolucao?fd(i.data_devolucao):'—')+'</td>'
+      +'<td class="fx g8"><button class="btn bxs bdr" onclick="excluirEntregaEpi(\''+i.id+'\',\''+tipo+'\',\''+id+'\')"><i class="ti ti-trash"></i></button></td></tr>';}).join('')||nd(6,'Nenhuma entrega registrada.'))
+    +'</tbody></table></div>';
+  el.innerHTML=html;
+}
+async function renderSstOsTab(tipo,id){
+  const p=_sstAcharPessoa(tipo,id);if(!p)return;
+  const el=gid('sst-tp-os');if(!el)return;
+  const{data}=await sb.from('sst_ordens_servico').select('*').eq('pessoa_tipo',tipo).eq('pessoa_id',id).order('numero',{ascending:false});
+  const itens=data||[];
+  let html='<div class="fxb mb1"><button class="btn bp2 bsm" onclick="abrirNovaOsSst(\''+tipo+'\',\''+id+'\')"><i class="ti ti-plus"></i> Nova Ordem de Serviço</button></div>';
+  html+='<div class="tw"><table><thead><tr><th>Nº</th><th>Emissão</th><th>Atividades</th><th></th></tr></thead><tbody>'
+    +(itens.map(function(o){return'<tr><td class="w5">'+o.numero+'</td><td>'+fd(o.data_emissao)+'</td><td class="mu sm">'+(o.atividades||'—')+'</td>'
+      +'<td class="fx g8"><button class="btn bsm" onclick="gerarOrdemServicoSST(\''+o.id+'\')"><i class="ti ti-file-download"></i></button><button class="btn bxs bdr" onclick="excluirOsSst(\''+o.id+'\',\''+tipo+'\',\''+id+'\')"><i class="ti ti-trash"></i></button></td></tr>';}).join('')||nd(4,'Nenhuma Ordem de Serviço emitida.'))
+    +'</tbody></table></div>';
+  el.innerHTML=html;
+}
+
+function abrirNovaEntregaEpi(tipo,id){
+  const p=_sstAcharPessoa(tipo,id);if(!p)return;
+  const epiOpts=_sstEpisCache.filter(function(e){return e.ativo!==false;}).map(function(e){return '<option value="'+e.id+'" data-ca="'+(e.ca_padrao||'')+'">'+e.nome+'</option>';}).join('');
+  gid('mt').textContent='Registrar entrega de EPI — '+p.nome;
+  gid('mb').innerHTML=
+    '<div class="fg"><label class="fl">EPI (do catálogo)</label><select class="fc" id="epi-sel" onchange="document.getElementById(\'epi-desc\').value=this.options[this.selectedIndex].text;document.getElementById(\'epi-ca\').value=this.options[this.selectedIndex].dataset.ca||\'\'"><option value="">— Descrever manualmente —</option>'+epiOpts+'</select></div>'
+    +'<div class="fg"><label class="fl">Descrição do EPI *</label><input class="fc" id="epi-desc" placeholder="Ex: Capacete de proteção"></div>'
+    +'<div class="g3"><div class="fg"><label class="fl">Qtd</label><input class="fc" type="number" id="epi-qtd" value="1"></div>'
+    +'<div class="fg"><label class="fl">C.A.</label><input class="fc" id="epi-ca"></div>'
+    +'<div class="fg"><label class="fl">Data entrega</label><input class="fc" type="date" id="epi-data" value="'+hojeLocal()+'"></div></div>'
+    +'<div class="fg"><label class="fl">Data devolução (opcional)</label><input class="fc" type="date" id="epi-devol"></div>'
+    +'<div class="fg"><label class="fl">Registro do funcionário (matrícula, opcional)</label><input class="fc" id="epi-registro" value="'+(p.registro||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Observações</label><input class="fc" id="epi-obs"></div>';
+  gid('mf').innerHTML='<button class="btn" onclick="closeModal();document.getElementById(\'ov\').style.zIndex=\'\'">Cancelar</button><button class="btn bp2" onclick="salvarEntregaEpi(\''+tipo+'\',\''+id+'\')"><i class="ti ti-device-floppy"></i> Registrar</button>';
+  const ov=gid('ov');ov.style.zIndex='200';ov.classList.add('open');
+}
+async function salvarEntregaEpi(tipo,id){
+  const p=_sstAcharPessoa(tipo,id);if(!p)return;
+  const descricao=gid('epi-desc')?.value.trim();
+  if(!descricao){toast('Informe a descrição do EPI.',true);return;}
+  const epiSel=gid('epi-sel')?.value||null;
+  const payload={
+    pessoa_tipo:tipo,pessoa_id:id,pessoa_nome:p.nome,pessoa_cargo:p.cargo,pessoa_registro:gid('epi-registro')?.value||null,pessoa_admissao:p.admissao||null,
+    epi_id:epiSel||null,descricao,ca:gid('epi-ca')?.value||null,
+    quantidade:parseFloat(gid('epi-qtd')?.value)||1,
+    data_entrega:gid('epi-data')?.value||hojeLocal(),
+    data_devolucao:gid('epi-devol')?.value||null,
+    obs:gid('epi-obs')?.value||null,
+  };
+  const{error}=await sb.from('epi_entregas').insert(payload);
+  if(error){toast('Erro: '+error.message,true);return;}
+  closeModal();gid('ov').style.zIndex='';
+  toast('Entrega registrada!');
+  renderSstEpiTab(tipo,id);
+}
+async function excluirEntregaEpi(entregaId,tipo,id){
+  if(!confirm('Excluir esta entrega de EPI?'))return;
+  const{error}=await sb.from('epi_entregas').delete().eq('id',entregaId);
+  if(error){toast('Erro: '+error.message,true);return;}
+  toast('Excluído.');
+  renderSstEpiTab(tipo,id);
+}
+
+function abrirNovaOsSst(tipo,id){
+  const p=_sstAcharPessoa(tipo,id);if(!p)return;
+  const d=riscoPadraoPorCargo(p.cargo);
+  gid('mt').textContent='Nova Ordem de Serviço (NR-1) — '+p.nome;
+  gid('mb').innerHTML=
+    '<div class="mu sm mb1">Campos pré-preenchidos com o padrão do cargo — revise e ajuste antes de salvar.</div>'
+    +'<div class="g2"><div class="fg"><label class="fl">Cargo</label><input class="fc" id="os-cargo" value="'+(p.cargo||'')+'"></div>'
+    +'<div class="fg"><label class="fl">C.B.O.</label><input class="fc" id="os-cbo" placeholder="Ex: 3123-20"></div></div>'
+    +'<div class="fg"><label class="fl">Data de emissão</label><input class="fc" type="date" id="os-data" value="'+hojeLocal()+'"></div>'
+    +'<div class="fg"><label class="fl">Atividades</label><textarea class="fc" id="os-atividades" rows="2">'+d.atividades+'</textarea></div>'
+    +'<div class="fg"><label class="fl">Riscos físicos</label><input class="fc" id="os-fisicos" value="'+d.fisicos+'"></div>'
+    +'<div class="fg"><label class="fl">Riscos químicos</label><input class="fc" id="os-quimicos" value="'+d.quimicos+'"></div>'
+    +'<div class="fg"><label class="fl">Riscos biológicos</label><input class="fc" id="os-biologicos" value="'+d.biologicos+'"></div>'
+    +'<div class="fg"><label class="fl">Riscos ergonômicos</label><input class="fc" id="os-ergonomicos" value="'+d.ergonomicos+'"></div>'
+    +'<div class="fg"><label class="fl">Riscos de acidentes</label><input class="fc" id="os-acidentes" value="'+d.acidentes+'"></div>'
+    +'<div class="fg"><label class="fl">EPIs necessários (um por linha)</label><textarea class="fc" id="os-epis" rows="3">'+d.epis+'</textarea></div>'
+    +'<div class="fg"><label class="fl">Medidas preventivas (um por linha)</label><textarea class="fc" id="os-medidas" rows="3">'+d.medidas+'</textarea></div>'
+    +'<div class="fg"><label class="fl">Orientações de segurança / procedimento em acidente (um por linha)</label><textarea class="fc" id="os-orientacoes" rows="4">'+d.orientacoes+'</textarea></div>';
+  gid('mf').innerHTML='<button class="btn" onclick="closeModal();document.getElementById(\'ov\').style.zIndex=\'\'">Cancelar</button><button class="btn bp2" onclick="salvarOsSst(\''+tipo+'\',\''+id+'\')"><i class="ti ti-device-floppy"></i> Salvar</button>';
+  const ov=gid('ov');ov.style.zIndex='200';ov.classList.add('open');
+}
+async function salvarOsSst(tipo,id){
+  const p=_sstAcharPessoa(tipo,id);if(!p)return;
+  const{data:ults}=await sb.from('sst_ordens_servico').select('numero').order('numero',{ascending:false}).limit(1);
+  const numero=(ults&&ults[0]&&ults[0].numero?ults[0].numero:0)+1;
+  const payload={
+    numero,pessoa_tipo:tipo,pessoa_id:id,pessoa_nome:p.nome,
+    pessoa_cargo:gid('os-cargo')?.value||p.cargo,pessoa_cbo:gid('os-cbo')?.value||null,pessoa_admissao:p.admissao||null,
+    atividades:gid('os-atividades')?.value||null,
+    riscos_fisicos:gid('os-fisicos')?.value||null,
+    riscos_quimicos:gid('os-quimicos')?.value||null,
+    riscos_biologicos:gid('os-biologicos')?.value||null,
+    riscos_ergonomicos:gid('os-ergonomicos')?.value||null,
+    riscos_acidentes:gid('os-acidentes')?.value||null,
+    epis_necessarios:gid('os-epis')?.value||null,
+    medidas_preventivas:gid('os-medidas')?.value||null,
+    orientacoes:gid('os-orientacoes')?.value||null,
+    data_emissao:gid('os-data')?.value||hojeLocal(),
+  };
+  const{error}=await sb.from('sst_ordens_servico').insert(payload);
+  if(error){toast('Erro: '+error.message,true);return;}
+  closeModal();gid('ov').style.zIndex='';
+  toast('Ordem de Serviço nº '+numero+' criada!');
+  renderSstOsTab(tipo,id);
+}
+async function excluirOsSst(osId,tipo,id){
+  if(!confirm('Excluir esta Ordem de Serviço?'))return;
+  const{error}=await sb.from('sst_ordens_servico').delete().eq('id',osId);
+  if(error){toast('Erro: '+error.message,true);return;}
+  toast('Excluído.');
+  renderSstOsTab(tipo,id);
+}
+
+function abrirCatalogoEpis(){
+  gid('mt2').textContent='Catálogo de EPIs';
+  gid('mb2').innerHTML='<div class="fxb mb1"><div class="mu sm">EPIs cadastrados, com C.A. padrão</div><button class="btn bp2 bsm" onclick="novoEpiModal()"><i class="ti ti-plus"></i> Novo EPI</button></div><div id="epi-cat-list"></div>';
+  gid('mf2').innerHTML='<button class="btn" onclick="closeModal2()">Fechar</button>';
+  gid('ov2').classList.add('open');
+  renderCatalogoEpisList();
+}
+async function renderCatalogoEpisList(){
+  const{data}=await sb.from('epis').select('*').order('nome');
+  _sstEpisCache=data||[];
+  const el=gid('epi-cat-list');if(!el)return;
+  el.innerHTML='<div class="tw"><table><thead><tr><th>Nome</th><th>Categoria</th><th>C.A. padrão</th><th>Status</th><th></th></tr></thead><tbody>'
+    +(_sstEpisCache.map(function(e){return'<tr><td>'+e.nome+'</td><td class="mu sm">'+(e.categoria||'—')+'</td><td class="mu sm">'+(e.ca_padrao||'—')+'</td><td><span class="bd '+(e.ativo?'bs':'br')+'">'+(e.ativo?'Ativo':'Inativo')+'</span></td>'
+      +'<td class="fx g8"><button class="btn bsm" onclick="editRecord(\'epis\',\''+e.id+'\')"><i class="ti ti-edit"></i></button><button class="btn bxs bdr" onclick="excluirReg(\'epis\',\''+e.id+'\',\''+(e.nome||'').replace(/'/g,"\\'")+'\')"><i class="ti ti-trash"></i></button></td></tr>';}).join('')||nd(5,'Nenhum EPI cadastrado.'))
+    +'</tbody></table></div>';
+}
+async function novoEpiModal(){
+  const prevPage=CP;CP='epis';EID=null;
+  await openModal();
+  CP=prevPage;EID=null;
+}
+
+// ─── PDF: Ficha de Controle de EPI ─────────────────────────────
+async function gerarFichaEPI(tipo,id){
+  const p=_sstAcharPessoa(tipo,id);if(!p){toast('Pessoa não encontrada.',true);return;}
+  const{data}=await sb.from('epi_entregas').select('*').eq('pessoa_tipo',tipo).eq('pessoa_id',id).order('data_entrega');
+  const itens=data||[];
+  if(!itens.length){toast('Nenhuma entrega registrada para gerar a ficha.',true);return;}
+  toast('Gerando PDF...');
+  const TEAL=[42,191,191],DARK_TEAL=[25,150,150],NAVY=[30,40,70],WHITE=[255,255,255];
+  const W=210;const doc=novoPDF();let y=30;
+  doc.setFillColor(...TEAL);doc.rect(0,0,W,22,'F');
+  doc.setFillColor(...DARK_TEAL);doc.rect(0,22,W,1.5,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(...WHITE);
+  doc.text('FICHA DE CONTROLE DE EPI',W/2,11,{align:'center'});
+  doc.setFont('helvetica','normal');doc.setFontSize(8);
+  doc.text(EMPRESA.nome+' — Equipamento de Proteção Individual (NR-6)',W/2,18,{align:'center'});
+  doc.setTextColor(...NAVY);
+  doc.setDrawColor(200,200,200);
+  doc.setFontSize(9);
+  const registro=itens.map(function(i){return i.pessoa_registro;}).find(Boolean);
+  const admissao=itens.map(function(i){return i.pessoa_admissao;}).find(Boolean);
+  const info=[['Nome',p.nome],['Função',p.cargo||'—'],['Registro',registro||'—'],['Data de admissão',admissao?fd(admissao):'—']];
+  info.forEach(function(row,i){
+    const rx=10+(i%2)*(W-20)/2, ry=y+Math.floor(i/2)*8;
+    doc.setFont('helvetica','bold');doc.text(row[0]+':',rx,ry);
+    doc.setFont('helvetica','normal');doc.text(String(row[1]),rx+30,ry);
+  });
+  y+=22;
+  const head=[['Descrição do EPI','Qtd','C.A.','Entrega','Devolução','Assinatura']];
+  const body=itens.map(function(i){return[i.descricao||'—',String(i.quantidade||1),i.ca||'—',fd(i.data_entrega),i.data_devolucao?fd(i.data_devolucao):'',''];});
+  doc.autoTable({startY:y,head,body,margin:{left:10,right:10},styles:{fontSize:8,cellPadding:2},headStyles:{fillColor:DARK_TEAL,textColor:WHITE},columnStyles:{1:{cellWidth:12},2:{cellWidth:18},3:{cellWidth:22},4:{cellWidth:22},5:{cellWidth:32}}});
+  y=doc.lastAutoTable.finalY+8;
+  const clausulas=[
+    '1. Recebi da empresa '+EMPRESA.nome+' os Equipamentos de Proteção Individual (EPI) acima listados, nas datas ali registradas. Comprometo-me a utilizar os EPIs fornecidos na execução das minhas atividades, zelando pela guarda e conservação mantendo os mesmos em perfeito estado de utilização. Assumo o compromisso de devolvê-los quando for solicitado ou por rescisão de contrato de trabalho.',
+    '2. Se o equipamento for danificado ou inutilizado por emprego inadequado, mau uso, negligência ou extravio a empresa fornecerá um novo equipamento e o valor será descontado do meu salário.',
+    '3. Fico ciente que o descumprimento dos itens aqui listados implicará em ato faltoso do empregado com aplicação de penalidades a critério do empregador, que varia de advertência à rescisão do contrato de trabalho, ou outras medidas cabíveis baseada no art. 158 da CLT, na NR-1 (Disposições gerais) e na NR-6 (Equipamento de Proteção Individual).',
+    '4. Declaro que os equipamentos recebidos estão em plenas condições de uso.',
+  ];
+  doc.setFontSize(7.5);doc.setTextColor(60,60,60);
+  clausulas.forEach(function(c){
+    const lines=doc.splitTextToSize(c,W-20);
+    if(y+lines.length*3.6>270){doc.addPage();y=20;}
+    doc.text(lines,10,y);y+=lines.length*3.6+3;
+  });
+  y+=10;
+  if(y>265){doc.addPage();y=30;}
+  doc.setDrawColor(120,120,120);doc.line(20,y,90,y);doc.line(120,y,190,y);
+  doc.setFontSize(8);doc.setTextColor(...NAVY);
+  doc.text('Assinatura do Funcionário',55,y+5,{align:'center'});
+  doc.text('Data: ____/____/______',155,y+5,{align:'center'});
+  const pageCount=doc.internal.getNumberOfPages();
+  for(let i=1;i<=pageCount;i++){
+    doc.setPage(i);
+    doc.setFillColor(...TEAL);doc.rect(0,287,W,10,'F');
+    doc.setFont('helvetica','normal');doc.setFontSize(7);doc.setTextColor(...WHITE);
+    doc.text(EMPRESA.nome+(EMPRESA.cnpj?' · CNPJ: '+EMPRESA.cnpj:''),W/2,292,{align:'center'});
+    doc.text('Página '+i+' de '+pageCount,W/2,296,{align:'center'});
+  }
+  doc.save('Ficha_EPI_'+p.nome.replace(/\s+/g,'_')+'.pdf');
+  toast('PDF gerado!');
+}
+
+// ─── PDF: Ordem de Serviço (NR-1) ───────────────────────────────
+async function gerarOrdemServicoSST(osId){
+  const{data:o}=await sb.from('sst_ordens_servico').select('*').eq('id',osId).single();
+  if(!o){toast('Ordem de Serviço não encontrada.',true);return;}
+  toast('Gerando PDF...');
+  const NAVY=[30,40,70],BAR=[70,70,70],WHITE=[255,255,255];
+  const W=210;const doc=novoPDF();let y=20;
+  function checkPage(need){if(y+need>280){doc.addPage();y=20;}}
+  doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(...NAVY);
+  doc.text('ORDEM DE SERVIÇO – O.S.',10,y);
+  doc.setFontSize(10);doc.text('Nº da Ordem: '+String(o.numero).padStart(2,'0'),W-10,y,{align:'right'});
+  y+=8;
+  doc.setDrawColor(150,150,150);
+  const rows=[['Nome:',o.pessoa_nome,'Admissão:',o.pessoa_admissao?fd(o.pessoa_admissao):'—'],['Cargo:',o.pessoa_cargo||'—','C.B.O.:',o.pessoa_cbo||'—']];
+  doc.setFontSize(9);
+  rows.forEach(function(r){
+    doc.rect(10,y,W-20,7);
+    doc.setFont('helvetica','bold');doc.text(r[0],12,y+5);doc.text(r[2],120,y+5);
+    doc.setFont('helvetica','normal');doc.text(String(r[1]),32,y+5);doc.text(String(r[3]),140,y+5);
+    y+=7;
+  });
+  y+=6;
+  doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(40,40,40);
+  const intro='Pela presente Ordem de Serviço, objetivamos informar os trabalhadores que executam suas atividades laborais nesse setor, conforme estabelece a NR-1, item 1.7, sobre as condições de segurança e saúde às quais estão expostos, como medida preventiva e, tendo como parâmetro os agentes físicos, químicos e biológicos citados na NR-1 — Programa de Gerenciamento de Riscos, bem como os procedimentos de aplicação da NR-6 — Equipamento de Proteção Individual (EPI) e NR-17 — Ergonomia, de forma a padronizar comportamentos para prevenir acidentes e/ou doenças ocupacionais.';
+  let lines=doc.splitTextToSize(intro,W-20);doc.text(lines,10,y);y+=lines.length*3.8+4;
+  function secao(titulo,conteudo,bullets){
+    checkPage(14);
+    doc.setFillColor(...BAR);doc.rect(10,y,W-20,6,'F');
+    doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...WHITE);
+    doc.text(titulo,W/2,y+4.2,{align:'center'});
+    y+=9;
+    doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(40,40,40);
+    if(bullets){
+      String(conteudo||'').split('\n').filter(Boolean).forEach(function(item){
+        const t=doc.splitTextToSize('•  '+item.trim(),W-24);
+        checkPage(t.length*3.8+2);
+        doc.text(t,12,y);y+=t.length*3.8+1.5;
+      });
+    }else{
+      const t=doc.splitTextToSize(conteudo||'—',W-20);
+      checkPage(t.length*3.8+2);
+      doc.text(t,10,y);y+=t.length*3.8+2;
+    }
+    y+=3;
+  }
+  secao('ATIVIDADES',o.atividades,false);
+  checkPage(30);
+  doc.setFillColor(...BAR);doc.rect(10,y,W-20,6,'F');
+  doc.setFont('helvetica','bold');doc.setFontSize(9);doc.setTextColor(...WHITE);
+  doc.text('RISCO E AVALIAÇÃO',W/2,y+4.2,{align:'center'});y+=9;
+  doc.setFontSize(8.5);doc.setTextColor(40,40,40);
+  [['Físicos',o.riscos_fisicos],['Químicos',o.riscos_quimicos],['Biológicos',o.riscos_biologicos],['Ergonômicos',o.riscos_ergonomicos],['Acidentes',o.riscos_acidentes]].forEach(function(r){
+    const t=doc.splitTextToSize('•  '+r[0]+': '+(r[1]||'não identificado'),W-24);
+    checkPage(t.length*3.8+2);
+    doc.setFont('helvetica','normal');doc.text(t,12,y);y+=t.length*3.8+1.5;
+  });
+  y+=3;
+  secao('EQUIPAMENTOS DE PROTEÇÃO INDIVIDUAL (EPI) NECESSÁRIOS',o.epis_necessarios,true);
+  secao('MEDIDAS PREVENTIVAS PARA OS RISCOS AMBIENTAIS',o.medidas_preventivas,true);
+  secao('ORIENTAÇÕES DE SEGURANÇA E PROCEDIMENTO EM CASO DE ACIDENTE',o.orientacoes,true);
+  checkPage(40);
+  doc.setFont('helvetica','bold');doc.setFontSize(8.5);doc.setTextColor(...NAVY);
+  doc.text('TERMO DE RESPONSABILIDADE',10,y);y+=5;
+  doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(40,40,40);
+  const termo='De acordo com o Artigo 158, Parágrafo Único, da lei 6.514/77 e da Norma Regulamentadora NR-1, a recusa ao fiel cumprimento desta ORDEM DE SERVIÇO, no todo ou em parte, constituirá ATO FALTOSO sujeitando o funcionário às penalidades previstas na lei. Declaro que fui plenamente orientado quanto aos procedimentos de segurança do trabalho, estando ciente dos riscos decorrentes da atividade e das sanções disciplinares a que estou sujeito quanto ao seu descumprimento.';
+  lines=doc.splitTextToSize(termo,W-20);checkPage(lines.length*3.8+2);doc.text(lines,10,y);y+=lines.length*3.8+10;
+  checkPage(20);
+  doc.text('Data da emissão: '+fd(o.data_emissao),10,y);y+=14;
+  doc.setDrawColor(120,120,120);doc.line(15,y,90,y);doc.line(120,y,195,y);
+  doc.setFontSize(8);
+  doc.text('Assinatura do Funcionário',52.5,y+5,{align:'center'});
+  doc.text('Responsável',157.5,y+5,{align:'center'});
+  const pageCount=doc.internal.getNumberOfPages();
+  for(let i=1;i<=pageCount;i++){
+    doc.setPage(i);
+    doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(120,120,120);
+    doc.text(EMPRESA.nome,W/2,292,{align:'center'});
+  }
+  doc.save('Ordem_Servico_'+String(o.numero).padStart(2,'0')+'_'+(o.pessoa_nome||'').replace(/\s+/g,'_')+'.pdf');
+  toast('PDF gerado!');
+}
+
+// ═══════════════════════════════════════════════════════════
+// TREINAMENTOS — Lista de Presença
+// ═══════════════════════════════════════════════════════════
+async function rTreinamentosSST(){
+  const el=gid('ct');el.innerHTML='<div class="ld"><div class="sp"></div></div>';
+  const{data}=await sb.from('sst_treinamentos').select('*').order('data',{ascending:false});
+  const itens=data||[];
+  let html='<div class="fxb mb1"><div class="mu sm">'+itens.length+' treinamento(s) registrado(s)</div><button class="btn bp2 bsm" onclick="abrirNovoTreinamento()"><i class="ti ti-plus"></i> Novo treinamento</button></div>';
+  html+='<div class="card"><div class="tw"><table><thead><tr><th>Título</th><th>Data</th><th>Turno</th><th>Participantes</th><th></th></tr></thead><tbody>'
+    +(itens.map(function(t){return'<tr><td class="w5">'+(t.titulo||'—')+'</td><td>'+fd(t.data)+'</td><td class="mu sm">'+(t.turno||'—')+'</td><td>'+((t.participantes||[]).length)+'</td>'
+      +'<td class="fx g8"><button class="btn bsm" onclick="gerarListaPresenca(\''+t.id+'\')"><i class="ti ti-file-download"></i></button><button class="btn bxs bdr" onclick="excluirReg(\'sst_treinamentos\',\''+t.id+'\',\''+(t.titulo||'').replace(/'/g,"\\'")+'\')"><i class="ti ti-trash"></i></button></td></tr>';}).join('')||nd(5,'Nenhum treinamento registrado.'))
+    +'</tbody></table></div></div>';
+  el.innerHTML=html;
+  const si=gid('si');if(si)si.oninput=null;
+}
+pageMap.treinamentos_sst=rTreinamentosSST;
+
+async function abrirNovoTreinamento(){
+  const pessoas=await _sstPessoas();
+  const chks=pessoas.map(function(p){return'<label style="display:flex;align-items:center;gap:8px;padding:4px;cursor:pointer" class="hover-row"><input type="checkbox" class="trn-part-chk" value="'+p.id+'" data-tipo="'+p.tipo+'" data-nome="'+p.nome+'" style="width:14px;height:14px;accent-color:var(--brand)"> <span style="font-size:13px">'+p.nome+'</span></label>';}).join('');
+  gid('mt').textContent='Novo Treinamento';
+  gid('mb').innerHTML=
+    '<div class="fg"><label class="fl">Título *</label><input class="fc" id="trn-titulo" value="Treinamento no uso de EPIs e Ordem de Serviço"></div>'
+    +'<div class="g3"><div class="fg"><label class="fl">Instituição</label><input class="fc" id="trn-instituicao" value="'+(EMPRESA.nome||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Data</label><input class="fc" type="date" id="trn-data" value="'+hojeLocal()+'"></div>'
+    +'<div class="fg"><label class="fl">Turno</label><select class="fc" id="trn-turno"><option>Diurno - Manhã</option><option>Diurno - Tarde</option><option>Noturno</option></select></div></div>'
+    +'<div class="fg"><label class="fl">Participantes</label><div style="max-height:200px;overflow:auto;border:1px solid var(--bor);border-radius:8px;padding:4px">'+(chks||'<div class="mu sm" style="padding:8px">Nenhum funcionário/sócio ativo.</div>')+'</div></div>';
+  gid('mf').innerHTML='<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn bp2" onclick="salvarTreinamento()"><i class="ti ti-device-floppy"></i> Salvar</button>';
+  gid('ov').classList.add('open');
+}
+async function salvarTreinamento(){
+  const titulo=gid('trn-titulo')?.value.trim();
+  if(!titulo){toast('Informe o título.',true);return;}
+  const chks=document.querySelectorAll('.trn-part-chk:checked');
+  const participantes=Array.from(chks).map(function(c){const p=_sstAcharPessoa(c.dataset.tipo,c.value);return{nome:c.dataset.nome,cpf:(p&&p.cpf)||''};});
+  const payload={
+    titulo,instituicao:gid('trn-instituicao')?.value||EMPRESA.nome,
+    data:gid('trn-data')?.value||hojeLocal(),turno:gid('trn-turno')?.value||null,
+    participantes,
+  };
+  const{error}=await sb.from('sst_treinamentos').insert(payload);
+  if(error){toast('Erro: '+error.message,true);return;}
+  closeModal();toast('Treinamento registrado!');renderPage();
+}
+async function gerarListaPresenca(id){
+  const{data:t}=await sb.from('sst_treinamentos').select('*').eq('id',id).single();
+  if(!t){toast('Treinamento não encontrado.',true);return;}
+  toast('Gerando PDF...');
+  const NAVY=[30,40,70];
+  const W=210;const doc=novoPDF();let y=20;
+  doc.setFont('helvetica','bold');doc.setFontSize(14);doc.setTextColor(...NAVY);
+  doc.text((t.titulo||'TREINAMENTO').toUpperCase(),10,y);y+=7;
+  doc.setFontSize(11);doc.text('LISTA DE PRESENÇA',10,y);y+=8;
+  doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(40,40,40);
+  doc.text('Instituição: '+(t.instituicao||EMPRESA.nome),10,y);y+=5;
+  doc.text('Data: '+fd(t.data)+'   Turno: '+(t.turno||'—'),10,y);y+=8;
+  const participantes=t.participantes||[];
+  const totalLinhas=Math.max(participantes.length+3,15);
+  const head=[['#','Nome completo','CPF','Assinatura']];
+  const body=[];
+  for(let i=0;i<totalLinhas;i++){
+    const p=participantes[i];
+    body.push([String(i+1),p?p.nome:'',p?(p.cpf||''):'','']);
+  }
+  doc.autoTable({startY:y,head,body,margin:{left:10,right:10},styles:{fontSize:8.5,cellPadding:2.2,minCellHeight:8},headStyles:{fillColor:[70,70,70],textColor:[255,255,255]},columnStyles:{0:{cellWidth:10,halign:'center'},2:{cellWidth:34},3:{cellWidth:44}}});
+  const pageCount=doc.internal.getNumberOfPages();
+  for(let i=1;i<=pageCount;i++){
+    doc.setPage(i);
+    doc.setFont('helvetica','normal');doc.setFontSize(7.5);doc.setTextColor(120,120,120);
+    doc.text(EMPRESA.nome+' · Página '+i+' de '+pageCount,W/2,292,{align:'center'});
+  }
+  doc.save('Lista_Presenca_'+fd(t.data).replace(/\//g,'-')+'.pdf');
+  toast('PDF gerado!');
+}
+
+// ═══════════════════════════════════════════════════════════
+// MINHAS TAREFAS — checklist pessoal, isolado por usuário (RLS)
+// ═══════════════════════════════════════════════════════════
+async function rTarefas(){
+  const el=gid('ct');if(!CU){el.innerHTML='';return;}
+  el.innerHTML='<div class="ld"><div class="sp"></div></div>';
+  const{data,error}=await sb.from('tarefas_pessoais').select('*').eq('usuario_id',CU.id).order('concluida').order('criado_em',{ascending:false});
+  if(error){el.innerHTML='<div class="card"><div class="st">Minhas Tarefas indisponível</div><div class="mu sm">Rode a migration <b>add_tarefas_pessoais.sql</b> no Supabase.<br>'+error.message+'</div></div>';return;}
+  const itens=data||[];
+  const pendentes=itens.filter(function(t){return!t.concluida;});
+  let html='<div class="g2 mb1">'
+    +'<div class="mc"><div class="ml">Pendentes</div><div class="mv">'+pendentes.length+'</div></div>'
+    +'<div class="mc"><div class="ml">Concluídas</div><div class="mv" style="color:#2f7d32">'+(itens.length-pendentes.length)+'</div></div>'
+    +'</div>';
+  html+='<div class="card"><div class="fx g8 mb1"><input class="fc" id="nova-tarefa-txt" placeholder="Nova tarefa... (ex: ligar para o cliente)" onkeydown="if(event.key==\'Enter\')addTarefaPessoal()" style="flex:1"><button class="btn bp2 bsm" onclick="addTarefaPessoal()"><i class="ti ti-plus"></i> Adicionar</button></div>'
+    +'<div id="tarefas-lista"></div></div>';
+  el.innerHTML=html;
+  _renderTarefasLista(itens);
+  const si=gid('si');if(si)si.oninput=null;
+}
+function _renderTarefasLista(itens){
+  const el=gid('tarefas-lista');if(!el)return;
+  el.innerHTML=itens.map(function(t){
+    return '<div class="fx g8" style="padding:8px 2px;border-bottom:.5px solid var(--bor)">'
+      +'<input type="checkbox" '+(t.concluida?'checked':'')+' onchange="toggleTarefaPessoal(\''+t.id+'\',this.checked)" style="width:16px;height:16px;accent-color:var(--brand);flex-shrink:0">'
+      +'<span style="flex:1;font-size:13px;'+(t.concluida?'text-decoration:line-through;color:#999':'')+'">'+t.texto+'</span>'
+      +'<span class="mu sm">'+fd((t.criado_em||'').slice(0,10))+'</span>'
+      +'<button class="btn bxs bdr" onclick="excluirTarefaPessoal(\''+t.id+'\')"><i class="ti ti-trash"></i></button>'
+      +'</div>';
+  }).join('')||'<div class="mu sm" style="text-align:center;padding:2rem">Nenhuma tarefa. Adicione a primeira acima.</div>';
+}
+async function addTarefaPessoal(){
+  const inp=gid('nova-tarefa-txt');const texto=(inp?.value||'').trim();
+  if(!texto||!CU)return;
+  const nome=CU.user_metadata?.name||CU.email.split('@')[0];
+  const{error}=await sb.from('tarefas_pessoais').insert({usuario_id:CU.id,usuario_nome:nome,texto});
+  if(error){toast('Erro: '+error.message,true);return;}
+  if(inp)inp.value='';
+  rTarefas();
+  atualizarBadgeTarefas();
+}
+async function toggleTarefaPessoal(id,val){
+  const{error}=await sb.from('tarefas_pessoais').update({concluida:val,concluido_em:val?new Date().toISOString():null}).eq('id',id);
+  if(error){toast('Erro: '+error.message,true);return;}
+  rTarefas();
+  atualizarBadgeTarefas();
+}
+async function excluirTarefaPessoal(id){
+  if(!confirm('Excluir esta tarefa?'))return;
+  const{error}=await sb.from('tarefas_pessoais').delete().eq('id',id);
+  if(error){toast('Erro: '+error.message,true);return;}
+  rTarefas();
+  atualizarBadgeTarefas();
+}
+async function atualizarBadgeTarefas(){
+  if(!CU)return;
+  try{
+    const{data}=await sb.from('tarefas_pessoais').select('id').eq('usuario_id',CU.id).eq('concluida',false);
+    const n=(data||[]).length;
+    const b=gid('bta');
+    if(b){b.textContent=n;b.style.display=n>0?'inline':'none';}
+  }catch(e){}
+}
+pageMap.tarefas=rTarefas;
 
 async function agendarTarefaOS(osId,osNumero){
   const{data:funcs}=await sb.from('funcionarios').select('id,nome').eq('ativo',true).order('nome');
