@@ -14684,13 +14684,18 @@ async function renderCatalogoEpisList(){
   const el=gid('epi-cat-list');if(!el)return;
   el.innerHTML='<div class="tw"><table><thead><tr><th>Nome</th><th>Categoria</th><th>C.A. padrão</th><th>Status</th><th></th></tr></thead><tbody>'
     +(_sstEpisCache.map(function(e){return'<tr><td>'+e.nome+'</td><td class="mu sm">'+(e.categoria||'—')+'</td><td class="mu sm">'+(e.ca_padrao||'—')+'</td><td><span class="bd '+(e.ativo?'bs':'br')+'">'+(e.ativo?'Ativo':'Inativo')+'</span></td>'
-      +'<td class="fx g8"><button class="btn bsm" onclick="editRecord(\'epis\',\''+e.id+'\')"><i class="ti ti-edit"></i></button><button class="btn bxs bdr" onclick="excluirReg(\'epis\',\''+e.id+'\',\''+(e.nome||'').replace(/'/g,"\\'")+'\')"><i class="ti ti-trash"></i></button></td></tr>';}).join('')||nd(5,'Nenhum EPI cadastrado.'))
+      +'<td class="fx g8"><button class="btn bsm" onclick="editarEpiCatalogo(\''+e.id+'\')"><i class="ti ti-edit"></i></button><button class="btn bxs bdr" onclick="excluirReg(\'epis\',\''+e.id+'\',\''+(e.nome||'').replace(/'/g,"\\'")+'\')"><i class="ti ti-trash"></i></button></td></tr>';}).join('')||nd(5,'Nenhum EPI cadastrado.'))
     +'</tbody></table></div>';
 }
 async function novoEpiModal(){
   const prevPage=CP;CP='epis';EID=null;
   await openModal();
   CP=prevPage;EID=null;
+  const ov=gid('ov');ov.style.zIndex='200';
+}
+async function editarEpiCatalogo(id){
+  await editRecord('epis',id);
+  const ov=gid('ov');ov.style.zIndex='200';
 }
 
 // ─── PDF: Ficha de Controle de EPI ─────────────────────────────
