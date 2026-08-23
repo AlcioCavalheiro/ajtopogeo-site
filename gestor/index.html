@@ -3,7 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1a6fc4">
 <title>AJ TopoGeo Gestor</title>
+<link rel="manifest" href="/gestor/manifest.webmanifest">
+<link rel="apple-touch-icon" sizes="180x180" href="/gestor/icon-180.png">
+<link rel="apple-touch-icon" href="/gestor/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Gestor">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -36,6 +44,10 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .sb{width:var(--sb);background:var(--sf);border-right:1px solid var(--bor);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;overflow-y:auto;z-index:100;transition:transform .25s ease}
 .mn{margin-left:var(--sb);flex:1;display:flex;flex-direction:column;transition:margin-left .25s}
 .tb{background:var(--sf);border-bottom:1px solid var(--bor);padding:0 1.5rem 0 56px;height:54px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:5}
+#installbar{background:#fff8ec;border-bottom:1px solid var(--bor);padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:13px}
+#installbar .fx{align-items:center}
+#installbar b{display:block}
+#installbar .x{background:none;border:none;font-size:20px;color:var(--mu);cursor:pointer;padding:0 4px;margin-left:auto}
 .ct{padding:1.5rem;flex:1}
 .logo{padding:1.1rem 1.25rem;border-bottom:1px solid rgba(255,255,255,.15);display:flex;align-items:center;gap:10px;background:var(--bd)}
 .logo i{font-size:26px;color:#fff}
@@ -369,6 +381,7 @@ select.fc{cursor:pointer}
     </div>
   </aside>
   <main class="mn">
+    <div id="installbar" hidden></div>
     <div class="tb">
       <div class="w7" id="pt" style="font-size:15px">Dashboard</div>
       <div class="fx g8">
@@ -677,9 +690,35 @@ async function setUser(u){
   }
   if(!MEU_PERFIL) toast('Seu usuário ainda não tem perfil de acesso definido. Peça para o administrador liberar no Gestor.',true);
   aplicarPerfilNav();
-  if(!jaLogado) nav('dashboard');
+  if(!jaLogado){nav('dashboard');maybeInstallHint();}
   checkPendencias();
 }
+
+/* ════════════ Instalação (Android: prompt nativo · iOS: dica manual) ════════════ */
+let _deferredPrompt=null;
+addEventListener('beforeinstallprompt',e=>{e.preventDefault();_deferredPrompt=e;});
+addEventListener('appinstalled',dismissInstall);
+function isStandalone(){return matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;}
+function isIOS(){return /iphone|ipad|ipod/i.test(navigator.userAgent)&&!window.MSStream;}
+function maybeInstallHint(){
+  if(isStandalone()||localStorage.getItem('gestor-inst-dismiss')==='1')return;
+  if(_deferredPrompt)showInstallBar('android');
+  else if(isIOS())showInstallBar('ios');
+}
+function showInstallBar(kind){
+  const bar=document.getElementById('installbar');if(!bar||isStandalone())return;
+  bar.innerHTML=kind==='android'
+    ?`<i class="ti ti-download" style="font-size:22px;color:var(--brand)"></i>
+       <div><b>Instalar o app</b><div class="mu">Fica na tela inicial e abre em tela cheia.</div></div>
+       <button class="btn bp2 bsm" onclick="doInstall()">Instalar</button><button class="x" onclick="dismissInstall()">&times;</button>`
+    :`<i class="ti ti-device-mobile-share" style="font-size:22px;color:var(--brand)"></i>
+       <div><b>Instalar no iPhone</b><div class="mu">Toque em <b>Compartilhar</b> e depois em <b>“Adicionar à Tela de Início”</b>.</div></div>
+       <button class="x" onclick="dismissInstall()">&times;</button>`;
+  bar.hidden=false;
+}
+async function doInstall(){if(!_deferredPrompt)return;_deferredPrompt.prompt();try{await _deferredPrompt.userChoice;}catch(e){}_deferredPrompt=null;dismissInstall();}
+function dismissInstall(){localStorage.setItem('gestor-inst-dismiss','1');const b=document.getElementById('installbar');if(b)b.hidden=true;}
+if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('/gestor/sw.js').catch(()=>{}));
 function showLogin(){document.getElementById('ls').style.display='flex';document.getElementById('app').style.display='none';}
 
 // ── NAV
@@ -14411,21 +14450,32 @@ function riscoPadraoPorCargo(cargo){
 
 async function rEpisSST(){
   const el=gid('ct');el.innerHTML='<div class="ld"><div class="sp"></div></div>';
-  const[pessoas,{data:entregas},{data:oss},{data:epis}]=await Promise.all([
+  const[todasPessoas,{data:roster,error},{data:entregas},{data:oss},{data:epis}]=await Promise.all([
     _sstPessoas(),
+    sb.from('sst_pessoas').select('*').order('created_at'),
     sb.from('epi_entregas').select('pessoa_tipo,pessoa_id,data_devolucao'),
     sb.from('sst_ordens_servico').select('pessoa_tipo,pessoa_id,numero,data_emissao').order('numero',{ascending:false}),
     sb.from('epis').select('*').order('nome'),
   ]);
   _sstEpisCache=epis||[];
-  if(!pessoas.length){el.innerHTML='<div style="text-align:center;padding:3rem 1rem;color:#888"><i class="ti ti-users" style="font-size:44px;opacity:.4"></i><div style="margin-top:8px;font-size:15px">Nenhum funcionário ou sócio ativo cadastrado.</div></div>';return;}
-  html='<div class="fxb mb1"><div class="mu sm">'+pessoas.length+' pessoa(s) — clique em um card para ver EPIs e Ordens de Serviço</div><button class="btn bsm" onclick="abrirCatalogoEpis()"><i class="ti ti-list-details"></i> Catálogo de EPIs ('+_sstEpisCache.length+')</button></div>';
+  if(error){el.innerHTML='<div class="card"><div class="st">Segurança e Trabalho indisponível</div><div class="mu sm">Rode a migration <b>add_sst_pessoas.sql</b> no Supabase.<br>'+error.message+'</div></div>';return;}
+  const pessoas=(roster||[]).map(function(r){
+    const live=todasPessoas.find(function(p){return p.tipo===r.pessoa_tipo&&String(p.id)===String(r.pessoa_id);});
+    const p=live?Object.assign({},live):{tipo:r.pessoa_tipo,id:r.pessoa_id,nome:r.pessoa_nome,cargo:r.pessoa_cargo||'',registro:'',admissao:'',cpf:'',inativo:true};
+    p.rosterId=r.id;
+    if(!_sstPessoasCache.find(function(x){return x.tipo===p.tipo&&String(x.id)===String(p.id);}))_sstPessoasCache.push(p);
+    return p;
+  });
+  const topBar='<div class="fxb mb1"><div class="mu sm">'+pessoas.length+' pessoa(s) no controle — clique em um card para ver EPIs e Ordens de Serviço</div><div class="fx g8"><button class="btn bp2 bsm" onclick="abrirAdicionarPessoaSST()"><i class="ti ti-user-plus"></i> Adicionar pessoa</button><button class="btn bsm" onclick="abrirCatalogoEpis()"><i class="ti ti-list-details"></i> Catálogo de EPIs ('+_sstEpisCache.length+')</button></div></div>';
+  if(!pessoas.length){el.innerHTML=topBar+'<div style="text-align:center;padding:3rem 1rem;color:#888"><i class="ti ti-users" style="font-size:44px;opacity:.4"></i><div style="margin-top:8px;font-size:15px">Ninguém no controle de Segurança e Trabalho ainda.</div><div class="sm">Clique em <b>Adicionar pessoa</b> para selecionar quem entra, a partir do cadastro de Funcionários e Sócios.</div></div>';return;}
+  let html=topBar;
   html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px">';
   pessoas.forEach(function(p){
     const ativosEpi=(entregas||[]).filter(function(e){return e.pessoa_tipo===p.tipo&&String(e.pessoa_id)===String(p.id)&&!e.data_devolucao;}).length;
     const ultimaOs=(oss||[]).find(function(o){return o.pessoa_tipo===p.tipo&&String(o.pessoa_id)===String(p.id);});
-    html+='<div class="card tap" style="cursor:pointer" onclick="abrirPessoaSST(\''+p.tipo+'\',\''+p.id+'\')">'
-      +'<div style="font-weight:700">'+p.nome+'</div>'
+    html+='<div class="card tap" style="cursor:pointer;position:relative" onclick="abrirPessoaSST(\''+p.tipo+'\',\''+p.id+'\')">'
+      +'<button class="btn bxs bdr" style="position:absolute;top:10px;right:10px" title="Remover do controle" onclick="event.stopPropagation();removerPessoaSST(\''+p.rosterId+'\',\''+(p.nome||'').replace(/'/g,"\\'")+'\')"><i class="ti ti-x"></i></button>'
+      +'<div style="font-weight:700;padding-right:22px">'+p.nome+(p.inativo?' <span class="bd bn" style="font-size:10px;font-weight:400">inativo</span>':'')+'</div>'
       +'<div class="mu sm">'+(p.cargo||'—')+'</div>'
       +'<div class="g2" style="margin-top:8px">'
         +'<div><div class="mu sm">EPIs ativos</div><div style="font-weight:600">'+ativosEpi+'</div></div>'
@@ -14438,6 +14488,43 @@ async function rEpisSST(){
   const si=gid('si');if(si)si.oninput=null;
 }
 pageMap.epis_sst=rEpisSST;
+
+async function abrirAdicionarPessoaSST(){
+  const[{data:funcs},{data:socios},{data:roster}]=await Promise.all([
+    sb.from('funcionarios').select('id,nome,cargo').eq('ativo',true).order('nome'),
+    sb.from('socios').select('id,nome').eq('ativo',true).order('nome'),
+    sb.from('sst_pessoas').select('pessoa_tipo,pessoa_id'),
+  ]);
+  const noRoster=new Set((roster||[]).map(function(r){return r.pessoa_tipo+':'+r.pessoa_id;}));
+  const disponiveis=[
+    ...(funcs||[]).filter(function(f){return!noRoster.has('funcionario:'+f.id);}).map(function(f){return{tipo:'funcionario',id:f.id,nome:f.nome,cargo:f.cargo||''};}),
+    ...(socios||[]).filter(function(s){return!noRoster.has('socio:'+s.id);}).map(function(s){return{tipo:'socio',id:s.id,nome:s.nome,cargo:'Sócio(a)'};}),
+  ];
+  gid('mt2').textContent='Adicionar pessoa ao controle';
+  gid('mb2').innerHTML=disponiveis.length
+    ?'<div class="mu sm mb1">Selecione quem entra no controle de EPI e Ordens de Serviço. A lista vem do cadastro de Funcionários e Sócios.</div>'
+      +disponiveis.map(function(p){return'<div class="fxb" style="padding:8px 2px;border-bottom:.5px solid var(--bor)"><div><div style="font-weight:600">'+p.nome+'</div><div class="mu sm">'+(p.cargo||'—')+'</div></div><button class="btn bsm bp2" onclick="adicionarPessoaSST(\''+p.tipo+'\',\''+p.id+'\')"><i class="ti ti-plus"></i> Adicionar</button></div>';}).join('')
+    :'<div class="mu sm" style="text-align:center;padding:2rem">Todos os funcionários e sócios ativos já estão no controle.<br>Para incluir mais alguém, cadastre em <b>Funcionários</b> ou <b>Sócios</b> primeiro.</div>';
+  gid('mf2').innerHTML='<button class="btn" onclick="closeModal2()">Fechar</button>';
+  gid('ov2').classList.add('open');
+}
+async function adicionarPessoaSST(tipo,id){
+  let nome='',cargo='';
+  if(tipo==='funcionario'){const{data}=await sb.from('funcionarios').select('nome,cargo').eq('id',id).single();nome=(data&&data.nome)||'';cargo=(data&&data.cargo)||'';}
+  else{const{data}=await sb.from('socios').select('nome').eq('id',id).single();nome=(data&&data.nome)||'';cargo='Sócio(a)';}
+  const{error}=await sb.from('sst_pessoas').insert({pessoa_tipo:tipo,pessoa_id:id,pessoa_nome:nome,pessoa_cargo:cargo});
+  if(error){toast('Erro: '+error.message,true);return;}
+  toast('Adicionado ao controle!');
+  abrirAdicionarPessoaSST();
+  rEpisSST();
+}
+async function removerPessoaSST(rosterId,nome){
+  if(!confirm('Remover "'+nome+'" do controle de Segurança e Trabalho?\n\nAs entregas de EPI e Ordens de Serviço já registradas continuam salvas — só some do painel.'))return;
+  const{error}=await sb.from('sst_pessoas').delete().eq('id',rosterId);
+  if(error){toast('Erro: '+error.message,true);return;}
+  toast('Removido do controle.');
+  rEpisSST();
+}
 
 function abrirPessoaSST(tipo,id){
   const p=_sstAcharPessoa(tipo,id);if(!p)return;
