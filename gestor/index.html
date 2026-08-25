@@ -9484,6 +9484,7 @@ const REQ_TIPOS={
   cartorio:{lb:'Requerimento ao Cartório (averbação do georreferenciamento)',arquivo:'requerimento_cartorio_modelo.docx',quali:'QUALIFICACAO_XML',certs:true,cartorio:true,cancel:false},
   cancelamento:{lb:'Cancelamento de Georreferenciamento (INCRA)',arquivo:'requerimento_cancelamento_modelo.docx',quali:'QUALIFICACAO_PESSOAS_XML',certs:true,cartorio:false,cancel:true},
   desmembramento:{lb:'Desmembramento de Georreferenciamento (INCRA)',arquivo:'requerimento_desmembramento_modelo.docx',quali:'QUALIFICACAO_PESSOAS_XML',certs:true,cartorio:false,cancel:true},
+  area_minima_incra:{lb:'Autorização Prévia — Desmembramento de Área Mínima (Decreto 62.504/68)',arquivo:'requerimento_area_minima_incra_modelo.docx',quali:'QUALIFICACAO_PESSOAS_XML',certs:false,cartorio:false,cancel:true,finalidade:'instalação de estação de tratamento/reservação de água para abastecimento à comunidade'},
   comprobatoria:{lb:'Certidão Comprobatória + Aprovação de Memorial Descritivo',arquivo:'requerimento_comprobatoria_modelo.docx',quali:'QUALIFICACAO_XML',certs:false,cartorio:false,cancel:false,finalidade:'identificação dos confrontantes atuais do respectivo imóvel, para posterior protocolo de retificação da matrícula do mesmo junto ao Cartório de Registro de Imóveis desta comarca'},
   zoneamento:{lb:'Certidão de Zoneamento',arquivo:'requerimento_zoneamento_modelo.docx',quali:'QUALIFICACAO_XML',certs:false,cartorio:false,cancel:false,finalidade:'descaracterização de imóvel rural do respectivo imóvel'},
   procuracao:{lb:'Procuração Particular (CCIR/INCRA)',arquivo:'procuracao_ccir_modelo.docx',quali:'OUTORGANTE_XML',certs:false,cartorio:false,cancel:false,proc:true},
@@ -9821,8 +9822,14 @@ async function reqGerarDocx(){
       const c0=_reqCerts[0]||{};
       const solicitacaoPadrao=(tipo==='desmembramento')
         ?'A solicitação para o DESMEMBRAMENTO em relação a área '+(c0.nome||'')+', certificação n° '+(c0.codigo||'—')+', com área de '+(c0.area||'—')+' hectares está de acordo com a Lei n° 5.868/1972, Lei n° 10.267/2001 e Lei n° 6.015/1973.'
+        :(tipo==='area_minima_incra')
+        ?'O imóvel possui área total de [ÁREA TOTAL] hectares, dos quais se pretende desmembrar uma área de [ÁREA A DESMEMBRAR], estritamente limitada ao necessário para a finalidade indicada, conforme planta e memorial descritivo anexos.'
         :'A solicitação para o cancelamento da área "'+(c0.nome||'')+'" com '+(c0.area||'—')+' hectares está sendo realizada para [DESCREVER O MOTIVO].';
-      const motivosPadrao=(tipo==='desmembramento')?REQ_DESMEMBRAMENTO_MOTIVOS_PADRAO:'[DESCREVER A EXPOSIÇÃO DE MOTIVOS].';
+      const motivosPadrao=(tipo==='desmembramento')
+        ?REQ_DESMEMBRAMENTO_MOTIVOS_PADRAO
+        :(tipo==='area_minima_incra')
+        ?'A área a ser desmembrada destina-se exclusivamente à finalidade de utilidade pública acima indicada, conforme declaração da Prefeitura Municipal e do pretendente à aquisição, em anexo, não se tratando de parcelamento para fins de exploração agropecuária, razão pela qual não se aplica a exigência de módulo fiscal mínimo (fração mínima de parcelamento), nos termos do art. 2°, II, "b", item 2, do Decreto n° 62.504/68.'
+        :'[DESCREVER A EXPOSIÇÃO DE MOTIVOS].';
       const solicitacao=document.getElementById('rq-solicitacao').value||solicitacaoPadrao;
       const motivos=document.getElementById('rq-motivos').value||motivosPadrao;
       xml=reqSubstituirTexto(xml,'SOLICITACAO_TEXTO',solicitacao);
@@ -9834,7 +9841,7 @@ async function reqGerarDocx(){
     });
     zip.file('word/document.xml',xml);
     const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
-    const nomes={anuencia:'Solicitacao_Anuencia',cartorio:'Requerimento_Cartorio',cancelamento:'Requerimento_Cancelamento',desmembramento:'Requerimento_Desmembramento',procuracao:'Procuracao_CCIR',comprobatoria:'Requerimento_Certidao_Comprobatoria',zoneamento:'Requerimento_Certidao_Zoneamento',decl_prof:'Declaracao_Responsabilidade_Profissional',decl_prop:'Declaracao_Proprietarios',decl_213:'Declaracao_Art213'};
+    const nomes={anuencia:'Solicitacao_Anuencia',cartorio:'Requerimento_Cartorio',cancelamento:'Requerimento_Cancelamento',desmembramento:'Requerimento_Desmembramento',area_minima_incra:'Requerimento_Autorizacao_Area_Minima',procuracao:'Procuracao_CCIR',comprobatoria:'Requerimento_Certidao_Comprobatoria',zoneamento:'Requerimento_Certidao_Zoneamento',decl_prof:'Declaracao_Responsabilidade_Profissional',decl_prop:'Declaracao_Proprietarios',decl_213:'Declaracao_Art213'};
     const nomeBase=(_reqObra&&_reqObra.nome)||(cfg.proc&&vals.IMOVEL_NOME!=='—'?vals.IMOVEL_NOME:'')||'obra';
     downloadBlobGeo(blob,nomes[tipo]+'_'+nomeBase.replace(/[^a-zA-Z0-9_-]+/g,'_')+'.docx');
     toast('Requerimento gerado com sucesso!');
