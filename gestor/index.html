@@ -9469,7 +9469,7 @@ async function anuenciaGerarDocx(){
     xml=anuenciaSubstituirQualificacao(xml,'QUALIFICACAO_IMOVEL1_XML',quali1Texto);
     xml=anuenciaSubstituirQualificacao(xml,'QUALIFICACAO_IMOVEL2_XML',quali2Texto);
     zip.file('word/document.xml',xml);
-    const blob=await zip.generateAsync({type:'blob'});
+    const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
     downloadBlobGeo(blob,'Anuencia_'+((_anuObra&&_anuObra.nome)||'obra').replace(/[^a-zA-Z0-9_-]+/g,'_')+'.docx');
     toast('Anuência gerada com sucesso!');
   }catch(e){
@@ -9833,7 +9833,7 @@ async function reqGerarDocx(){
       xml=xml.replace(re,function(){return xmlEscapeGeo(vals[k]);});
     });
     zip.file('word/document.xml',xml);
-    const blob=await zip.generateAsync({type:'blob'});
+    const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
     const nomes={anuencia:'Solicitacao_Anuencia',cartorio:'Requerimento_Cartorio',cancelamento:'Requerimento_Cancelamento',desmembramento:'Requerimento_Desmembramento',procuracao:'Procuracao_CCIR',comprobatoria:'Requerimento_Certidao_Comprobatoria',zoneamento:'Requerimento_Certidao_Zoneamento',decl_prof:'Declaracao_Responsabilidade_Profissional',decl_prop:'Declaracao_Proprietarios',decl_213:'Declaracao_Art213'};
     const nomeBase=(_reqObra&&_reqObra.nome)||(cfg.proc&&vals.IMOVEL_NOME!=='—'?vals.IMOVEL_NOME:'')||'obra';
     downloadBlobGeo(blob,nomes[tipo]+'_'+nomeBase.replace(/[^a-zA-Z0-9_-]+/g,'_')+'.docx');
@@ -13179,7 +13179,7 @@ async function sigefGerarOds(){
     });
     const xmlFinal=odsSerializar(_sigefXmlDoc);
     _sigefModeloZip.file('content.xml',xmlFinal);
-    const blob=await _sigefModeloZip.generateAsync({type:'blob'});
+    const blob=await _sigefModeloZip.generateAsync({type:'blob',mimeType:'application/vnd.oasis.opendocument.spreadsheet'});
     downloadBlobGeo(blob,(_sigefArquivoNome||'memorial')+'_preenchido.ods');
     toast('Planilha gerada com sucesso!');
   }catch(e){
@@ -13522,7 +13522,7 @@ async function memorialGerarDocx(){
     });
     xml=xml.replace('{{PERIMETRO_RUNS_XML}}',function(){return perimetroRunsXml;});
     zip.file('word/document.xml',xml);
-    const blob=await zip.generateAsync({type:'blob'});
+    const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
     downloadBlobGeo(blob,'Memorial_Descritivo_'+(vals.IMOVEL||'imovel').replace(/[^a-zA-Z0-9_-]+/g,'_')+'.docx');
     toast('Memorial gerado com sucesso!');
   }catch(e){
@@ -14342,7 +14342,7 @@ async function gerarAutorizacaoVendaDocx(){
       xml=xml.replace(re,function(){return xmlEscapeGeo(vals[k]);});
     });
     zip.file('word/document.xml',xml);
-    const blob=await zip.generateAsync({type:'blob'});
+    const blob=await zip.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
     downloadBlobGeo(blob,'Autorizacao_Venda_'+(v('f-titulo')||'fazenda').replace(/[^a-zA-Z0-9_-]+/g,'_')+'.docx');
     toast('Autorização de Venda gerada! Confira e assine com o proprietário antes de anunciar (marque "Autorização já assinada" ao salvar).');
   }catch(e){
