@@ -1356,7 +1356,10 @@ async function rAgenda(){
     <div class="card">
       <div class="fxb" style="align-items:center;margin-bottom:.5rem">
         <div class="st" style="margin:0"><i class="ti ti-list" style="color:var(--brand)"></i>Compromissos</div>
-        <button class="btn bxs bp2" onclick="gerarPDFAgenda()" title="Gerar PDF da agenda"><i class="ti ti-file-download"></i> PDF</button>
+        <div class="fx g8">
+          <button class="btn bxs" onclick="enviarConvitesPendentes()" title="Enviar convite por e-mail (Google Calendar) para os responsáveis com e-mail cadastrado"><i class="ti ti-mail"></i> Enviar convites</button>
+          <button class="btn bxs bp2" onclick="gerarPDFAgenda()" title="Gerar PDF da agenda"><i class="ti ti-file-download"></i> PDF</button>
+        </div>
       </div>
       <div id="al" style="max-height:70vh;overflow-y:auto">${(()=>{
         const hj=hojeLocal();
@@ -15047,12 +15050,50 @@ async function salvarTarefaOS(osId,osNumero){
   if(osId)abrirOS(osId);
 }
 
-async function enviarConviteAgenda(payload){
+async function _postConvite(payload){
   try{
     const r=await fetch('/api/agenda-convite',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    if(r.ok)toast('Convite enviado por e-mail para '+payload.nome+'!');
-    else{const j=await r.json().catch(()=>({}));console.warn('Falha ao enviar convite:',j.error||r.status);}
-  }catch(e){console.warn('Falha ao enviar convite:',e.message);}
+    if(r.ok)return{ok:true};
+    const j=await r.json().catch(()=>({}));
+    return{ok:false,error:j.error||('HTTP '+r.status)};
+  }catch(e){return{ok:false,error:e.message};}
+}
+async function enviarConviteAgenda(payload){
+  const r=await _postConvite(payload);
+  if(r.ok)toast('Convite enviado por e-mail para '+payload.nome+'!');
+  else console.warn('Falha ao enviar convite:',r.error);
+}
+
+// Reenvia convite por e-mail para compromissos/rotinas pendentes já cadastrados
+// (criados antes deste recurso existir), para os responsáveis com e-mail no cadastro.
+async function enviarConvitesPendentes(){
+  const hj=hojeLocal();
+  const[{data:funcs},{data:ags},{data:rots}]=await Promise.all([
+    sb.from('funcionarios').select('nome,email').eq('ativo',true),
+    sb.from('agenda').select('*'),
+    sb.from('rotinas').select('*').not('proxima_data','is',null),
+  ]);
+  const emailPorNome={};
+  (funcs||[]).forEach(f=>{if(f.email)emailPorNome[f.nome]=f.email;});
+  const itens=[];
+  (ags||[]).filter(a=>!(a.concluido||a.concluida)).forEach(a=>{
+    const nome=a.responsavel||a.responsavel_nome;
+    if(nome&&emailPorNome[nome]&&a.data)itens.push({to:emailPorNome[nome],nome,titulo:a.titulo,descricao:a.descricao||'',data:a.data,osNumero:a.os_numero||''});
+  });
+  (rots||[]).forEach(r=>{
+    const feita=!!r.concluida_hoje&&r.proxima_data>hj;
+    if(feita)return;
+    if(r.responsavel&&emailPorNome[r.responsavel])itens.push({to:emailPorNome[r.responsavel],nome:r.responsavel,titulo:r.nome,descricao:r.descricao||'',data:r.proxima_data,frequencia:r.frequencia||''});
+  });
+  if(!itens.length){toast('Nenhum compromisso pendente com funcionário com e-mail cadastrado.',true);return;}
+  const preview=itens.slice(0,15).map(i=>'• '+i.titulo+' — '+i.nome+' ('+fd(i.data)+')').join('\n')+(itens.length>15?'\n… e mais '+(itens.length-15)+' outro(s)':'');
+  if(!confirm('Enviar convite por e-mail para '+itens.length+' compromisso(s) pendente(s)?\n\n'+preview))return;
+  let ok=0,fail=0;
+  for(const it of itens){
+    const r=await _postConvite(it);
+    if(r.ok)ok++;else fail++;
+  }
+  toast(ok+' convite(s) enviado(s)'+(fail?', '+fail+' falharam':'')+'!',fail>0);
 }
 
 async function concluirTarefaOS(tarefaId,osId){
