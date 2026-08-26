@@ -6920,8 +6920,13 @@ async function excluirReg(tabela,id,desc){
   if(tabela==='clientes'){
     await Promise.all([sb.from('ordens').update({cliente_id:null}).eq('cliente_id',id),sb.from('orcamentos').update({cliente_id:null}).eq('cliente_id',id),sb.from('contratos').update({cliente_id:null}).eq('cliente_id',id),sb.from('recebimentos').update({cliente_id:null}).eq('cliente_id',id),sb.from('notas_fiscais').update({cliente_id:null}).eq('cliente_id',id),sb.from('projetos').update({cliente_id:null}).eq('cliente_id',id)]);
   }
+  let excluirOrcJunto=false,orcJuntoId=null;
   if(tabela==='ordens'){
-    const{data:osNum}=await sb.from('ordens').select('numero').eq('id',id).single();
+    const{data:osNum}=await sb.from('ordens').select('numero,orcamento_id').eq('id',id).single();
+    if(osNum?.orcamento_id){
+      orcJuntoId=osNum.orcamento_id;
+      excluirOrcJunto=confirm('Esta OS tem um orçamento de origem vinculado.\n\nExcluir esse orçamento também?\n\nOK = Excluir OS + orçamento\nCancelar = Excluir somente a OS');
+    }
     await Promise.all([
       sb.from('custos_os').update({os_id:null}).eq('os_id',id),
       sb.from('recebimentos').update({os_id:null}).eq('os_id',id),
@@ -6929,12 +6934,18 @@ async function excluirReg(tabela,id,desc){
       sb.from('pagamentos').update({os_id:null}).eq('os_id',id),
       sb.from('notas_fiscais').update({os_id:null}).eq('os_id',id),
       sb.from('medicoes').update({os_id:null}).eq('os_id',id),
+      sb.from('atendimentos_campo_os').update({os_id:null}).eq('os_id',id),
       osNum?.numero?sb.from('agenda').delete().eq('os_numero',osNum.numero):Promise.resolve(),
     ]);
   }
   const{error}=await sb.from(tabela).delete().eq('id',id);
   if(error){toast('Erro: '+error.message,true);return;}
-  toast('Excluído!');
+  if(excluirOrcJunto&&orcJuntoId){
+    const{error:eOrc}=await sb.from('orcamentos').delete().eq('id',orcJuntoId);
+    toast(eOrc?'OS excluída, mas erro ao excluir orçamento: '+eOrc.message:'OS e orçamento excluídos!',!!eOrc);
+  }else{
+    toast('Excluído!');
+  }
   closeModal();
   closeModal2();
   renderPage();
