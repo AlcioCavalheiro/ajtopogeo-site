@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fazenda à Venda | Alcio Cavalheiro — Corretor de Imóveis</title>
+  <meta name="description" content="Detalhes, fotos e informações da propriedade rural à venda em Mato Grosso do Sul. Atendimento com Alcio Cavalheiro, Corretor de Imóveis — CRECI/MS 18362." />
+  <meta name="robots" content="noindex, follow" />
+  <link rel="canonical" href="https://ajtopogeo.com.br/fazenda-detalhe" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%233E8FC4'/><text x='16' y='22' font-size='16' text-anchor='middle' fill='%230d1b2a' font-family='Arial' font-weight='900'>AC</text></svg>" />
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-0ZY8XR9WYR"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-0ZY8XR9WYR');
+  </script>
+  <style>
+    .fz-nav { position:sticky; top:0; z-index:100; background:rgba(13,27,42,0.92); backdrop-filter:blur(8px); border-bottom:1px solid rgba(255,255,255,0.08); padding:16px 0; }
+    .fz-nav .container { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
+    .fz-nav-name { color:var(--branco); font-weight:800; font-size:1.02rem; text-decoration:none; }
+    .fz-nav-name small { display:block; font-weight:500; font-size:0.7rem; color:var(--cinza); letter-spacing:0.03em; }
+    .fz-nav-back { color:var(--cinza); font-size:0.82rem; text-decoration:none; }
+    .fz-nav-back:hover { color:var(--verde); }
+    .fz-badge { display:inline-block; background:rgba(13,27,42,0.85); color:var(--verde); border:1px solid var(--verde); border-radius:999px; padding:4px 12px; font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:14px; }
+    .fz-badge.reservada { color:#e0a030; border-color:#e0a030; }
+    .fz-meta { display:flex; flex-wrap:wrap; gap:8px 20px; font-size:0.92rem; color:var(--cinza); margin:14px 0 24px; }
+    .fz-meta span { display:flex; align-items:center; gap:6px; }
+    .fz-preco-box { background:var(--azul2); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:22px 26px; margin-bottom:28px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+    .fz-preco-box small { display:block; font-size:0.72rem; font-weight:600; color:var(--cinza); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px; }
+    .fz-preco-box strong { font-size:1.6rem; color:var(--branco); font-weight:800; }
+    .fz-gallery { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:14px; margin:28px 0; }
+    .fz-gallery img { width:100%; height:170px; object-fit:cover; border-radius:10px; cursor:zoom-in; transition:transform 0.25s, opacity 0.25s; border:1px solid rgba(255,255,255,0.08); }
+    .fz-gallery img:hover { transform:scale(1.03); opacity:0.9; }
+    .fz-sem-foto { text-align:center; padding:48px 20px; border:1px dashed rgba(255,255,255,0.15); border-radius:14px; margin:28px 0; color:var(--cinza); font-size:0.9rem; }
+    .fz-descricao { color:var(--cinza); font-size:1rem; line-height:1.85; white-space:pre-line; margin-bottom:32px; }
+    .fz-lightbox { position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:1000; display:none; align-items:center; justify-content:center; padding:24px; }
+    .fz-lightbox.aberto { display:flex; }
+    .fz-lightbox img { max-width:100%; max-height:88vh; border-radius:8px; }
+    .fz-lightbox-fechar { position:absolute; top:20px; right:24px; color:var(--branco); font-size:2rem; background:none; border:none; cursor:pointer; line-height:1; }
+    .fz-lightbox-nav { position:absolute; top:50%; transform:translateY(-50%); background:rgba(255,255,255,0.1); border:none; color:var(--branco); font-size:1.6rem; width:48px; height:48px; border-radius:50%; cursor:pointer; }
+    .fz-lightbox-nav:hover { background:rgba(255,255,255,0.2); }
+    .fz-lightbox-prev { left:20px; }
+    .fz-lightbox-next { right:20px; }
+    .fz-cta-box { background:var(--azul3); border-radius:16px; padding:32px; text-align:center; margin-bottom:8px; }
+    .fz-cta-box p { color:var(--cinza); font-size:0.92rem; margin-bottom:20px; }
+    .fz-loading, .fz-erro { text-align:center; padding:80px 20px; color:var(--cinza); }
+    .fz-erro h2 { color:var(--branco); margin-bottom:10px; }
+    .fz-footer { background:var(--azul3); padding:32px 0; text-align:center; }
+    .fz-footer p { color:var(--cinza); font-size:0.82rem; margin:4px 0; }
+    .fz-footer a { color:var(--verde); text-decoration:none; }
+  </style>
+</head>
+<body>
+
+<nav class="fz-nav">
+  <div class="container">
+    <a href="fazendas-a-venda" class="fz-nav-name">Alcio Cavalheiro<small>Corretor de Imóveis · CRECI/MS 18362</small></a>
+    <a href="fazendas-a-venda" class="fz-nav-back">← Voltar às fazendas</a>
+  </div>
+</nav>
+
+<div id="fz-loading" class="fz-loading">Carregando…</div>
+
+<div id="fz-erro" class="fz-erro" style="display:none;">
+  <h2>Fazenda não encontrada</h2>
+  <p>Esse anúncio pode ter sido removido ou vendido.</p>
+  <div style="margin-top:24px;">
+    <a href="fazendas-a-venda" class="btn-primary">Ver outras fazendas disponíveis</a>
+  </div>
+</div>
+
+<div id="fz-conteudo" style="display:none;">
+  <header class="page-hero">
+    <div class="container">
+      <div class="breadcrumb"><a href="fazendas-a-venda">Fazendas à Venda</a> › <span id="fz-titulo-breadcrumb"></span></div>
+      <h1 id="fz-titulo"></h1>
+      <div id="fz-meta" class="fz-meta"></div>
+    </div>
+  </header>
+
+  <section class="artigo">
+    <div class="container" style="max-width:900px;">
+      <div id="fz-badge-wrap"></div>
+
+      <div id="fz-gallery" class="fz-gallery"></div>
+      <div id="fz-sem-foto" class="fz-sem-foto" style="display:none;">Ainda não há fotos cadastradas para esta propriedade.</div>
+
+      <div id="fz-preco-box" class="fz-preco-box">
+        <div><small>Valor</small><strong id="fz-preco"></strong></div>
+        <a id="fz-cta-preco" href="#" target="_blank" rel="noopener" class="btn-primary">📲 Tenho Interesse</a>
+      </div>
+
+      <div id="fz-descricao-wrap">
+        <p class="fz-descricao" id="fz-descricao"></p>
+      </div>
+
+      <div class="fz-cta-box">
+        <p>Quer visitar a propriedade ou tirar dúvidas sobre documentação e área?</p>
+        <a id="fz-cta-final" href="#" target="_blank" rel="noopener" class="btn-primary">📲 Falar com Alcio Cavalheiro</a>
+      </div>
+    </div>
+  </section>
+</div>
+
+<footer class="fz-footer">
+  <div class="container">
+    <p style="color:var(--branco);font-weight:700;">Alcio Cavalheiro · Corretor de Imóveis · CRECI/MS 18362</p>
+    <p><a href="https://wa.me/5567991379210" target="_blank" rel="noopener">WhatsApp (67) 99137-9210</a> · <a href="mailto:ajtopogeo@gmail.com">ajtopogeo@gmail.com</a></p>
+    <p>© 2026 Alcio Cavalheiro · Sidrolândia–MS</p>
+  </div>
+</footer>
+
+<a href="https://wa.me/5567991379210?text=Olá!%20Vim%20pelo%20site%20de%20fazendas%20à%20venda." target="_blank" rel="noopener" class="whatsapp-float" aria-label="WhatsApp">
+  <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" fill="currentColor" viewBox="0 0 16 16"><path d="M13.601 2.326A7.854 7.854 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.933 7.933 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.898 7.898 0 0 0 13.6 2.326zM7.994 14.521a6.573 6.573 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.557 6.557 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592zm3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.729.729 0 0 0-.529.247c-.182.198-.691.677-.691 1.654 0 .977.71 1.916.81 2.049.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232z"/></svg>
+</a>
+
+<div id="fz-lightbox" class="fz-lightbox">
+  <button class="fz-lightbox-fechar" id="fz-lb-fechar" aria-label="Fechar">×</button>
+  <button class="fz-lightbox-nav fz-lightbox-prev" id="fz-lb-prev" aria-label="Foto anterior">‹</button>
+  <img id="fz-lb-img" src="" alt="Foto da fazenda">
+  <button class="fz-lightbox-nav fz-lightbox-next" id="fz-lb-next" aria-label="Próxima foto">›</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+(function(){
+  var SUPABASE_URL = 'https://wwmlrifoxnekhgppikxa.supabase.co';
+  var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3bWxyaWZveG5la2hncHBpa3hhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2NTE3OTQsImV4cCI6MjA5NTIyNzc5NH0.6VIS72AJC8VOArvXh-4sXDuyrYRkj3zP5cUhuEaYPHo';
+
+  function fmtMoeda(v){ return 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0}); }
+  function fmtArea(v){ return Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:2}); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+
+  function mostrarErro(){
+    document.getElementById('fz-loading').style.display = 'none';
+    document.getElementById('fz-erro').style.display = 'block';
+  }
+
+  var params = new URLSearchParams(window.location.search);
+  var id = params.get('id');
+  if (!id) { mostrarErro(); return; }
+
+  var fotos = [];
+  var lbIndex = 0;
+
+  function abrirLightbox(i){
+    lbIndex = i;
+    document.getElementById('fz-lb-img').src = fotos[lbIndex];
+    document.getElementById('fz-lightbox').classList.add('aberto');
+  }
+  function fecharLightbox(){ document.getElementById('fz-lightbox').classList.remove('aberto'); }
+  function navegarLightbox(delta){
+    lbIndex = (lbIndex + delta + fotos.length) % fotos.length;
+    document.getElementById('fz-lb-img').src = fotos[lbIndex];
+  }
+  document.getElementById('fz-lb-fechar').addEventListener('click', fecharLightbox);
+  document.getElementById('fz-lightbox').addEventListener('click', function(e){ if (e.target.id === 'fz-lightbox') fecharLightbox(); });
+  document.getElementById('fz-lb-prev').addEventListener('click', function(){ navegarLightbox(-1); });
+  document.getElementById('fz-lb-next').addEventListener('click', function(){ navegarLightbox(1); });
+  document.addEventListener('keydown', function(e){
+    if (!document.getElementById('fz-lightbox').classList.contains('aberto')) return;
+    if (e.key === 'Escape') fecharLightbox();
+    if (e.key === 'ArrowLeft') navegarLightbox(-1);
+    if (e.key === 'ArrowRight') navegarLightbox(1);
+  });
+
+  function render(f){
+    document.getElementById('fz-loading').style.display = 'none';
+    document.getElementById('fz-conteudo').style.display = 'block';
+    document.title = (f.titulo || 'Fazenda à venda') + ' | Alcio Cavalheiro — Corretor de Imóveis';
+
+    document.getElementById('fz-titulo').textContent = f.titulo || 'Fazenda à venda';
+    document.getElementById('fz-titulo-breadcrumb').textContent = f.titulo || 'Fazenda à venda';
+
+    var meta = [];
+    if (f.municipio || f.uf) meta.push('<span>📍 ' + esc([f.municipio, f.uf].filter(Boolean).join(' - ')) + '</span>');
+    if (f.area_ha) meta.push('<span>📐 ' + fmtArea(f.area_ha) + ' ha</span>');
+    document.getElementById('fz-meta').innerHTML = meta.join('');
+
+    if (f.status === 'Reservada') {
+      document.getElementById('fz-badge-wrap').innerHTML = '<span class="fz-badge reservada">Reservada</span>';
+    } else if (f.destaque) {
+      document.getElementById('fz-badge-wrap').innerHTML = '<span class="fz-badge">Destaque</span>';
+    }
+
+    fotos = (f.fotos && f.fotos.length) ? f.fotos : [];
+    if (fotos.length) {
+      var gallery = document.getElementById('fz-gallery');
+      gallery.innerHTML = fotos.map(function(url, i){
+        return '<img src="' + esc(url) + '" alt="' + esc(f.titulo || 'Fazenda à venda') + ' - foto ' + (i+1) + '" loading="lazy" data-i="' + i + '">';
+      }).join('');
+      gallery.querySelectorAll('img').forEach(function(img){
+        img.addEventListener('click', function(){ abrirLightbox(parseInt(img.getAttribute('data-i'), 10)); });
+      });
+    } else {
+      document.getElementById('fz-sem-foto').style.display = 'block';
+    }
+
+    document.getElementById('fz-preco').textContent = f.preco ? fmtMoeda(f.preco) : 'Consulte';
+
+    if (f.descricao) {
+      document.getElementById('fz-descricao').textContent = f.descricao;
+    } else {
+      document.getElementById('fz-descricao-wrap').style.display = 'none';
+    }
+
+    var msg = encodeURIComponent('Olá! Vi a fazenda "' + (f.titulo || '') + '" no site e gostaria de mais informações.');
+    var wa = 'https://wa.me/5567991379210?text=' + msg;
+    document.getElementById('fz-cta-preco').href = wa;
+    document.getElementById('fz-cta-final').href = wa;
+  }
+
+  try {
+    var sbp = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    sbp.from('fazendas_publicas').select('*').eq('id', id).maybeSingle()
+      .then(function(res){
+        if (res.error || !res.data) { mostrarErro(); return; }
+        render(res.data);
+      })
+      .catch(mostrarErro);
+  } catch(e) { mostrarErro(); }
+})();
+</script>
+</body>
+</html>

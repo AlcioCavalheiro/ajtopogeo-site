@@ -51,8 +51,12 @@
     .fz-nav-back:hover { color:var(--verde); }
     .fz-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:28px; margin-top:36px; }
     .fz-card-img-wrap { position:relative; }
+    .fz-card-link { display:block; color:inherit; text-decoration:none; }
     .fz-badge { position:absolute; top:14px; left:14px; background:rgba(13,27,42,0.85); color:var(--verde); border:1px solid var(--verde); border-radius:999px; padding:4px 12px; font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; }
     .fz-badge.reservada { color:#e0a030; border-color:#e0a030; }
+    .fz-badge-inline { position:static; display:inline-block; margin-bottom:10px; }
+    .fz-card-actions { display:flex; flex-direction:column; gap:10px; }
+    .fz-card-actions .btn-secondary, .fz-card-actions .btn-primary { width:100%; justify-content:center; }
     .fz-meta { display:flex; flex-wrap:wrap; gap:6px 14px; font-size:0.82rem; color:var(--cinza); margin-bottom:10px; }
     .fz-meta span { display:flex; align-items:center; gap:5px; }
     .fz-preco { font-size:1.15rem; font-weight:800; color:var(--branco); margin-bottom:14px; }
@@ -133,10 +137,19 @@
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 
   function renderCard(f){
-    var foto = (f.fotos && f.fotos.length) ? f.fotos[0] : 'img/ortomosaico.jpg';
-    var badge = f.status === 'Reservada'
-      ? '<span class="fz-badge reservada">Reservada</span>'
-      : (f.destaque ? '<span class="fz-badge">Destaque</span>' : '');
+    var foto = (f.fotos && f.fotos.length) ? f.fotos[0] : null;
+    var detalheUrl = 'fazenda-detalhe?id=' + encodeURIComponent(f.id);
+    function badge(inline){
+      if (f.status === 'Reservada') return '<span class="fz-badge reservada' + (inline?' fz-badge-inline':'') + '">Reservada</span>';
+      if (f.destaque) return '<span class="fz-badge' + (inline?' fz-badge-inline':'') + '">Destaque</span>';
+      return '';
+    }
+    var imgHtml = foto
+      ? '<a href="' + detalheUrl + '" class="fz-card-link"><div class="fz-card-img-wrap">'
+        + '<img src="' + esc(foto) + '" alt="' + esc(f.titulo || 'Fazenda à venda') + '" class="blog-card-img" loading="lazy">'
+        + badge(false)
+        + '</div></a>'
+      : '';
     var meta = [];
     if (f.municipio || f.uf) meta.push('<span>📍 ' + esc([f.municipio, f.uf].filter(Boolean).join(' - ')) + '</span>');
     if (f.area_ha) meta.push('<span>📐 ' + fmtArea(f.area_ha) + ' ha</span>');
@@ -145,16 +158,17 @@
       : '<div class="fz-preco"><small>Valor</small>Consulte</div>';
     var msg = encodeURIComponent('Olá! Vi a fazenda "' + (f.titulo || '') + '" no site e gostaria de mais informações.');
     return '<article class="blog-card">'
-      + '<div class="fz-card-img-wrap">'
-      + '<img src="' + esc(foto) + '" alt="' + esc(f.titulo || 'Fazenda à venda') + '" class="blog-card-img" loading="lazy">'
-      + badge
-      + '</div>'
+      + imgHtml
       + '<div class="blog-card-body">'
-      + '<h3>' + esc(f.titulo || 'Fazenda à venda') + '</h3>'
+      + (!foto ? badge(true) : '')
+      + '<a href="' + detalheUrl + '" class="fz-card-link"><h3>' + esc(f.titulo || 'Fazenda à venda') + '</h3></a>'
       + '<div class="fz-meta">' + meta.join('') + '</div>'
       + (f.descricao ? '<p>' + esc(f.descricao).slice(0,140) + (f.descricao.length>140?'…':'') + '</p>' : '')
       + preco
-      + '<a href="https://wa.me/5567991379210?text=' + msg + '" target="_blank" rel="noopener" class="btn-primary" style="width:100%;justify-content:center;">📲 Tenho Interesse</a>'
+      + '<div class="fz-card-actions">'
+      + '<a href="' + detalheUrl + '" class="btn-secondary">🔍 Ver Fotos e Detalhes</a>'
+      + '<a href="https://wa.me/5567991379210?text=' + msg + '" target="_blank" rel="noopener" class="btn-primary">📲 Tenho Interesse</a>'
+      + '</div>'
       + '</div></article>';
   }
 
