@@ -5805,6 +5805,11 @@ async function saveRecord(){
     }
     if(agErr){toast('Salvo! (aviso agenda: '+agErr.message+')',false);}
   }
+  // Rotina: envia convite por e-mail (com recorrência) ao responsável, se ele tiver e-mail cadastrado
+  if(!EID && tb==='rotinas' && payload.responsavel && payload.proxima_data){
+    const{data:_rf}=await sb.from('funcionarios').select('email').eq('nome',payload.responsavel).limit(1).maybeSingle();
+    if(_rf?.email)enviarConviteAgenda({to:_rf.email,nome:payload.responsavel,titulo:payload.nome,descricao:payload.descricao||'',data:payload.proxima_data,frequencia:payload.frequencia||''});
+  }
   // Pagamento recorrente: gera N (ou contínuo=24) lançamentos mensais independentes
   // Se algum campo foi removido do salvamento por falta da coluna no banco, avisa em vez de
   // salvar em silêncio — sem isso o usuário preenche um campo, o sistema "salva com sucesso"

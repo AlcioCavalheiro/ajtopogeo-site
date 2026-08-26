@@ -6,7 +6,17 @@
 // RESEND_FROM é opcional — sem domínio verificado no Resend, o remetente padrão
 // (onboarding@resend.dev) só entrega para o e-mail dono da conta Resend.
 //
-// Uso: POST /api/agenda-convite  { to, nome, titulo, descricao, data, osNumero }
+// Uso: POST /api/agenda-convite  { to, nome, titulo, descricao, data, osNumero, frequencia }
+// frequencia (opcional, usado pelas Rotinas Recorrentes): Diária | Semanal | Quinzenal | Mensal | Trimestral | Anual
+
+const RRULE_POR_FREQUENCIA = {
+  'Diária': 'FREQ=DAILY',
+  'Semanal': 'FREQ=WEEKLY',
+  'Quinzenal': 'FREQ=WEEKLY;INTERVAL=2',
+  'Mensal': 'FREQ=MONTHLY',
+  'Trimestral': 'FREQ=MONTHLY;INTERVAL=3',
+  'Anual': 'FREQ=YEARLY',
+};
 
 function escapeICS(str) {
   return String(str || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
@@ -22,11 +32,12 @@ function proximoDia(dateStr) {
   return d.toISOString().split('T')[0];
 }
 
-function buildICS({ titulo, descricao, data, uid }) {
+function buildICS({ titulo, descricao, data, uid, frequencia }) {
   const dtStart = ymd(data);
   const dtEnd = ymd(proximoDia(data));
   const dtStamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-  return [
+  const rrule = RRULE_POR_FREQUENCIA[frequencia];
+  const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
     'PRODID:-//AJ TopoGeo//Gestor//PT-BR',
@@ -36,14 +47,18 @@ function buildICS({ titulo, descricao, data, uid }) {
     'DTSTAMP:' + dtStamp,
     'DTSTART;VALUE=DATE:' + dtStart,
     'DTEND;VALUE=DATE:' + dtEnd,
+  ];
+  if (rrule) lines.push('RRULE:' + rrule);
+  lines.push(
     'SUMMARY:' + escapeICS(titulo),
     'DESCRIPTION:' + escapeICS(descricao),
     'END:VEVENT',
     'END:VCALENDAR',
-  ].join('\r\n');
+  );
+  return lines.join('\r\n');
 }
 
-function googleCalendarLink({ titulo, descricao, data }) {
+function googleCalendarLink({ titulo, descricao, data, frequencia }) {
   const dtStart = ymd(data);
   const dtEnd = ymd(proximoDia(data));
   const params = new URLSearchParams({
@@ -52,6 +67,8 @@ function googleCalendarLink({ titulo, descricao, data }) {
     dates: dtStart + '/' + dtEnd,
     details: descricao || '',
   });
+  const rrule = RRULE_POR_FREQUENCIA[frequencia];
+  if (rrule) params.set('recur', 'RRULE:' + rrule);
   return 'https://calendar.google.com/calendar/render?' + params.toString();
 }
 
@@ -73,26 +90,28 @@ module.exports = async (req, res) => {
     if (!apiKey) { res.statusCode = 500; return res.json({ error: 'RESEND_API_KEY não configurada' }); }
 
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
-    const { to, nome, titulo, descricao, data, osNumero } = body;
+    const { to, nome, titulo, descricao, data, osNumero, frequencia } = body;
     if (!to || !titulo || !data) { res.statusCode = 400; return res.json({ error: 'Parâmetros obrigatórios: to, titulo, data' }); }
 
     const detalhes = (descricao || '') + (osNumero ? '\n\nOS: ' + osNumero : '');
     const uid = 'tarefa-' + (osNumero || 'geral') + '-' + Date.now() + '@ajtopogeo.com.br';
-    const ics = buildICS({ titulo, descricao: detalhes, data, uid });
-    const gcalLink = googleCalendarLink({ titulo, descricao: detalhes, data });
+    const ics = buildICS({ titulo, descricao: detalhes, data, uid, frequencia });
+    const gcalLink = googleCalendarLink({ titulo, descricao: detalhes, data, frequencia });
     const from = process.env.RESEND_FROM || 'AJ TopoGeo <onboarding@resend.dev>';
+    const assunto = frequencia ? 'Rotina agendada: ' + titulo : 'Tarefa agendada: ' + titulo;
 
     const html = `
       <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto">
-        <h2 style="color:#1a1a1a;margin-bottom:4px">Nova tarefa agendada</h2>
-        <p style="color:#555">Olá${nome ? ', ' + nome : ''}! Uma tarefa foi agendada para você${osNumero ? ' na OS <strong>' + osNumero + '</strong>' : ''}:</p>
+        <h2 style="color:#1a1a1a;margin-bottom:4px">${frequencia ? 'Nova rotina agendada' : 'Nova tarefa agendada'}</h2>
+        <p style="color:#555">Olá${nome ? ', ' + nome : ''}! ${frequencia ? 'Uma rotina recorrente foi agendada para você' : 'Uma tarefa foi agendada para você'}${osNumero ? ' na OS <strong>' + osNumero + '</strong>' : ''}:</p>
         <div style="background:#f7f7f5;border-radius:8px;padding:16px;margin:16px 0">
           <p style="margin:0 0 8px;font-weight:600">${titulo}</p>
           ${descricao ? '<p style="margin:0 0 8px;color:#555">' + descricao + '</p>' : ''}
-          <p style="margin:0;color:#854F0B"><strong>Prazo:</strong> ${fdBR(data)}</p>
+          <p style="margin:0;color:#854F0B"><strong>${frequencia ? 'Próxima execução' : 'Prazo'}:</strong> ${fdBR(data)}</p>
+          ${frequencia ? '<p style="margin:4px 0 0;color:#854F0B"><strong>Repete:</strong> ' + frequencia + '</p>' : ''}
         </div>
         <p><a href="${gcalLink}" style="background:#4285F4;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600">Adicionar ao Google Calendar</a></p>
-        <p style="color:#999;font-size:12px">Também anexamos um arquivo .ics — abra-o para adicionar em qualquer app de calendário.</p>
+        <p style="color:#999;font-size:12px">Também anexamos um arquivo .ics — abra-o para adicionar em qualquer app de calendário${frequencia ? ' (já com a recorrência configurada)' : ''}.</p>
       </div>`;
 
     const emailResp = await fetch('https://api.resend.com/emails', {
@@ -101,7 +120,7 @@ module.exports = async (req, res) => {
       body: JSON.stringify({
         from,
         to: [to],
-        subject: 'Tarefa agendada: ' + titulo,
+        subject: assunto,
         html,
         attachments: [{ filename: 'tarefa.ics', content: Buffer.from(ics).toString('base64') }],
       }),
