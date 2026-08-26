@@ -12212,6 +12212,12 @@ function cadAtualizarPainel(){
   const p=_cadPontos.find(function(p){return p.id===_cadSelecionado;});
   if(!p){el.innerHTML=nav+'<div class="mu sm">Ponto não encontrado.</div>';return;}
   el.innerHTML=nav+'<div class="fg mb1"><label class="fl">Nome do ponto</label><input class="fc" id="cad-nome-input" value="'+xmlEscapeGeo(p.nome||'')+'"></div>'
+    +'<div class="fg mb1"><label class="fl">Código do Controle de Pontos</label><div style="display:flex;gap:.4rem">'
+    +'<select class="fc" id="cad-pc-tipo" onchange="cadPcAtualizarOpcoes();cadMetodoAtualizarOpcoes()" style="max-width:140px"><option value="marco">Marco</option><option value="ponto" selected>Ponto</option><option value="virtual">Virtual</option></select>'
+    +'<select class="fc" id="cad-pc-codigo" style="flex:1"><option>Carregando…</option></select>'
+    +'<button class="btn bxs" onclick="cadPcUsarCodigo()" title="Registra o código no Controle de Pontos e usa como nome"><i class="ti ti-check"></i> Usar</button>'
+    +'</div></div>'
+    +'<div class="fg mb1"><label class="fl">Método de posicionamento (planilha INCRA/SIGEF)</label><select class="fc" id="cad-metodo-select">'+sigefMetodoOptsHtml('P',p.metodoPosicionamento||'PG7')+'</select></div>'
     +'<div class="g3 mb1">'
     +'<div class="fg"><label class="fl">E (X)</label><input class="fc" id="cad-x-input" type="number" step="any" value="'+p.x+'"></div>'
     +'<div class="fg"><label class="fl">N (Y)</label><input class="fc" id="cad-y-input" type="number" step="any" value="'+p.y+'"></div>'
@@ -12222,11 +12228,129 @@ function cadAtualizarPainel(){
     +'<div class="fg"><label class="fl">σ N</label><input class="fc" id="cad-sigman-input" type="number" step="any" value="'+(p.sigmaN||0)+'"></div>'
     +'<div class="fg"><label class="fl">σ Z</label><input class="fc" id="cad-sigmaz-input" type="number" step="any" value="'+(p.sigmaZ||0)+'"></div>'
     +'</div>'
+    +'<div class="fg mb1"><label class="fl">Importar sigmas de todos os pontos (relatório GPS .html, casa por coordenada mais próxima)</label><input class="fc" type="file" accept=".html,.htm" onchange="cadImportarSigmasHtml(this)"></div>'
     +'<div class="fg mb1"><label class="fl">Camada</label><select class="fc" id="cad-camada-select">'
     +_cadCamadas.map(function(c){return '<option value="'+c.id+'"'+(c.id===p.layerId?' selected':'')+'>'+xmlEscapeGeo(c.nome)+'</option>';}).join('')
     +'</select></div>'
     +'<button class="btn bp2 bsm" onclick="cadAplicarEdicaoPonto()"><i class="ti ti-check"></i> Aplicar</button>';
-  setTimeout(function(){const inp=document.getElementById('cad-nome-input');if(inp){inp.focus();inp.select();}},0);
+  setTimeout(function(){const inp=document.getElementById('cad-nome-input');if(inp){inp.focus();inp.select();}cadPcAtualizarOpcoes();},0);
+}
+const CAD_TIPO_VERTICE_MAP={marco:'M',ponto:'P',virtual:'V'};
+function cadMetodoAtualizarOpcoes(){
+  const tipoEl=document.getElementById('cad-pc-tipo'),metEl=document.getElementById('cad-metodo-select');
+  if(!tipoEl||!metEl) return;
+  const tipoVertice=CAD_TIPO_VERTICE_MAP[tipoEl.value]||'P';
+  const atual=metEl.value;
+  const compat=sigefMetodosParaTipo(tipoVertice);
+  const selecionado=compat.some(function(it){return it.cod===atual;})?atual:(compat[0]?compat[0].cod:'');
+  metEl.innerHTML=sigefMetodoOptsHtml(tipoVertice,selecionado);
+}
+async function cadPcAtualizarOpcoes(){
+  const tipoEl=document.getElementById('cad-pc-tipo'),selEl=document.getElementById('cad-pc-codigo');
+  if(!tipoEl||!selEl) return;
+  const tipo=tipoEl.value;
+  const prefixos={marco:'FUOH-M-',ponto:'FUOH-P-',virtual:'FUOH-V-'};
+  selEl.innerHTML='<option>Carregando…</option>';
+  const{data,error}=await sb.from('pontos_controle').select('numero').eq('tipo',tipo);
+  if(error){selEl.innerHTML='<option value="">Controle de Pontos indisponível</option>';return;}
+  const usados=new Set((data||[]).map(function(r){return r.numero;}));
+  const max=usados.size?Math.max.apply(null,Array.from(usados)):0;
+  const proximo=max+1;
+  const gaps=[];
+  for(let n=1;n<max;n++){if(!usados.has(n))gaps.push(n);}
+  let html='<option value="next">Próximo — '+prefixos[tipo]+String(proximo).padStart(4,'0')+'</option>';
+  if(gaps.length) html+=gaps.map(function(n){return '<option value="'+n+'">'+prefixos[tipo]+String(n).padStart(4,'0')+' (vazio)</option>';}).join('');
+  selEl.innerHTML=html;
+}
+async function cadPcUsarCodigo(){
+  if(_cadSelecionado===null) return;
+  const p=_cadPontos.find(function(p){return p.id===_cadSelecionado;});
+  if(!p) return;
+  if(!_cadObraId){toast('Selecione a obra no CAD antes de gerar o código.',true);return;}
+  const tipoEl=document.getElementById('cad-pc-tipo'),valorEl=document.getElementById('cad-pc-codigo');
+  if(!tipoEl||!valorEl||!valorEl.value){toast('Escolha um código antes de usar.',true);return;}
+  const tipo=tipoEl.value,valor=valorEl.value;
+  const prefixos={marco:'FUOH-M-',ponto:'FUOH-P-',virtual:'FUOH-V-'};
+  const obra=_cadObras.find(function(o){return o.id===_cadObraId;});
+  const obraNome=obra?obra.nome:'';
+  let numero;
+  if(valor==='next'){
+    const{data:ultimo}=await sb.from('pontos_controle').select('numero').eq('tipo',tipo).order('numero',{ascending:false}).limit(1);
+    numero=((ultimo&&ultimo.length)?ultimo[0].numero:0)+1;
+  } else {
+    numero=parseInt(valor,10);
+  }
+  const codigo=prefixos[tipo]+String(numero).padStart(4,'0');
+  const{error}=await sb.from('pontos_controle').insert({tipo:tipo,numero:numero,codigo:codigo,obra_id:_cadObraId,obra_nome:obraNome,observacoes:'Gerado no CAD'});
+  if(error){toast('Erro ao registrar código: '+error.message,true);return;}
+  if(!p.nome) p.ordemNome=++_cadOrdemContador;
+  p.nome=codigo;
+  const nomeInput=document.getElementById('cad-nome-input');
+  if(nomeInput) nomeInput.value=codigo;
+  cadRenderCamadas();
+  cadRenderSvg();
+  cadAtualizarLista();
+  cadPcAtualizarOpcoes();
+  toast('Código '+codigo+' registrado e aplicado ao ponto.');
+}
+function cadParseRelatorioGpsHtml(texto){
+  const doc=new DOMParser().parseFromString(texto,'text/html');
+  const tabelas=Array.from(doc.querySelectorAll('table.properties.list')).filter(function(t){
+    return !t.classList.contains('bt')&&!t.classList.contains('pp');
+  });
+  const pontos=[];
+  tabelas.forEach(function(tabela){
+    const linhas=Array.from(tabela.querySelectorAll('tr')).filter(function(tr){return tr.querySelectorAll('th').length===0;});
+    for(let i=0;i+2<linhas.length;i+=3){
+      const l1=linhas[i].querySelectorAll('td'),l2=linhas[i+1].querySelectorAll('td'),l3=linhas[i+2].querySelectorAll('td');
+      if(l1.length<5||l2.length<3||l3.length<4) continue;
+      const nome=(l1[1]?l1[1].textContent:'').trim();
+      const n=parseFloat((l1[2]?l1[2].textContent:'').trim());
+      const sigmaN=parseFloat((l1[4]?l1[4].textContent:'').trim());
+      const e=parseFloat((l2[0]?l2[0].textContent:'').trim());
+      const sigmaE=parseFloat((l2[2]?l2[2].textContent:'').trim());
+      const z=parseFloat((l3[1]?l3[1].textContent:'').trim());
+      const sigmaZ=parseFloat((l3[3]?l3[3].textContent:'').trim());
+      if(nome&&isFinite(n)&&isFinite(e)){
+        pontos.push({nome:nome,e:e,n:n,z:isNaN(z)?0:z,sigmaE:isNaN(sigmaE)?0:sigmaE,sigmaN:isNaN(sigmaN)?0:sigmaN,sigmaZ:isNaN(sigmaZ)?0:sigmaZ});
+      }
+    }
+  });
+  return pontos;
+}
+function cadImportarSigmasHtml(input){
+  const file=input.files&&input.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(){
+    let pontosRel;
+    try{ pontosRel=cadParseRelatorioGpsHtml(String(reader.result)); }
+    catch(e){ toast('Erro ao ler o relatório HTML: '+e.message,true); input.value=''; return; }
+    if(!pontosRel.length){ toast('Nenhum ponto de levantamento encontrado no relatório.',true); input.value=''; return; }
+    const TOL=2;
+    const pares=[];
+    pontosRel.forEach(function(pr,ri){
+      _cadPontos.forEach(function(p,ci){
+        const d=Math.hypot(p.x-pr.e,p.y-pr.n);
+        if(d<=TOL) pares.push({ri:ri,ci:ci,d:d});
+      });
+    });
+    pares.sort(function(a,b){return a.d-b.d;});
+    const relUsados=new Set(),cadUsados=new Set();
+    let aplicados=0;
+    pares.forEach(function(par){
+      if(relUsados.has(par.ri)||cadUsados.has(par.ci)) return;
+      relUsados.add(par.ri);cadUsados.add(par.ci);
+      const pr=pontosRel[par.ri],p=_cadPontos[par.ci];
+      p.sigmaE=pr.sigmaE;p.sigmaN=pr.sigmaN;p.sigmaZ=pr.sigmaZ;
+      aplicados++;
+    });
+    cadAtualizarPainel();
+    const semMatch=pontosRel.length-aplicados;
+    toast(aplicados+' sigma(s) aplicado(s) por coordenada'+(semMatch?', '+semMatch+' ponto(s) do relatório sem correspondência (>'+TOL+'m)':'')+'.');
+    input.value='';
+  };
+  reader.readAsText(file,'UTF-8');
 }
 function cadAplicarEdicaoPonto(){
   if(_cadSelecionado===null) return;
@@ -12241,6 +12365,8 @@ function cadAplicarEdicaoPonto(){
   p.sigmaE=parseFloat(document.getElementById('cad-sigmae-input').value)||0;
   p.sigmaN=parseFloat(document.getElementById('cad-sigman-input').value)||0;
   p.sigmaZ=parseFloat(document.getElementById('cad-sigmaz-input').value)||0;
+  const metodoEl=document.getElementById('cad-metodo-select');
+  if(metodoEl) p.metodoPosicionamento=metodoEl.value;
   const novoNome=document.getElementById('cad-nome-input').value;
   if(novoNome&&!p.nome) p.ordemNome=++_cadOrdemContador;
   else if(!novoNome) p.ordemNome=0;
