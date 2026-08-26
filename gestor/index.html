@@ -610,6 +610,7 @@ const PCFG={
     +'<div class="fg"><label class="fl">RENAVAM</label><input class="fc" id="f-renavam"></div></div>'
     +'<div class="fg"><label class="fl">Observações</label><textarea class="fc" id="f-obs" rows="2"></textarea></div>';}},
   fazendas:{t:'Fazendas à Venda',a:'Nova Fazenda',tb:'fazendas',h:function(o){return ''
+    +'<div class="fg" style="background:#F4F8FF;border-radius:8px;padding:.6rem .9rem"><label class="fl">Puxar dados de uma obra salva</label><select class="fc" id="fz-obra-picker" onchange="preencherFazendaDeObra(this.value)"><option value="">— Selecione para preencher automaticamente —</option>'+(o.obFzOpts||'')+'</select><div class="mu sm" style="margin-top:.4rem">Preenche título, área, matrícula, localização e dados do proprietário a partir da obra escolhida. Confira e ajuste antes de salvar.</div></div>'
     +'<div class="fg"><label class="fl">Título *</label><input class="fc" id="f-titulo" placeholder="Ex: Fazenda Santa Rita — 240 ha"></div>'
     +'<div class="g3"><div class="fg"><label class="fl">Área (ha)</label><input class="fc" type="number" step="0.01" id="f-area_ha"></div>'
     +'<div class="fg"><label class="fl">Município</label><input class="fc" id="f-municipio" placeholder="Ex: Sidrolândia"></div>'
@@ -5593,6 +5594,7 @@ async function openModal(){
   const fOpts=(funcs||[]).map(f=>'<option value="'+f.id+'" data-h="'+(f.valor_hora||0)+'" data-d="'+(f.valor_diaria||0)+'">'+f.nome+'</option>').join('');
   const oOpts=(oss||[]).map(o=>'<option value="'+o.id+'">'+o.numero+' — '+o.tipo+'</option>').join('');
   const ctOpts=(cnts||[]).map(c=>'<option value="'+c.id+'">'+(c.tipo==='Caixa'?'💵 ':'🏦 ')+c.nome+(c.numero?' — '+c.numero:'')+'</option>').join('');
+  const obFzOpts=(obras||[]).map(ob=>'<option value="'+ob.id+'">'+ob.nome+(ob.municipio?' — '+ob.municipio:'')+'</option>').join('');
   window._contasCache=cnts||[];
   const orcAprovados=orcas||[];
   window._orcAprovadosCache=orcAprovados; // usado para preencher contrato a partir do orçamento
@@ -5604,7 +5606,7 @@ async function openModal(){
     const fChks=(funcs||[]).map(f=>'<label style="display:flex;align-items:center;gap:8px;padding:4px;cursor:pointer;border-radius:4px" class="hover-row"><input type="checkbox" class="f-resp-chk" value="'+f.id+'" data-nome="'+f.nome+'" style="width:14px;height:14px;accent-color:var(--brand)"> <span style="font-size:13px">'+f.nome+'</span></label>').join('');
     html=buildOrcaForm(cOpts,svcs||[],obOpts,fChks);
   }
-  else if(typeof cfg.h==='function'){html=cfg.h({cOpts,fOpts,oOpts,orcOpts,ctOpts});}
+  else if(typeof cfg.h==='function'){html=cfg.h({cOpts,fOpts,oOpts,orcOpts,ctOpts,obFzOpts});}
   else if(typeof cfg.h==='string'){html=cfg.h;}
   else{toast('Formulário não configurado.',true);return;}
   document.getElementById('mb').innerHTML=html;
@@ -14344,6 +14346,39 @@ function renderFazendaFotos(){
   ).join('')||'<div class="mu sm">Nenhuma foto ainda.</div>';
 }
 function removerFazendaFoto(i){_fazendaFotos.splice(i,1);renderFazendaFotos();}
+async function preencherFazendaDeObra(obraId){
+  if(!obraId)return;
+  const{data:obra,error}=await sb.from('obras').select('*').eq('id',obraId).single();
+  if(error||!obra){toast('Erro ao carregar dados da obra: '+(error?.message||''),true);return;}
+  const setv=function(id,val){const el=document.getElementById(id);if(el&&val!==null&&val!==undefined&&val!=='')el.value=val;};
+  setv('f-titulo',obra.nome);
+  setv('f-area_ha',obra.area_ha);
+  setv('f-matricula',obra.matricula);
+  if(obra.municipio){
+    const p=parseMunicipio(obra.municipio);
+    setv('f-municipio',p.mun);
+    setv('f-uf',p.uf);
+  }
+  const props=Array.isArray(obra.proprietarios)?obra.proprietarios:[];
+  if(props.length){
+    const p=props[0];
+    setv('f-proprietario_nome',p.nome);
+    setv('f-proprietario_cpf_cnpj',p.cpf||p.cnpj);
+    setv('f-proprietario_rg',p.docNumero);
+    setv('f-proprietario_estado_civil',p.estadoCivil);
+    setv('f-proprietario_endereco',p.endereco);
+  } else if(obra.cliente_id){
+    const{data:cli}=await sb.from('clientes').select('nome,cpfcnpj,rg,estado_civil,endereco,cidade').eq('id',obra.cliente_id).single();
+    if(cli){
+      setv('f-proprietario_nome',cli.nome);
+      setv('f-proprietario_cpf_cnpj',cli.cpfcnpj);
+      setv('f-proprietario_rg',cli.rg);
+      setv('f-proprietario_estado_civil',cli.estado_civil);
+      setv('f-proprietario_endereco',cli.endereco||cli.cidade);
+    }
+  }
+  toast('Dados da obra preenchidos. Confira e ajuste antes de salvar.');
+}
 pageMap.fazendas=rFazendas;
 
 async function gerarAutorizacaoVendaDocx(){
