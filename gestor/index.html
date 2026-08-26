@@ -13181,9 +13181,14 @@ function sigefCarregarDoCad(){
   if(!ordenados.length){toast('Nomeie os pontos do perímetro na aba "CAD" antes de usar (use o painel do ponto ou a lista de pontos nomeados).',true);return;}
   const p=sigefPerimetroAtual();
   p.pontosOrigem=JSON.parse(JSON.stringify(ordenados));
-  p.vertices=p.pontosOrigem.map(function(pt){return sigefNovoVertice(pt.nome,pt.x,pt.y,pt.z,pt.sigmaE,pt.sigmaN,pt.sigmaZ);});
+  const src=projDef('SIRGAS2000',_cadUtmZona,_cadUtmSul),dst=projDef('WGS84',null,false);
+  p.vertices=p.pontosOrigem.map(function(pt){
+    let lon=pt.x,lat=pt.y;
+    try{const ll=proj4(src,dst,[pt.x,pt.y]);lon=ll[0];lat=ll[1];}catch(e){}
+    return sigefNovoVertice(pt.nome,lon,lat,pt.z,pt.sigmaE,pt.sigmaN,pt.sigmaZ);
+  });
   sigefRenderVertices();
-  toast(p.vertices.length+' vértice(s) carregados da CAD ('+origem+').');
+  toast(p.vertices.length+' vértice(s) carregados da CAD ('+origem+'), convertidos de UTM (zona '+_cadUtmZona+(_cadUtmSul?' S':' N')+') para geográfica.');
 }
 function sigefImportarSigmasTxt(input){
   const file=input.files[0];if(!file)return;
@@ -13417,6 +13422,10 @@ function odsLerCelulaTexto(rowEl,colIdx){
 function odsSetCelulaTexto(rowEl,colIdx,texto){
   const cell=odsIsolarCelula(rowEl,colIdx);
   if(!cell) return;
+  ['office:value','office:date-value','office:time-value','office:boolean-value','office:string-value','table:formula'].forEach(function(attr){
+    if(cell.hasAttribute(attr)) cell.removeAttribute(attr);
+  });
+  cell.setAttribute('office:value-type','string');
   const ps=cell.getElementsByTagName('text:p');
   for(let i=ps.length-1;i>=0;i--) cell.removeChild(ps[i]);
   const p=cell.ownerDocument.createElement('text:p');
@@ -13466,7 +13475,7 @@ function odsPreencherPerimetro(xmlDoc,header,vertices,tableEl){
   const linhaModeloClone=linhaModelo.cloneNode(true);
   linhaModeloClone.removeAttribute('table:number-rows-repeated');
   function fmtNum(n){return (n==null||isNaN(n))?'0,00':Number(n).toFixed(2).replace('.',',');}
-  function fmtCoord(n){return (n==null||isNaN(n))?'0,00':String(n).replace('.',',');}
+  function fmtCoord(n){return (n==null||isNaN(n))?'0,000':Number(n).toFixed(3).replace('.',',');}
   function fmtCoordDMS(dec,isLat){
     if(dec==null||isNaN(dec)) return '';
     const sign=dec<0?-1:1;dec=Math.abs(dec);
