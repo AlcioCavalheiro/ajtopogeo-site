@@ -75,6 +75,7 @@ body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(
 .ms{font-size:11px;color:var(--mu);margin-top:2px}
 .lc2{border-left:4px solid var(--brand);background:var(--bl);border-radius:10px;padding:1rem}
 .ln2{border-left:4px solid #E24B4A;background:#FCEBEB;border-radius:10px;padding:1rem}
+.g5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
 .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
 .g2{display:grid;grid-template-columns:repeat(2,1fr);gap:1rem}
@@ -244,7 +245,7 @@ select.fc{cursor:pointer}
   .ni i{font-size:20px!important}
 
   /* Grids */
-  .g2,.g3,.g4{grid-template-columns:1fr!important}
+  .g2,.g3,.g4,.g5{grid-template-columns:1fr!important}
   .stat-grid{grid-template-columns:1fr 1fr!important}
 
   /* Tabelas — scroll suave com momentum */
@@ -310,6 +311,7 @@ select.fc{cursor:pointer}
   .sb{width:var(--sb)!important}
   .mn{margin-left:var(--sb)!important}
   .g4{grid-template-columns:1fr 1fr!important}
+  .g5{grid-template-columns:1fr 1fr 1fr!important}
 }
 </style>
 <script>document.write('<script src="'+(location.protocol==='file:'?'pdf-lib.min.js':'/gestor/pdf-lib.min.js')+'"><\/script>');</script>
@@ -3822,10 +3824,11 @@ async function rMedicao(){
   const recebidos=ms.filter(m=>m.status==='Recebido');
   const el=document.getElementById('ct');
   el.innerHTML=`
-  <div class="g4 mb1">
+  <div class="g5 mb1">
     <div class="mc" style="border-left:3px solid #854F0B;border-radius:0 10px 10px 0"><div class="ml">Aptas para medir</div><div class="mv" style="color:#854F0B">${aptas.length}</div><div class="ms">${fmt(aptas.reduce((s,o)=>s+Number(o.orcamento_valor||0),0))}</div></div>
     <div class="mc" style="border-left:3px solid #185FA5;border-radius:0 10px 10px 0"><div class="ml">Fechar medição</div><div class="mv" style="color:#185FA5">${fechar.length}</div><div class="ms">${fmt(fechar.reduce((s,m)=>s+Number(m.valor),0))}</div></div>
     <div class="mc" style="border-left:3px solid #854F0B;border-radius:0 10px 10px 0"><div class="ml">Gerar NF</div><div class="mv" style="color:#854F0B">${gerar_nf.length}</div><div class="ms">${fmt(gerar_nf.reduce((s,m)=>s+Number(m.valor),0))}</div></div>
+    <div class="mc" style="border-left:3px solid #A32D2D;border-radius:0 10px 10px 0"><div class="ml">Falta pagamento</div><div class="mv" style="color:#A32D2D">${falta_pag.length}</div><div class="ms">${fmt(falta_pag.reduce((s,m)=>s+Number(m.valor),0))}</div></div>
     <div class="mc" style="border-left:3px solid #3B6D11;border-radius:0 10px 10px 0"><div class="ml">Recebido</div><div class="mv" style="color:#27500A">${recebidos.length}</div><div class="ms">${fmt(recebidos.reduce((s,m)=>s+Number(m.valor),0))}</div></div>
   </div>
   <div class="card mb1">
