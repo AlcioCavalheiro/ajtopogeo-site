@@ -1,0 +1,12 @@
+{
+  "porta": 8745,
+  "hostnamesPermitidos": ["DESKTOP-D035DG5"],
+  "gdalBin": "C:/Program Files/QGIS 3.44.2/bin",
+  "djiTerraRoot": "C:/Users/ALCIO/Documents/DJI/DJITerra/ajtopogeo@gmail.com",
+  "origensPermitidas": [
+    "http://localhost:8743",
+    "http://127.0.0.1:8743",
+    "http://localhost:8744",
+    "http://127.0.0.1:8744"
+  ]
+}

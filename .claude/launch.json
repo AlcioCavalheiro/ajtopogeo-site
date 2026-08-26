@@ -12,6 +12,12 @@
       "runtimeExecutable": "py",
       "runtimeArgs": ["-m", "http.server", "8744", "--directory", "C:/Users/ALCIO/Documents/SITE"],
       "port": 8744
+    },
+    {
+      "name": "dsm-local-service",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["gestor/servico-local-dsm/servidor.js"],
+      "port": 8745
     }
   ]
 }

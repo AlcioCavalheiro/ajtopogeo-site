@@ -8526,6 +8526,180 @@ function geoTab(tab){
   if(tab==='dsm'){ dsmCarregarStatus(); }
 }
 
+// ── DSM: cota de terreno e curvas de nível a partir do voo de drone (DJI Terra) ──
+// Depende do serviço local em servico-local-dsm/servidor.js (so roda nesta maquina,
+// que tem o GDAL e os arquivos de voo instalados -- por isso chama localhost em vez de /api).
+const DSM_SERVICO_URL='http://127.0.0.1:8745';
+const DSM_WGS84_DEF='+proj=longlat +ellps=WGS84 +no_defs';
+var _dsmPastas=[],_dsmPastaAtual=null;
+var _dsmMap=null,_dsmExtentLayer=null,_dsmMarcador=null,_dsmCurvasLayer=null;
+
+function geoDsmHtml(){
+  return '<div class="card mb1">'
+    +'<div class="st mb1"><i class="ti ti-mountain" style="color:var(--brand)"></i>Cota de Terreno e Curvas de Nível (DSM)</div>'
+    +'<div class="mu sm mb1">Consulta a elevação do terreno e gera curvas de nível a partir dos modelos de superfície (DSM) processados pelo DJI Terra. Só funciona nesta máquina, com o serviço local ligado.</div>'
+    +'<div id="dsm-status" class="mu sm mb1"><i class="ti ti-loader"></i> Verificando o serviço local…</div>'
+    +'<div id="dsm-corpo" style="display:none">'
+    +'<div class="fg mb1"><label class="fl">Projeto (pasta do DJI Terra)</label><select class="fc" id="dsm-pasta" onchange="dsmSelecionarPasta(this.value)"></select></div>'
+    +'<div id="dsm-map" style="height:280px;border-radius:8px;margin-bottom:.8rem"></div>'
+    +'<div class="mu sm mb1">Clique no mapa acima para escolher o ponto, ou digite as coordenadas UTM diretamente.</div>'
+    +'<div class="g2 mb1">'
+    +'<div class="fg"><label class="fl">E (m)</label><input class="fc" id="dsm-e" type="number" step="any"></div>'
+    +'<div class="fg"><label class="fl">N (m)</label><input class="fc" id="dsm-n" type="number" step="any"></div>'
+    +'</div>'
+    +'<div class="fx g8 mb1"><button class="btn bsm" id="dsm-btn-cota" onclick="dsmConsultarCota()"><i class="ti ti-arrows-vertical"></i> Consultar cota</button></div>'
+    +'<div id="dsm-cota-resultado" class="mu sm mb1"></div>'
+    +'<hr style="border:none;border-top:1px solid var(--bd);margin:1rem 0">'
+    +'<div class="fg mb1"><label class="fl">Intervalo das curvas de nível (m)</label><input class="fc" id="dsm-intervalo" type="number" step="any" value="1" min="0.1" max="50" style="max-width:160px"></div>'
+    +'<div class="fx g8 mb1"><button class="btn bsm" id="dsm-btn-curvas" onclick="dsmGerarCurvas()"><i class="ti ti-line-height"></i> Gerar curvas de nível</button></div>'
+    +'<div id="dsm-curvas-resultado" class="mu sm"></div>'
+    +'</div>'
+    +'</div>';
+}
+
+function dsmUtmDef(epsg){
+  const sul=epsg>=32701&&epsg<=32760, norte=epsg>=32601&&epsg<=32660;
+  if(!sul&&!norte) throw new Error('EPSG não suportado para reprojeção: '+epsg);
+  const zona=sul?epsg-32700:epsg-32600;
+  return '+proj=utm +zone='+zona+(sul?' +south':'')+' +ellps=WGS84 +units=m +no_defs';
+}
+
+async function dsmCarregarStatus(){
+  const st=document.getElementById('dsm-status'),corpo=document.getElementById('dsm-corpo');
+  st.innerHTML='<i class="ti ti-loader"></i> Verificando o serviço local…';
+  try{
+    const r=await fetch(DSM_SERVICO_URL+'/status');
+    const d=await r.json();
+    if(!d.ok){
+      st.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Serviço local indisponível nesta máquina: '+(d.problemas||[]).join('; ')+'</span>';
+      corpo.style.display='none';
+      return;
+    }
+    st.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> Serviço local ativo em '+d.hostname+'.</span>';
+    corpo.style.display='';
+    dsmCarregarPastas();
+  }catch(e){
+    st.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> Esta ferramenta só funciona nesta máquina, com o serviço local ligado. Dê duplo-clique em <code>gestor/servico-local-dsm/iniciar.bat</code> e recarregue esta aba.</span>';
+    corpo.style.display='none';
+  }
+}
+
+async function dsmCarregarPastas(){
+  const sel=document.getElementById('dsm-pasta');
+  try{
+    const r=await fetch(DSM_SERVICO_URL+'/pastas');
+    _dsmPastas=await r.json();
+    if(!_dsmPastas.length){ sel.innerHTML='<option>Nenhum projeto com DSM encontrado</option>'; return; }
+    sel.innerHTML=_dsmPastas.map(function(p){return '<option value="'+p.nome+'">'+p.nome+' ('+p.tamanhoMB+' MB)</option>';}).join('');
+    dsmSelecionarPasta(_dsmPastas[0].nome);
+  }catch(e){
+    sel.innerHTML='<option>Erro ao listar projetos</option>';
+  }
+}
+
+function dsmSelecionarPasta(nome){
+  _dsmPastaAtual=_dsmPastas.find(function(p){return p.nome===nome;})||null;
+  document.getElementById('dsm-cota-resultado').innerHTML='';
+  document.getElementById('dsm-curvas-resultado').innerHTML='';
+  if(_dsmCurvasLayer&&_dsmMap){_dsmMap.removeLayer(_dsmCurvasLayer);_dsmCurvasLayer=null;}
+  if(_dsmMarcador&&_dsmMap){_dsmMap.removeLayer(_dsmMarcador);_dsmMarcador=null;}
+  if(!_dsmPastaAtual||!_dsmPastaAtual.extensao) return;
+  dsmMontarMapa();
+}
+
+function dsmMontarMapa(){
+  const ext=_dsmPastaAtual.extensao;
+  const utmDef=dsmUtmDef(ext.epsg);
+  const sw=proj4(utmDef,DSM_WGS84_DEF,[ext.minE,ext.minN]);
+  const ne=proj4(utmDef,DSM_WGS84_DEF,[ext.maxE,ext.maxN]);
+  const bounds=[[sw[1],sw[0]],[ne[1],ne[0]]];
+  if(!_dsmMap){
+    _dsmMap=L.map('dsm-map');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(_dsmMap);
+    _dsmMap.on('click',dsmMapaClique);
+  }
+  if(_dsmExtentLayer) _dsmMap.removeLayer(_dsmExtentLayer);
+  _dsmExtentLayer=L.rectangle(bounds,{color:'#2E6BE6',weight:2,fillOpacity:.05}).addTo(_dsmMap);
+  setTimeout(function(){_dsmMap.invalidateSize();_dsmMap.fitBounds(bounds,{padding:[10,10]});},50);
+}
+
+function dsmMapaClique(e){
+  if(!_dsmPastaAtual||!_dsmPastaAtual.extensao) return;
+  const utmDef=dsmUtmDef(_dsmPastaAtual.extensao.epsg);
+  const p=proj4(DSM_WGS84_DEF,utmDef,[e.latlng.lng,e.latlng.lat]);
+  document.getElementById('dsm-e').value=p[0].toFixed(3);
+  document.getElementById('dsm-n').value=p[1].toFixed(3);
+  dsmMarcarPonto(e.latlng);
+  dsmConsultarCota();
+}
+
+function dsmMarcarPonto(latlng){
+  if(_dsmMarcador) _dsmMap.removeLayer(_dsmMarcador);
+  _dsmMarcador=L.marker(latlng).addTo(_dsmMap);
+}
+
+async function dsmConsultarCota(){
+  if(!_dsmPastaAtual){ toast('Escolha um projeto primeiro.',true); return; }
+  const e=parseFloat(document.getElementById('dsm-e').value);
+  const n=parseFloat(document.getElementById('dsm-n').value);
+  const res=document.getElementById('dsm-cota-resultado');
+  if(!isFinite(e)||!isFinite(n)){ toast('Informe as coordenadas E e N.',true); return; }
+  const btn=document.getElementById('dsm-btn-cota');
+  btn.disabled=true;
+  res.innerHTML='<i class="ti ti-loader"></i> Consultando…';
+  try{
+    const url=DSM_SERVICO_URL+'/cota?pasta='+encodeURIComponent(_dsmPastaAtual.nome)+'&e='+e+'&n='+n;
+    const r=await fetch(url);
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.erro||('Erro '+r.status));
+    if(d.foraDaArea){ res.innerHTML='<span style="color:#854F0B"><i class="ti ti-alert-triangle"></i> Ponto fora da área coberta pelo voo.</span>'; return; }
+    res.innerHTML='<span style="color:#27500A"><i class="ti ti-check"></i> Cota: <strong>'+d.cota.toFixed(2)+' m</strong></span>';
+    if(!_dsmMarcador){
+      const utmDef=dsmUtmDef(_dsmPastaAtual.extensao.epsg);
+      const ll=proj4(utmDef,DSM_WGS84_DEF,[e,n]);
+      dsmMarcarPonto([ll[1],ll[0]]);
+    }
+  }catch(e2){
+    res.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> '+e2.message+'</span>';
+  }finally{
+    btn.disabled=false;
+  }
+}
+
+async function dsmGerarCurvas(){
+  if(!_dsmPastaAtual){ toast('Escolha um projeto primeiro.',true); return; }
+  const intervalo=parseFloat(document.getElementById('dsm-intervalo').value)||1;
+  const btn=document.getElementById('dsm-btn-curvas');
+  const res=document.getElementById('dsm-curvas-resultado');
+  btn.disabled=true;
+  res.innerHTML='<i class="ti ti-loader"></i> Gerando curvas de nível (DSM de '+_dsmPastaAtual.tamanhoMB+' MB — pode levar 1 a 2 minutos)…';
+  try{
+    const url=DSM_SERVICO_URL+'/curvas-nivel?pasta='+encodeURIComponent(_dsmPastaAtual.nome)+'&intervalo='+intervalo;
+    const r=await fetch(url);
+    const texto=await r.text();
+    if(!r.ok){ let d={}; try{d=JSON.parse(texto);}catch(e3){} throw new Error(d.erro||('Erro '+r.status)); }
+    const gj=JSON.parse(texto);
+    const nFeat=(gj.features||[]).length;
+    const tamanhoMB=(texto.length/1024/1024).toFixed(1);
+    downloadBlobGeo(new Blob([texto],{type:'application/geo+json'}),'curvas_nivel_'+_dsmPastaAtual.nome+'_'+intervalo+'m.geojson');
+    let msg='<span style="color:#27500A"><i class="ti ti-check"></i> '+nFeat+' curva(s) geradas ('+tamanhoMB+' MB) — download iniciado.</span>';
+    if(_dsmCurvasLayer){ _dsmMap.removeLayer(_dsmCurvasLayer); _dsmCurvasLayer=null; }
+    if(texto.length<4*1024*1024){
+      const utmDef=dsmUtmDef(_dsmPastaAtual.extensao.epsg);
+      const gjWgs=reprojectGeoJSON(gj,utmDef,DSM_WGS84_DEF);
+      _dsmCurvasLayer=L.geoJSON(gjWgs,{style:{color:'#8B5E00',weight:1}}).addTo(_dsmMap);
+    }else{
+      msg+='<br><span class="mu sm">Arquivo grande demais para exibir no mapa — abra o arquivo baixado no QGIS.</span>';
+    }
+    res.innerHTML=msg;
+    toast('Curvas de nível geradas!');
+  }catch(e2){
+    res.innerHTML='<span style="color:#A32D2D"><i class="ti ti-alert-circle"></i> '+e2.message+'</span>';
+  }finally{
+    btn.disabled=false;
+  }
+}
+
 // ── Controle de Pontos (marcos, pontos, pontos virtuais) ──
 var _pcObras=[],_pcCache=[];
 function geoPontosHtml(){
