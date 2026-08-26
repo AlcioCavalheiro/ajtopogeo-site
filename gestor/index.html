@@ -8480,7 +8480,8 @@ const GEO_TABS=[
   {k:'gmaps',ic:'ti-current-location',lb:'Ponto do Maps'},
   {k:'pontos',ic:'ti-hash',lb:'Controle de Pontos'},
   {k:'pontoslivres',ic:'ti-list-details',lb:'Códigos Vazios'},
-  {k:'monitor',ic:'ti-folder',lb:'Pastas para Monitor'}
+  {k:'monitor',ic:'ti-folder',lb:'Pastas para Monitor'},
+  {k:'dsm',ic:'ti-mountain',lb:'DSM / Curvas de Nível'}
 ];
 function rGeoFerramentasFixed(){
   const el=document.getElementById('ct');if(!el)return;
@@ -8501,7 +8502,8 @@ function rGeoFerramentasFixed(){
     +'<div id="geo-gmaps" style="display:none">'+geoGmapsHtml()+'</div>'
     +'<div id="geo-pontos" style="display:none">'+geoPontosHtml()+'</div>'
     +'<div id="geo-pontoslivres" style="display:none">'+geoPontosLivresHtml()+'</div>'
-    +'<div id="geo-monitor" style="display:none">'+geoMonitorHtml()+'</div>';
+    +'<div id="geo-monitor" style="display:none">'+geoMonitorHtml()+'</div>'
+    +'<div id="geo-dsm" style="display:none">'+geoDsmHtml()+'</div>';
   coordUpdateUI();
   memorialInit();
   anuenciaInit();
@@ -8521,6 +8523,7 @@ function geoTab(tab){
   if(tab==='cad' && typeof _cadPontos!=='undefined' && _cadPontos.length){
     setTimeout(function(){cadAjustarView();cadRenderSvg();},50);
   }
+  if(tab==='dsm'){ dsmCarregarStatus(); }
 }
 
 // ── Controle de Pontos (marcos, pontos, pontos virtuais) ──
@@ -13245,7 +13248,7 @@ function sigefBuscarMetodo(cod){
 function sigefMetodosParaTipo(tipoVertice){
   const out=[];
   SIGEF_METODOS_POSICIONAMENTO.forEach(function(grupo){
-    grupo.itens.forEach(function(it){if(it.tipos.indexOf(tipoVertice)>=0) out.push(it);});
+    grupo.itens.forEach(function(it){out.push(it);});
   });
   return out;
 }
@@ -13255,14 +13258,7 @@ function sigefAtualizarVertice(i,campo,valor){
   if(campo==='confronta') vertices[i][campo]=!!valor;
   else if(['long','sigmaLong','lat','sigmaLat','h','sigmaH'].indexOf(campo)>=0) vertices[i][campo]=parseFloat(String(valor).replace(',','.'))||0;
   else vertices[i][campo]=valor;
-  if(campo==='tipoVertice'){
-    const atual=sigefBuscarMetodo(vertices[i].metodoPosicionamento);
-    if(!atual||atual.tipos.indexOf(valor)<0){
-      const compat=sigefMetodosParaTipo(valor)[0];
-      if(compat) vertices[i].metodoPosicionamento=compat.cod;
-    }
-    sigefRenderVertices();
-  } else if(campo==='confronta'){
+  if(campo==='tipoVertice'||campo==='confronta'){
     sigefRenderVertices();
   }
 }
@@ -13279,9 +13275,7 @@ function sigefAplicarConfrontante(i,vizIdx){
 function sigefMetodoOptsHtml(tipoVertice,selecionado){
   let html='';
   SIGEF_METODOS_POSICIONAMENTO.forEach(function(grupo){
-    const itens=grupo.itens.filter(function(it){return it.tipos.indexOf(tipoVertice)>=0;});
-    if(!itens.length) return;
-    html+='<optgroup label="'+xmlEscapeGeo(grupo.grupo)+'">'+itens.map(function(it){
+    html+='<optgroup label="'+xmlEscapeGeo(grupo.grupo)+'">'+grupo.itens.map(function(it){
       return '<option value="'+it.cod+'"'+(it.cod===selecionado?' selected':'')+'>'+it.cod+' — '+xmlEscapeGeo(it.nome)+'</option>';
     }).join('')+'</optgroup>';
   });
