@@ -3575,7 +3575,7 @@ async function updMedicao(id,status){
   // Sincroniza status das OS vinculadas à medição
   const statusOS = status==='Fechar Medição' ? 'Medição Realizada'
     : status==='Gerar NF' ? 'NF Gerada'
-    : status==='Falta Pagamento' ? 'Falta Pagamento'
+    : status==='Falta Pagamento' ? 'NF Gerada'
     : status==='Recebido' ? 'Recebido'
     : null;
   if(statusOS){
@@ -3738,7 +3738,7 @@ async function salvarEdicaoMedicao(id){
   // Sincroniza status das OS vinculadas à medição (mesma regra do dropdown da tabela)
   const statusOS = novoStatus==='Fechar Medição' ? 'Medição Realizada'
     : novoStatus==='Gerar NF' ? 'NF Gerada'
-    : novoStatus==='Falta Pagamento' ? 'Falta Pagamento'
+    : novoStatus==='Falta Pagamento' ? 'NF Gerada'
     : novoStatus==='Recebido' ? 'Recebido'
     : null;
   if(statusOS && mAtual?.os_ids?.length) await sb.from('ordens').update({status:statusOS,atualizado_em:new Date().toISOString()}).in('id',mAtual.os_ids);
