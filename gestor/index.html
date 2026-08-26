@@ -8478,6 +8478,7 @@ const GEO_TABS=[
   {k:'cad',ic:'ti-stack-2',lb:'CAD'},
   {k:'sigef',ic:'ti-table',lb:'Planilha SIGEF (.ods)'},
   {k:'gmaps',ic:'ti-current-location',lb:'Ponto do Maps'},
+  {k:'pontos',ic:'ti-hash',lb:'Controle de Pontos'},
   {k:'monitor',ic:'ti-folder',lb:'Pastas para Monitor'}
 ];
 function rGeoFerramentasFixed(){
@@ -8497,6 +8498,7 @@ function rGeoFerramentasFixed(){
     +'<div id="geo-cad" style="display:none">'+geoCadHtml()+'</div>'
     +'<div id="geo-sigef" style="display:none">'+geoSigefHtml()+'</div>'
     +'<div id="geo-gmaps" style="display:none">'+geoGmapsHtml()+'</div>'
+    +'<div id="geo-pontos" style="display:none">'+geoPontosHtml()+'</div>'
     +'<div id="geo-monitor" style="display:none">'+geoMonitorHtml()+'</div>';
   coordUpdateUI();
   memorialInit();
@@ -8505,6 +8507,7 @@ function rGeoFerramentasFixed(){
   cadInit();
   sigefInit();
   monAtualizarUI();
+  pcInit();
 }
 pageMap.geoferramentas=rGeoFerramentasFixed;
 function geoTab(tab){
@@ -8515,6 +8518,111 @@ function geoTab(tab){
   if(tab==='cad' && typeof _cadPontos!=='undefined' && _cadPontos.length){
     setTimeout(function(){cadAjustarView();cadRenderSvg();},50);
   }
+}
+
+// ── Controle de Pontos (marcos, pontos, pontos virtuais) ──
+var _pcObras=[],_pcCache=[];
+function geoPontosHtml(){
+  var tipos=[
+    {k:'marco',label:'Marco',ic:'ti-flag-2',cor:'#185FA5'},
+    {k:'ponto',label:'Ponto',ic:'ti-map-pin',cor:'#2f7d32'},
+    {k:'virtual',label:'Ponto Virtual',ic:'ti-vector-triangle',cor:'#8B5CF6'}
+  ];
+  return '<div class="card mb1">'
+    +'<div class="st mb1"><i class="ti ti-hash" style="color:var(--brand)"></i> Controle de Pontos</div>'
+    +'<div class="mu sm mb1">Numeração sequencial dos códigos de campo (prefixo FUOH-M-/FUOH-P-/FUOH-V-), pra nunca repetir marco, ponto ou ponto virtual entre obras. O próximo código é sempre o maior número já usado desse tipo, mais um.</div>'
+    +'<div class="gr" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px">'
+    +tipos.map(function(t){
+      return '<div class="card" style="background:#FAFBFC">'
+        +'<div class="w6 sm mb1" style="color:'+t.cor+'"><i class="ti '+t.ic+'"></i> '+t.label+'</div>'
+        +'<div style="font-size:20px;font-weight:800;font-family:monospace;margin-bottom:8px" id="pc-next-'+t.k+'">…</div>'
+        +'<div class="fg"><label class="fl">Obra / Fazenda</label><input class="fc" id="pc-obra-'+t.k+'" list="pc-obras-dl" placeholder="Nome da obra ou fazenda"></div>'
+        +'<div class="fg"><label class="fl">Observações</label><input class="fc" id="pc-obs-'+t.k+'" placeholder="Opcional"></div>'
+        +'<button class="btn bp2" style="width:100%" onclick="pcGerar(\''+t.k+'\')"><i class="ti ti-plus"></i> Gerar código</button>'
+        +'</div>';
+    }).join('')
+    +'</div>'
+    +'<datalist id="pc-obras-dl"></datalist>'
+    +'</div>'
+    +'<div class="card">'
+    +'<div class="st mb1"><i class="ti ti-list-search" style="color:var(--brand)"></i> Histórico</div>'
+    +'<div class="g2 mb1">'
+    +'<div class="fg"><label class="fl">Buscar</label><input class="fc" id="pc-busca" placeholder="Código ou obra..." oninput="pcBuscar()"></div>'
+    +'<div class="fg"><label class="fl">Tipo</label><select class="fc" id="pc-filtro-tipo" onchange="pcBuscar()"><option value="">Todos</option><option value="marco">Marco</option><option value="ponto">Ponto</option><option value="virtual">Virtual</option></select></div>'
+    +'</div>'
+    +'<div id="pc-lista"><div class="mu sm">Carregando...</div></div>'
+    +'</div>';
+}
+async function pcInit(){
+  const {data:obrasData}=await sb.from('obras').select('id,nome').order('nome');
+  _pcObras=obrasData||[];
+  const dl=document.getElementById('pc-obras-dl');
+  if(dl) dl.innerHTML=_pcObras.map(function(o){return '<option value="'+(o.nome||'').replace(/"/g,'&quot;')+'">';}).join('');
+  await pcCarregarProximos();
+  await pcBuscar();
+}
+async function pcCarregarProximos(){
+  const prefixos={marco:'FUOH-M-',ponto:'FUOH-P-',virtual:'FUOH-V-'};
+  for(const t of ['marco','ponto','virtual']){
+    const {data}=await sb.from('pontos_controle').select('numero').eq('tipo',t).order('numero',{ascending:false}).limit(1);
+    const max=(data&&data.length)?data[0].numero:0;
+    const el=document.getElementById('pc-next-'+t);
+    if(el) el.textContent=prefixos[t]+String(max+1).padStart(4,'0');
+  }
+}
+async function pcGerar(tipo){
+  const prefixos={marco:'FUOH-M-',ponto:'FUOH-P-',virtual:'FUOH-V-'};
+  const obraEl=document.getElementById('pc-obra-'+tipo),obsEl=document.getElementById('pc-obs-'+tipo);
+  const obraNome=(obraEl.value||'').trim();
+  const obs=(obsEl.value||'').trim();
+  if(!obraNome){toast('Informe a obra/fazenda.',true);return;}
+  const {data:ultimo}=await sb.from('pontos_controle').select('numero').eq('tipo',tipo).order('numero',{ascending:false}).limit(1);
+  const proximo=((ultimo&&ultimo.length)?ultimo[0].numero:0)+1;
+  const codigo=prefixos[tipo]+String(proximo).padStart(4,'0');
+  const obraMatch=_pcObras.find(function(o){return (o.nome||'').toLowerCase()===obraNome.toLowerCase();});
+  const{error}=await sb.from('pontos_controle').insert({tipo:tipo,numero:proximo,codigo:codigo,obra_id:obraMatch?obraMatch.id:null,obra_nome:obraNome,observacoes:obs||null});
+  if(error){toast('Erro ao gerar código: '+error.message,true);return;}
+  toast('Código gerado: '+codigo);
+  obraEl.value='';obsEl.value='';
+  await pcCarregarProximos();
+  await pcBuscar();
+}
+async function pcBuscar(){
+  const qEl=document.getElementById('pc-busca'),tEl=document.getElementById('pc-filtro-tipo');
+  const q=qEl?qEl.value.trim():'',filtroTipo=tEl?tEl.value:'';
+  let query=sb.from('pontos_controle').select('*').order('criado_em',{ascending:false}).limit(300);
+  if(filtroTipo) query=query.eq('tipo',filtroTipo);
+  if(q) query=query.or('codigo.ilike.%'+q+'%,obra_nome.ilike.%'+q+'%');
+  const{data,error}=await query;
+  _pcCache=data||[];
+  pcRenderLista(error);
+}
+function pcRenderLista(error){
+  const el=document.getElementById('pc-lista');if(!el)return;
+  if(error){el.innerHTML='<div class="mu sm">Controle de Pontos indisponível. Rode a migration <b>add_pontos_controle.sql</b> no Supabase.<br>'+error.message+'</div>';return;}
+  if(!_pcCache.length){el.innerHTML='<div class="mu sm">Nenhum código encontrado.</div>';return;}
+  const cor={marco:'#185FA5',ponto:'#2f7d32',virtual:'#8B5CF6'},lbl={marco:'Marco',ponto:'Ponto',virtual:'Virtual'};
+  el.innerHTML='<div style="max-height:420px;overflow:auto">'+_pcCache.map(function(p){
+    return '<div class="fxb" style="padding:8px 4px;border-bottom:1px solid var(--bor)">'
+      +'<div style="display:flex;align-items:center;gap:10px;min-width:0">'
+      +'<span style="background:'+cor[p.tipo]+'22;color:'+cor[p.tipo]+';border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;white-space:nowrap">'+lbl[p.tipo]+'</span>'
+      +'<span style="font-family:monospace;font-weight:700">'+p.codigo+'</span>'
+      +'<span class="mu sm" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+(p.obra_nome||'')+'</span>'
+      +'</div>'
+      +'<div style="display:flex;align-items:center;gap:10px;flex-shrink:0">'
+      +'<span class="mu sm">'+new Date(p.criado_em).toLocaleDateString('pt-BR')+'</span>'
+      +'<i class="ti ti-trash" style="cursor:pointer;color:#A32D2D" onclick="pcExcluir(\''+p.id+'\')"></i>'
+      +'</div>'
+      +'</div>';
+  }).join('')+'</div>';
+}
+async function pcExcluir(id){
+  if(!confirm('Excluir este registro do controle de pontos?')) return;
+  const{error}=await sb.from('pontos_controle').delete().eq('id',id);
+  if(error){toast('Erro ao excluir: '+error.message,true);return;}
+  toast('Registro excluído.');
+  await pcCarregarProximos();
+  await pcBuscar();
 }
 
 // ── Pastas para Monitor ──
