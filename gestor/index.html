@@ -3735,6 +3735,13 @@ async function salvarEdicaoMedicao(id){
   };
   const{error}=await sb.from('medicoes').update(payload).eq('id',id);
   if(error){toast('Erro ao salvar: '+error.message,true);return;}
+  // Sincroniza status das OS vinculadas à medição (mesma regra do dropdown da tabela)
+  const statusOS = novoStatus==='Fechar Medição' ? 'Medição Realizada'
+    : novoStatus==='Gerar NF' ? 'NF Gerada'
+    : novoStatus==='Falta Pagamento' ? 'Falta Pagamento'
+    : novoStatus==='Recebido' ? 'Recebido'
+    : null;
+  if(statusOS && mAtual?.os_ids?.length) await sb.from('ordens').update({status:statusOS,atualizado_em:new Date().toISOString()}).in('id',mAtual.os_ids);
   if(novoStatus==='Recebido'&&mAtual?.status!=='Recebido'){
     await _criarRecebimentosMedicao({...mAtual,descricao:desc,numero:payload.numero});
   }
