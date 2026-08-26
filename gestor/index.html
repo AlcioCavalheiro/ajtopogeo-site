@@ -8479,6 +8479,7 @@ const GEO_TABS=[
   {k:'sigef',ic:'ti-table',lb:'Planilha SIGEF (.ods)'},
   {k:'gmaps',ic:'ti-current-location',lb:'Ponto do Maps'},
   {k:'pontos',ic:'ti-hash',lb:'Controle de Pontos'},
+  {k:'pontoslivres',ic:'ti-list-details',lb:'Códigos Vazios'},
   {k:'monitor',ic:'ti-folder',lb:'Pastas para Monitor'}
 ];
 function rGeoFerramentasFixed(){
@@ -8499,6 +8500,7 @@ function rGeoFerramentasFixed(){
     +'<div id="geo-sigef" style="display:none">'+geoSigefHtml()+'</div>'
     +'<div id="geo-gmaps" style="display:none">'+geoGmapsHtml()+'</div>'
     +'<div id="geo-pontos" style="display:none">'+geoPontosHtml()+'</div>'
+    +'<div id="geo-pontoslivres" style="display:none">'+geoPontosLivresHtml()+'</div>'
     +'<div id="geo-monitor" style="display:none">'+geoMonitorHtml()+'</div>';
   coordUpdateUI();
   memorialInit();
@@ -8508,6 +8510,7 @@ function rGeoFerramentasFixed(){
   sigefInit();
   monAtualizarUI();
   pcInit();
+  pcLivresInit();
 }
 pageMap.geoferramentas=rGeoFerramentasFixed;
 function geoTab(tab){
@@ -8623,6 +8626,76 @@ async function pcExcluir(id){
   toast('Registro excluído.');
   await pcCarregarProximos();
   await pcBuscar();
+}
+
+// ── Códigos Vazios (números pulados dentro da faixa já numerada) ──
+var _pcLivTipo='marco',_pcLivGaps=[];
+function geoPontosLivresHtml(){
+  const lbl={marco:'Marco',ponto:'Ponto',virtual:'Ponto Virtual'};
+  return '<div class="card mb1">'
+    +'<div class="st mb1"><i class="ti ti-list-details" style="color:var(--brand)"></i> Códigos Vazios</div>'
+    +'<div class="mu sm mb1">Números pulados dentro da faixa já numerada (bloco reservado que não chegou a ser usado, ou pulado na planilha antiga). Cadastre aqui pra aproveitar um desses em vez de sempre pegar um número novo no fim da fila.</div>'
+    +'<div class="tabs" id="pc-liv-tabs" style="margin-bottom:1rem">'
+    +['marco','ponto','virtual'].map(function(t,i){return '<div class="tab'+(i===0?' active':'')+'" onclick="pcLivresTab(\''+t+'\')" id="pc-liv-tab-'+t+'">'+lbl[t]+'</div>';}).join('')
+    +'</div>'
+    +'<div class="fg mb1"><input class="fc" id="pc-liv-busca" placeholder="Filtrar por número/código..." oninput="pcLivresRender()"></div>'
+    +'<div id="pc-liv-lista"><div class="mu sm">Carregando...</div></div>'
+    +'</div>';
+}
+async function pcLivresInit(){
+  await pcLivresCarregar('marco');
+}
+async function pcLivresTab(tipo){
+  _pcLivTipo=tipo;
+  ['marco','ponto','virtual'].forEach(function(t){
+    const el=document.getElementById('pc-liv-tab-'+t);
+    if(el) el.classList.toggle('active',t===tipo);
+  });
+  await pcLivresCarregar(tipo);
+}
+async function pcLivresCarregar(tipo){
+  const el=document.getElementById('pc-liv-lista');
+  if(el) el.innerHTML='<div class="mu sm">Carregando...</div>';
+  const{data,error}=await sb.from('pontos_controle').select('numero').eq('tipo',tipo);
+  if(error){if(el)el.innerHTML='<div class="mu sm">Controle de Pontos indisponível.<br>'+error.message+'</div>';return;}
+  const usados=new Set((data||[]).map(function(r){return r.numero;}));
+  const max=usados.size?Math.max.apply(null,Array.from(usados)):0;
+  const gaps=[];
+  for(let n=1;n<max;n++){if(!usados.has(n))gaps.push(n);}
+  _pcLivGaps=gaps;
+  pcLivresRender();
+}
+function pcLivresRender(){
+  const el=document.getElementById('pc-liv-lista');if(!el)return;
+  const prefixos={marco:'FUOH-M-',ponto:'FUOH-P-',virtual:'FUOH-V-'};
+  const tipo=_pcLivTipo,prefixo=prefixos[tipo];
+  const qEl=document.getElementById('pc-liv-busca'),q=qEl?qEl.value.trim().toLowerCase():'';
+  let lista=_pcLivGaps;
+  if(q) lista=lista.filter(function(n){return String(n).indexOf(q)>-1||(prefixo+String(n).padStart(4,'0')).toLowerCase().indexOf(q)>-1;});
+  if(!lista.length){el.innerHTML='<div class="mu sm">Nenhum código vazio'+(q?' pra essa busca':' nessa faixa — nenhum número foi pulado')+'.</div>';return;}
+  el.innerHTML='<div class="mu sm mb1">'+lista.length+' código(s) vazio(s)</div><div style="max-height:460px;overflow:auto">'+lista.map(function(n){
+    const codigo=prefixo+String(n).padStart(4,'0');
+    return '<div class="fxb" style="padding:8px 4px;border-bottom:1px solid var(--bor);gap:8px;flex-wrap:wrap" id="pc-liv-row-'+tipo+'-'+n+'">'
+      +'<span style="font-family:monospace;font-weight:700;min-width:120px">'+codigo+'</span>'
+      +'<input class="fc" id="pc-liv-obra-'+tipo+'-'+n+'" placeholder="Obra/Fazenda" list="pc-obras-dl" style="flex:1;min-width:160px">'
+      +'<input class="fc" id="pc-liv-obs-'+tipo+'-'+n+'" placeholder="Observações (opcional)" style="flex:1;min-width:140px">'
+      +'<button class="btn bp2" onclick="pcLivresCadastrar(\''+tipo+'\','+n+')"><i class="ti ti-plus"></i> Cadastrar</button>'
+      +'</div>';
+  }).join('')+'</div>';
+}
+async function pcLivresCadastrar(tipo,numero){
+  const prefixos={marco:'FUOH-M-',ponto:'FUOH-P-',virtual:'FUOH-V-'};
+  const obraEl=document.getElementById('pc-liv-obra-'+tipo+'-'+numero),obsEl=document.getElementById('pc-liv-obs-'+tipo+'-'+numero);
+  const obraNome=(obraEl.value||'').trim(),obs=(obsEl.value||'').trim();
+  if(!obraNome){toast('Informe a obra/fazenda.',true);return;}
+  const codigo=prefixos[tipo]+String(numero).padStart(4,'0');
+  const obraMatch=_pcObras.find(function(o){return(o.nome||'').toLowerCase()===obraNome.toLowerCase();});
+  const{error}=await sb.from('pontos_controle').insert({tipo:tipo,numero:numero,codigo:codigo,obra_id:obraMatch?obraMatch.id:null,obra_nome:obraNome,observacoes:obs||null});
+  if(error){toast('Erro ao cadastrar: '+error.message,true);return;}
+  toast('Código '+codigo+' cadastrado.');
+  _pcLivGaps=_pcLivGaps.filter(function(n){return n!==numero;});
+  pcLivresRender();
+  pcBuscar();
 }
 
 // ── Pastas para Monitor ──
