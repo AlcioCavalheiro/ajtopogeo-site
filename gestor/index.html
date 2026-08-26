@@ -13155,6 +13155,14 @@ function odsPreencherPerimetro(xmlDoc,header,vertices,tableEl){
   linhaModeloClone.removeAttribute('table:number-rows-repeated');
   function fmtNum(n){return (n==null||isNaN(n))?'0,00':Number(n).toFixed(2).replace('.',',');}
   function fmtCoord(n){return (n==null||isNaN(n))?'0,00':String(n).replace('.',',');}
+  function fmtCoordDMS(dec,isLat){
+    if(dec==null||isNaN(dec)) return '';
+    const sign=dec<0?-1:1;dec=Math.abs(dec);
+    const g=Math.floor(dec);const mf=(dec-g)*60;const mi=Math.floor(mf);const se=(mf-mi)*60;
+    const hemi=isLat?(sign<0?'S':'N'):(sign<0?'W':'E');
+    let seStr=se.toFixed(3);if(seStr.indexOf('.')<0||seStr.indexOf('.')<2) seStr=seStr.padStart(6,'0');
+    return g+' '+String(mi).padStart(2,'0')+' '+seStr.replace('.',',')+' '+hemi;
+  }
   for(let i=0;i<vertices.length;i++){
     const v=vertices[i];
     const idx=primeira+i;
@@ -13165,7 +13173,7 @@ function odsPreencherPerimetro(xmlDoc,header,vertices,tableEl){
       if(anterior&&anterior.parentNode) anterior.parentNode.insertBefore(row,anterior.nextSibling);
       else tableEl.appendChild(row);
     }
-    const valores=[v.nome,fmtCoord(v.long),fmtNum(v.sigmaLong),fmtCoord(v.lat),fmtNum(v.sigmaLat),
+    const valores=[v.nome,fmtCoordDMS(v.long,false),fmtNum(v.sigmaLong),fmtCoordDMS(v.lat,true),fmtNum(v.sigmaLat),
       fmtCoord(v.h),fmtNum(v.sigmaH),v.metodoPosicionamento,v.tipoLimite,
       v.confronta?(v.cns||''):'',v.confronta?(v.matricula||''):'',v.descritivo||''];
     valores.forEach(function(val,colIdx){odsSetCelulaTexto(row,colIdx,val);});
@@ -15010,8 +15018,8 @@ async function atualizarBadgeTarefas(){
 pageMap.tarefas=rTarefas;
 
 async function agendarTarefaOS(osId,osNumero){
-  const{data:funcs}=await sb.from('funcionarios').select('id,nome').eq('ativo',true).order('nome');
-  const fOpts=(funcs||[]).map(f=>'<option value="'+f.id+'">'+f.nome+'</option>').join('');
+  const{data:funcs}=await sb.from('funcionarios').select('id,nome,email').eq('ativo',true).order('nome');
+  const fOpts=(funcs||[]).map(f=>'<option value="'+f.id+'" data-email="'+(f.email||'')+'">'+f.nome+'</option>').join('');
   document.getElementById('mt').textContent='Agendar Tarefa — OS '+osNumero;
   document.getElementById('mb').innerHTML='<div class="fg"><label class="fl">Descrição *</label><textarea class="fc" id="tar-desc" rows="2" placeholder="O que precisa ser feito..."></textarea></div><div class="g2"><div class="fg"><label class="fl">Responsável</label><select class="fc" id="tar-resp"><option value="">Selecione...</option>'+fOpts+'</select></div><div class="fg"><label class="fl">Data prazo *</label><input class="fc" type="date" id="tar-data"></div></div>';
   document.getElementById('mf').innerHTML='<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn bp2" onclick="salvarTarefaOS(\''+osId+'\',\''+osNumero+'\')"><i class="ti ti-calendar-plus"></i> Agendar</button>';
@@ -15023,13 +15031,23 @@ async function salvarTarefaOS(osId,osNumero){
   const desc=document.getElementById('tar-desc')?.value?.trim();
   const resp=document.getElementById('tar-resp');
   const respNome=resp?.options[resp.selectedIndex]?.text||'';
+  const respEmail=resp?.options[resp.selectedIndex]?.dataset?.email||'';
   const data=document.getElementById('tar-data')?.value;
   if(!desc){toast('Descreva a tarefa!',true);return;}
   if(!data){toast('Informe a data!',true);return;}
   const{error}=await sb.from('agenda').insert({titulo:desc,tipo:'Tarefa OS',data,os_id:osId,os_numero:osNumero,responsavel_nome:respNome,concluido:false,concluida:false,descricao:'Tarefa OS '+osNumero+(respNome?' para '+respNome:'')});
   if(error){toast('Erro: '+error.message,true);return;}
   toast('Tarefa agendada para '+fd(data)+'!');closeModal();
+  if(respEmail)enviarConviteAgenda({to:respEmail,nome:respNome,titulo:desc,descricao:'Tarefa OS '+osNumero,data,osNumero});
   if(osId)abrirOS(osId);
+}
+
+async function enviarConviteAgenda(payload){
+  try{
+    const r=await fetch('/api/agenda-convite',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(r.ok)toast('Convite enviado por e-mail para '+payload.nome+'!');
+    else{const j=await r.json().catch(()=>({}));console.warn('Falha ao enviar convite:',j.error||r.status);}
+  }catch(e){console.warn('Falha ao enviar convite:',e.message);}
 }
 
 async function concluirTarefaOS(tarefaId,osId){
