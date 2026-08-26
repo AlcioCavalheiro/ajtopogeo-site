@@ -3574,7 +3574,7 @@ async function updMedicao(id,status){
   await sb.from('medicoes').update({status}).eq('id',id);
   // Sincroniza status das OS vinculadas à medição
   const statusOS = status==='Fechar Medição' ? 'Medição Realizada'
-    : status==='Gerar NF' ? 'NF Gerada'
+    : status==='Gerar NF' ? 'Medição Realizada'
     : status==='Falta Pagamento' ? 'NF Gerada'
     : status==='Recebido' ? 'Recebido'
     : null;
@@ -3737,7 +3737,7 @@ async function salvarEdicaoMedicao(id){
   if(error){toast('Erro ao salvar: '+error.message,true);return;}
   // Sincroniza status das OS vinculadas à medição (mesma regra do dropdown da tabela)
   const statusOS = novoStatus==='Fechar Medição' ? 'Medição Realizada'
-    : novoStatus==='Gerar NF' ? 'NF Gerada'
+    : novoStatus==='Gerar NF' ? 'Medição Realizada'
     : novoStatus==='Falta Pagamento' ? 'NF Gerada'
     : novoStatus==='Recebido' ? 'Recebido'
     : null;
