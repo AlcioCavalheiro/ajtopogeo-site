@@ -5,6 +5,7 @@ de coordenadas e recebe a cota de cada ponto.
 """
 
 import csv
+import math
 import queue
 import threading
 import traceback
@@ -86,15 +87,34 @@ class Janela:
         self.entrada.insert("1.0", EXEMPLO)
         self.entrada.bind("<FocusIn>", self.limpar_exemplo)
 
+        # ---------- qualidade ----------
+        bloco = ttk.LabelFrame(corpo, text=" 3. Incerteza ", padding=10)
+        bloco.pack(fill=X, pady=(0, 8))
+        self.local = StringVar(value="1")
+        ttk.Checkbutton(bloco, variable=self.local, onvalue="1", offvalue="0",
+                        text="Medir a variacao do modelo em volta de cada ponto  "
+                             "(rapido; separa ruido de declividade)").pack(anchor="w")
+        linha = ttk.Frame(bloco)
+        linha.pack(fill=X, pady=(6, 0))
+        ttk.Label(linha, text="Raio da analise [m]:").pack(side=LEFT)
+        self.raio = StringVar(value="0,50")
+        ttk.Entry(linha, textvariable=self.raio, width=8).pack(side=LEFT, padx=(6, 20))
+        ttk.Label(linha, text="Sigma do levantamento [m]:").pack(side=LEFT)
+        self.sigma_lev = StringVar(value="")
+        ttk.Entry(linha, textvariable=self.sigma_lev, width=8).pack(side=LEFT, padx=(6, 0))
+        ttk.Label(linha, text="(opcional — vertical, do relatorio de processamento)",
+                  foreground="#888").pack(side=LEFT, padx=(6, 0))
+
         self.botao = ttk.Button(corpo, text="CONSULTAR", command=self.consultar)
         self.botao.pack(fill=X, ipady=6, pady=(0, 8))
 
         # ---------- resultado ----------
-        bloco = ttk.LabelFrame(corpo, text=" 3. Resultado ", padding=10)
+        bloco = ttk.LabelFrame(corpo, text=" 4. Resultado ", padding=10)
         bloco.pack(fill=BOTH, expand=True)
-        cols = ("ponto", "e", "n", "cota", "situacao")
-        titulos = ("Ponto", "Leste (E)", "Norte (N)", "Cota", "Situacao")
-        larguras = (110, 130, 140, 110, 150)
+        cols = ("ponto", "e", "n", "cota", "sigma", "declive", "total", "situacao")
+        titulos = ("Ponto", "Leste (E)", "Norte (N)", "Cota",
+                   "Sigma local", "Declive", "Sigma total", "Situacao")
+        larguras = (90, 115, 125, 95, 90, 75, 90, 130)
         self.tabela = ttk.Treeview(bloco, columns=cols, show="headings", height=8)
         for c, t, w in zip(cols, titulos, larguras):
             self.tabela.heading(c, text=t)
@@ -182,16 +202,52 @@ class Janela:
             messagebox.showwarning(TITULO, f"{len(erros)} linha(s) foram ignoradas:\n\n"
                                    + "\n".join(erros[:8]))
 
+        # os campos sao lidos aqui, na linha principal: tkinter nao aceita
+        # leitura de widget a partir da thread de trabalho
+        try:
+            raio = cota.numero(self.raio.get()) if self.raio.get().strip() else 0.50
+        except ValueError:
+            messagebox.showerror(TITULO, "O raio da analise precisa ser um numero.")
+            return
+        sigma_lev = None
+        if self.sigma_lev.get().strip():
+            try:
+                sigma_lev = cota.numero(self.sigma_lev.get())
+            except ValueError:
+                messagebox.showerror(TITULO, "O sigma do levantamento precisa ser um numero.")
+                return
+        opcoes = dict(local=self.local.get() == "1", raio=raio, sigma_lev=sigma_lev)
+
         self.botao.config(state="disabled", text="Consultando...")
         self.situacao.config(text=f"consultando {len(pontos)} ponto(s)...")
-        threading.Thread(target=self.trabalhar, args=(caminho, pontos), daemon=True).start()
+        threading.Thread(target=self.trabalhar, args=(caminho, pontos, opcoes),
+                         daemon=True).start()
 
-    def trabalhar(self, caminho, pontos):
+    def trabalhar(self, caminho, pontos, opcoes):
         try:
             cfg = cota.carregar_config(Path(__file__).parent)
             gdalinfo, consulta = cota.ferramentas(cfg)
             info = self.info or cota.info_modelo(gdalinfo, caminho)
-            self.fila.put(("fim", cota.consultar(consulta, caminho, pontos, info)))
+            resultado = cota.consultar(consulta, caminho, pontos, info)
+
+            if opcoes["local"]:
+                vizinhos = cota.analisar_vizinhanca(consulta, caminho, pontos, info,
+                                                    raio=opcoes["raio"])
+                for r, v in zip(resultado, vizinhos):
+                    r["sigma_local"] = v["sigma"]
+                    r["declividade"] = v["declividade"]
+
+            for r in resultado:
+                sl, sv = r.get("sigma_local"), opcoes["sigma_lev"]
+                if r.get("cota") is None:
+                    continue
+                if sl is not None and sv is not None:
+                    r["sigma_total"] = math.hypot(sl, sv)
+                elif sv is not None:
+                    r["sigma_total"] = sv
+                elif sl is not None:
+                    r["sigma_total"] = sl
+            self.fila.put(("fim", resultado))
         except Exception as e:  # noqa: BLE001
             self.fila.put(("erro", str(e)))
 
@@ -218,9 +274,7 @@ class Janela:
         self.botao.config(state="normal", text="CONSULTAR")
         self.tabela.delete(*self.tabela.get_children())
         for r in resultado:
-            self.tabela.insert("", END, values=(
-                r["nome"], f"{r['e']:.3f}", f"{r['n']:.3f}",
-                f"{r['cota']:.3f}" if r["cota"] is not None else "-", r["situacao"]))
+            self.tabela.insert("", END, values=self.celulas(r))
         ok = sum(1 for r in resultado if r["cota"] is not None)
         falhas = len(resultado) - ok
         txt = f"{ok} de {len(resultado)} com cota"
@@ -230,9 +284,17 @@ class Janela:
 
     # ---------------- saida ----------------
 
+    @staticmethod
+    def celulas(r):
+        def m(v, casas=3):
+            return f"{v:.{casas}f}" if v is not None else "-"
+        return (r["nome"], m(r["e"]), m(r["n"]), m(r.get("cota")),
+                m(r.get("sigma_local")), 
+                f"{r['declividade']*100:.1f}%" if r.get("declividade") is not None else "-",
+                m(r.get("sigma_total")), r["situacao"])
+
     def linhas_texto(self):
-        return [(r["nome"], f"{r['e']:.3f}", f"{r['n']:.3f}",
-                 f"{r['cota']:.3f}" if r["cota"] is not None else "", r["situacao"])
+        return [tuple(c if c != "-" else "" for c in self.celulas(r))
                 for r in self.resultado]
 
     def copiar(self):
@@ -253,7 +315,7 @@ class Janela:
         try:
             with open(f, "w", encoding="utf-8-sig", newline="") as saida:
                 w = csv.writer(saida, delimiter=";")
-                w.writerow(["Ponto", "Leste", "Norte", "Cota", "Situacao"])
+                w.writerow(["Ponto", "Leste", "Norte", "Cota", "Sigma local", "Declive", "Sigma total", "Situacao"])
                 w.writerows(self.linhas_texto())
         except OSError as e:
             messagebox.showerror(TITULO, str(e))

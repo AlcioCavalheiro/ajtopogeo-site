@@ -6,6 +6,7 @@ conferencia.
 """
 
 import json
+import math
 import re
 import subprocess
 from pathlib import Path
@@ -124,6 +125,67 @@ def interpretar(texto, ordem="auto"):
                 continue
         pontos.append(dict(nome=nome or f"P{len(pontos) + 1}", e=e, n=n))
     return pontos, erros
+
+
+def analisar_vizinhanca(gdallocationinfo, tif, pontos, info=None, raio=0.50, lado=5):
+    """Mede quanto o modelo varia em volta de cada ponto.
+
+    Amostra uma grade `lado`x`lado` dentro do raio, ajusta um plano por minimos
+    quadrados e devolve o desvio dos residuos. Ajustar o plano antes e o que
+    separa **ruido** de **declividade**: sem isso, terreno em rampa apareceria
+    como incerteza alta sem motivo.
+
+    O numero resultante nao e a acuracia do levantamento -- e a qualidade da
+    superficie naquele ponto. Chao limpo da ~1 cm; copa de arvore, quina de
+    telhado ou barranco passa de 50 cm, e ali a cota nao merece confianca.
+    """
+    import numpy as np
+
+    if not pontos:
+        return []
+    if lado < 3:
+        lado = 3
+    passos = [-raio + 2 * raio * i / (lado - 1) for i in range(lado)]
+    deslocamentos = [(dx, dy) for dx in passos for dy in passos]
+
+    linhas_entrada = []
+    for p in pontos:
+        for dx, dy in deslocamentos:
+            linhas_entrada.append(f"{p['e'] + dx:.4f} {p['n'] + dy:.4f}")
+    bruto = subprocess.run([str(gdallocationinfo), "-valonly", "-geoloc", str(tif)],
+                           input="\n".join(linhas_entrada) + "\n",
+                           capture_output=True, text=True, timeout=900).stdout.splitlines()
+
+    nodata = (info or {}).get("nodata")
+    n = len(deslocamentos)
+    saida = []
+    for i in range(len(pontos)):
+        amostras = []
+        for (dx, dy), valor in zip(deslocamentos, bruto[i * n:(i + 1) * n]):
+            valor = valor.strip()
+            if not valor:
+                continue
+            try:
+                z = float(valor)
+            except ValueError:
+                continue
+            if nodata is not None and abs(z - float(nodata)) < 1e-6:
+                continue
+            amostras.append((dx, dy, z))
+
+        # o plano tem 3 incognitas; com menos de 6 amostras o residuo nao diz nada
+        if len(amostras) < 6:
+            saida.append(dict(sigma=None, declividade=None, amostras=len(amostras)))
+            continue
+        A = np.array([[dx, dy, 1.0] for dx, dy, _ in amostras])
+        z = np.array([a[2] for a in amostras])
+        coef, *_ = np.linalg.lstsq(A, z, rcond=None)
+        residuos = z - A @ coef
+        saida.append(dict(
+            sigma=float(np.sqrt((residuos ** 2).mean())),
+            declividade=float(math.hypot(coef[0], coef[1])),
+            amostras=len(amostras)))
+    return saida
 
 
 def consultar(gdallocationinfo, tif, pontos, info=None):

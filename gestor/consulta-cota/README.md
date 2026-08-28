@@ -48,3 +48,34 @@ na tabela, sem cota, para nao desalinhar a lista.
 Para cota de terreno use o DTM; o DSM inclui vegetacao e construcao.
 
 O GDAL vem do QGIS; o caminho esta em `config.json`.
+
+## As colunas de incerteza
+
+O raster do modelo **nao guarda sigma nenhum** -- tem uma banda so, com a altura.
+Entao "sigma" aqui e duas coisas distintas, e so uma delas e medida ponto a ponto.
+
+**Sigma local** (medido, diferente para cada ponto). Amostra uma grade 5x5 dentro
+do raio escolhido, ajusta um plano por minimos quadrados e devolve o desvio dos
+residuos. O ajuste do plano e o que separa **ruido** de **declividade** -- sem
+ele, terreno em rampa apareceria como incerteza alta sem motivo.
+
+Nao e a acuracia do levantamento: e a qualidade da superficie naquele ponto.
+Medido no voo Portal das Flores:
+
+| ponto | sigma local | declive | leitura |
+|---|---|---|---|
+| chao limpo | 0,5 a 1,0 cm | 3% | cota confiavel |
+| em rampa | 4,8 cm | 24% | aceitavel |
+| copa de arvore / quina | 70 a 74 cm | 118 a 211% | **nao confiar** |
+
+E o indicador que pega o ponto caido em cima de vegetacao ou de telhado, onde a
+cota do DSM nao representa o solo.
+
+**Sigma do levantamento** (opcional, digitado, igual para todos os pontos). Vem
+do relatorio de processamento -- no Portal das Flores, o RMS vertical do bloco
+foi 14,1 mm. Se preenchido, a coluna **Sigma total** combina os dois por
+`raiz(local^2 + levantamento^2)`.
+
+Nenhum dos dois cobre erro sistematico da base: se a coordenada do marco estiver
+errada, todo o modelo desloca junto e nenhuma dessas contas percebe. Para isso so
+ponto de apoio medido em campo.
