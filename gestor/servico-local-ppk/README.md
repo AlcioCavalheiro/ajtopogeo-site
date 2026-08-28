@@ -105,3 +105,18 @@ novo: aceleracao vertical entre epocas (deixa passar degrau espalhado por
 3 epocas) e diferenca de posicao entre fotos consecutivas (o drone se move de
 verdade entre disparos). Continuidade da trajetoria tambem nao prova nada
 sozinha: ambiguidade errada de forma constante da trajetoria lisa e deslocada.
+
+## Como o atalho encontra o Python
+
+Nesta maquina o Python fica em `%LOCALAPPDATA%\Programs\Python\Python313` e essa
+pasta **nao esta no PATH** da sessao do usuario -- so o lancador `py` costuma
+estar. Por isso o atalho da Area de Trabalho aponta direto para o
+`pythonw.exe` por caminho absoluto, em vez de chamar `pythonw` pelo nome.
+
+O `PPK das Fotos.bat` continua servindo de reserva e procura o interpretador em
+cascata: `pyw` no PATH, depois perguntando ao `py` onde ele esta, depois o
+caminho padrao da instalacao, e por fim `py` comum.
+
+Rodando por `pythonw` nao ha console, entao uma falha na partida nao apareceria
+em lugar nenhum. Quando isso acontece o programa grava `erro_na_partida.txt` na
+propria pasta e tenta mostrar uma caixa de mensagem.

@@ -13,11 +13,33 @@ from pathlib import Path
 from tkinter import BOTH, END, LEFT, RIGHT, StringVar, Tk, X, Y, filedialog, messagebox
 from tkinter import scrolledtext, ttk
 
-import pyproj
-
-import ppk_fotos
-
 TITULO = "PPK das Fotos de Drone - AJ TopoGeo"
+
+# Rodando por pythonw nao existe console: uma falha na partida (biblioteca
+# faltando, arquivo movido) deixaria a janela simplesmente nao abrir, sem dizer
+# nada. Entao o erro vira caixa de mensagem e arquivo de log ao lado do script.
+try:
+    import pyproj
+
+    import ppk_fotos
+except Exception:  # noqa: BLE001 - qualquer falha aqui precisa ser visivel
+    _erro = traceback.format_exc()
+    try:
+        Path(__file__).with_name("erro_na_partida.txt").write_text(_erro, encoding="utf-8")
+    except OSError:
+        pass
+    try:
+        import tkinter.messagebox as _mb
+        _raiz = Tk()
+        _raiz.withdraw()
+        _mb.showerror(TITULO,
+                      "O programa nao conseguiu iniciar.\n\n"
+                      + _erro.strip().splitlines()[-1]
+                      + "\n\nSe faltar biblioteca, abra o Prompt de Comando e rode:\n"
+                        "    py -m pip install pyproj")
+    except Exception:  # noqa: BLE001
+        pass
+    raise SystemExit(1)
 
 # fusos UTM que cobrem o Brasil, em SIRGAS2000
 FUSOS = {
