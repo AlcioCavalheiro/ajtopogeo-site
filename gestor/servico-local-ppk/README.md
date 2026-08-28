@@ -75,3 +75,33 @@ a mascara: satelite baixo e mais ruidoso.
 
 O `pos2-elmaskhold` fica fixo em 15 e nao acompanha a `--elmask`: travar a
 ambiguidade em satelite baixo derruba a fixacao (medido: 69% -> 49%).
+
+## Janela (uso sem linha de comando)
+
+`PPK das Fotos.bat` abre `ppk_janela.py`, que e o jeito normal de usar. Ha um
+atalho na Area de Trabalho. O fluxo e: escolher a pasta do voo, informar a base
+(digitada em UTM ou lida do relatorio do IBGE-PPP) e clicar em Processar.
+
+Se houver um relatorio do IBGE-PPP dentro da pasta do voo, a janela acha sozinha
+e ja preenche a coordenada -- e o caminho preferido, porque erro de digitacao na
+base desloca todas as fotos em bloco.
+
+## As conferencias automaticas
+
+O ponto do sistema nao e rodar o RTKLIB, e dizer se o resultado presta. Sao tres
+indicadores, e o segundo e o que importa:
+
+1. **Fotos em solucao fixa.** Util, mas engana sozinho: um voo defeituoso marcou
+   86% aqui e mesmo assim estava errado.
+2. **Concordancia entre as passagens de ida e volta.** As duas resolvem a
+   ambiguidade de forma independente; onde as duas fixam, a ambiguidade e
+   confiavel. Foi o unico indicador que separou os dois voos de referencia:
+   1% no voo com degrau de 37 cm, 13% no voo limpo. Abaixo de 5% e defeito.
+3. **Tempo de gravacao antes da primeira foto.** Nos dois voos medidos havia
+   ~55 s, curto demais. E a causa raiz dos dois problemas.
+
+Ficou registrado o que **nao** funciona como conferencia, para nao se tentar de
+novo: aceleracao vertical entre epocas (deixa passar degrau espalhado por
+3 epocas) e diferenca de posicao entre fotos consecutivas (o drone se move de
+verdade entre disparos). Continuidade da trajetoria tambem nao prova nada
+sozinha: ambiguidade errada de forma constante da trajetoria lisa e deslocada.
