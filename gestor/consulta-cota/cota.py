@@ -127,6 +127,61 @@ def interpretar(texto, ordem="auto"):
     return pontos, erros
 
 
+def achar_relatorio(tif):
+    """Procura o report.xml do Pix4D a partir do caminho do raster.
+
+    O Pix4D grava em <projeto>/3_dsm_ortho/1_dsm/<nome>_dsm.tif e o relatorio em
+    <projeto>/1_initial/report/report.xml, entao basta subir ate achar.
+    """
+    atual = Path(tif).resolve().parent
+    for _ in range(5):
+        candidato = atual / "1_initial" / "report" / "report.xml"
+        if candidato.exists():
+            return candidato
+        if atual.parent == atual:
+            break
+        atual = atual.parent
+    return None
+
+
+def ler_relatorio_pix4d(caminho):
+    """Le o report.xml do Pix4D e devolve o que serve de sigma do levantamento.
+
+    ATENCAO ao que esses numeros sao: `sigma` e `rms` medem quanto o ajuste do
+    bloco moveu as cameras em relacao as coordenadas que entraram (o geotag do
+    PPK). E **precisao interna**, nao acuracia. Se as fotos tivessem entrado
+    todas deslocadas, o ajuste acompanharia o deslocamento e esses valores
+    continuariam pequenos. Sem ponto de apoio em campo nada aqui prova posicao
+    absoluta.
+    """
+    import xml.etree.ElementTree as ET
+
+    raiz = ET.parse(caminho).getroot()
+
+    def numeros(elemento):
+        if elemento is None:
+            return None
+        try:
+            return {k: float(v) for k, v in elemento.attrib.items()}
+        except ValueError:
+            return None
+
+    geo = raiz.find(".//geolocation/position")
+    gsd = numeros(raiz.find(".//gsd")) or {}
+    dados = dict(
+        projeto=raiz.attrib.get("project", ""),
+        processado=raiz.attrib.get("processed", ""),
+        gsd_cm=gsd.get("cm"),
+        sigma=numeros(geo.find("sigma")) if geo is not None else None,
+        rms=numeros(geo.find("rms")) if geo is not None else None,
+        media=numeros(geo.find("mean")) if geo is not None else None,
+    )
+    if not dados["sigma"] and not dados["rms"]:
+        raise ValueError("Este report.xml nao traz a variancia de geolocalizacao "
+                         "(secao geolocation/position).")
+    return dados
+
+
 def analisar_vizinhanca(gdallocationinfo, tif, pontos, info=None, raio=0.50, lado=5):
     """Mede quanto o modelo varia em volta de cada ponto.
 

@@ -102,8 +102,9 @@ class Janela:
         ttk.Label(linha, text="Sigma do levantamento [m]:").pack(side=LEFT)
         self.sigma_lev = StringVar(value="")
         ttk.Entry(linha, textvariable=self.sigma_lev, width=8).pack(side=LEFT, padx=(6, 0))
-        ttk.Label(linha, text="(opcional — vertical, do relatorio de processamento)",
-                  foreground="#888").pack(side=LEFT, padx=(6, 0))
+        ttk.Label(linha, text="(vertical)", foreground="#888").pack(side=LEFT, padx=(6, 0))
+        self.relatorio = ttk.Label(bloco, text="", foreground="#666", justify="left")
+        self.relatorio.pack(anchor="w", pady=(6, 0))
 
         self.botao = ttk.Button(corpo, text="CONSULTAR", command=self.consultar)
         self.botao.pack(fill=X, ipady=6, pady=(0, 8))
@@ -156,6 +157,13 @@ class Janela:
             self.fila.put(("info", cota.info_modelo(gdalinfo, caminho)))
         except Exception as e:  # noqa: BLE001
             self.fila.put(("info_erro", str(e)))
+        # o relatorio do Pix4D fica previsivelmente ao lado do raster
+        try:
+            achado = cota.achar_relatorio(caminho)
+            if achado:
+                self.fila.put(("relatorio", cota.ler_relatorio_pix4d(achado)))
+        except Exception:  # noqa: BLE001 - relatorio ausente ou ilegivel nao e erro
+            pass
 
     def mostrar_info(self, i):
         self.info = i
@@ -168,6 +176,23 @@ class Janela:
                   f"Abrange  E {i['e_min']:.1f} a {i['e_max']:.1f}   "
                   f"N {i['n_min']:.1f} a {i['n_max']:.1f}" + aviso),
             foreground="#a4232b" if aviso else "#0b6b3a")
+
+    def mostrar_relatorio(self, d):
+        """Preenche o sigma a partir do relatorio, deixando claro o que ele mede."""
+        z = (d.get("rms") or d.get("sigma") or {}).get("z")
+        if z is None:
+            return
+        if not self.sigma_lev.get().strip():
+            self.sigma_lev.set(f"{z:.4f}".replace(".", ","))
+        gsd = d.get("gsd_cm")
+        regra = (f"   Sem ponto de apoio, a expectativa realista fica em "
+                 f"{gsd * 1.5:.0f} a {gsd * 3:.0f} cm (1,5 a 3 x GSD)." if gsd else "")
+        self.relatorio.config(
+            text=(f"Relatorio do Pix4D: {d['projeto']} ({d['processado']}).  "
+                  f"RMS vertical do bloco {z * 100:.1f} cm - preenchido acima.\n"
+                  "Isso e PRECISAO INTERNA: mede o quanto o ajuste moveu as cameras em "
+                  "relacao ao geotag que entrou, nao a posicao no terreno." + regra),
+            foreground="#8a5300")
 
     def carregar_arquivo(self):
         f = filedialog.askopenfilename(title="Lista de coordenadas",
@@ -259,6 +284,8 @@ class Janela:
                     self.mostrar_info(carga)
                 elif tipo == "info_erro":
                     self.resumo.config(text=carga, foreground="#a4232b")
+                elif tipo == "relatorio":
+                    self.mostrar_relatorio(carga)
                 elif tipo == "fim":
                     self.terminar(carga)
                 elif tipo == "erro":

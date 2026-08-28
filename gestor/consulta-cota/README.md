@@ -79,3 +79,30 @@ foi 14,1 mm. Se preenchido, a coluna **Sigma total** combina os dois por
 Nenhum dos dois cobre erro sistematico da base: se a coordenada do marco estiver
 errada, todo o modelo desloca junto e nenhuma dessas contas percebe. Para isso so
 ponto de apoio medido em campo.
+
+## Leitura automatica do relatorio do Pix4D
+
+Ao escolher o `.tif`, o programa sobe na arvore de pastas procurando
+`<projeto>/1_initial/report/report.xml` e, achando, preenche sozinho o campo do
+sigma do levantamento com o **RMS vertical do bloco**. Usa o `report.xml`, nao o
+PDF: o XML e estruturado e nao quebra quando a Pix4D muda o leiaute do relatorio.
+
+O que o XML traz de util:
+
+```
+/results/initial/gsd                          3,32 cm
+/results/initial/geolocation/position/sigma   x 0,00587  y 0,00205  z 0,01413
+/results/initial/geolocation/position/rms     idem
+/results/initial/geolocation/position/mean    ~zero (sem vies)
+```
+
+**Cuidado com o que esse numero significa.** Ele mede o quanto o ajuste do bloco
+moveu as cameras em relacao ao geotag que entrou. E precisao interna: se as fotos
+tivessem entrado todas deslocadas, o ajuste acompanharia o deslocamento e o RMS
+continuaria pequeno. Foi exatamente o que aconteceu com o DJI Terra, que
+reportava 0,03/0,06 m enquanto errava 1,7 m em altura por nao somar a altura da
+antena da base.
+
+Por isso a janela mostra junto a regra pratica: sem ponto de apoio, a expectativa
+realista de acuracia vertical fica entre **1,5 e 3 x GSD** -- neste projeto, 5 a
+10 cm, e nao os 14 mm do relatorio.
