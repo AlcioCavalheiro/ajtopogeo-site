@@ -24,12 +24,6 @@ import pyproj
 # devolve posicoes absurdas; reetiquetar para 3.04 nao altera os dados.
 VERSAO_RINEX_ACEITA = "3.04"
 
-# O desvio formal do RTKLIB em solucao fixa fica na casa dos milimetros, o que
-# superestima o peso das fotos no ajuste do bloco. O piso abaixo e o mesmo que
-# o DJI Terra reporta e mantem o arquivo intercambiavel com ele.
-PISO_PRECISAO_H = 0.03
-PISO_PRECISAO_V = 0.06
-
 RAIO_TERRA = 6378137.0
 
 
@@ -311,12 +305,16 @@ def main():
             lon_cam = p["lon"] + (evento["e"] / (RAIO_TERRA * math.cos(math.radians(p["lat"])))) * 180 / math.pi
             h_cam = p["h"] - evento["v"]
 
-            hacc = max(math.hypot(p["sdn"], p["sde"]), PISO_PRECISAO_H)
-            vacc = max(p["sdu"], PISO_PRECISAO_V)
+            # desvio formal do filtro, como sai do RTKLIB -- e otimista: no voo
+            # de referencia prometia 7 mm em altura e a diferenca real contra o
+            # DJI Terra foi de 19 cm. Serve para pesar as fotos no ajuste do
+            # bloco, nao como estimativa de acuracia.
+            hacc = math.hypot(p["sdn"], p["sde"])
+            vacc = p["sdu"]
             yaw, pitch, roll = atitude.get(foto.name, ("", "", ""))
 
             f.write(f"{foto.name},{lat_cam!r},{lon_cam!r},{h_cam!r},"
-                    f"{num(yaw)},{num(pitch)},{num(roll)},{hacc:.2f},{vacc:.2f}\n")
+                    f"{num(yaw)},{num(pitch)},{num(roll)},{hacc:.5f},{vacc:.5f}\n")
             escritas += 1
 
     print(f"escritas {escritas} fotos em {saida}")

@@ -54,3 +54,13 @@ de um metro. Com o RINEX 3.04 multiconstelacao a solucao fixa em 78% das epocas.
 O Matrice 4 exporta o rover em RINEX 3.05, versao que o RTKLIB 2.5.1 rejeita —
 sem avisar, devolve posicoes centenas de quilometros fora. O script reetiqueta o
 cabecalho para 3.04 ao copiar; os dados nao mudam.
+
+## Sobre as colunas de precisao
+
+As duas ultimas colunas sao o desvio formal do filtro do RTKLIB (o mesmo que o
+T2R-Geotagger exporta como *Std Error*). Sao **precisao formal, nao acuracia**:
+no voo de referencia o filtro prometia 7 mm em altura enquanto a diferenca real
+contra o DJI Terra foi de 19 cm. Servem para pesar as fotos no ajuste do bloco.
+
+Nao comparar esses numeros entre voos diferentes: eles refletem a geometria dos
+satelites, o comprimento da linha de base e o tempo de rastreio daquele voo.
