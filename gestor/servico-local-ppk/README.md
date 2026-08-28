@@ -64,3 +64,14 @@ contra o DJI Terra foi de 19 cm. Servem para pesar as fotos no ajuste do bloco.
 
 Nao comparar esses numeros entre voos diferentes: eles refletem a geometria dos
 satelites, o comprimento da linha de base e o tempo de rastreio daquele voo.
+
+## Mascara de elevacao
+
+O padrao e 15 graus, como o material da T2R recomenda. Em voo com boa visada,
+`--elmask 10` costuma fixar bem mais epocas -- num voo de 534 fotos passou de
+45% para 69% das fotos em solucao fixa, com as duas solucoes concordando em
+0,5-1,4 cm de media. Vale conferir a continuidade da trajetoria depois de baixar
+a mascara: satelite baixo e mais ruidoso.
+
+O `pos2-elmaskhold` fica fixo em 15 e nao acompanha a `--elmask`: travar a
+ambiguidade em satelite baixo derruba a fixacao (medido: 69% -> 49%).

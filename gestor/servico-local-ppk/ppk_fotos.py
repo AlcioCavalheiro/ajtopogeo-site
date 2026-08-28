@@ -16,6 +16,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pyproj
@@ -23,6 +24,10 @@ import pyproj
 # O RTKLIB 2.5.1 rejeita o cabecalho RINEX 3.05 que o Matrice 4 exporta e
 # devolve posicoes absurdas; reetiquetar para 3.04 nao altera os dados.
 VERSAO_RINEX_ACEITA = "3.04"
+
+# pasta onde o script grava os arquivos intermediarios; fica de fora da busca
+# para que um reprocessamento nao eleja o proprio rover normalizado como base
+PASTA_TRABALHO = "_ppk"
 
 RAIO_TERRA = 6378137.0
 
@@ -53,6 +58,8 @@ def achar_arquivos(projeto):
     base_obs, base_navs = None, []
     for p in projeto.rglob("*"):
         if not p.is_file() or p.parent == pasta_drone:
+            continue
+        if PASTA_TRABALHO in p.relative_to(projeto).parts:
             continue
         nome = p.name.upper()
         if re.search(r"\.\d\d?O(\.OBS)?$|\.OBS$", nome):
@@ -86,11 +93,13 @@ def normalizar_rinex(origem, destino):
         shutil.copyfileobj(fe, fs)
 
 
-def escrever_conf(caminho, lat, lon, h, altura_antena):
+def escrever_conf(caminho, lat, lon, h, altura_antena, elmask=15):
+    # elmaskhold fica em 15 de proposito: travar a ambiguidade em satelite baixo
+    # derruba a taxa de fixacao (medido: 69% -> 49% num voo de 534 fotos).
     caminho.write_text(f"""pos1-posmode       =kinematic
 pos1-frequency     =l1+l2
 pos1-soltype       =combined
-pos1-elmask        =15
+pos1-elmask        ={elmask}
 pos1-dynamics      =on
 pos1-tidecorr      =off
 pos1-ionoopt       =brdc
@@ -107,7 +116,7 @@ pos2-arthresmin    =3
 pos2-arthresmax    =10
 pos2-arthres1      =0.1
 pos2-arlockcnt     =0
-pos2-arelmask      =15
+pos2-arelmask      ={elmask}
 pos2-arminfix      =20
 pos2-elmaskhold    =15
 pos2-aroutcnt      =20
@@ -197,11 +206,21 @@ def interpolar(epocas, tow):
 
 
 def ler_atitude(exiftool, fotos):
-    saida = subprocess.run(
-        [str(exiftool), "-n", "-csv", "-FileName",
-         "-GimbalYawDegree", "-GimbalPitchDegree", "-GimbalRollDegree",
-         *[str(p) for p in fotos]],
-        capture_output=True, text=True, check=True).stdout
+    # a lista de fotos vai num arquivo de argumentos: um voo de algumas centenas
+    # de imagens estoura o limite de tamanho da linha de comando do Windows.
+    with tempfile.NamedTemporaryFile("w", suffix=".args", delete=False,
+                                     encoding="utf-8") as f:
+        for p in fotos:
+            f.write(f"{p}\n")
+        lista = f.name
+    try:
+        saida = subprocess.run(
+            [str(exiftool), "-charset", "filename=utf8", "-n", "-csv", "-FileName",
+             "-GimbalYawDegree", "-GimbalPitchDegree", "-GimbalRollDegree",
+             "-@", lista],
+            capture_output=True, text=True, check=True).stdout
+    finally:
+        Path(lista).unlink(missing_ok=True)
 
     linhas = saida.strip().splitlines()
     cabecalho = linhas[0].split(",")
@@ -228,6 +247,9 @@ def main():
     ap.add_argument("--epsg", default="31981", help="EPSG da coordenada da base (padrao SIRGAS2000/UTM 21S)")
     ap.add_argument("--altura-antena", type=float, default=None,
                     help="altura da antena sobre o marco; por padrao le do cabecalho da base")
+    ap.add_argument("--elmask", type=int, default=15,
+                    help="mascara de elevacao em graus. 15 e o recomendado pela T2R; "
+                         "10 costuma fixar bastante mais epocas em voo com boa visada")
     ap.add_argument("--saida", type=Path, default=None)
     args = ap.parse_args()
 
@@ -240,7 +262,7 @@ def main():
             sys.exit(f"ferramenta nao encontrada: {p}\nconfira o config.json")
 
     arq = achar_arquivos(args.projeto)
-    trabalho = args.projeto / "_ppk"
+    trabalho = args.projeto / PASTA_TRABALHO
     trabalho.mkdir(exist_ok=True)
 
     altura_antena = args.altura_antena
@@ -267,7 +289,7 @@ def main():
     normalizar_rinex(arq["base_obs"], base_obs)
 
     conf = trabalho / "rtklib.conf"
-    escrever_conf(conf, lat, lon, args.base_z, altura_antena)
+    escrever_conf(conf, lat, lon, args.base_z, altura_antena, args.elmask)
     pos = trabalho / "trajetoria.pos"
 
     entradas = [str(rover_obs), str(base_obs), str(rover_nav)]
