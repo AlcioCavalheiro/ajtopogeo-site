@@ -49,8 +49,8 @@ class Janela:
     def __init__(self, raiz):
         self.raiz = raiz
         raiz.title(TITULO)
-        raiz.geometry("900x720")
-        raiz.minsize(760, 600)
+        raiz.geometry("1060x760")
+        raiz.minsize(900, 620)
         self.fila = queue.Queue()
         self.info = None
         self.resultado = []
@@ -100,9 +100,11 @@ class Janela:
         self.raio = StringVar(value="0,50")
         ttk.Entry(linha, textvariable=self.raio, width=8).pack(side=LEFT, padx=(6, 20))
         ttk.Label(linha, text="Sigma do levantamento [m]:").pack(side=LEFT)
-        self.sigma_lev = StringVar(value="")
-        ttk.Entry(linha, textvariable=self.sigma_lev, width=8).pack(side=LEFT, padx=(6, 0))
-        ttk.Label(linha, text="(vertical)", foreground="#888").pack(side=LEFT, padx=(6, 0))
+        self.sigma_lev = {}
+        for eixo, rot in (("e", "E"), ("n", "N"), ("z", "Z")):
+            ttk.Label(linha, text=rot).pack(side=LEFT, padx=(8, 2))
+            self.sigma_lev[eixo] = StringVar(value="")
+            ttk.Entry(linha, textvariable=self.sigma_lev[eixo], width=8).pack(side=LEFT)
         self.relatorio = ttk.Label(bloco, text="", foreground="#666", justify="left")
         self.relatorio.pack(anchor="w", pady=(6, 0))
 
@@ -112,14 +114,14 @@ class Janela:
         # ---------- resultado ----------
         bloco = ttk.LabelFrame(corpo, text=" 4. Resultado ", padding=10)
         bloco.pack(fill=BOTH, expand=True)
-        cols = ("ponto", "e", "n", "cota", "sigma", "declive", "total", "situacao")
+        cols = ("ponto", "e", "n", "cota", "se", "sn", "sz", "local", "declive", "situacao")
         titulos = ("Ponto", "Leste (E)", "Norte (N)", "Cota",
-                   "Sigma local", "Declive", "Sigma total", "Situacao")
-        larguras = (90, 115, 125, 95, 90, 75, 90, 130)
+                   "sigma E", "sigma N", "sigma Z", "rugosidade", "declive", "Situacao")
+        larguras = (80, 110, 120, 90, 70, 70, 70, 85, 70, 115)
         self.tabela = ttk.Treeview(bloco, columns=cols, show="headings", height=8)
         for c, t, w in zip(cols, titulos, larguras):
             self.tabela.heading(c, text=t)
-            self.tabela.column(c, width=w, anchor="e" if c in ("e", "n", "cota") else "w")
+            self.tabela.column(c, width=w, anchor="w" if c in ("ponto", "situacao") else "e")
         barra = ttk.Scrollbar(bloco, orient="vertical", command=self.tabela.yview)
         self.tabela.configure(yscrollcommand=barra.set)
         self.tabela.pack(side=LEFT, fill=BOTH, expand=True)
@@ -179,11 +181,15 @@ class Janela:
 
     def mostrar_relatorio(self, d):
         """Preenche o sigma a partir do relatorio, deixando claro o que ele mede."""
-        z = (d.get("rms") or d.get("sigma") or {}).get("z")
+        valores = d.get("rms") or d.get("sigma") or {}
+        z = valores.get("z")
         if z is None:
             return
-        if not self.sigma_lev.get().strip():
-            self.sigma_lev.set(f"{z:.4f}".replace(".", ","))
+        # o Pix4D grava x/y; no sistema projetado de saida x e Leste e y e Norte
+        for eixo, chave in (("e", "x"), ("n", "y"), ("z", "z")):
+            v = valores.get(chave)
+            if v is not None and not self.sigma_lev[eixo].get().strip():
+                self.sigma_lev[eixo].set(f"{v:.4f}".replace(".", ","))
         gsd = d.get("gsd_cm")
         regra = (f"   Sem ponto de apoio, a expectativa realista fica em "
                  f"{gsd * 1.5:.0f} a {gsd * 3:.0f} cm (1,5 a 3 x GSD)." if gsd else "")
@@ -234,12 +240,15 @@ class Janela:
         except ValueError:
             messagebox.showerror(TITULO, "O raio da analise precisa ser um numero.")
             return
-        sigma_lev = None
-        if self.sigma_lev.get().strip():
+        sigma_lev = {}
+        for eixo, var in self.sigma_lev.items():
+            if not var.get().strip():
+                continue
             try:
-                sigma_lev = cota.numero(self.sigma_lev.get())
+                sigma_lev[eixo] = cota.numero(var.get())
             except ValueError:
-                messagebox.showerror(TITULO, "O sigma do levantamento precisa ser um numero.")
+                messagebox.showerror(TITULO,
+                                     f"O sigma {eixo.upper()} precisa ser um numero.")
                 return
         opcoes = dict(local=self.local.get() == "1", raio=raio, sigma_lev=sigma_lev)
 
@@ -262,16 +271,24 @@ class Janela:
                     r["sigma_local"] = v["sigma"]
                     r["declividade"] = v["declividade"]
 
+            lev = opcoes["sigma_lev"]
             for r in resultado:
-                sl, sv = r.get("sigma_local"), opcoes["sigma_lev"]
                 if r.get("cota") is None:
                     continue
-                if sl is not None and sv is not None:
-                    r["sigma_total"] = math.hypot(sl, sv)
-                elif sv is not None:
-                    r["sigma_total"] = sv
-                elif sl is not None:
-                    r["sigma_total"] = sl
+                r["sigma_e"] = lev.get("e")
+                r["sigma_n"] = lev.get("n")
+
+                # orcamento vertical: levantamento + rugosidade local + a parcela
+                # que a incerteza horizontal vira em terreno inclinado
+                parcelas = [v for v in (lev.get("z"), r.get("sigma_local")) if v is not None]
+                declive = r.get("declividade")
+                sh = [v for v in (lev.get("e"), lev.get("n")) if v is not None]
+                if declive is not None and sh:
+                    horizontal = math.hypot(*sh) if len(sh) == 2 else sh[0]
+                    r["sigma_declive"] = declive * horizontal
+                    parcelas.append(r["sigma_declive"])
+                if parcelas:
+                    r["sigma_z"] = math.sqrt(sum(v * v for v in parcelas))
             self.fila.put(("fim", resultado))
         except Exception as e:  # noqa: BLE001
             self.fila.put(("erro", str(e)))
@@ -315,10 +332,11 @@ class Janela:
     def celulas(r):
         def m(v, casas=3):
             return f"{v:.{casas}f}" if v is not None else "-"
+        declive = (f"{r['declividade'] * 100:.1f}%"
+                   if r.get("declividade") is not None else "-")
         return (r["nome"], m(r["e"]), m(r["n"]), m(r.get("cota")),
-                m(r.get("sigma_local")), 
-                f"{r['declividade']*100:.1f}%" if r.get("declividade") is not None else "-",
-                m(r.get("sigma_total")), r["situacao"])
+                m(r.get("sigma_e")), m(r.get("sigma_n")), m(r.get("sigma_z")),
+                m(r.get("sigma_local")), declive, r["situacao"])
 
     def linhas_texto(self):
         return [tuple(c if c != "-" else "" for c in self.celulas(r))
@@ -342,7 +360,8 @@ class Janela:
         try:
             with open(f, "w", encoding="utf-8-sig", newline="") as saida:
                 w = csv.writer(saida, delimiter=";")
-                w.writerow(["Ponto", "Leste", "Norte", "Cota", "Sigma local", "Declive", "Sigma total", "Situacao"])
+                w.writerow(["Ponto", "Leste", "Norte", "Cota", "Sigma E", "Sigma N",
+                            "Sigma Z", "Rugosidade", "Declive", "Situacao"])
                 w.writerows(self.linhas_texto())
         except OSError as e:
             messagebox.showerror(TITULO, str(e))

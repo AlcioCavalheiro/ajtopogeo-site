@@ -71,10 +71,28 @@ Medido no voo Portal das Flores:
 E o indicador que pega o ponto caido em cima de vegetacao ou de telhado, onde a
 cota do DSM nao representa o solo.
 
-**Sigma do levantamento** (opcional, digitado, igual para todos os pontos). Vem
-do relatorio de processamento -- no Portal das Flores, o RMS vertical do bloco
-foi 14,1 mm. Se preenchido, a coluna **Sigma total** combina os dois por
-`raiz(local^2 + levantamento^2)`.
+**Sigma do levantamento** (tres campos: E, N e Z), vindo do relatorio de
+processamento. Sao iguais para todos os pontos -- descrevem a qualidade do
+levantamento, nao do ponto. No Portal das Flores: E 5,9 mm, N 2,1 mm, Z 14,1 mm.
+
+**Sigma Z** e a soma quadratica de tres parcelas:
+
+```
+sigma_Z = raiz( levantamento_Z^2  +  rugosidade^2  +  (declive x horizontal)^2 )
+```
+
+A terceira parcela existe porque **incerteza horizontal vira vertical em terreno
+inclinado**: errar 6 mm no plano, sobre 118% de declive, desloca a cota em 7 mm.
+Em terreno plano ela some; em barranco, pesa.
+
+Quem domina o sigma muda conforme o ponto -- em chao limpo manda o levantamento
+(1,4 cm), em copa de arvore manda a rugosidade (73 cm):
+
+| ponto | rugosidade | declive | parcela do declive | sigma Z |
+|---|---|---|---|---|
+| chao limpo | 0,5 cm | 3,5% | 0,02 cm | 1,49 cm |
+| em rampa | 4,8 cm | 24% | 0,15 cm | 4,98 cm |
+| copa de arvore | 73,7 cm | 118% | 0,74 cm | 73,72 cm |
 
 Nenhum dos dois cobre erro sistematico da base: se a coordenada do marco estiver
 errada, todo o modelo desloca junto e nenhuma dessas contas percebe. Para isso so
