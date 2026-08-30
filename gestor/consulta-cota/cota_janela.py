@@ -1,7 +1,7 @@
-"""Janela para consultar a cota de coordenadas sobre um modelo digital.
+"""Janela de consulta sobre o modelo digital do terreno.
 
-Abre pelo atalho "Consulta de Cota". Escolhe o .tif do DSM ou DTM, cola a lista
-de coordenadas e recebe a cota de cada ponto.
+Abre pelo atalho "Consulta de Cota". Escolhe o .tif uma vez e trabalha nas duas
+abas: cota de coordenadas e declividade da area.
 """
 
 import csv
@@ -49,18 +49,19 @@ class Janela:
     def __init__(self, raiz):
         self.raiz = raiz
         raiz.title(TITULO)
-        raiz.geometry("1060x760")
-        raiz.minsize(900, 620)
+        raiz.geometry("1060x780")
+        raiz.minsize(900, 640)
         self.fila = queue.Queue()
         self.info = None
         self.resultado = []
+        self.faixas = []
 
         corpo = ttk.Frame(raiz, padding=12)
         corpo.pack(fill=BOTH, expand=True)
 
-        # ---------- modelo ----------
-        bloco = ttk.LabelFrame(corpo, text=" 1. Modelo digital (DSM ou DTM) ", padding=10)
-        bloco.pack(fill=X, pady=(0, 8))
+        # ---------- modelo: fora das abas, vale para as duas ----------
+        bloco = ttk.LabelFrame(corpo, text=" Modelo digital ", padding=10)
+        bloco.pack(fill=X, pady=(0, 10))
         linha = ttk.Frame(bloco)
         linha.pack(fill=X)
         self.tif = StringVar()
@@ -70,8 +71,20 @@ class Janela:
                                 justify="left")
         self.resumo.pack(anchor="w", pady=(6, 0))
 
-        # ---------- coordenadas ----------
-        bloco = ttk.LabelFrame(corpo, text=" 2. Coordenadas ", padding=10)
+        abas = ttk.Notebook(corpo)
+        abas.pack(fill=BOTH, expand=True)
+        self.montar_aba_cota(abas)
+        self.montar_aba_declive(abas)
+
+        self.raiz.after(120, self.drenar)
+
+    # ================= aba 1: cota =================
+
+    def montar_aba_cota(self, abas):
+        aba = ttk.Frame(abas, padding=10)
+        abas.add(aba, text="  Cota dos pontos  ")
+
+        bloco = ttk.LabelFrame(aba, text=" Coordenadas ", padding=10)
         bloco.pack(fill=BOTH, expand=True, pady=(0, 8))
         topo = ttk.Frame(bloco)
         topo.pack(fill=X, pady=(0, 6))
@@ -81,14 +94,13 @@ class Janela:
                      width=26).pack(side=LEFT, padx=(6, 0))
         ttk.Button(topo, text="Carregar de arquivo...",
                    command=self.carregar_arquivo).pack(side=RIGHT)
-        self.entrada = scrolledtext.ScrolledText(bloco, height=8, wrap="none",
+        self.entrada = scrolledtext.ScrolledText(bloco, height=7, wrap="none",
                                                  font=("Consolas", 10))
         self.entrada.pack(fill=BOTH, expand=True)
         self.entrada.insert("1.0", EXEMPLO)
         self.entrada.bind("<FocusIn>", self.limpar_exemplo)
 
-        # ---------- qualidade ----------
-        bloco = ttk.LabelFrame(corpo, text=" 3. Incerteza ", padding=10)
+        bloco = ttk.LabelFrame(aba, text=" Incerteza ", padding=10)
         bloco.pack(fill=X, pady=(0, 8))
         self.local = StringVar(value="1")
         ttk.Checkbutton(bloco, variable=self.local, onvalue="1", offvalue="0",
@@ -108,39 +120,72 @@ class Janela:
         self.relatorio = ttk.Label(bloco, text="", foreground="#666", justify="left")
         self.relatorio.pack(anchor="w", pady=(6, 0))
 
-        self.botao = ttk.Button(corpo, text="CONSULTAR", command=self.consultar)
+        self.botao = ttk.Button(aba, text="CONSULTAR", command=self.consultar)
         self.botao.pack(fill=X, ipady=6, pady=(0, 8))
 
-        # ---------- resultado ----------
-        bloco = ttk.LabelFrame(corpo, text=" 4. Resultado ", padding=10)
-        bloco.pack(fill=BOTH, expand=True)
+        quadro = ttk.Frame(aba)
+        quadro.pack(fill=BOTH, expand=True)
         cols = ("ponto", "e", "n", "cota", "se", "sn", "sz", "local", "declive", "situacao")
         titulos = ("Ponto", "Leste (E)", "Norte (N)", "Cota",
                    "sigma E", "sigma N", "sigma Z", "rugosidade", "declive", "Situacao")
         larguras = (80, 110, 120, 90, 70, 70, 70, 85, 70, 115)
-        self.tabela = ttk.Treeview(bloco, columns=cols, show="headings", height=8)
+        self.tabela = ttk.Treeview(quadro, columns=cols, show="headings", height=7)
         for c, t, w in zip(cols, titulos, larguras):
             self.tabela.heading(c, text=t)
-            self.tabela.column(c, width=w, anchor="w" if c in ("ponto", "situacao") else "e")
-        barra = ttk.Scrollbar(bloco, orient="vertical", command=self.tabela.yview)
+            self.tabela.column(c, width=w,
+                               anchor="w" if c in ("ponto", "situacao") else "e")
+        barra = ttk.Scrollbar(quadro, orient="vertical", command=self.tabela.yview)
         self.tabela.configure(yscrollcommand=barra.set)
         self.tabela.pack(side=LEFT, fill=BOTH, expand=True)
         barra.pack(side=RIGHT, fill="y")
 
-        rodape = ttk.Frame(corpo)
+        rodape = ttk.Frame(aba)
         rodape.pack(fill=X, pady=(8, 0))
         self.situacao = ttk.Label(rodape, text="", foreground="#444")
         self.situacao.pack(side=LEFT)
         ttk.Button(rodape, text="Salvar CSV...", command=self.salvar).pack(side=RIGHT)
         ttk.Button(rodape, text="Copiar", command=self.copiar).pack(side=RIGHT, padx=(0, 6))
 
-        self.raiz.after(120, self.drenar)
+    # ================= aba 2: declividade =================
 
-    # ---------------- interface ----------------
+    def montar_aba_declive(self, abas):
+        aba = ttk.Frame(abas, padding=10)
+        abas.add(aba, text="  Declividade  ")
 
-    def limpar_exemplo(self, _evento):
-        if self.entrada.get("1.0", END).strip() == EXEMPLO.strip():
-            self.entrada.delete("1.0", END)
+        ttk.Label(aba, justify="left", foreground="#555", text=
+                  "Calcula a declividade a partir do modelo e mostra quanto de area cai em cada\n"
+                  "faixa. Use o DTM (terreno), nao o DSM: sobre o DSM a conta sai da copa das\n"
+                  "arvores e do telhado, e nao do chao.").pack(anchor="w", pady=(0, 10))
+
+        self.botao_dec = ttk.Button(aba, text="GERAR DECLIVIDADE", command=self.gerar_declive)
+        self.botao_dec.pack(fill=X, ipady=6, pady=(0, 4))
+        self.barra_dec = ttk.Progressbar(aba, mode="indeterminate")
+
+        quadro = ttk.Frame(aba)
+        quadro.pack(fill=BOTH, expand=True, pady=(8, 0))
+        cols = ("faixa", "classe", "ha", "pct")
+        self.tab_dec = ttk.Treeview(quadro, columns=cols, show="headings", height=8)
+        for c, t, w, a in (("faixa", "Declividade", 130, "w"),
+                           ("classe", "Classe de relevo", 200, "w"),
+                           ("ha", "Hectares", 120, "e"),
+                           ("pct", "% da area", 110, "e")):
+            self.tab_dec.heading(c, text=t)
+            self.tab_dec.column(c, width=w, anchor=a)
+        self.tab_dec.pack(side=LEFT, fill=BOTH, expand=True)
+        barra = ttk.Scrollbar(quadro, orient="vertical", command=self.tab_dec.yview)
+        self.tab_dec.configure(yscrollcommand=barra.set)
+        barra.pack(side=RIGHT, fill="y")
+
+        rodape = ttk.Frame(aba)
+        rodape.pack(fill=X, pady=(8, 0))
+        self.situacao_dec = ttk.Label(rodape, text="", foreground="#444", justify="left")
+        self.situacao_dec.pack(side=LEFT)
+        ttk.Button(rodape, text="Salvar CSV...",
+                   command=self.salvar_declive).pack(side=RIGHT)
+        ttk.Button(rodape, text="Copiar",
+                   command=self.copiar_declive).pack(side=RIGHT, padx=(0, 6))
+
+    # ================= modelo =================
 
     def escolher(self):
         f = filedialog.askopenfilename(title="Modelo digital",
@@ -155,16 +200,15 @@ class Janela:
     def ler_info(self, caminho):
         try:
             cfg = cota.carregar_config(Path(__file__).parent)
-            gdalinfo, _ = cota.ferramentas(cfg)
+            gdalinfo, _, _ = cota.ferramentas(cfg)
             self.fila.put(("info", cota.info_modelo(gdalinfo, caminho)))
         except Exception as e:  # noqa: BLE001
             self.fila.put(("info_erro", str(e)))
-        # o relatorio do Pix4D fica previsivelmente ao lado do raster
         try:
             achado = cota.achar_relatorio(caminho)
             if achado:
                 self.fila.put(("relatorio", cota.ler_relatorio_pix4d(achado)))
-        except Exception:  # noqa: BLE001 - relatorio ausente ou ilegivel nao e erro
+        except Exception:  # noqa: BLE001 - relatorio ausente nao e erro
             pass
 
     def mostrar_info(self, i):
@@ -180,7 +224,6 @@ class Janela:
             foreground="#a4232b" if aviso else "#0b6b3a")
 
     def mostrar_relatorio(self, d):
-        """Preenche o sigma a partir do relatorio, deixando claro o que ele mede."""
         valores = d.get("rms") or d.get("sigma") or {}
         z = valores.get("z")
         if z is None:
@@ -200,9 +243,16 @@ class Janela:
                   "relacao ao geotag que entrou, nao a posicao no terreno." + regra),
             foreground="#8a5300")
 
+    # ================= consulta de cota =================
+
+    def limpar_exemplo(self, _evento):
+        if self.entrada.get("1.0", END).strip() == EXEMPLO.strip():
+            self.entrada.delete("1.0", END)
+
     def carregar_arquivo(self):
         f = filedialog.askopenfilename(title="Lista de coordenadas",
-                                       filetypes=[("Texto e CSV", "*.txt *.csv"), ("Todos", "*.*")])
+                                       filetypes=[("Texto e CSV", "*.txt *.csv"),
+                                                  ("Todos", "*.*")])
         if not f:
             return
         try:
@@ -213,8 +263,6 @@ class Janela:
         self.entrada.delete("1.0", END)
         self.entrada.insert("1.0", texto)
 
-    # ---------------- execucao ----------------
-
     def consultar(self):
         caminho = self.tif.get().strip()
         if not caminho or not Path(caminho).exists():
@@ -222,19 +270,13 @@ class Janela:
             return
         pontos, erros = cota.interpretar(self.entrada.get("1.0", END),
                                          ORDENS[self.ordem.get()])
-        if erros and not pontos:
-            messagebox.showerror(TITULO, "Nao consegui ler as coordenadas:\n\n"
+        if not pontos:
+            messagebox.showerror(TITULO, "Nao consegui ler nenhuma coordenada.\n\n"
                                  + "\n".join(erros[:8]))
             return
-        if not pontos:
-            messagebox.showerror(TITULO, "Cole as coordenadas na caixa de texto.")
-            return
         if erros:
-            messagebox.showwarning(TITULO, f"{len(erros)} linha(s) foram ignoradas:\n\n"
+            messagebox.showwarning(TITULO, f"{len(erros)} linha(s) ignoradas:\n\n"
                                    + "\n".join(erros[:8]))
-
-        # os campos sao lidos aqui, na linha principal: tkinter nao aceita
-        # leitura de widget a partir da thread de trabalho
         try:
             raio = cota.numero(self.raio.get()) if self.raio.get().strip() else 0.50
         except ValueError:
@@ -247,20 +289,19 @@ class Janela:
             try:
                 sigma_lev[eixo] = cota.numero(var.get())
             except ValueError:
-                messagebox.showerror(TITULO,
-                                     f"O sigma {eixo.upper()} precisa ser um numero.")
+                messagebox.showerror(TITULO, f"O sigma {eixo.upper()} precisa ser um numero.")
                 return
-        opcoes = dict(local=self.local.get() == "1", raio=raio, sigma_lev=sigma_lev)
 
         self.botao.config(state="disabled", text="Consultando...")
         self.situacao.config(text=f"consultando {len(pontos)} ponto(s)...")
+        opcoes = dict(local=self.local.get() == "1", raio=raio, sigma_lev=sigma_lev)
         threading.Thread(target=self.trabalhar, args=(caminho, pontos, opcoes),
                          daemon=True).start()
 
     def trabalhar(self, caminho, pontos, opcoes):
         try:
             cfg = cota.carregar_config(Path(__file__).parent)
-            gdalinfo, consulta = cota.ferramentas(cfg)
+            gdalinfo, consulta, _ = cota.ferramentas(cfg)
             info = self.info or cota.info_modelo(gdalinfo, caminho)
             resultado = cota.consultar(consulta, caminho, pontos, info)
 
@@ -277,41 +318,19 @@ class Janela:
                     continue
                 r["sigma_e"] = lev.get("e")
                 r["sigma_n"] = lev.get("n")
-
-                # orcamento vertical: levantamento + rugosidade local + a parcela
-                # que a incerteza horizontal vira em terreno inclinado
+                # orcamento vertical: levantamento + rugosidade + a parcela que a
+                # incerteza horizontal vira em terreno inclinado
                 parcelas = [v for v in (lev.get("z"), r.get("sigma_local")) if v is not None]
                 declive = r.get("declividade")
                 sh = [v for v in (lev.get("e"), lev.get("n")) if v is not None]
                 if declive is not None and sh:
                     horizontal = math.hypot(*sh) if len(sh) == 2 else sh[0]
-                    r["sigma_declive"] = declive * horizontal
-                    parcelas.append(r["sigma_declive"])
+                    parcelas.append(declive * horizontal)
                 if parcelas:
                     r["sigma_z"] = math.sqrt(sum(v * v for v in parcelas))
             self.fila.put(("fim", resultado))
         except Exception as e:  # noqa: BLE001
             self.fila.put(("erro", str(e)))
-
-    def drenar(self):
-        try:
-            while True:
-                tipo, carga = self.fila.get_nowait()
-                if tipo == "info":
-                    self.mostrar_info(carga)
-                elif tipo == "info_erro":
-                    self.resumo.config(text=carga, foreground="#a4232b")
-                elif tipo == "relatorio":
-                    self.mostrar_relatorio(carga)
-                elif tipo == "fim":
-                    self.terminar(carga)
-                elif tipo == "erro":
-                    self.botao.config(state="normal", text="CONSULTAR")
-                    self.situacao.config(text="")
-                    messagebox.showerror(TITULO, carga)
-        except queue.Empty:
-            pass
-        self.raiz.after(120, self.drenar)
 
     def terminar(self, resultado):
         self.resultado = resultado
@@ -323,10 +342,8 @@ class Janela:
         falhas = len(resultado) - ok
         txt = f"{ok} de {len(resultado)} com cota"
         if falhas:
-            txt += f"   |   {falhas} sem cota (veja a coluna Situacao)"
+            txt += f"   |   {falhas} sem cota (veja Situacao)"
         self.situacao.config(text=txt, foreground="#8a5300" if falhas else "#0b6b3a")
-
-    # ---------------- saida ----------------
 
     @staticmethod
     def celulas(r):
@@ -338,6 +355,87 @@ class Janela:
                 m(r.get("sigma_e")), m(r.get("sigma_n")), m(r.get("sigma_z")),
                 m(r.get("sigma_local")), declive, r["situacao"])
 
+    # ================= declividade =================
+
+    def gerar_declive(self):
+        caminho = self.tif.get().strip()
+        if not caminho or not Path(caminho).exists():
+            messagebox.showerror(TITULO, "Escolha o arquivo do modelo digital (.tif).")
+            return
+        if "dsm" in Path(caminho).name.lower():
+            if not messagebox.askyesno(
+                    TITULO,
+                    "O arquivo escolhido parece ser um DSM (modelo de superficie).\n\n"
+                    "A declividade sairia da copa das arvores e dos telhados, nao do "
+                    "terreno. O certo e usar o DTM.\n\nGerar assim mesmo?"):
+                return
+        self.botao_dec.config(state="disabled", text="Calculando...")
+        self.barra_dec.pack(fill=X, pady=(0, 6))
+        self.barra_dec.start(12)
+        self.situacao_dec.config(text="calculando a declividade...", foreground="#444")
+        threading.Thread(target=self.trabalhar_declive, args=(caminho,), daemon=True).start()
+
+    def trabalhar_declive(self, caminho):
+        try:
+            cfg = cota.carregar_config(Path(__file__).parent)
+            gdalinfo, _, gdaldem = cota.ferramentas(cfg)
+            saida = Path(caminho).with_name(Path(caminho).stem + "_declividade.tif")
+            cota.gerar_declividade(gdaldem, caminho, saida)
+            faixas = cota.areas_por_faixa(gdalinfo, saida)
+            self.fila.put(("declive", (faixas, saida)))
+        except Exception as e:  # noqa: BLE001
+            self.fila.put(("declive_erro", str(e)))
+
+    def terminar_declive(self, carga):
+        faixas, saida = carga
+        self.faixas = faixas
+        self.botao_dec.config(state="normal", text="GERAR DECLIVIDADE")
+        self.barra_dec.stop()
+        self.barra_dec.pack_forget()
+        self.tab_dec.delete(*self.tab_dec.get_children())
+        for f in faixas:
+            rot = f"{f['inicio']} a {f['fim']} %" if f["fim"] else f"acima de {f['inicio']} %"
+            self.tab_dec.insert("", END, values=(rot, f["nome"],
+                                                 f"{f['hectares']:.2f}",
+                                                 f"{f['porcento']:.1f}%"))
+        total = sum(f["hectares"] for f in faixas)
+        terraceavel = sum(f["hectares"] for f in faixas if f["inicio"] < 13)
+        self.situacao_dec.config(
+            text=(f"area total {total:.2f} ha   |   ate 13% de declive: "
+                  f"{terraceavel:.2f} ha ({100 * terraceavel / total:.0f}%)\n"
+                  f"raster salvo em {saida.name}"),
+            foreground="#0b6b3a")
+
+    def linhas_declive(self):
+        return [((f"{f['inicio']} a {f['fim']}" if f["fim"] else f"> {f['inicio']}"),
+                 f["nome"], f"{f['hectares']:.2f}", f"{f['porcento']:.1f}")
+                for f in self.faixas]
+
+    def copiar_declive(self):
+        if not self.faixas:
+            return
+        self.raiz.clipboard_clear()
+        self.raiz.clipboard_append("\n".join("\t".join(l) for l in self.linhas_declive()))
+        self.situacao_dec.config(text="copiado para a area de transferencia",
+                                 foreground="#0b6b3a")
+
+    def salvar_declive(self):
+        if not self.faixas:
+            messagebox.showinfo(TITULO, "Gere a declividade primeiro.")
+            return
+        f = filedialog.asksaveasfilename(title="Salvar faixas de declividade",
+                                         defaultextension=".csv",
+                                         filetypes=[("CSV", "*.csv")])
+        if not f:
+            return
+        with open(f, "w", encoding="utf-8-sig", newline="") as saida:
+            w = csv.writer(saida, delimiter=";")
+            w.writerow(["Declividade (%)", "Classe de relevo", "Hectares", "% da area"])
+            w.writerows(self.linhas_declive())
+        self.situacao_dec.config(text=f"salvo em {f}", foreground="#0b6b3a")
+
+    # ================= saida da aba de cota =================
+
     def linhas_texto(self):
         return [tuple(c if c != "-" else "" for c in self.celulas(r))
                 for r in self.resultado]
@@ -347,7 +445,8 @@ class Janela:
             return
         self.raiz.clipboard_clear()
         self.raiz.clipboard_append("\n".join("\t".join(l) for l in self.linhas_texto()))
-        self.situacao.config(text="copiado para a area de transferencia", foreground="#0b6b3a")
+        self.situacao.config(text="copiado para a area de transferencia",
+                             foreground="#0b6b3a")
 
     def salvar(self):
         if not self.resultado:
@@ -367,6 +466,36 @@ class Janela:
             messagebox.showerror(TITULO, str(e))
             return
         self.situacao.config(text=f"salvo em {f}", foreground="#0b6b3a")
+
+    # ================= fila =================
+
+    def drenar(self):
+        try:
+            while True:
+                tipo, carga = self.fila.get_nowait()
+                if tipo == "info":
+                    self.mostrar_info(carga)
+                elif tipo == "info_erro":
+                    self.resumo.config(text=carga, foreground="#a4232b")
+                elif tipo == "relatorio":
+                    self.mostrar_relatorio(carga)
+                elif tipo == "fim":
+                    self.terminar(carga)
+                elif tipo == "erro":
+                    self.botao.config(state="normal", text="CONSULTAR")
+                    self.situacao.config(text="")
+                    messagebox.showerror(TITULO, carga)
+                elif tipo == "declive":
+                    self.terminar_declive(carga)
+                elif tipo == "declive_erro":
+                    self.botao_dec.config(state="normal", text="GERAR DECLIVIDADE")
+                    self.barra_dec.stop()
+                    self.barra_dec.pack_forget()
+                    self.situacao_dec.config(text="")
+                    messagebox.showerror(TITULO, carga)
+        except queue.Empty:
+            pass
+        self.raiz.after(120, self.drenar)
 
 
 def main():

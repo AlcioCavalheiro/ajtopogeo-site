@@ -25,14 +25,15 @@ def ferramentas(cfg):
     binario = Path(cfg["gdalBin"])
     info = binario / "gdalinfo.exe"
     consulta = binario / "gdallocationinfo.exe"
-    faltando = [str(p) for p in (info, consulta) if not p.exists()]
+    dem = binario / "gdaldem.exe"
+    faltando = [str(p) for p in (info, consulta, dem) if not p.exists()]
     if faltando:
         raise FileNotFoundError(
             "Nao encontrei o GDAL. Esperava estes arquivos:\n  "
             + "\n  ".join(faltando)
             + "\n\nConfira o caminho em config.json (vem junto com o QGIS)."
         )
-    return info, consulta
+    return info, consulta, dem
 
 
 def info_modelo(gdalinfo, tif):
@@ -125,6 +126,72 @@ def interpretar(texto, ordem="auto"):
                 continue
         pontos.append(dict(nome=nome or f"P{len(pontos) + 1}", e=e, n=n))
     return pontos, erros
+
+
+# Faixas de declividade das classes de capacidade de uso do solo. As tres
+# primeiras cobrem o que se terraceia em lavoura mecanizada.
+FAIXAS_DECLIVE = [(0, 3, "plano"), (3, 8, "suave ondulado"), (8, 13, "ondulado"),
+                  (13, 20, "forte ondulado"), (20, 45, "montanhoso"),
+                  (45, None, "escarpado")]
+
+
+def gerar_declividade(gdaldem, dtm, saida):
+    """Calcula a declividade em porcentagem a partir do modelo de terreno.
+
+    `-compute_edges` evita a moldura sem dado na borda do raster; sem ele o
+    contorno inteiro sai vazio e some da estatistica.
+    """
+    r = subprocess.run([str(gdaldem), "slope", "-p", "-compute_edges",
+                        "-of", "GTiff", "-co", "COMPRESS=DEFLATE",
+                        str(dtm), str(saida)],
+                       capture_output=True, text=True, timeout=3600)
+    if r.returncode != 0 or not Path(saida).exists():
+        raise RuntimeError("O GDAL nao conseguiu calcular a declividade:\n"
+                           + (r.stderr.strip()[:300] or "sem detalhe"))
+    return Path(saida)
+
+
+def areas_por_faixa(gdalinfo, raster, faixas=None):
+    """Area de cada faixa de declividade, a partir do histograma do raster.
+
+    O histograma vem com 256 baldes cobrindo todo o intervalo, entao a borda de
+    uma faixa quase nunca cai exatamente na borda de um balde. Em vez de jogar o
+    balde inteiro para um lado, ele e repartido na proporcao da sobreposicao --
+    sem isso o erro chegaria a meio balde por faixa.
+    """
+    faixas = faixas or FAIXAS_DECLIVE
+    bruto = subprocess.run([str(gdalinfo), "-json", "-hist", str(raster)],
+                           capture_output=True, text=True, timeout=1800)
+    if bruto.returncode != 0:
+        raise RuntimeError("Nao consegui ler o histograma da declividade.")
+    d = json.loads(bruto.stdout)
+
+    gt = d["geoTransform"]
+    area_pixel = abs(gt[1]) * abs(gt[5])
+    h = (d.get("bands") or [{}])[0].get("histogram") or {}
+    baldes = h.get("buckets") or []
+    if not baldes:
+        raise RuntimeError("O raster de declividade nao trouxe histograma.")
+
+    lo, hi, n = h["min"], h["max"], h["count"]
+    largura = (hi - lo) / n
+    total = sum(baldes)
+
+    saida = []
+    for inicio, fim, nome in faixas:
+        limite = fim if fim is not None else float("inf")
+        pixels = 0.0
+        for i, contagem in enumerate(baldes):
+            if not contagem:
+                continue
+            b0, b1 = lo + i * largura, lo + (i + 1) * largura
+            sobrepoe = min(b1, limite) - max(b0, inicio)
+            if sobrepoe > 0:
+                pixels += contagem * (sobrepoe / largura)
+        saida.append(dict(inicio=inicio, fim=fim, nome=nome,
+                          hectares=pixels * area_pixel / 10000.0,
+                          porcento=100.0 * pixels / total if total else 0.0))
+    return saida
 
 
 def achar_relatorio(tif):

@@ -124,3 +124,33 @@ antena da base.
 Por isso a janela mostra junto a regra pratica: sem ponto de apoio, a expectativa
 realista de acuracia vertical fica entre **1,5 e 3 x GSD** -- neste projeto, 5 a
 10 cm, e nao os 14 mm do relatorio.
+
+## Aba de declividade
+
+Calcula a declividade em porcentagem com `gdaldem slope -p` e informa quanto de
+area cai em cada faixa das classes de capacidade de uso do solo. O raster fica
+salvo ao lado do modelo, como `<nome>_declividade.tif`, e pode ser aberto no
+QGIS ou no CAD.
+
+**Use o DTM, nao o DSM.** Sobre o DSM a conta sai da copa das arvores e do
+telhado, e nao do terreno. A janela avisa se o arquivo escolhido tem "dsm" no
+nome, mas nao tem como saber com certeza -- a responsabilidade e de quem escolhe.
+
+Medido no DTM do Portal das Flores (50,7 ha), em 5 segundos:
+
+| declividade | classe | hectares | % |
+|---|---|---|---|
+| 0 a 3% | plano | 12,06 | 23,7% |
+| 3 a 8% | suave ondulado | 22,10 | 43,5% |
+| 8 a 13% | ondulado | 8,57 | 16,9% |
+| 13 a 20% | forte ondulado | 4,58 | 9,0% |
+| 20 a 45% | montanhoso | 3,10 | 6,1% |
+| acima de 45% | escarpado | 0,31 | 0,6% |
+
+O rodape destaca a area **ate 13%**, que e o limite usual do terraceamento
+mecanizado -- nesse caso 42,73 ha, 84% da area.
+
+As areas saem do histograma do raster. Como ele vem com 256 baldes cobrindo todo
+o intervalo, a borda de uma faixa quase nunca coincide com a borda de um balde:
+o balde e repartido na proporcao da sobreposicao, em vez de ir inteiro para um
+lado. Sem isso o erro chegaria a meio balde por faixa.
