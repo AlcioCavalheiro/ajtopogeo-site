@@ -593,7 +593,7 @@ const PCFG={
   folha:{t:'Folha / Pró-labore',a:'Lançar Pró-labore'},
   pendencias:{t:'Pendências',a:null},
   rotinas:{t:'Rotinas Recorrentes',a:'Nova Rotina'},
-  administrativo:{t:'Documentos',tb:'documentos_empresa',a:'Novo Documento',h:function(o){return '<div class="fg"><label class="fl">Nome do documento *</label><input class="fc" id="f-nome" placeholder="Ex: Alvará de funcionamento, ASO, Guia do INSS..."></div>'+'<div class="g2"><div class="fg"><label class="fl">De quem é *</label><select class="fc" id="f-escopo" onchange="docEscopoChange()"><option>Empresa</option><option>Funcionário</option><option>Sócio</option></select></div>'+'<div class="fg"><label class="fl">Categoria</label><select class="fc" id="f-categoria"><option>Licença</option><option>Certidão</option><option>Contrato</option><option>Certificado</option><option>Registro</option><option>Documento pessoal</option><option>Saúde e segurança</option><option>Trabalhista</option><option>Fiscal</option><option>Outro</option></select></div></div>'+'<div class="fg" id="adm-func-wrap" style="display:none"><label class="fl">Funcionário *</label><select class="fc" id="f-funcionario_id"><option value="">Selecione...</option>'+(o.fOpts||'')+'</select></div>'+'<div class="fg" id="adm-socio-wrap" style="display:none"><label class="fl">Sócio *</label><select class="fc" id="f-socio_id"><option value="">Selecione...</option>'+(o.sOpts||'')+'</select></div>'+'<div class="g2"><div class="fg"><label class="fl">Periodicidade</label><select class="fc" id="f-periodicidade" onchange="docPeriodicidadeChange()"><option>Única</option><option>Mensal</option><option>Trimestral</option><option>Anual</option></select></div>'+'<div class="fg"><label class="fl">Número / Código</label><input class="fc" id="f-numero"></div></div>'+'<div id="adm-bloco-unico"><div class="g2"><div class="fg"><label class="fl">Data emissão</label><input class="fc" type="date" id="f-data_emissao"></div><div class="fg"><label class="fl">Validade</label><input class="fc" type="date" id="f-validade"></div></div></div>'+'<div id="adm-bloco-periodico" style="display:none"><div class="g2"><div class="fg"><label class="fl">Cobrar a partir de</label><input class="fc" type="date" id="f-inicio_exigencia"></div><div class="fg"><label class="fl">Dia limite do envio</label><input class="fc" type="number" min="1" max="28" id="f-dia_limite" placeholder="10"></div></div>'+'<div class="mu sm mb1"><i class="ti ti-calendar-repeat"></i> O arquivo de cada competência é enviado pela lista de Documentos. Toda competência sem arquivo vira pendência automaticamente.</div></div>'+'<div class="fg"><label class="fl">Responsável</label><input class="fc" id="f-responsavel"></div>'+'<div class="fg"><label class="fl">Observações</label><textarea class="fc" id="f-observacoes" rows="2"></textarea></div>'+'<div class="fg" id="adm-bloco-arquivo"><label class="fl">Arquivo (PDF, imagem, Word, Excel)</label><div id="adm-upload-area" class="upload-area" onclick="document.getElementById(\'adm-file-input\').click()"><i class="ti ti-file-upload"></i><p>Clique ou arraste o arquivo aqui</p></div><div id="adm-file-preview" style="display:none"></div><input type="file" id="adm-file-input" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" style="display:none" onchange="handleFileSelect(this,\'adm\')"><input type="hidden" id="f-arquivo_url" value=""></div>';}},
+  administrativo:{t:'Documentos',tb:'documentos_empresa',a:'Novo Documento',h:function(o){return '<div class="fg"><label class="fl">Nome do documento *</label><input class="fc" id="f-nome" placeholder="Ex: Alvará de funcionamento, ASO, Guia do INSS..."></div>'+'<div class="g2"><div class="fg"><label class="fl">De quem é *</label><select class="fc" id="f-escopo" onchange="docEscopoChange()"><option>Empresa</option><option>Funcionário</option><option>Sócio</option></select></div>'+'<div class="fg"><label class="fl">Categoria</label><select class="fc" id="f-categoria"><option>Licença</option><option>Certidão</option><option>Contrato</option><option>Certificado</option><option>Registro</option><option>Documento pessoal</option><option>Saúde e segurança</option><option>Trabalhista</option><option>Fiscal</option><option>Outro</option></select></div></div>'+'<div class="fg" id="adm-func-wrap" style="display:none"><label class="fl">Funcionário *</label><select class="fc" id="f-funcionario_id"><option value="">Selecione...</option>'+(o.fOpts||'')+'</select></div>'+'<div class="fg" id="adm-socio-wrap" style="display:none"><label class="fl">Sócio *</label><select class="fc" id="f-socio_id"><option value="">Selecione...</option>'+(o.sOpts||'')+'</select></div>'+'<div class="g2"><div class="fg"><label class="fl">Periodicidade</label><select class="fc" id="f-periodicidade" onchange="docPeriodicidadeChange()"><option>Única</option><option>Mensal</option><option>Trimestral</option><option>Anual</option></select></div>'+'<div class="fg"><label class="fl">Número / Código</label><input class="fc" id="f-numero"></div></div>'+'<div id="adm-bloco-unico"><div class="g2"><div class="fg"><label class="fl">Data emissão</label><input class="fc" type="date" id="f-data_emissao"></div><div class="fg"><label class="fl">Validade</label><input class="fc" type="date" id="f-validade"></div></div></div>'+'<div id="adm-bloco-periodico" style="display:none"><div class="g3"><div class="fg"><label class="fl">Cobrar a partir de</label><input class="fc" type="date" id="f-inicio_exigencia"></div><div class="fg"><label class="fl">Enviar até o dia</label><input class="fc" type="number" min="1" max="28" id="f-dia_limite" placeholder="10"></div><div class="fg"><label class="fl">Do mês</label><select class="fc" id="f-prazo_meses"><option value="0">Da própria competência</option><option value="1">Seguinte (DAS, INSS, FGTS, holerite)</option><option value="2">Dois meses depois</option></select></div></div>'+'<div class="mu sm mb1"><i class="ti ti-calendar-repeat"></i> O arquivo de cada competência é enviado pela lista de Documentos. Toda competência sem arquivo vira pendência automaticamente.</div></div>'+'<div class="fg"><label class="fl">Responsável</label><input class="fc" id="f-responsavel"></div>'+'<div class="fg"><label class="fl">Observações</label><textarea class="fc" id="f-observacoes" rows="2"></textarea></div>'+'<div class="fg" id="adm-bloco-arquivo"><label class="fl">Arquivo (PDF, imagem, Word, Excel)</label><div id="adm-upload-area" class="upload-area" onclick="document.getElementById(\'adm-file-input\').click()"><i class="ti ti-file-upload"></i><p>Clique ou arraste o arquivo aqui</p></div><div id="adm-file-preview" style="display:none"></div><input type="file" id="adm-file-input" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" style="display:none" onchange="handleFileSelect(this,\'adm\')"><input type="hidden" id="f-arquivo_url" value=""></div>';}},
   funcionarios:{t:'Novo Funcionário',tb:'funcionarios',a:'Novo Funcionário',h:function(o){return '<div class="g2"><div class="fg"><label class="fl">Nome *</label><input class="fc" id="f-nome"></div><div class="fg"><label class="fl">Tipo</label><select class="fc" id="f-tipo"><option>Funcionário</option><option>Diarista</option></select></div></div><div class="g2"><div class="fg"><label class="fl">CPF</label><input class="fc" id="f-cpf"></div><div class="fg"><label class="fl">Cargo</label><input class="fc" id="f-cargo" placeholder="Ex: Técnico em Topografia"></div></div><div class="g2"><div class="fg"><label class="fl">Telefone</label><input class="fc" id="f-telefone"></div><div class="fg"><label class="fl">E-mail</label><input class="fc" type="email" id="f-email"></div></div><div class="g2"><div class="fg"><label class="fl">Valor hora (R$)</label><input class="fc" type="number" step="0.01" id="f-valor_hora"></div><div class="fg"><label class="fl">Valor diária (R$)</label><input class="fc" type="number" step="0.01" id="f-valor_diaria"></div></div><div class="g2"><div class="fg"><label class="fl">Data admissão</label><input class="fc" type="date" id="f-data_admissao"></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-ativo"><option value="true">Ativo</option><option value="false">Inativo</option></select></div></div>';}},
   frotas:{t:'Frotas',a:'Novo Veículo',tb:'veiculos',h:function(o){return ''
     +'<div class="g2"><div class="fg"><label class="fl">Apelido / Nome *</label><input class="fc" id="f-nome" placeholder="Ex: Hilux branca"></div>'
@@ -4754,7 +4754,7 @@ async function rPendencias(){
     sb.from('agenda').select('*').lt('data',hj).or('concluido.eq.false,concluido.is.null').order('data'),
     sb.from('pagamentos').select('*').lt('vencimento',hj).eq('status','Pendente').order('vencimento'),
     sb.from('rotinas').select('*').lt('proxima_data',hj).order('proxima_data'),
-    sb.from('documentos_empresa').select('id,nome,categoria,validade,escopo,funcionario_id,socio_id,periodicidade,inicio_exigencia,data_emissao,dia_limite,ativo'),
+    sb.from('documentos_empresa').select('id,nome,categoria,validade,escopo,funcionario_id,socio_id,periodicidade,inicio_exigencia,data_emissao,dia_limite,prazo_meses,ativo'),
     sb.from('documentos_competencia').select('documento_id,competencia'),
     sb.from('funcionarios').select('id,nome'),
     sb.from('socios').select('id,nome'),
@@ -14306,22 +14306,28 @@ function _docCompetencias(d){
   return out.slice(-24);
 }
 function _docCompAtual(d){const cs=_docCompetencias(d);return cs.length?cs[cs.length-1]:_mesIni(hojeLocal());}
+// Vencimento do envio: guia de agosto vence dia 20 de setembro (prazo_meses=1).
+function _docVencComp(d,comp){
+  const base=_mesSoma(comp,Number(d.prazo_meses||0));
+  const dia=Math.min(28,Math.max(1,Number(d.dia_limite||10)));
+  return base.slice(0,8)+String(dia).padStart(2,'0');
+}
 function _docCompEnviada(docId,comp){return _docsComp.find(c=>c.documento_id===docId&&_mesIni(c.competencia)===comp);}
 
 /* Pendências de documento:
    periódico → competência esperada sem arquivo enviado;
    única     → validade vencida ou vencendo nos próximos 30 dias.        */
 function docsPendencias(docs,comps){
-  const hj=hojeLocal(),mesAtual=_mesIni(hj),dia=Number(hj.slice(8,10));
+  const hj=hojeLocal();
   const enviadas={};(comps||[]).forEach(c=>{enviadas[c.documento_id+'|'+_mesIni(c.competencia)]=c;});
   const out=[];
   (docs||[]).forEach(d=>{
     if(d.ativo===false)return;
     if(_docPeriodico(d)){
-      const limite=Number(d.dia_limite||10);
       _docCompetencias(d).forEach(comp=>{
         if(enviadas[d.id+'|'+comp])return;
-        out.push({tipo:'competencia',doc:d,competencia:comp,limite,atrasada:comp<mesAtual||dia>limite});
+        const venc=_docVencComp(d,comp);
+        out.push({tipo:'competencia',doc:d,competencia:comp,venc,atrasada:hj>venc});
       });
     }else if(d.validade){
       if(d.validade<hj)out.push({tipo:'validade',doc:d,atrasada:true});
@@ -14335,7 +14341,9 @@ async function rDocumentos(){
   // Não traz arquivo_url: o anexo é base64 e a listagem inteira viria junto.
   // tem_arquivo (coluna gerada) diz se há anexo; se a migração ainda não
   // rodou, cai no select antigo.
-  const COLS='id,nome,categoria,numero,data_emissao,validade,responsavel,observacoes,tem_arquivo,escopo,funcionario_id,socio_id,periodicidade,inicio_exigencia,dia_limite,ativo';
+  const COLS='id,nome,categoria,numero,data_emissao,validade,responsavel,observacoes,tem_arquivo,escopo,funcionario_id,socio_id,periodicidade,inicio_exigencia,dia_limite,prazo_meses,ativo';
+  // prazo_meses só existe depois de add_documentos_prazo.sql; sem ela o
+  // select cai no fallback abaixo e o vencimento fica no próprio mês.
   let{data,error}=await sb.from('documentos_empresa').select(COLS).order('nome');
   if(error)({data}=await sb.from('documentos_empresa').select('*').order('validade'));
   _docsCache=data||[];
@@ -14350,24 +14358,29 @@ async function rDocumentos(){
   el.innerHTML='<div class="tabs">'
     +'<div class="tab" id="dtab-pend" onclick="docTab(\'pend\')"><i class="ti ti-alert-triangle" style="font-size:13px"></i> Pendências'
       +(pend.length?' <span style="background:#A32D2D;color:#fff;border-radius:99px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:4px">'+pend.length+'</span>':'')+'</div>'
+    +'<div class="tab" id="dtab-mens" onclick="docTab(\'mensal\')"><i class="ti ti-calendar-repeat" style="font-size:13px"></i> Mensais ('+_docsCache.filter(_docPeriodico).length+')</div>'
     +DOC_ESCOPOS.map(e=>'<div class="tab" id="dtab-'+e[1]+'" onclick="docTab(\''+e[0]+'\')"><i class="ti '+e[2]+'" style="font-size:13px"></i> '+e[0]
       +' ('+_docsCache.filter(d=>_docEscopo(d)===e[0]).length+')</div>').join('')
-    +'</div><div id="dpane"></div>';
+    +'</div>'
+    +'<div class="fxb mb1"><div class="mu sm"><i class="ti ti-info-circle"></i> Cada documento fica na aba do dono. Os que se repetem todo mês são anexados por competência na aba <b>Mensais</b>.</div>'
+    +'<button class="btn bsm" onclick="abrirOrganizarDocs()" style="flex-shrink:0"><i class="ti ti-arrows-sort"></i> Organizar</button></div>'
+    +'<div id="dpane"></div>';
   docTab(_docTab);
   const si=document.getElementById('si');
   if(si)si.oninput=function(){if(CP==='administrativo'){_docQuery=this.value.trim();_renderDocPane();}};
 }
 
-function _docTabId(t){return t==='pend'?'pend':((DOC_ESCOPOS.find(e=>e[0]===t)||['','pend'])[1]);}
+function _docTabId(t){return t==='pend'?'pend':t==='mensal'?'mens':((DOC_ESCOPOS.find(e=>e[0]===t)||['','pend'])[1]);}
 function docTab(t){
   _docTab=t;
-  ['pend'].concat(DOC_ESCOPOS.map(e=>e[1])).forEach(id=>{const b=document.getElementById('dtab-'+id);if(b)b.classList.toggle('active',id===_docTabId(t));});
+  ['pend','mens'].concat(DOC_ESCOPOS.map(e=>e[1])).forEach(id=>{const b=document.getElementById('dtab-'+id);if(b)b.classList.toggle('active',id===_docTabId(t));});
   _renderDocPane();
 }
 
 function _renderDocPane(){
   const pane=document.getElementById('dpane');if(!pane)return;
   if(_docTab==='pend'){pane.innerHTML=_docPanePendencias();return;}
+  if(_docTab==='mensal'){pane.innerHTML=_docPaneMensais();return;}
   const q=_docQuery;
   let list=_docsCache.filter(d=>_docEscopo(d)===_docTab);
   if(q)list=list.filter(d=>_normOS([d.nome,d.categoria,d.numero,d.responsavel,_docDono(d)].join(' ')).includes(_normOS(q)));
@@ -14459,7 +14472,7 @@ function _docPendLinha(p){
   let txt,acao;
   if(p.tipo==='competencia'){
     txt='<div class="w5">'+_esc(d.nome)+' — '+_compLabel(p.competencia)+'</div>'
-      +'<div class="mu sm">'+dono+' · '+_esc(d.periodicidade)+(p.atrasada?'':' · enviar até o dia '+p.limite)+'</div>';
+      +'<div class="mu sm">'+dono+' · '+_esc(d.periodicidade)+' · '+(p.atrasada?'venceu em ':'enviar até ')+fd(p.venc)+'</div>';
     acao='<label class="btn bxs" style="cursor:pointer;background:#F5FAF0;color:#27500A"><i class="ti ti-upload"></i> Enviar'
       +'<input type="file" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" style="display:none" onchange="uploadCompetencia(\''+d.id+'\',\''+p.competencia+'\',this)"></label>';
   }else{
@@ -14467,6 +14480,121 @@ function _docPendLinha(p){
     acao='<button class="btn bxs" onclick="editRecord(\'documentos_empresa\',\''+d.id+'\')"><i class="ti ti-edit"></i> Renovar</button>';
   }
   return'<div class="fxb" style="padding:8px 0;border-bottom:1px solid var(--bor)"><div>'+txt+'</div><div class="fx g8" style="flex-shrink:0">'+acao+'</div></div>';
+}
+
+/* ── Aba Mensais: onde o arquivo de cada competência é anexado ──
+   Uma linha por documento periódico, uma coluna por mês. Célula verde =
+   enviado (clica e baixa), célula com seta = falta enviar aquele mês.   */
+function _docPaneMensais(){
+  const docs=_docsCache.filter(_docPeriodico);
+  const hoje=_mesIni(hojeLocal()),hj=hojeLocal();
+  const meses=[];for(let i=5;i>=0;i--)meses.push(_mesSoma(hoje,-i));
+  const barra='<div class="fxb mb1"><div><div class="st" style="margin:0"><i class="ti ti-calendar-repeat" style="color:var(--brand)"></i>Documentos por competência</div>'
+    +'<div class="mu sm">DAS do Simples, INSS, FGTS, holerites — um arquivo por mês. Clique no mês para anexar.</div></div>'
+    +'<button class="btn bsm" onclick="criarDocsMensaisPadrao()" style="flex-shrink:0"><i class="ti ti-wand"></i> Criar os padrão</button></div>';
+  if(!docs.length)return'<div class="card">'+barra
+    +'<div style="text-align:center;padding:1.5rem 1rem"><i class="ti ti-calendar-off" style="font-size:36px;color:var(--mu);opacity:.4;display:block;margin-bottom:.5rem"></i>'
+    +'<div class="w6">Nenhum documento mensal cadastrado ainda</div>'
+    +'<div class="mu sm" style="margin:.4rem 0 1rem">O botão <b>Criar os padrão</b> cadastra de uma vez o DAS do Simples Nacional, o INSS, o FGTS e um holerite para cada funcionário ativo — todos mensais, cobrando a partir deste mês.</div>'
+    +'<button class="btn bp2" onclick="criarDocsMensaisPadrao()"><i class="ti ti-wand"></i> Criar os documentos mensais padrão</button></div></div>';
+  const linhas=docs.map(d=>{
+    const comps={};_docCompetencias(d).forEach(c=>{comps[c]=1;});
+    const cels=meses.map(m=>{
+      if(!comps[m])return'<td style="text-align:center;color:var(--mu)">·</td>';
+      const env=_docCompEnviada(d.id,m);
+      if(env)return'<td style="text-align:center"><button class="btn bxs" title="Baixar '+_compLabel(m)+'" style="background:#EAF3DE;color:#27500A;border-color:#b5d98a" onclick="baixarCompetencia(\''+env.id+'\',\''+encodeURIComponent(d.nome||'documento')+'\',\''+m+'\')"><i class="ti ti-check"></i></button></td>';
+      const venc=_docVencComp(d,m),atrasada=hj>venc;
+      return'<td style="text-align:center"><label class="btn bxs" title="Enviar '+_compLabel(m)+' — '+(atrasada?'venceu em ':'até ')+fd(venc)+'" style="cursor:pointer;'+(atrasada?'background:#FCEBEB;color:#A32D2D;border-color:#e8bcbc':'background:#FAEEDA;color:#854F0B;border-color:#e8d3ad')+'"><i class="ti ti-upload"></i>'
+        +'<input type="file" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" style="display:none" onchange="uploadCompetencia(\''+d.id+'\',\''+m+'\',this)"></label></td>';
+    }).join('');
+    const prazo=Number(d.prazo_meses||0);
+    return'<tr><td class="w5">'+_esc(d.nome)+'<div class="mu sm">'+_esc(_docDono(d))+' · '+_esc(d.periodicidade)
+      +' · dia '+Number(d.dia_limite||10)+(prazo?' do mês seguinte':'')+'</div></td>'+cels
+      +'<td><button class="btn bxs" onclick="verHistoricoDoc(\''+d.id+'\')" title="Todas as competências"><i class="ti ti-history"></i></button></td></tr>';
+  }).join('');
+  return'<div class="card">'+barra
+    +'<div class="tw"><table><thead><tr><th>Documento</th>'
+    +meses.map(m=>'<th style="text-align:center;text-transform:capitalize">'+_compLabel(m)+'</th>').join('')+'<th></th></tr></thead>'
+    +'<tbody>'+linhas+'</tbody></table></div></div>';
+}
+
+/* Documentos mensais que toda empresa do Simples com funcionário tem.
+   Vencimento no mês seguinte à competência (DAS/INSS/FGTS dia 20,
+   holerite até o dia 5) — por isso prazo_meses:1.                      */
+const DOCS_MENSAIS_PADRAO=[
+  {nome:'DAS — Simples Nacional',categoria:'Fiscal',dia_limite:20,prazo_meses:1},
+  {nome:'INSS — GPS / DARF',     categoria:'Fiscal',dia_limite:20,prazo_meses:1},
+  {nome:'FGTS',                  categoria:'Fiscal',dia_limite:20,prazo_meses:1},
+];
+async function criarDocsMensaisPadrao(){
+  const mes=_mesIni(hojeLocal()),novos=[];
+  DOCS_MENSAIS_PADRAO.forEach(m=>{
+    if(_docsCache.some(d=>_docEscopo(d)==='Empresa'&&_normOS(d.nome)===_normOS(m.nome)))return;
+    novos.push({nome:m.nome,categoria:m.categoria,escopo:'Empresa',periodicidade:'Mensal',dia_limite:m.dia_limite,prazo_meses:m.prazo_meses,inicio_exigencia:mes,ativo:true});
+  });
+  _docsFuncs.filter(f=>f.ativo!==false).forEach(f=>{
+    const nome='Holerite — '+f.nome;
+    if(_docsCache.some(d=>d.funcionario_id===f.id&&_normOS(d.nome)===_normOS(nome)))return;
+    novos.push({nome,categoria:'Trabalhista',escopo:'Funcionário',funcionario_id:f.id,periodicidade:'Mensal',dia_limite:5,prazo_meses:1,inicio_exigencia:mes,ativo:true});
+  });
+  if(!novos.length){toast('Os documentos mensais padrão já estão cadastrados.');return;}
+  if(!confirm('Criar '+novos.length+' documento(s) mensal(is)?\n\n'+novos.map(n=>'• '+n.nome).join('\n')+'\n\nA cobrança começa na competência '+_compLabel(mes)+'.'))return;
+  let{error}=await sb.from('documentos_empresa').insert(novos);
+  // Sem a migração do prazo, grava sem a coluna (vencimento cai no próprio mês).
+  if(error&&/prazo_meses/.test(error.message||'')){
+    novos.forEach(n=>{delete n.prazo_meses;});
+    ({error}=await sb.from('documentos_empresa').insert(novos));
+    if(!error)toast('Criados, mas rode add_documentos_prazo.sql para o vencimento cair no mês seguinte.',true);
+  }
+  if(error){toast('Erro: '+error.message,true);return;}
+  toast(novos.length+' documento(s) mensal(is) criado(s)!');
+  _docTab='mensal';rDocumentos();
+}
+
+/* ── Organizar em lote: de quem é cada documento e o que se repete ── */
+function _docChaveDono(d){const e=_docEscopo(d);return e==='Funcionário'?'F:'+d.funcionario_id:e==='Sócio'?'S:'+d.socio_id:'Empresa';}
+function _optsDono(sel){
+  return'<option value="Empresa"'+(sel==='Empresa'?' selected':'')+'>Empresa</option>'
+    +(_docsFuncs.length?'<optgroup label="Funcionários">'+_docsFuncs.map(f=>'<option value="F:'+f.id+'"'+(sel==='F:'+f.id?' selected':'')+'>'+_esc(f.nome)+'</option>').join('')+'</optgroup>':'')
+    +(_docsSocios.length?'<optgroup label="Sócios">'+_docsSocios.map(x=>'<option value="S:'+x.id+'"'+(sel==='S:'+x.id?' selected':'')+'>'+_esc(x.nome)+'</option>').join('')+'</optgroup>':'');
+}
+function abrirOrganizarDocs(){
+  if(!_docsCache.length){toast('Nenhum documento cadastrado ainda.');return;}
+  document.getElementById('mt2').textContent='Organizar documentos';
+  document.getElementById('mb2').innerHTML='<div class="mu sm mb1">Diga de quem é cada documento e quais se repetem. O que virar periódico passa a cobrar a competência a partir do mês atual.</div>'
+    +'<div class="tw"><table><thead><tr><th>Documento</th><th>De quem é</th><th>Periodicidade</th></tr></thead><tbody>'
+    +_docsCache.map(d=>'<tr><td class="w5">'+_esc(d.nome)+(d.categoria?'<div class="mu sm">'+_esc(d.categoria)+'</div>':'')+'</td>'
+      +'<td><select class="fc" id="org-dono-'+d.id+'">'+_optsDono(_docChaveDono(d))+'</select></td>'
+      +'<td><select class="fc" id="org-per-'+d.id+'">'+['Única','Mensal','Trimestral','Anual'].map(x=>'<option'+((d.periodicidade||'Única')===x?' selected':'')+'>'+x+'</option>').join('')+'</select></td></tr>').join('')
+    +'</tbody></table></div>';
+  document.getElementById('mf2').innerHTML='<button class="btn" onclick="closeModal2()">Cancelar</button><button class="btn bp2" onclick="salvarOrganizarDocs()"><i class="ti ti-device-floppy"></i> Salvar</button>';
+  document.getElementById('ov2').classList.add('open');
+}
+async function salvarOrganizarDocs(){
+  const mes=_mesIni(hojeLocal()),ups=[];
+  _docsCache.forEach(d=>{
+    const dono=document.getElementById('org-dono-'+d.id)?.value;
+    const per =document.getElementById('org-per-'+d.id)?.value;
+    if(!dono||!per)return;
+    if(dono===_docChaveDono(d)&&per===(d.periodicidade||'Única'))return;
+    const p={id:d.id,
+      escopo:dono==='Empresa'?'Empresa':dono[0]==='F'?'Funcionário':'Sócio',
+      funcionario_id:dono[0]==='F'?dono.slice(2):null,
+      socio_id:dono[0]==='S'?dono.slice(2):null,
+      periodicidade:per};
+    // Periódico não usa validade única; sem início definido, cobra do mês atual.
+    if(per!=='Única'){p.validade=null;if(!d.inicio_exigencia)p.inicio_exigencia=mes;}
+    ups.push(p);
+  });
+  if(!ups.length){toast('Nada mudou.');closeModal2();return;}
+  toast('Salvando...');
+  for(const p of ups){
+    const id=p.id;delete p.id;
+    const{error}=await sb.from('documentos_empresa').update(p).eq('id',id);
+    if(error){toast('Erro ao salvar: '+error.message,true);return;}
+  }
+  toast(ups.length+' documento(s) reorganizado(s)!');
+  closeModal2();rDocumentos();
 }
 
 /* ── Formulário: mostra só os campos do tipo escolhido ── */

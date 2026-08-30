@@ -331,14 +331,18 @@ Checklist de tarefas que se repetem (ex.: conferir protocolos no INCRA todo mês
 
 Arquivo de documentos separado por dono e com cobrança automática dos que vencem todo mês.
 
-**Abas:** *Pendências* (o que falta enviar), *Empresa*, *Funcionários* e *Sócios*. Nas duas últimas cada pessoa tem seu próprio cartão, com o botão **+ Documento** já vinculado a ela.
+**Abas:** *Pendências* (o que falta enviar), *Mensais* (o quadro de competências), *Empresa*, *Funcionários* e *Sócios*. Nas duas últimas cada pessoa tem seu próprio cartão, com o botão **+ Documento** já vinculado a ela. O botão **Organizar** abre a lista inteira para dizer de quem é cada documento e quais se repetem, tudo de uma vez.
 
 **Cadastro:** Nome*, **De quem é** (Empresa/Funcionário/Sócio) + a pessoa, Categoria, Número/Código, **Periodicidade**, Responsável, Observações.
 
 - **Única** — documento com data de emissão, validade e um arquivo anexo (PDF, imagem, Word ou Excel). Entra em Pendências quando está vencido ou vence nos próximos 30 dias.
-- **Mensal / Trimestral / Anual** — não tem arquivo único: tem **um arquivo por competência** (ASO, holerite, folha de ponto, guia do INSS, certidão negativa...). Informe *Cobrar a partir de* e o *Dia limite do envio* (padrão 10). Toda competência sem arquivo aparece como pendência — na aba **Pendências** desta tela e também na tela geral de **Pendências** — até alguém enviar o documento daquele mês. O botão de histórico (⟳) na linha mostra as últimas 24 competências, quais já foram enviadas e permite baixar ou enviar cada uma.
+- **Mensal / Trimestral / Anual** — não tem arquivo único: tem **um arquivo por competência** (DAS do Simples, INSS, FGTS, holerite, ASO, certidão negativa...). Informe *Cobrar a partir de*, *Enviar até o dia* e *Do mês* — o DAS, o INSS, o FGTS e o holerite da competência de agosto só vencem em setembro, então esses ficam como **dia 20 (ou 5) do mês seguinte**. Toda competência sem arquivo vira pendência — na aba **Pendências** desta tela e na tela geral de **Pendências** — e fica vermelha depois do vencimento.
 
-> Requer a migração `gestor/supabase/migrations/add_documentos_organizados.sql` no Supabase.
+**Onde anexar o documento do mês:** aba **Mensais**. É um quadro com uma linha por documento e uma coluna por mês; a célula verde (✓) já tem arquivo e baixa no clique, a amarela é a competência aberta e a vermelha está vencida — clicar na célula anexa o arquivo daquele mês. O botão ⟳ no fim da linha abre as últimas 24 competências.
+
+**Criar os padrão:** na aba Mensais, cadastra de uma vez o **DAS — Simples Nacional**, o **INSS — GPS/DARF**, o **FGTS** (empresa, dia 20 do mês seguinte) e um **Holerite** para cada funcionário ativo (dia 5 do mês seguinte), cobrando a partir do mês atual. Não duplica o que já existe.
+
+> Requer as migrações `add_arquivo_documentos_empresa.sql`, `add_documentos_organizados.sql` e `add_documentos_prazo.sql` (em `gestor/supabase/migrations/`) no Supabase.
 
 ---
 
