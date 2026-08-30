@@ -25,7 +25,7 @@
 15. [Controle Tributário](#15-controle-tributário)
 16. [Ferramentas Geo](#16-ferramentas-geo)
 17. [Rotinas Recorrentes](#17-rotinas-recorrentes)
-18. [Administrativo](#18-administrativo)
+18. [Documentos](#18-documentos)
 19. [Funcionários](#19-funcionários)
 20. [Frotas](#20-frotas)
 21. [Ponto de Campo](#21-ponto-de-campo)
@@ -327,9 +327,18 @@ Checklist de tarefas que se repetem (ex.: conferir protocolos no INCRA todo mês
 
 ---
 
-## 18. Administrativo
+## 18. Documentos
 
-Controle de documentos da própria empresa (alvarás, certidões, contratos, certificados, registros): Nome*, Categoria, Número/Código, Data de emissão, Validade, Responsável, Observações, arquivo anexo (PDF, imagem, Word ou Excel). A tela avisa quando algum documento vence nos próximos 30 dias.
+Arquivo de documentos separado por dono e com cobrança automática dos que vencem todo mês.
+
+**Abas:** *Pendências* (o que falta enviar), *Empresa*, *Funcionários* e *Sócios*. Nas duas últimas cada pessoa tem seu próprio cartão, com o botão **+ Documento** já vinculado a ela.
+
+**Cadastro:** Nome*, **De quem é** (Empresa/Funcionário/Sócio) + a pessoa, Categoria, Número/Código, **Periodicidade**, Responsável, Observações.
+
+- **Única** — documento com data de emissão, validade e um arquivo anexo (PDF, imagem, Word ou Excel). Entra em Pendências quando está vencido ou vence nos próximos 30 dias.
+- **Mensal / Trimestral / Anual** — não tem arquivo único: tem **um arquivo por competência** (ASO, holerite, folha de ponto, guia do INSS, certidão negativa...). Informe *Cobrar a partir de* e o *Dia limite do envio* (padrão 10). Toda competência sem arquivo aparece como pendência — na aba **Pendências** desta tela e também na tela geral de **Pendências** — até alguém enviar o documento daquele mês. O botão de histórico (⟳) na linha mostra as últimas 24 competências, quais já foram enviadas e permite baixar ou enviar cada uma.
+
+> Requer a migração `gestor/supabase/migrations/add_documentos_organizados.sql` no Supabase.
 
 ---
 

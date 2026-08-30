@@ -593,7 +593,7 @@ const PCFG={
   folha:{t:'Folha / Pró-labore',a:'Lançar Pró-labore'},
   pendencias:{t:'Pendências',a:null},
   rotinas:{t:'Rotinas Recorrentes',a:'Nova Rotina'},
-  administrativo:{t:'Documentos',tb:'documentos_empresa',a:'Novo Documento',h:function(o){return '<div class="fg"><label class="fl">Nome do documento *</label><input class="fc" id="f-nome" placeholder="Ex: Alvará de funcionamento..."></div><div class="g2"><div class="fg"><label class="fl">Categoria</label><select class="fc" id="f-categoria"><option>Licença</option><option>Certidão</option><option>Contrato</option><option>Certificado</option><option>Registro</option><option>Outro</option></select></div><div class="fg"><label class="fl">Número / Código</label><input class="fc" id="f-numero"></div></div><div class="g2"><div class="fg"><label class="fl">Data emissão</label><input class="fc" type="date" id="f-data_emissao"></div><div class="fg"><label class="fl">Validade</label><input class="fc" type="date" id="f-validade"></div></div><div class="fg"><label class="fl">Responsável</label><input class="fc" id="f-responsavel"></div><div class="fg"><label class="fl">Observações</label><textarea class="fc" id="f-obs" rows="2"></textarea></div><div class="fg"><label class="fl">Arquivo (PDF, imagem, Word, Excel)</label><div id="adm-upload-area" class="upload-area" onclick="document.getElementById(\'adm-file-input\').click()"><i class="ti ti-file-upload"></i><p>Clique ou arraste o arquivo aqui</p></div><div id="adm-file-preview" style="display:none"></div><input type="file" id="adm-file-input" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" style="display:none" onchange="handleFileSelect(this,\'adm\')"><input type="hidden" id="f-arquivo_url" value=""></div>';}},
+  administrativo:{t:'Documentos',tb:'documentos_empresa',a:'Novo Documento',h:function(o){return '<div class="fg"><label class="fl">Nome do documento *</label><input class="fc" id="f-nome" placeholder="Ex: Alvará de funcionamento, ASO, Guia do INSS..."></div>'+'<div class="g2"><div class="fg"><label class="fl">De quem é *</label><select class="fc" id="f-escopo" onchange="docEscopoChange()"><option>Empresa</option><option>Funcionário</option><option>Sócio</option></select></div>'+'<div class="fg"><label class="fl">Categoria</label><select class="fc" id="f-categoria"><option>Licença</option><option>Certidão</option><option>Contrato</option><option>Certificado</option><option>Registro</option><option>Documento pessoal</option><option>Saúde e segurança</option><option>Trabalhista</option><option>Fiscal</option><option>Outro</option></select></div></div>'+'<div class="fg" id="adm-func-wrap" style="display:none"><label class="fl">Funcionário *</label><select class="fc" id="f-funcionario_id"><option value="">Selecione...</option>'+(o.fOpts||'')+'</select></div>'+'<div class="fg" id="adm-socio-wrap" style="display:none"><label class="fl">Sócio *</label><select class="fc" id="f-socio_id"><option value="">Selecione...</option>'+(o.sOpts||'')+'</select></div>'+'<div class="g2"><div class="fg"><label class="fl">Periodicidade</label><select class="fc" id="f-periodicidade" onchange="docPeriodicidadeChange()"><option>Única</option><option>Mensal</option><option>Trimestral</option><option>Anual</option></select></div>'+'<div class="fg"><label class="fl">Número / Código</label><input class="fc" id="f-numero"></div></div>'+'<div id="adm-bloco-unico"><div class="g2"><div class="fg"><label class="fl">Data emissão</label><input class="fc" type="date" id="f-data_emissao"></div><div class="fg"><label class="fl">Validade</label><input class="fc" type="date" id="f-validade"></div></div></div>'+'<div id="adm-bloco-periodico" style="display:none"><div class="g2"><div class="fg"><label class="fl">Cobrar a partir de</label><input class="fc" type="date" id="f-inicio_exigencia"></div><div class="fg"><label class="fl">Dia limite do envio</label><input class="fc" type="number" min="1" max="28" id="f-dia_limite" placeholder="10"></div></div>'+'<div class="mu sm mb1"><i class="ti ti-calendar-repeat"></i> O arquivo de cada competência é enviado pela lista de Documentos. Toda competência sem arquivo vira pendência automaticamente.</div></div>'+'<div class="fg"><label class="fl">Responsável</label><input class="fc" id="f-responsavel"></div>'+'<div class="fg"><label class="fl">Observações</label><textarea class="fc" id="f-observacoes" rows="2"></textarea></div>'+'<div class="fg" id="adm-bloco-arquivo"><label class="fl">Arquivo (PDF, imagem, Word, Excel)</label><div id="adm-upload-area" class="upload-area" onclick="document.getElementById(\'adm-file-input\').click()"><i class="ti ti-file-upload"></i><p>Clique ou arraste o arquivo aqui</p></div><div id="adm-file-preview" style="display:none"></div><input type="file" id="adm-file-input" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" style="display:none" onchange="handleFileSelect(this,\'adm\')"><input type="hidden" id="f-arquivo_url" value=""></div>';}},
   funcionarios:{t:'Novo Funcionário',tb:'funcionarios',a:'Novo Funcionário',h:function(o){return '<div class="g2"><div class="fg"><label class="fl">Nome *</label><input class="fc" id="f-nome"></div><div class="fg"><label class="fl">Tipo</label><select class="fc" id="f-tipo"><option>Funcionário</option><option>Diarista</option></select></div></div><div class="g2"><div class="fg"><label class="fl">CPF</label><input class="fc" id="f-cpf"></div><div class="fg"><label class="fl">Cargo</label><input class="fc" id="f-cargo" placeholder="Ex: Técnico em Topografia"></div></div><div class="g2"><div class="fg"><label class="fl">Telefone</label><input class="fc" id="f-telefone"></div><div class="fg"><label class="fl">E-mail</label><input class="fc" type="email" id="f-email"></div></div><div class="g2"><div class="fg"><label class="fl">Valor hora (R$)</label><input class="fc" type="number" step="0.01" id="f-valor_hora"></div><div class="fg"><label class="fl">Valor diária (R$)</label><input class="fc" type="number" step="0.01" id="f-valor_diaria"></div></div><div class="g2"><div class="fg"><label class="fl">Data admissão</label><input class="fc" type="date" id="f-data_admissao"></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-ativo"><option value="true">Ativo</option><option value="false">Inativo</option></select></div></div>';}},
   frotas:{t:'Frotas',a:'Novo Veículo',tb:'veiculos',h:function(o){return ''
     +'<div class="g2"><div class="fg"><label class="fl">Apelido / Nome *</label><input class="fc" id="f-nome" placeholder="Ex: Hilux branca"></div>'
@@ -4749,19 +4749,42 @@ function autoCalcCusto(){
 
 async function rPendencias(){
   const hj=hojeLocal();
-  const[{data:todos},{data:agendaAtrasada},{data:pagAtrasados},{data:rotinasTodas}]=await Promise.all([
+  const[{data:todos},{data:agendaAtrasada},{data:pagAtrasados},{data:rotinasTodas},{data:docsEmp},{data:docsComp},{data:docsF},{data:docsS}]=await Promise.all([
     sb.from('projetos').select('id,nome,etapa,pendencias,clientes(nome)'),
     sb.from('agenda').select('*').lt('data',hj).or('concluido.eq.false,concluido.is.null').order('data'),
     sb.from('pagamentos').select('*').lt('vencimento',hj).eq('status','Pendente').order('vencimento'),
     sb.from('rotinas').select('*').lt('proxima_data',hj).order('proxima_data'),
+    sb.from('documentos_empresa').select('id,nome,categoria,validade,escopo,funcionario_id,socio_id,periodicidade,inicio_exigencia,data_emissao,dia_limite,ativo'),
+    sb.from('documentos_competencia').select('documento_id,competencia'),
+    sb.from('funcionarios').select('id,nome'),
+    sb.from('socios').select('id,nome'),
   ]);
+  // Documentos: competência periódica não enviada + validade vencendo.
+  // Alimenta os caches usados por _docDono() para nomear o dono aqui também.
+  _docsFuncs=docsF||[];_docsSocios=docsS||[];
+  const docsPend=docsPendencias(docsEmp||[],docsComp||[]);
   const ps=(todos||[]).filter(p=>(p.pendencias||[]).some(d=>!d.ok));
   const agAtrasada=(agendaAtrasada||[]).filter(a=>!(a.concluido||a.concluida));
   const pagsAt=pagAtrasados||[];
   // Rotinas atrasadas: próxima execução já venceu (a flag concluida_hoje só vale p/ ciclo futuro)
   const rotsAt=(rotinasTodas||[]).filter(r=>r.proxima_data&&r.proxima_data<hj);
-  if(!ps.length&&!agAtrasada.length&&!pagsAt.length&&!rotsAt.length){document.getElementById('ct').innerHTML='<div class="card" style="text-align:center;padding:2rem"><i class="ti ti-check" style="font-size:40px;color:#3B6D11;display:block;margin-bottom:.5rem"></i><div class="w6">Nenhuma pendência!</div></div>';return;}
+  if(!ps.length&&!agAtrasada.length&&!pagsAt.length&&!rotsAt.length&&!docsPend.length){document.getElementById('ct').innerHTML='<div class="card" style="text-align:center;padding:2rem"><i class="ti ti-check" style="font-size:40px;color:#3B6D11;display:block;margin-bottom:.5rem"></i><div class="w6">Nenhuma pendência!</div></div>';return;}
   let html='';
+  // ── Documentos periódicos / vencendo ──────────────────────
+  if(docsPend.length){
+    const dAtr=docsPend.filter(d=>d.atrasada);
+    html+='<div class="card mb1" style="border-left:4px solid #0d4fa0"><div class="fxb mb1"><div class="st" style="margin:0"><i class="ti ti-file-alert" style="color:#0d4fa0"></i>Documentos pendentes <span style="background:#0d4fa0;color:#fff;border-radius:99px;font-size:11px;font-weight:700;padding:2px 8px;margin-left:4px">'+docsPend.length+'</span></div>'
+      +'<button class="btn bsm" onclick="nav(\'administrativo\')"><i class="ti ti-external-link"></i> Ver documentos</button></div>';
+    html+=docsPend.slice(0,12).map(d=>{
+      const cor=d.atrasada?'#A32D2D':'#854F0B';
+      const quando=d.tipo==='competencia'?_compLabel(d.competencia):(d.atrasada?'venceu em ':'vence ')+fd(d.doc.validade);
+      return'<div class="fxb" style="padding:8px 0;border-bottom:1px solid var(--bor)"><div><div class="w5">'+_esc(d.doc.nome)+'</div>'
+        +'<div class="mu sm">'+_esc(_docDono(d.doc))+' · '+(d.tipo==='competencia'?_esc(d.doc.periodicidade)+' — competência ':'')+quando+'</div></div>'
+        +'<span style="color:'+cor+';font-weight:700;font-size:12px;flex-shrink:0">'+(d.atrasada?'em atraso':'no prazo')+'</span></div>';
+    }).join('');
+    if(docsPend.length>12)html+='<div class="mu sm" style="padding-top:8px">+ '+(docsPend.length-12)+' outros documentos pendentes.</div>';
+    html+='</div>';
+  }
   // ── Rotinas atrasadas ─────────────────────────────────────
   if(rotsAt.length){
     html+='<div class="card mb1" style="border-left:4px solid #7C5CD6"><div class="st mb1"><i class="ti ti-rotate" style="color:#7C5CD6"></i>Rotinas atrasadas <span style="background:#7C5CD6;color:#fff;border-radius:99px;font-size:11px;font-weight:700;padding:2px 8px;margin-left:4px">'+rotsAt.length+'</span></div>';
@@ -5579,7 +5602,7 @@ async function openModal(){
   EID=null;const cfg=PCFG[CP];if(!cfg||!cfg.h){toast('Formulário não disponível para este módulo.',true);return;}
   CM=cfg.tb||CP;
   document.getElementById('mt').textContent=cfg.t||'Novo registro';
-  const[{data:cls},{data:svcs},{data:oss},{data:funcs},{data:orcas},{data:obras},{data:cnts}]=await Promise.all([
+  const[{data:cls},{data:svcs},{data:oss},{data:funcs},{data:orcas},{data:obras},{data:cnts},{data:socs}]=await Promise.all([
     sb.from('clientes').select('id,nome').eq('ativo',true).order('nome'),
     sb.from('servicos').select('id,nome,descricao,unidade,valor_unitario').order('nome'),
     sb.from('ordens').select('id,numero,tipo').not('status','eq','Cancelada').order('numero'),
@@ -5589,10 +5612,12 @@ async function openModal(){
     // Contas bancárias — tabela pode não existir ainda (antes da migração):
     // o Supabase devolve {data:null} sem estourar, e o seletor sai vazio.
     sb.from('contas_bancarias').select('id,nome,tipo,numero').eq('ativo',true).order('nome'),
+    sb.from('socios').select('id,nome').eq('ativo',true).order('nome'),
   ]);
   const cOpts=(cls||[]).map(c=>'<option value="'+c.id+'">'+c.nome+'</option>').join('');
   const fOpts=(funcs||[]).map(f=>'<option value="'+f.id+'" data-h="'+(f.valor_hora||0)+'" data-d="'+(f.valor_diaria||0)+'">'+f.nome+'</option>').join('');
   const oOpts=(oss||[]).map(o=>'<option value="'+o.id+'">'+o.numero+' — '+o.tipo+'</option>').join('');
+  const sOpts=(socs||[]).map(x=>'<option value="'+x.id+'">'+x.nome+'</option>').join('');
   const ctOpts=(cnts||[]).map(c=>'<option value="'+c.id+'">'+(c.tipo==='Caixa'?'💵 ':'🏦 ')+c.nome+(c.numero?' — '+c.numero:'')+'</option>').join('');
   const obFzOpts=(obras||[]).map(ob=>'<option value="'+ob.id+'">'+ob.nome+(ob.municipio?' — '+ob.municipio:'')+'</option>').join('');
   window._contasCache=cnts||[];
@@ -5606,7 +5631,7 @@ async function openModal(){
     const fChks=(funcs||[]).map(f=>'<label style="display:flex;align-items:center;gap:8px;padding:4px;cursor:pointer;border-radius:4px" class="hover-row"><input type="checkbox" class="f-resp-chk" value="'+f.id+'" data-nome="'+f.nome+'" style="width:14px;height:14px;accent-color:var(--brand)"> <span style="font-size:13px">'+f.nome+'</span></label>').join('');
     html=buildOrcaForm(cOpts,svcs||[],obOpts,fChks);
   }
-  else if(typeof cfg.h==='function'){html=cfg.h({cOpts,fOpts,oOpts,orcOpts,ctOpts,obFzOpts});}
+  else if(typeof cfg.h==='function'){html=cfg.h({cOpts,fOpts,oOpts,orcOpts,ctOpts,obFzOpts,sOpts});}
   else if(typeof cfg.h==='string'){html=cfg.h;}
   else{toast('Formulário não configurado.',true);return;}
   document.getElementById('mb').innerHTML=html;
@@ -5648,6 +5673,7 @@ async function editRecord(table,id){
   if(table==='notas_fiscais'&&data.arquivo_url)mostrarArquivoExistente('nf',data.arquivo_url);
   if(table==='impostos'&&data.arquivo_url)mostrarArquivoExistente('imp',data.arquivo_url);
   if(table==='documentos_empresa'&&data.arquivo_url)mostrarArquivoExistente('adm',data.arquivo_url);
+  if(table==='documentos_empresa'){const _ob=document.getElementById('f-observacoes');if(_ob&&!_ob.value&&data.obs)_ob.value=data.obs;docEscopoChange();docPeriodicidadeChange();}
   if(table==='pagamentos'){
     calcTotalPag();
     if(data.arquivo_url)mostrarArquivoExistente('pag',data.arquivo_url);
@@ -5723,6 +5749,20 @@ async function saveRecord(){
     toast('Vincule a OS. Se a receita realmente não tem OS, marque "Receita avulsa".',true);
     document.getElementById('f-os_id')?.focus();
     return;
+  }
+  if(CM==='documentos_empresa'){
+    // O dono segue o escopo: trocar de Funcionário para Empresa tem que
+    // limpar o vínculo antigo, senão o documento continua listado na pessoa.
+    const _escp=payload.escopo||'Empresa';
+    payload.funcionario_id=_escp==='Funcionário'?(payload.funcionario_id||null):null;
+    payload.socio_id      =_escp==='Sócio'      ?(payload.socio_id||null)      :null;
+    if(_escp==='Funcionário'&&!payload.funcionario_id){toast('Selecione o funcionário dono do documento.',true);return;}
+    if(_escp==='Sócio'&&!payload.socio_id){toast('Selecione o sócio dono do documento.',true);return;}
+    // Documento periódico não tem validade única — a cobrança é por competência.
+    if((payload.periodicidade||'Única')!=='Única')payload.validade=null;
+    // Base antiga usa "obs", a nova "observacoes": manda os dois e o fallback
+    // de coluna inexistente do próprio save descarta o que não existir.
+    if(payload.observacoes!==undefined)payload.obs=payload.observacoes;
   }
   if(CM==='servicos'&&payload.docs_str){payload.documentos=payload.docs_str.split(',').map(s=>s.trim()).filter(Boolean);delete payload.docs_str;}
   if(CM==='custos_os'){const qt=parseFloat(document.getElementById('f-quantidade')?.value)||1;const vu=parseFloat(document.getElementById('f-valor_unit')?.value)||0;payload.valor_total=Math.round(qt*vu*100)/100;}
@@ -14222,32 +14262,273 @@ async function rMedicaoFixed(){
 }
 // pageMap.medicao=rMedicaoFixed; // usa rMedicao original (mais completo)
 
-let _docsCache=[];
-function _renderDocsTabela(docs,q){
-  const t=q?docs.filter(d=>{const s=_normOS((d.nome||'')+(d.categoria||''));return s.includes(_normOS(q));}):docs;
-  const tb=document.getElementById('docs-tbody');if(!tb)return;
-  tb.innerHTML=t.map(d=>{
-    const temArq=!!d.arquivo_url;
-    const colArq=temArq
-      ?'<button class="btn bxs" style="background:#E6F1FB;color:#0d4fa0" onclick="baixarDocumento(\''+d.id+'\',\''+encodeURIComponent(d.nome||'documento')+'\')"><i class="ti ti-download"></i> Baixar</button>'
-      :'<label class="btn bxs" style="cursor:pointer;background:#F5FAF0;color:#27500A" title="Enviar arquivo"><i class="ti ti-upload"></i> Enviar<input type="file" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" style="display:none" onchange="uploadDocumento(\''+d.id+'\',this)"></label>';
-    return'<tr>'
-      +'<td class="w5">'+d.nome+'</td>'
-      +'<td><span class="bd bn">'+(d.categoria||'—')+'</span></td>'
-      +'<td>'+fd(d.validade)+'</td>'
-      +'<td class="fx g8">'+colArq+(temArq?'<label class="btn bxs" style="cursor:pointer;color:#666" title="Trocar arquivo"><i class="ti ti-refresh"></i><input type="file" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" style="display:none" onchange="uploadDocumento(\''+d.id+'\',this)"></label>':'')+'</td>'
-      +'<td class="fx g8"><button class="btn bsm" onclick="editRecord(\'documentos_empresa\',\''+d.id+'\')"><i class="ti ti-edit"></i></button><button class="btn bxs bdr" onclick="excluirReg(\'documentos_empresa\',\''+d.id+'\',\''+encodeURIComponent(d.nome||'documento')+'\')"><i class="ti ti-trash"></i></button></td>'
-      +'</tr>';
-  }).join('')||(q?'<tr><td colspan="5" style="text-align:center;color:#888;padding:2rem">Nenhum documento encontrado para "<strong>'+q+'</strong>"</td></tr>':nd(5));
+/* ═══════════════════════════════════════════════════════════════════════
+   DOCUMENTOS — organizados por escopo e com cobrança dos periódicos.
+
+   Escopo    : Empresa | Funcionário | Sócio — o documento fica na aba da
+               pessoa dona dele, não mais numa lista única.
+   Única     : um arquivo só, controlado pela data de validade.
+   Periódico : (Mensal/Trimestral/Anual) um arquivo por competência, em
+               documentos_competencia. A competência esperada que não tem
+               linha lá é a pendência que aparece todo mês.
+
+   Depende da migração gestor/supabase/migrations/add_documentos_organizados.sql.
+   ═══════════════════════════════════════════════════════════════════════ */
+const DOC_PASSO={'Mensal':1,'Trimestral':3,'Anual':12};   // meses entre competências
+const DOC_ESCOPOS=[['Empresa','emp','ti-building'],['Funcionário','fun','ti-users'],['Sócio','soc','ti-user-star']];
+const _DOC_MESES=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+const _DOC_EXT={'application/pdf':'pdf','image/png':'png','image/jpeg':'jpg','application/vnd.openxmlformats-officedocument.wordprocessingml.document':'docx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'xlsx'};
+let _docsCache=[],_docsComp=[],_docsFuncs=[],_docsSocios=[],_docTab='pend',_docQuery='';
+
+function _esc(t){return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function _docEscopo(d){return d.escopo||'Empresa';}
+function _docPeriodico(d){return !!DOC_PASSO[d.periodicidade];}
+function _docPessoaId(d){const e=_docEscopo(d);return e==='Funcionário'?d.funcionario_id:e==='Sócio'?d.socio_id:null;}
+function _docDono(d){
+  const e=_docEscopo(d);
+  if(e==='Empresa')return (EMPRESA&&EMPRESA.nome)||'Empresa';
+  const p=(e==='Funcionário'?_docsFuncs:_docsSocios).find(x=>x.id===_docPessoaId(d));
+  return p?p.nome:'(sem vínculo)';
 }
+// Competência = sempre o dia 1 do mês de referência.
+function _mesIni(iso){return String(iso||hojeLocal()).slice(0,7)+'-01';}
+function _mesSoma(comp,n){const t=Number(comp.slice(0,4))*12+Number(comp.slice(5,7))-1+n;return String(Math.floor(t/12))+'-'+String(t%12+1).padStart(2,'0')+'-01';}
+function _compLabel(comp){return _DOC_MESES[Number(comp.slice(5,7))-1]+'/'+comp.slice(0,4);}
+
+// Competências que já deveriam ter arquivo. Limitado às 24 últimas para
+// um documento antigo não virar uma lista infinita de pendências.
+function _docCompetencias(d){
+  const passo=DOC_PASSO[d.periodicidade];if(!passo)return[];
+  const hoje=_mesIni(hojeLocal());
+  let c=_mesIni(d.inicio_exigencia||d.data_emissao||hoje);
+  const out=[];
+  for(let i=0;i<600&&c<=hoje;i++){out.push(c);c=_mesSoma(c,passo);}
+  return out.slice(-24);
+}
+function _docCompAtual(d){const cs=_docCompetencias(d);return cs.length?cs[cs.length-1]:_mesIni(hojeLocal());}
+function _docCompEnviada(docId,comp){return _docsComp.find(c=>c.documento_id===docId&&_mesIni(c.competencia)===comp);}
+
+/* Pendências de documento:
+   periódico → competência esperada sem arquivo enviado;
+   única     → validade vencida ou vencendo nos próximos 30 dias.        */
+function docsPendencias(docs,comps){
+  const hj=hojeLocal(),mesAtual=_mesIni(hj),dia=Number(hj.slice(8,10));
+  const enviadas={};(comps||[]).forEach(c=>{enviadas[c.documento_id+'|'+_mesIni(c.competencia)]=c;});
+  const out=[];
+  (docs||[]).forEach(d=>{
+    if(d.ativo===false)return;
+    if(_docPeriodico(d)){
+      const limite=Number(d.dia_limite||10);
+      _docCompetencias(d).forEach(comp=>{
+        if(enviadas[d.id+'|'+comp])return;
+        out.push({tipo:'competencia',doc:d,competencia:comp,limite,atrasada:comp<mesAtual||dia>limite});
+      });
+    }else if(d.validade){
+      if(d.validade<hj)out.push({tipo:'validade',doc:d,atrasada:true});
+      else if(d.validade<=addDias(hj,30))out.push({tipo:'validade',doc:d,atrasada:false});
+    }
+  });
+  return out;
+}
+
 async function rDocumentos(){
-  const{data}=await sb.from('documentos_empresa').select('*').order('validade');
+  // Não traz arquivo_url: o anexo é base64 e a listagem inteira viria junto.
+  // tem_arquivo (coluna gerada) diz se há anexo; se a migração ainda não
+  // rodou, cai no select antigo.
+  const COLS='id,nome,categoria,numero,data_emissao,validade,responsavel,observacoes,tem_arquivo,escopo,funcionario_id,socio_id,periodicidade,inicio_exigencia,dia_limite,ativo';
+  let{data,error}=await sb.from('documentos_empresa').select(COLS).order('nome');
+  if(error)({data}=await sb.from('documentos_empresa').select('*').order('validade'));
   _docsCache=data||[];
+  const[rf,rs,rc]=await Promise.all([
+    sb.from('funcionarios').select('id,nome,cargo,ativo').order('nome'),
+    sb.from('socios').select('id,nome,ativo').order('nome'),
+    sb.from('documentos_competencia').select('id,documento_id,competencia,arquivo_nome,tem_arquivo,enviado_em').order('competencia',{ascending:false}),
+  ]);
+  _docsFuncs=rf.data||[];_docsSocios=rs.data||[];_docsComp=rc.data||[];
   const el=document.getElementById('ct');if(!el)return;
-  el.innerHTML='<div class="card"><div class="tw"><table><thead><tr><th>Nome</th><th>Categoria</th><th>Validade</th><th>Arquivo</th><th></th></tr></thead><tbody id="docs-tbody"></tbody></table></div></div>';
-  _renderDocsTabela(_docsCache,'');
+  const pend=docsPendencias(_docsCache,_docsComp);
+  el.innerHTML='<div class="tabs">'
+    +'<div class="tab" id="dtab-pend" onclick="docTab(\'pend\')"><i class="ti ti-alert-triangle" style="font-size:13px"></i> Pendências'
+      +(pend.length?' <span style="background:#A32D2D;color:#fff;border-radius:99px;font-size:10px;font-weight:700;padding:1px 7px;margin-left:4px">'+pend.length+'</span>':'')+'</div>'
+    +DOC_ESCOPOS.map(e=>'<div class="tab" id="dtab-'+e[1]+'" onclick="docTab(\''+e[0]+'\')"><i class="ti '+e[2]+'" style="font-size:13px"></i> '+e[0]
+      +' ('+_docsCache.filter(d=>_docEscopo(d)===e[0]).length+')</div>').join('')
+    +'</div><div id="dpane"></div>';
+  docTab(_docTab);
   const si=document.getElementById('si');
-  si.oninput=function(){if(CP==='administrativo')_renderDocsTabela(_docsCache,this.value.trim());};
+  if(si)si.oninput=function(){if(CP==='administrativo'){_docQuery=this.value.trim();_renderDocPane();}};
+}
+
+function _docTabId(t){return t==='pend'?'pend':((DOC_ESCOPOS.find(e=>e[0]===t)||['','pend'])[1]);}
+function docTab(t){
+  _docTab=t;
+  ['pend'].concat(DOC_ESCOPOS.map(e=>e[1])).forEach(id=>{const b=document.getElementById('dtab-'+id);if(b)b.classList.toggle('active',id===_docTabId(t));});
+  _renderDocPane();
+}
+
+function _renderDocPane(){
+  const pane=document.getElementById('dpane');if(!pane)return;
+  if(_docTab==='pend'){pane.innerHTML=_docPanePendencias();return;}
+  const q=_docQuery;
+  let list=_docsCache.filter(d=>_docEscopo(d)===_docTab);
+  if(q)list=list.filter(d=>_normOS([d.nome,d.categoria,d.numero,d.responsavel,_docDono(d)].join(' ')).includes(_normOS(q)));
+  if(_docTab==='Empresa'){
+    pane.innerHTML=_docCard((EMPRESA&&EMPRESA.nome)||'Empresa','Documentos da pessoa jurídica','ti-building',list,'Empresa','');
+    return;
+  }
+  // Pessoa inativa só aparece se ainda tiver documento guardado.
+  const pessoas=(_docTab==='Funcionário'?_docsFuncs:_docsSocios).filter(p=>p.ativo!==false||list.some(d=>_docPessoaId(d)===p.id));
+  let h=pessoas.map(p=>{
+    const docs=list.filter(d=>_docPessoaId(d)===p.id);
+    if(q&&!docs.length)return'';
+    return _docCard(p.nome+(p.ativo===false?' (inativo)':''),p.cargo||'',_docTab==='Funcionário'?'ti-user':'ti-user-star',docs,_docTab,p.id);
+  }).join('');
+  const orfaos=list.filter(d=>!pessoas.some(p=>p.id===_docPessoaId(d)));
+  if(orfaos.length)h+=_docCard('Sem vínculo','Marcados como '+_docTab+' mas sem a pessoa selecionada','ti-help',orfaos,_docTab,'');
+  if(!h)h='<div class="card" style="text-align:center;padding:2rem"><div class="w6">'
+    +(q?'Nada encontrado para "'+_esc(q)+'"':'Nenhum '+(_docTab==='Funcionário'?'funcionário':'sócio')+' cadastrado')+'</div>'
+    +(q?'':'<div class="mu sm">Cadastre em '+(_docTab==='Funcionário'?'Funcionários':'Financeiro → Sócios')+' para separar os documentos por pessoa.</div>')+'</div>';
+  pane.innerHTML=h;
+}
+
+function _docCard(titulo,sub,icone,docs,escopo,pessoaId){
+  const pend=docsPendencias(docs,_docsComp).length;
+  return'<div class="card mb1">'
+    +'<div class="fxb mb1"><div><div class="st" style="margin:0"><i class="ti '+icone+'" style="color:var(--brand)"></i>'+_esc(titulo)
+      +(pend?' <span style="background:#FCEBEB;color:#A32D2D;border-radius:99px;font-size:10px;font-weight:700;padding:2px 8px;margin-left:4px">'+pend+' pendente'+(pend>1?'s':'')+'</span>':'')+'</div>'
+      +(sub?'<div class="mu sm">'+_esc(sub)+'</div>':'')+'</div>'
+    +'<button class="btn bsm" onclick="novoDocPara(\''+escopo+'\',\''+(pessoaId||'')+'\')"><i class="ti ti-plus"></i> Documento</button></div>'
+    +(docs.length
+      ?'<div class="tw"><table><thead><tr><th>Documento</th><th>Categoria</th><th>Periodicidade</th><th>Situação</th><th>Arquivo</th><th></th></tr></thead><tbody>'
+        +docs.map(_docLinha).join('')+'</tbody></table></div>'
+      :'<div class="mu sm" style="padding:.5rem 0">Nenhum documento cadastrado.</div>')
+    +'</div>';
+}
+
+function _docLinha(d){
+  const nomeEnc=encodeURIComponent(d.nome||'documento');
+  const acoes='<td class="fx g8"><button class="btn bsm" onclick="editRecord(\'documentos_empresa\',\''+d.id+'\')"><i class="ti ti-edit"></i></button>'
+    +'<button class="btn bxs bdr" onclick="excluirReg(\'documentos_empresa\',\''+d.id+'\',\''+nomeEnc+'\')"><i class="ti ti-trash"></i></button></td>';
+  const cols='<td class="w5">'+_esc(d.nome)+(d.numero?'<div class="mu sm">'+_esc(d.numero)+'</div>':'')+'</td>'
+    +'<td><span class="bd bn">'+_esc(d.categoria||'—')+'</span></td>';
+  const upl=(js,txt,titulo)=>'<label class="btn bxs" style="cursor:pointer;background:#F5FAF0;color:#27500A" title="'+titulo+'"><i class="ti ti-upload"></i> '+txt
+    +'<input type="file" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" style="display:none" onchange="'+js+'"></label>';
+  if(_docPeriodico(d)){
+    const comp=_docCompAtual(d),env=_docCompEnviada(d.id,comp);
+    const atrasadas=docsPendencias([d],_docsComp).filter(p=>p.competencia<comp).length;
+    let sit=env
+      ?'<span style="color:#2f7d32;font-weight:600"><i class="ti ti-check"></i> '+_compLabel(comp)+' enviado</span>'
+      :'<span style="color:#A32D2D;font-weight:600"><i class="ti ti-alert-circle"></i> '+_compLabel(comp)+' pendente</span>';
+    if(atrasadas)sit+='<div class="sm" style="color:#A32D2D">+'+atrasadas+' competência'+(atrasadas>1?'s':'')+' em atraso</div>';
+    const arq=(env
+        ?'<button class="btn bxs" style="background:#E6F1FB;color:#0d4fa0" onclick="baixarCompetencia(\''+env.id+'\',\''+nomeEnc+'\',\''+comp+'\')"><i class="ti ti-download"></i> '+_compLabel(comp)+'</button>'
+        :upl('uploadCompetencia(\''+d.id+'\',\''+comp+'\',this)','Enviar '+_compLabel(comp),'Enviar o arquivo de '+_compLabel(comp)))
+      +'<button class="btn bxs" onclick="verHistoricoDoc(\''+d.id+'\')" title="Histórico de competências"><i class="ti ti-history"></i></button>';
+    return'<tr>'+cols+'<td><span class="bd" style="background:#EEE9FB;color:#5B3FA0">'+_esc(d.periodicidade)+'</span></td>'
+      +'<td>'+sit+'</td><td class="fx g8">'+arq+'</td>'+acoes+'</tr>';
+  }
+  const hj=hojeLocal();
+  const cor=d.validade?(d.validade<hj?'#A32D2D':d.validade<=addDias(hj,30)?'#BA7517':''):'';
+  const sit=d.validade
+    ?'<span style="'+(cor?'color:'+cor+';font-weight:600':'')+'">'+(d.validade<hj?'Vencido em ':'Vence ')+fd(d.validade)+'</span>'
+    :'<span class="mu sm">Sem validade</span>';
+  const temArq=(d.tem_arquivo!==undefined&&d.tem_arquivo!==null)?d.tem_arquivo:!!d.arquivo_url;
+  const arq=temArq
+    ?'<button class="btn bxs" style="background:#E6F1FB;color:#0d4fa0" onclick="baixarDocumento(\''+d.id+'\',\''+nomeEnc+'\')"><i class="ti ti-download"></i> Baixar</button>'
+      +'<label class="btn bxs" style="cursor:pointer;color:#666" title="Trocar arquivo"><i class="ti ti-refresh"></i><input type="file" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" style="display:none" onchange="uploadDocumento(\''+d.id+'\',this)"></label>'
+    :upl('uploadDocumento(\''+d.id+'\',this)','Enviar','Enviar arquivo');
+  return'<tr>'+cols+'<td><span class="mu sm">Única</span></td><td>'+sit+'</td><td class="fx g8">'+arq+'</td>'+acoes+'</tr>';
+}
+
+function _docPanePendencias(){
+  const pend=docsPendencias(_docsCache,_docsComp);
+  if(!pend.length)return'<div class="card" style="text-align:center;padding:2rem"><i class="ti ti-check" style="font-size:40px;color:#3B6D11;display:block;margin-bottom:.5rem"></i>'
+    +'<div class="w6">Nenhum documento pendente</div><div class="mu sm">Os periódicos deste mês já foram enviados e nada vence nos próximos 30 dias.</div></div>';
+  const atr=pend.filter(p=>p.atrasada),noPrazo=pend.filter(p=>!p.atrasada);
+  let h='<div class="g3 mb1">'
+    +'<div class="mc" style="border-left:3px solid #A32D2D"><div class="ml">Em atraso</div><div class="mv" style="color:#A32D2D">'+atr.length+'</div></div>'
+    +'<div class="mc" style="border-left:3px solid #BA7517"><div class="ml">Dentro do prazo</div><div class="mv" style="color:#BA7517">'+noPrazo.length+'</div></div>'
+    +'<div class="mc"><div class="ml">Documentos periódicos</div><div class="mv">'+_docsCache.filter(_docPeriodico).length+'</div></div></div>';
+  if(atr.length)h+='<div class="card mb1" style="border-left:4px solid #A32D2D"><div class="st mb1"><i class="ti ti-alert-triangle" style="color:#A32D2D"></i>Em atraso</div>'+atr.map(_docPendLinha).join('')+'</div>';
+  if(noPrazo.length)h+='<div class="card mb1" style="border-left:4px solid #BA7517"><div class="st mb1"><i class="ti ti-clock" style="color:#BA7517"></i>Deste mês / a vencer</div>'+noPrazo.map(_docPendLinha).join('')+'</div>';
+  return h;
+}
+
+function _docPendLinha(p){
+  const d=p.doc;
+  const dono='<span class="bd bn">'+_esc(_docEscopo(d))+'</span> '+_esc(_docDono(d));
+  let txt,acao;
+  if(p.tipo==='competencia'){
+    txt='<div class="w5">'+_esc(d.nome)+' — '+_compLabel(p.competencia)+'</div>'
+      +'<div class="mu sm">'+dono+' · '+_esc(d.periodicidade)+(p.atrasada?'':' · enviar até o dia '+p.limite)+'</div>';
+    acao='<label class="btn bxs" style="cursor:pointer;background:#F5FAF0;color:#27500A"><i class="ti ti-upload"></i> Enviar'
+      +'<input type="file" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" style="display:none" onchange="uploadCompetencia(\''+d.id+'\',\''+p.competencia+'\',this)"></label>';
+  }else{
+    txt='<div class="w5">'+_esc(d.nome)+'</div><div class="mu sm">'+dono+' · '+(p.atrasada?'venceu em ':'vence ')+fd(d.validade)+'</div>';
+    acao='<button class="btn bxs" onclick="editRecord(\'documentos_empresa\',\''+d.id+'\')"><i class="ti ti-edit"></i> Renovar</button>';
+  }
+  return'<div class="fxb" style="padding:8px 0;border-bottom:1px solid var(--bor)"><div>'+txt+'</div><div class="fx g8" style="flex-shrink:0">'+acao+'</div></div>';
+}
+
+/* ── Formulário: mostra só os campos do tipo escolhido ── */
+function docEscopoChange(){
+  const e=document.getElementById('f-escopo');if(!e)return;
+  const fw=document.getElementById('adm-func-wrap'),sw=document.getElementById('adm-socio-wrap');
+  if(fw)fw.style.display=e.value==='Funcionário'?'':'none';
+  if(sw)sw.style.display=e.value==='Sócio'?'':'none';
+}
+function docPeriodicidadeChange(){
+  const p=document.getElementById('f-periodicidade');if(!p)return;
+  const per=!!DOC_PASSO[p.value];
+  const u=document.getElementById('adm-bloco-unico'),pr=document.getElementById('adm-bloco-periodico'),ar=document.getElementById('adm-bloco-arquivo');
+  if(u)u.style.display=per?'none':'';
+  if(pr)pr.style.display=per?'':'none';
+  if(ar)ar.style.display=per?'none':'';   // periódico anexa por competência, na lista
+}
+// Novo documento já vinculado à pessoa do card clicado.
+async function novoDocPara(escopo,pessoaId){
+  const prev=CP;CP='administrativo';EID=null;
+  await openModal();
+  CP=prev;
+  const e=document.getElementById('f-escopo');if(e)e.value=escopo||'Empresa';
+  if(pessoaId){const sel=document.getElementById(escopo==='Funcionário'?'f-funcionario_id':'f-socio_id');if(sel)sel.value=pessoaId;}
+  docEscopoChange();docPeriodicidadeChange();
+}
+
+/* ── Histórico de competências de um documento periódico ── */
+async function verHistoricoDoc(docId){
+  const d=_docsCache.find(x=>x.id===docId);if(!d)return;
+  const{data}=await sb.from('documentos_competencia').select('id,competencia,arquivo_nome,tem_arquivo,enviado_em').eq('documento_id',docId);
+  const env={};(data||[]).forEach(c=>{env[_mesIni(c.competencia)]=c;});
+  const comps=_docCompetencias(d).slice().reverse();
+  const nomeEnc=encodeURIComponent(d.nome||'documento');
+  document.getElementById('mt2').textContent=d.nome||'Documento';
+  document.getElementById('mb2').innerHTML='<div class="mu sm mb1">'+_esc(d.periodicidade||'')+' · '+_esc(_docDono(d))+'</div>'
+    +'<div class="tw"><table><thead><tr><th>Competência</th><th>Situação</th><th>Arquivo</th></tr></thead><tbody>'
+    +(comps.map(c=>{
+        const e=env[c];
+        return'<tr><td class="w6">'+_compLabel(c)+'</td>'
+          +'<td>'+(e?'<span style="color:#2f7d32;font-weight:600"><i class="ti ti-check"></i> Enviado</span>':'<span style="color:#A32D2D;font-weight:600">Pendente</span>')+'</td>'
+          +'<td>'+(e
+            ?'<button class="btn bxs" style="background:#E6F1FB;color:#0d4fa0" onclick="baixarCompetencia(\''+e.id+'\',\''+nomeEnc+'\',\''+c+'\')"><i class="ti ti-download"></i> '+_esc(e.arquivo_nome||'Baixar')+'</button>'
+            :'<label class="btn bxs" style="cursor:pointer;background:#F5FAF0;color:#27500A"><i class="ti ti-upload"></i> Enviar<input type="file" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" style="display:none" onchange="uploadCompetencia(\''+d.id+'\',\''+c+'\',this)"></label>')
+          +'</td></tr>';
+      }).join('')||'<tr><td colspan="3" class="mu sm" style="padding:1rem">Nenhuma competência cobrada ainda.</td></tr>')
+    +'</tbody></table></div>';
+  document.getElementById('mf2').innerHTML='<button class="btn" onclick="closeModal2()">Fechar</button>';
+  document.getElementById('ov2').classList.add('open');
+}
+
+/* ── Anexos ── */
+async function _baixarDataUrl(dataUrl,nome){
+  const mime=(dataUrl.split(';')[0].split(':')[1])||'';
+  const ext=_DOC_EXT[mime]||'bin';
+  try{
+    const res=await fetch(dataUrl);const blob=await res.blob();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download=/\.[a-z0-9]{2,5}$/i.test(nome)?nome:nome+'.'+ext;
+    document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(url);document.body.removeChild(a);},2000);
+  }catch(e){toast('Erro ao baixar: '+e.message,true);}
 }
 
 async function uploadDocumento(docId, input){
@@ -14257,8 +14538,7 @@ async function uploadDocumento(docId, input){
   toast('Enviando arquivo...');
   const reader=new FileReader();
   reader.onload=async function(e){
-    const dataUrl=e.target.result;
-    const{error}=await sb.from('documentos_empresa').update({arquivo_url:dataUrl}).eq('id',docId);
+    const{error}=await sb.from('documentos_empresa').update({arquivo_url:e.target.result,arquivo_nome:file.name}).eq('id',docId);
     if(error){toast('Erro ao salvar: '+error.message,true);return;}
     toast('Arquivo salvo com sucesso!');
     rDocumentos();
@@ -14268,21 +14548,41 @@ async function uploadDocumento(docId, input){
 }
 
 async function baixarDocumento(docId, nomeEnc){
-  const nome=decodeURIComponent(nomeEnc);
-  const{data,error}=await sb.from('documentos_empresa').select('arquivo_url').eq('id',docId).single();
+  const{data,error}=await sb.from('documentos_empresa').select('arquivo_url,arquivo_nome').eq('id',docId).single();
   if(error||!data?.arquivo_url){toast('Arquivo não encontrado.',true);return;}
-  const dataUrl=data.arquivo_url;
-  // Determinar extensão pelo mime type
-  const mime=dataUrl.split(';')[0].split(':')[1]||'';
-  const extMap={'application/pdf':'pdf','image/png':'png','image/jpeg':'jpg','application/vnd.openxmlformats-officedocument.wordprocessingml.document':'docx','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'xlsx'};
-  const ext=extMap[mime]||'bin';
-  try{
-    const res=await fetch(dataUrl);const blob=await res.blob();
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');a.href=url;a.download=nome+'.'+ext;
-    document.body.appendChild(a);a.click();
-    setTimeout(()=>{URL.revokeObjectURL(url);document.body.removeChild(a);},2000);
-  }catch(e){toast('Erro ao baixar: '+e.message,true);}
+  await _baixarDataUrl(data.arquivo_url,data.arquivo_nome||decodeURIComponent(nomeEnc));
+}
+
+// Arquivo de uma competência: é a linha em documentos_competencia que faz
+// a pendência daquele mês parar de aparecer.
+async function uploadCompetencia(docId, comp, input){
+  const file=input.files[0];
+  if(!file)return;
+  if(file.size>10*1024*1024){toast('Arquivo muito grande. Máximo 10MB.',true);return;}
+  toast('Enviando arquivo...');
+  const reader=new FileReader();
+  reader.onload=async function(e){
+    const{error}=await sb.from('documentos_competencia').upsert(
+      {documento_id:docId,competencia:comp,arquivo_url:e.target.result,arquivo_nome:file.name,enviado_em:new Date().toISOString()},
+      {onConflict:'documento_id,competencia'});
+    if(error){
+      const semTabela=/documentos_competencia/.test(error.message||'')&&/(does not exist|schema cache|relation)/i.test(error.message||'');
+      toast(semTabela?'Rode a migração add_documentos_organizados.sql no Supabase para ativar o controle por competência.':'Erro ao salvar: '+error.message,true);
+      return;
+    }
+    toast('Competência '+_compLabel(comp)+' enviada!');
+    if(CP==='administrativo')await rDocumentos();
+    else if(CP==='pendencias')await rPendencias();
+    if(document.getElementById('ov2').classList.contains('open'))verHistoricoDoc(docId);
+  };
+  reader.onerror=()=>toast('Erro ao ler o arquivo.',true);
+  reader.readAsDataURL(file);
+}
+
+async function baixarCompetencia(compId, nomeEnc, comp){
+  const{data,error}=await sb.from('documentos_competencia').select('arquivo_url,arquivo_nome').eq('id',compId).single();
+  if(error||!data?.arquivo_url){toast('Arquivo não encontrado.',true);return;}
+  await _baixarDataUrl(data.arquivo_url,data.arquivo_nome||(decodeURIComponent(nomeEnc)+' '+_compLabel(comp)));
 }
 
 pageMap.administrativo=rDocumentos;
