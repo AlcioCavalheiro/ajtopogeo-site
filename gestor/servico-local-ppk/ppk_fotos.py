@@ -65,7 +65,7 @@ def achar_arquivos(projeto):
     if not voos:
         sys.exit(f"nenhuma foto .JPG encontrada junto dos .MRK em {projeto}")
 
-    base_obs, base_navs = None, []
+    candidatos, base_navs, recusados = [], [], []
     for p in projeto.rglob("*"):
         if not p.is_file() or p.parent in pastas_drone:
             continue
@@ -73,15 +73,119 @@ def achar_arquivos(projeto):
             continue
         nome = p.name.upper()
         if re.search(r"\.\d\d?O(\.OBS)?$|\.OBS$", nome):
-            # prefere o RINEX 3 (multiconstelacao) quando existir os dois
-            if base_obs is None or versao_rinex(p) > versao_rinex(base_obs):
-                base_obs = p
+            if parece_do_drone(p):
+                recusados.append(p)     # voo solto fora da pasta de voo
+            else:
+                candidatos.append(p)
         elif re.search(r"\.\d\d[NGLCP]$|\.NAV$", nome):
             base_navs.append(p)
-    if base_obs is None:
-        sys.exit(f"observacao da base nao encontrada em {projeto}")
 
-    return dict(voos=voos, base_obs=base_obs, base_navs=base_navs)
+    if not candidatos:
+        extra = ""
+        if recusados:
+            extra = ("\n\nEncontrei arquivos de observacao, mas todos parecem ser do "
+                     "drone e nao de uma base:\n  "
+                     + "\n  ".join(r.name for r in recusados[:5]))
+        sys.exit(f"observacao da base nao encontrada em {projeto}." + extra)
+
+    # prefere o RINEX 3 (multiconstelacao); em empate, o de periodo mais longo
+    descritos = [descrever_rinex(p) for p in candidatos]
+    def peso(d):
+        duracao = (d["fim"][1] - d["inicio"][1]) if d["inicio"] and d["fim"] else 0
+        return (d["versao"], duracao)
+    melhor = max(descritos, key=peso)
+
+    return dict(voos=voos, base_obs=melhor["caminho"], base=melhor,
+                base_navs=base_navs, candidatos=descritos, recusados=recusados)
+
+
+def conferir_cobertura(base, voos):
+    """Avisa, antes de processar, se a base nao cobre o horario de algum voo."""
+    avisos = []
+    if not (base["inicio"] and base["fim"]):
+        return avisos
+    ini, fim = base["inicio"][1], base["fim"][1]
+    for voo in voos:
+        eventos = ler_mrk(voo["mrk"])
+        if not eventos:
+            continue
+        t0 = min(e["tow"] for e in eventos.values())
+        t1 = max(e["tow"] for e in eventos.values())
+        if t0 < ini or t1 > fim:
+            falta = max(ini - t0, 0) + max(t1 - fim, 0)
+            avisos.append(
+                f"{voo['nome']}: o voo vai de {hora_do_tow(t0)} a {hora_do_tow(t1)}, "
+                f"mas a base so gravou de {hora_do_tow(ini)} a {hora_do_tow(fim)} "
+                f"({falta / 60:.0f} min descobertos).")
+    return avisos
+
+
+def hora_do_tow(tow):
+    """Segundo da semana -> hora do dia, so para a mensagem ficar legivel."""
+    s = int(tow) % 86400
+    return f"{s // 3600:02d}:{(s % 3600) // 60:02d}:{s % 60:02d}"
+
+
+def tow_gps(ano, mes, dia, hora, minuto, segundo):
+    """Data/hora GPS -> (semana, segundo da semana), para comparar com o .MRK."""
+    import datetime
+    delta = (datetime.datetime(ano, mes, dia, hora, minuto, int(segundo))
+             - datetime.datetime(1980, 1, 6))
+    return delta.days // 7, (delta.days % 7) * 86400 + delta.seconds + (segundo - int(segundo))
+
+
+def descrever_rinex(caminho):
+    """Le o cabecalho: versao, receptor, altura de antena e periodo coberto.
+
+    Serve para escolher a base com criterio e para avisar antes de processar,
+    em vez de deixar o RTKLIB falhar com uma mensagem generica.
+    """
+    d = dict(caminho=caminho, versao=0.0, receptor="", marcador="",
+             altura_antena=None, inicio=None, fim=None)
+    try:
+        with open(caminho, encoding="latin-1") as f:
+            for linha in f:
+                rot = linha[60:].strip()
+                if rot == "RINEX VERSION / TYPE":
+                    try:
+                        d["versao"] = float(linha[:9].strip() or 0)
+                    except ValueError:
+                        pass
+                elif rot == "MARKER NAME":
+                    d["marcador"] = linha[:60].strip()
+                elif rot == "REC # / TYPE / VERS":
+                    d["receptor"] = linha[20:40].strip()
+                elif rot == "ANTENNA: DELTA H/E/N":
+                    try:
+                        d["altura_antena"] = float(linha[:14])
+                    except ValueError:
+                        pass
+                elif rot in ("TIME OF FIRST OBS", "TIME OF LAST OBS"):
+                    c = linha[:43].split()
+                    if len(c) >= 6:
+                        try:
+                            v = tow_gps(int(c[0]), int(c[1]), int(c[2]),
+                                        int(c[3]), int(c[4]), float(c[5]))
+                            d["inicio" if rot.startswith("TIME OF FIRST") else "fim"] = v
+                        except ValueError:
+                            pass
+                elif rot == "END OF HEADER":
+                    break
+    except OSError:
+        pass
+    return d
+
+
+def parece_do_drone(caminho):
+    """O RINEX do rover DJI nao serve de base e nao pode ser candidato.
+
+    Reconhecido pelo nome (DJI_...) e pela ausencia de altura de antena, que todo
+    receptor montado em bastao registra e o de drone nao.
+    """
+    if re.match(r"^DJI_\d", caminho.name, re.IGNORECASE):
+        return True
+    d = descrever_rinex(caminho)
+    return d["altura_antena"] is None and not d["marcador"]
 
 
 def versao_rinex(caminho):
@@ -392,8 +496,25 @@ def processar(projeto, lat, lon, base_z, cfg, elmask=15, altura_antena=None,
 
     voos = arq["voos"]
     total_fotos = sum(len(v["fotos"]) for v in voos)
-    aviso(f"Base: {arq['base_obs'].name}, antena {altura_antena:.3f} m sobre o marco.")
+    b = arq["base"]
+    periodo = (f", gravou de {hora_do_tow(b['inicio'][1])} a {hora_do_tow(b['fim'][1])}"
+               if b["inicio"] and b["fim"] else "")
+    aviso(f"Base: {arq['base_obs'].name} (RINEX {b['versao']:.2f}"
+          f"{', ' + b['receptor'] if b['receptor'] else ''}{periodo}).")
+    aviso(f"      antena {altura_antena:.3f} m sobre o marco.")
+    # com varias bases na pasta, mostrar as descartadas evita escolha silenciosa errada
+    if len(arq["candidatos"]) > 1:
+        outros = [d for d in arq["candidatos"] if d["caminho"] != arq["base_obs"]]
+        aviso("      (descartadas: "
+              + ", ".join(f"{d['caminho'].name} RINEX {d['versao']:.2f}" for d in outros[:4])
+              + ")")
+    if arq["recusados"]:
+        aviso(f"      ({len(arq['recusados'])} arquivo(s) do drone fora das pastas de voo "
+              "foram ignorados como base)")
     aviso(f"{len(voos)} voo(s) na pasta, {total_fotos} fotos no total.")
+
+    for a in conferir_cobertura(b, voos):
+        aviso(f"ATENCAO  {a}")
 
     base_obs = trabalho / "base.obs"
     normalizar_rinex(arq["base_obs"], base_obs)
@@ -422,10 +543,27 @@ def processar(projeto, lat, lon, base_z, cfg, elmask=15, altura_antena=None,
             aviso(f"    processando no RTKLIB (mascara {elmask} graus)...")
             epocas = rodar(conf, trabalho / f"trajetoria_{i}.pos")
             if not epocas:
-                raise RuntimeError(
-                    f"O RTKLIB nao produziu solucao para o voo {voo['nome']}.\n\n"
-                    f"A base usada foi {arq['base_obs'].name}. Confira se ela cobre o "
-                    "horario desse voo e se esta em RINEX 3.04.")
+                # diz o que foi conferido, em vez de mandar o usuario adivinhar
+                eventos = ler_mrk(voo["mrk"])
+                t0 = min(e["tow"] for e in eventos.values()) if eventos else None
+                detalhe = [f"O RTKLIB nao produziu solucao para o voo {voo['nome']}.", ""]
+                detalhe.append(f"Base usada:  {arq['base_obs'].name}"
+                               f"  (RINEX {b['versao']:.2f})")
+                if b["inicio"] and b["fim"]:
+                    detalhe.append(f"  base gravou de {hora_do_tow(b['inicio'][1])} "
+                                   f"a {hora_do_tow(b['fim'][1])}")
+                if t0 is not None:
+                    t1 = max(e["tow"] for e in eventos.values())
+                    detalhe.append(f"  voo aconteceu de {hora_do_tow(t0)} a {hora_do_tow(t1)}")
+                    if b["inicio"] and (t0 < b["inicio"][1] or t1 > b["fim"][1]):
+                        detalhe.append("\n>> A base NAO cobre o horario do voo. "
+                                       "E essa a causa mais provavel.")
+                    else:
+                        detalhe.append("\nOs horarios batem, entao o problema esta nos "
+                                       "dados: confira se a base saiu em RINEX 3.04 com "
+                                       "todas as constelacoes e se o arquivo nao esta "
+                                       "truncado.")
+                raise RuntimeError("\n".join(detalhe))
 
             # ida e volta separadas, so para conferir se a ambiguidade e confiavel
             ida_volta = None

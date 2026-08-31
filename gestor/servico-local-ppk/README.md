@@ -137,3 +137,23 @@ script elege o segundo voo como se fosse a base -- e ai o RTKLIB nao produz
 solucao nenhuma, com uma mensagem que parece problema de horario da base. O
 sintoma que denuncia e a linha `antena 0.000 m sobre o marco`: OBS de drone nao
 tem registro de altura de antena.
+
+## Defesas contra pasta baguncada
+
+O script nao confia na organizacao da pasta. Antes de processar ele:
+
+1. **Recusa arquivo do drone como base.** Reconhece pelo nome (`DJI_...`) e pela
+   ausencia de altura de antena e de nome de marco no cabecalho -- todo receptor
+   de base registra os dois, o de drone nao registra nenhum.
+2. **Mostra a base escolhida com identidade completa** (versao, receptor, marco,
+   periodo gravado) e lista as candidatas descartadas. Escolha errada fica
+   visivel na tela em vez de virar erro dez minutos depois.
+3. **Confere o horario antes de rodar.** Compara o periodo da base com o de cada
+   voo pelo `.MRK` e avisa quantos minutos ficaram descobertos.
+4. **Explica quando nao ha solucao.** Em vez de mandar "confira a base", imprime
+   o periodo da base, o periodo do voo, e diz se o problema e cobertura de
+   horario ou qualidade do dado.
+
+Verificado na pasta que falhou: o `.OBS` do drone e recusado (antena 0.0, sem
+marco), a base ComNav e aceita (antena 1,681, marco 03322050), e das duas
+candidatas ele fica com a 3.04 e informa que descartou a 2.11.
