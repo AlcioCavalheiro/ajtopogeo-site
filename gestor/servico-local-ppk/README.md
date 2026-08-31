@@ -120,3 +120,20 @@ caminho padrao da instalacao, e por fim `py` comum.
 Rodando por `pythonw` nao ha console, entao uma falha na partida nao apareceria
 em lugar nenhum. Quando isso acontece o programa grava `erro_na_partida.txt` na
 propria pasta e tenta mostrar uma caixa de mensagem.
+
+## Varios voos na mesma pasta
+
+Um cartao costuma trazer varios voos, cada um na sua pasta com `.MRK`, `.OBS`,
+`.NAV` e as fotos. O script processa **todos** contra a mesma base e escreve um
+unico arquivo de geotag com as fotos de todos eles -- os nomes nao colidem porque
+o DJI carimba o horario.
+
+O relatorio sai por voo, e o veredito geral e o **pior** dos voos: um voo ruim no
+meio nao pode ficar escondido atras da media dos outros.
+
+Cuidado que ja custou um processamento inteiro: a busca pela base precisa excluir
+**todas** as pastas de voo, nao so a do primeiro. Excluindo so a primeira, o
+script elege o segundo voo como se fosse a base -- e ai o RTKLIB nao produz
+solucao nenhuma, com uma mensagem que parece problema de horario da base. O
+sintoma que denuncia e a linha `antena 0.000 m sobre o marco`: OBS de drone nao
+tem registro de altura de antena.

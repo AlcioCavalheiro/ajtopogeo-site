@@ -38,26 +38,36 @@ def carregar_config(base_dir):
 
 
 def achar_arquivos(projeto):
-    mrk = sorted(projeto.rglob("*.MRK"))
-    if not mrk:
+    """Descobre os voos e a base dentro da pasta do projeto.
+
+    Um cartao costuma trazer varios voos, cada um na sua pasta com .MRK, .OBS,
+    .NAV e as fotos. **Todas** essas pastas ficam de fora da busca pela base --
+    excluir so a do primeiro voo faria o script eleger o segundo voo como base,
+    e o RTKLIB nao produz solucao nenhuma nesse caso.
+    """
+    mrks = sorted(projeto.rglob("*.MRK"))
+    if not mrks:
         sys.exit(f"nenhum arquivo .MRK encontrado em {projeto}")
-    mrk = mrk[0]
-    pasta_drone = mrk.parent
+    pastas_drone = {m.parent for m in mrks}
 
-    rover_obs = mrk.with_suffix(".OBS")
-    rover_nav = mrk.with_suffix(".NAV")
-    for p in (rover_obs, rover_nav):
-        if not p.exists():
-            sys.exit(f"arquivo do rover nao encontrado: {p}")
+    voos = []
+    for mrk in mrks:
+        rover_obs = mrk.with_suffix(".OBS")
+        rover_nav = mrk.with_suffix(".NAV")
+        faltando = [p.name for p in (rover_obs, rover_nav) if not p.exists()]
+        if faltando:
+            sys.exit(f"o voo {mrk.parent.name} esta sem {', '.join(faltando)}")
+        fotos = sorted(p for p in mrk.parent.iterdir() if p.suffix.upper() == ".JPG")
+        if not fotos:
+            continue  # pasta de voo sem foto (so log) nao interessa
+        voos.append(dict(mrk=mrk, rover_obs=rover_obs, rover_nav=rover_nav,
+                         fotos=fotos, nome=mrk.parent.name))
+    if not voos:
+        sys.exit(f"nenhuma foto .JPG encontrada junto dos .MRK em {projeto}")
 
-    fotos = sorted(p for p in pasta_drone.iterdir() if p.suffix.upper() == ".JPG")
-    if not fotos:
-        sys.exit(f"nenhuma foto .JPG em {pasta_drone}")
-
-    # a base e todo OBS/NAV que nao esta na pasta do drone
     base_obs, base_navs = None, []
     for p in projeto.rglob("*"):
-        if not p.is_file() or p.parent == pasta_drone:
+        if not p.is_file() or p.parent in pastas_drone:
             continue
         if PASTA_TRABALHO in p.relative_to(projeto).parts:
             continue
@@ -71,8 +81,7 @@ def achar_arquivos(projeto):
     if base_obs is None:
         sys.exit(f"observacao da base nao encontrada em {projeto}")
 
-    return dict(mrk=mrk, rover_obs=rover_obs, rover_nav=rover_nav,
-                base_obs=base_obs, base_navs=base_navs, fotos=fotos)
+    return dict(voos=voos, base_obs=base_obs, base_navs=base_navs)
 
 
 def versao_rinex(caminho):
@@ -381,79 +390,120 @@ def processar(projeto, lat, lon, base_z, cfg, elmask=15, altura_antena=None,
             "Exporte a base de novo, em RINEX 3.04 com todas as constelacoes, pelo "
             "programa do receptor ComNav, e coloque o arquivo na pasta do voo.")
 
+    voos = arq["voos"]
+    total_fotos = sum(len(v["fotos"]) for v in voos)
     aviso(f"Base: {arq['base_obs'].name}, antena {altura_antena:.3f} m sobre o marco.")
-    aviso(f"Rover: {arq['rover_obs'].name}, {len(arq['fotos'])} fotos.")
+    aviso(f"{len(voos)} voo(s) na pasta, {total_fotos} fotos no total.")
 
-    rover_obs, rover_nav = trabalho / "rover.obs", trabalho / "rover.nav"
     base_obs = trabalho / "base.obs"
-    normalizar_rinex(arq["rover_obs"], rover_obs)
-    normalizar_rinex(arq["rover_nav"], rover_nav)
     normalizar_rinex(arq["base_obs"], base_obs)
-
     conf = trabalho / "rtklib.conf"
     escrever_conf(conf, lat, lon, base_z, altura_antena, elmask)
-    pos = trabalho / "trajetoria.pos"
-
-    entradas = [str(rover_obs), str(base_obs), str(rover_nav)]
-    entradas += [str(p) for p in arq["base_navs"]]
-
-    def rodar(caminho_conf, caminho_pos):
-        subprocess.run([str(rnx2rtkp), "-k", str(caminho_conf), "-o", str(caminho_pos), *entradas],
-                       capture_output=True, check=True)
-        return ler_pos(caminho_pos)
-
-    aviso(f"Processando no RTKLIB (mascara {elmask} graus). Pode demorar alguns minutos...")
-    epocas = rodar(conf, pos)
-    if not epocas:
-        raise RuntimeError("O RTKLIB nao produziu solucao. Confira os arquivos da base: "
-                           "ela precisa cobrir o horario do voo e estar em RINEX 3.04.")
-
-    # ida e volta separadas, so para conferir se a ambiguidade e confiavel
-    ida_volta = None
-    if conferir:
-        aviso("Conferindo a ambiguidade (processando de novo, ida e volta separadas)...")
-        passagens = {}
-        for tipo in ("forward", "backward"):
-            c = trabalho / f"rtklib_{tipo}.conf"
-            c.write_text(conf.read_text(encoding="utf-8").replace(
-                "pos1-soltype       =combined", f"pos1-soltype       ={tipo}"), encoding="utf-8")
-            passagens[tipo] = rodar(c, trabalho / f"trajetoria_{tipo}.pos")
-        if passagens["forward"] and passagens["backward"]:
-            ida_volta = concordancia_ida_volta(passagens["forward"], passagens["backward"])
-
-    eventos = ler_mrk(arq["mrk"])
-    aviso("Lendo a atitude do gimbal nas fotos...")
-    atitude = ler_atitude(exiftool, arq["fotos"])
 
     saida = Path(saida) if saida else (projeto / "PPK FOTOS.txt")
-    escritas, faltando = 0, []
+    escritas, faltando, por_voo = 0, [], []
+
     with open(saida, "w", encoding="utf-8", newline="") as f:
-        for foto in arq["fotos"]:
-            achado = re.search(r"_(\d+)_[A-Z]\.JPG$", foto.name, re.IGNORECASE)
-            evento = eventos.get(int(achado.group(1))) if achado else None
-            p = interpolar(epocas, evento["tow"]) if evento else None
-            if p is None:
-                faltando.append(foto.name)
-                continue
+        for i, voo in enumerate(voos, 1):
+            aviso(f"--- Voo {i} de {len(voos)}: {voo['nome']} ({len(voo['fotos'])} fotos) ---")
+            rover_obs = trabalho / f"rover_{i}.obs"
+            rover_nav = trabalho / f"rover_{i}.nav"
+            normalizar_rinex(voo["rover_obs"], rover_obs)
+            normalizar_rinex(voo["rover_nav"], rover_nav)
+            entradas = [str(rover_obs), str(base_obs), str(rover_nav)]
+            entradas += [str(p) for p in arq["base_navs"]]
 
-            lat_cam = p["lat"] + (evento["n"] / RAIO_TERRA) * 180 / math.pi
-            lon_cam = p["lon"] + (evento["e"] / (RAIO_TERRA * math.cos(math.radians(p["lat"])))) * 180 / math.pi
-            h_cam = p["h"] - evento["v"]
-            hacc = math.hypot(p["sdn"], p["sde"])
-            vacc = p["sdu"]
-            yaw, pitch, roll = atitude.get(foto.name, ("", "", ""))
+            def rodar(caminho_conf, caminho_pos, _entradas=entradas):
+                subprocess.run([str(rnx2rtkp), "-k", str(caminho_conf),
+                                "-o", str(caminho_pos), *_entradas],
+                               capture_output=True, check=True)
+                return ler_pos(caminho_pos)
 
-            f.write(f"{foto.name},{lat_cam!r},{lon_cam!r},{h_cam!r},"
-                    f"{num(yaw)},{num(pitch)},{num(roll)},{hacc:.5f},{vacc:.5f}\n")
-            escritas += 1
+            aviso(f"    processando no RTKLIB (mascara {elmask} graus)...")
+            epocas = rodar(conf, trabalho / f"trajetoria_{i}.pos")
+            if not epocas:
+                raise RuntimeError(
+                    f"O RTKLIB nao produziu solucao para o voo {voo['nome']}.\n\n"
+                    f"A base usada foi {arq['base_obs'].name}. Confira se ela cobre o "
+                    "horario desse voo e se esta em RINEX 3.04.")
 
-    convergencia = None
-    if eventos and epocas:
-        convergencia = min(e["tow"] for e in eventos.values()) - epocas[0]["tow"]
-    qualidade = conferir_qualidade(epocas, eventos, escritas, len(arq["fotos"]),
+            # ida e volta separadas, so para conferir se a ambiguidade e confiavel
+            ida_volta = None
+            if conferir:
+                aviso("    conferindo a ambiguidade (ida e volta separadas)...")
+                passagens = {}
+                for tipo in ("forward", "backward"):
+                    c = trabalho / f"rtklib_{tipo}.conf"
+                    c.write_text(conf.read_text(encoding="utf-8").replace(
+                        "pos1-soltype       =combined",
+                        f"pos1-soltype       ={tipo}"), encoding="utf-8")
+                    passagens[tipo] = rodar(c, trabalho / f"trajetoria_{i}_{tipo}.pos")
+                if passagens["forward"] and passagens["backward"]:
+                    ida_volta = concordancia_ida_volta(passagens["forward"],
+                                                       passagens["backward"])
+
+            eventos = ler_mrk(voo["mrk"])
+            aviso("    lendo a atitude do gimbal...")
+            atitude = ler_atitude(exiftool, voo["fotos"])
+
+            escritas_voo = 0
+            for foto in voo["fotos"]:
+                achado = re.search(r"_(\d+)_[A-Z]\.JPG$", foto.name, re.IGNORECASE)
+                evento = eventos.get(int(achado.group(1))) if achado else None
+                p = interpolar(epocas, evento["tow"]) if evento else None
+                if p is None:
+                    faltando.append(foto.name)
+                    continue
+
+                lat_cam = p["lat"] + (evento["n"] / RAIO_TERRA) * 180 / math.pi
+                lon_cam = p["lon"] + (evento["e"] / (RAIO_TERRA * math.cos(math.radians(p["lat"])))) * 180 / math.pi
+                h_cam = p["h"] - evento["v"]
+                hacc = math.hypot(p["sdn"], p["sde"])
+                vacc = p["sdu"]
+                yaw, pitch, roll = atitude.get(foto.name, ("", "", ""))
+
+                f.write(f"{foto.name},{lat_cam!r},{lon_cam!r},{h_cam!r},"
+                        f"{num(yaw)},{num(pitch)},{num(roll)},{hacc:.5f},{vacc:.5f}\n")
+                escritas_voo += 1
+            escritas += escritas_voo
+
+            convergencia = None
+            if eventos and epocas:
+                convergencia = min(e["tow"] for e in eventos.values()) - epocas[0]["tow"]
+            q = conferir_qualidade(epocas, eventos, escritas_voo, len(voo["fotos"]),
                                    ida_volta=ida_volta, inicio_rover=convergencia)
-    return dict(saida=saida, epocas=epocas, escritas=escritas, faltando=faltando,
+            aviso(f"    {q['pct_fixas']:.0f}% em solucao fixa  ->  {q['nivel'].upper()}")
+            por_voo.append(dict(nome=voo["nome"], qualidade=q))
+
+    qualidade = juntar_qualidade(por_voo)
+    return dict(saida=saida, escritas=escritas, faltando=faltando, por_voo=por_voo,
                 altura_antena=altura_antena, elmask=elmask, qualidade=qualidade)
+
+
+def juntar_qualidade(por_voo):
+    """Resume a qualidade de varios voos: o pior nivel manda."""
+    if not por_voo:
+        return dict(nivel="ruim", pct_fixas=0.0, mensagens=["nenhum voo processado."])
+    ordem = {"ok": 0, "atencao": 1, "ruim": 2}
+    pior = max((v["qualidade"]["nivel"] for v in por_voo), key=lambda n: ordem[n])
+    avaliadas = sum(v["qualidade"]["fotos_avaliadas"] for v in por_voo)
+    fixas = sum(v["qualidade"]["fotos_fixas"] for v in por_voo)
+    pct = 100.0 * fixas / avaliadas if avaliadas else 0.0
+
+    msgs = [f"{len(por_voo)} voo(s), {fixas} de {avaliadas} fotos ({pct:.0f}%) em solucao fixa."]
+    if len(por_voo) > 1:
+        for v in por_voo:
+            q = v["qualidade"]
+            msgs.append(f"  {v['nome']}: {q['pct_fixas']:.0f}% fixa - {q['nivel'].upper()}")
+    # detalha so os voos que nao ficaram bons, para nao repetir texto igual 8 vezes
+    for v in por_voo:
+        q = v["qualidade"]
+        if q["nivel"] == "ok":
+            continue
+        msgs.append(f"[{v['nome']}]")
+        msgs.extend("  " + m for m in q["mensagens"][1:])
+    return dict(nivel=pior, pct_fixas=pct, fotos_fixas=fixas, fotos_avaliadas=avaliadas,
+                mensagens=msgs)
 
 
 def ler_ppp_ibge(caminho):
