@@ -381,7 +381,10 @@ def concordancia_ida_volta(frente, tras):
     total = max(len(frente), len(tras)) or 1
     difs.sort()
     return dict(pct_ambas=100.0 * ambas / total, epocas_ambas=ambas,
+                fix_frente=sum(1 for e in frente if e["q"] == 1),
+                fix_tras=sum(1 for e in tras if e["q"] == 1),
                 dif_mediana=difs[len(difs) // 2] if difs else None,
+                dif_p90=difs[int(0.9 * (len(difs) - 1))] if difs else None,
                 dif_maxima=difs[-1] if difs else None)
 
 
@@ -415,31 +418,36 @@ def conferir_qualidade(epocas, eventos, escritas, total_fotos,
         msgs.append("Fixacao mediana.")
 
     if ida_volta:
-        p = ida_volta["pct_ambas"]
-        if p < 5:
-            rebaixar("ruim")
-            msgs.append(
-                f"As passagens de ida e volta quase nunca concordam ({p:.0f}% das epocas). "
-                "Elas resolvem a ambiguidade de forma independente, entao isso quer "
-                "dizer que a solucao esta trocando de ambiguidade durante o voo: as fotos "
-                "do comeco e do fim saem em patamares diferentes, o que entorta o modelo. "
-                "E o defeito mais perigoso porque NAO aparece no desvio que o programa "
-                "reporta -- ele pode dizer 7 mm enquanto o erro real e de decimetros.")
-        elif p < 30:
+        # Sao tres situacoes diferentes, e confundi-las gera alarme falso:
+        # poucas epocas em comum e FALTA DE EVIDENCIA, nao prova de erro. So da
+        # para falar em divergencia quando as duas passagens fixam na mesma epoca
+        # e mesmo assim discordam.
+        n = ida_volta["epocas_ambas"]
+        p90 = ida_volta["dif_p90"]
+        if n < 30:
             rebaixar("atencao")
             msgs.append(
-                f"Ida e volta concordam em {p:.0f}% das epocas, o que e pouco. A trajetoria "
-                "provavelmente esta continua (sem degrau), mas a ambiguidade nao foi "
-                "confirmada de forma independente: pode haver um deslocamento sistematico "
-                "de alguns centimetros no bloco inteiro. Serve para trabalho relativo; "
-                "para amarracao absoluta, use ponto de apoio em campo.")
+                f"A ambiguidade nao foi confirmada de forma independente: as passagens de "
+                f"ida e volta fixaram juntas em apenas {n} epoca(s) "
+                f"(ida fixou {ida_volta['fix_frente']}, volta {ida_volta['fix_tras']}). "
+                "Isso nao quer dizer que esteja errado -- quer dizer que nao ha como "
+                "verificar por aqui. Pode haver deslocamento sistematico de alguns "
+                "centimetros. Para amarracao absoluta, use ponto de apoio em campo.")
+        elif p90 is not None and p90 > 30:
+            rebaixar("ruim")
+            msgs.append(
+                f"Ida e volta fixam juntas em {n} epocas e DISCORDAM: {p90:.0f} cm no "
+                "percentil 90. Como resolvem a ambiguidade de forma independente, isso "
+                "indica que a solucao troca de ambiguidade durante o voo e as fotos saem "
+                "em patamares diferentes. E o defeito mais perigoso porque NAO aparece no "
+                "desvio que o programa reporta.")
+        elif p90 is not None and p90 > 10:
+            rebaixar("atencao")
+            msgs.append(f"Ida e volta fixam juntas em {n} epocas e concordam de forma "
+                        f"apenas razoavel ({p90:.0f} cm no percentil 90).")
         else:
-            extra = ""
-            if ida_volta["dif_mediana"] is not None:
-                extra = (f", discordando {ida_volta['dif_mediana']:.0f} cm em altura "
-                         f"na mediana")
-            msgs.append(f"Ida e volta concordam em {p:.0f}% das epocas{extra}. "
-                        "A ambiguidade esta firme.")
+            msgs.append(f"Ambiguidade confirmada: ida e volta fixam juntas em {n} epocas "
+                        f"e concordam em {ida_volta['dif_mediana']:.0f} cm na mediana.")
 
     if inicio_rover is not None and inicio_rover < CONVERGENCIA_MINIMA_S:
         rebaixar("atencao")
@@ -458,8 +466,12 @@ def conferir_qualidade(epocas, eventos, escritas, total_fotos,
 
 
 def processar(projeto, lat, lon, base_z, cfg, elmask=15, altura_antena=None,
-              saida=None, progresso=None, conferir=True):
-    """Roda o PPK completo e devolve o resultado com as metricas de qualidade."""
+              saida=None, progresso=None, conferir=True, trabalho=None):
+    """Roda o PPK completo e devolve o resultado com as metricas de qualidade.
+
+    `trabalho` permite tirar os arquivos intermediarios de dentro do projeto.
+    Dois processamentos simultaneos da mesma pasta se sobrescreveriam sem isso.
+    """
     def aviso(txt):
         if progresso:
             progresso(txt)
@@ -471,8 +483,8 @@ def processar(projeto, lat, lon, base_z, cfg, elmask=15, altura_antena=None,
             raise FileNotFoundError(f"ferramenta nao encontrada: {p} (confira o config.json)")
 
     arq = achar_arquivos(projeto)
-    trabalho = projeto / PASTA_TRABALHO
-    trabalho.mkdir(exist_ok=True)
+    trabalho = Path(trabalho) if trabalho else (projeto / PASTA_TRABALHO)
+    trabalho.mkdir(parents=True, exist_ok=True)
 
     if altura_antena is None:
         altura_antena = 0.0
@@ -711,7 +723,7 @@ def comparar_saidas(caminho_a, caminho_b):
 
 
 def processar_escolhendo_mascara(projeto, lat, lon, base_z, cfg, saida=None,
-                                 altura_antena=None, progresso=None):
+                                 altura_antena=None, progresso=None, trabalho=None):
     """Processa com 15 e com 10 graus e fica com a que fixa mais.
 
     Confere antes que as duas concordam: se divergirem muito, a de 10 graus
@@ -721,13 +733,13 @@ def processar_escolhendo_mascara(projeto, lat, lon, base_z, cfg, saida=None,
         if progresso:
             progresso(t)
 
-    trabalho = projeto / PASTA_TRABALHO
-    trabalho.mkdir(exist_ok=True)
+    trabalho = Path(trabalho) if trabalho else (projeto / PASTA_TRABALHO)
+    trabalho.mkdir(parents=True, exist_ok=True)
     tentativas = []
     for elmask in (15, 10):
         aviso(f"--- Tentativa com mascara de {elmask} graus ---")
         r = processar(projeto, lat, lon, base_z, cfg, elmask=elmask,
-                      altura_antena=altura_antena, conferir=False,
+                      altura_antena=altura_antena, conferir=False, trabalho=trabalho,
                       saida=trabalho / f"geotag_{elmask}.txt", progresso=progresso)
         aviso(f"Mascara {elmask}: {r['qualidade']['pct_fixas']:.0f}% das fotos em solucao fixa.")
         tentativas.append(r)
@@ -746,7 +758,7 @@ def processar_escolhendo_mascara(projeto, lat, lon, base_z, cfg, saida=None,
     # indicador que realmente diz se a ambiguidade e confiavel
     aviso(f"Escolhida a mascara de {melhor['elmask']} graus. Conferindo essa solucao...")
     final = processar(projeto, lat, lon, base_z, cfg, elmask=melhor["elmask"],
-                      altura_antena=altura_antena, conferir=True,
+                      altura_antena=altura_antena, conferir=True, trabalho=trabalho,
                       saida=saida or (projeto / "PPK FOTOS.txt"), progresso=progresso)
     final["comparacao"] = cmp
     return final
