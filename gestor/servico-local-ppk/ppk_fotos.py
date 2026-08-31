@@ -746,12 +746,21 @@ def processar_escolhendo_mascara(projeto, lat, lon, base_z, cfg, saida=None,
     melhor = max(tentativas, key=lambda r: r["qualidade"]["pct_fixas"])
     cmp = comparar_saidas(tentativas[0]["saida"], tentativas[1]["saida"])
     if cmp:
-        aviso(f"As duas solucoes concordam: diferenca media de "
-              f"{abs(cmp['media'][2]):.1f} cm em altura, maior diferenca {cmp['maior']:.0f} cm.")
+        media_h = abs(cmp["media"][2])
+        # a diferenca entre as duas mascaras e um teste de estabilidade por si so:
+        # dado bom quase nao muda quando so a mascara muda
+        if media_h < 5:
+            aviso(f"As duas mascaras concordam ({media_h:.1f} cm de media em altura, "
+                  f"maior diferenca {cmp['maior']:.0f} cm): solucao estavel.")
+        else:
+            aviso(f"ATENCAO  As duas mascaras DIVERGEM: {media_h:.0f} cm de media em altura "
+                  f"e ate {cmp['maior']:.0f} cm. Mudar so a mascara de elevacao nao deveria "
+                  "mover as fotos assim -- e sinal de que a ambiguidade nao esta firme "
+                  "nesses dados, independente de qual das duas se escolha.")
+            melhor["divergencia_mascaras"] = media_h
         if cmp["maior"] > 100:
             melhor = tentativas[0]
-            aviso("Diferenca grande demais entre as duas: ficando com a mascara de 15 graus, "
-                  "que e a mais conservadora.")
+            aviso("Ficando com a mascara de 15 graus, que e a mais conservadora.")
 
     # roda de novo a vencedora, agora com a conferencia de ida e volta -- que e o
     # indicador que realmente diz se a ambiguidade e confiavel
