@@ -450,12 +450,11 @@ def conferir_qualidade(epocas, eventos, escritas, total_fotos,
                         f"e concordam em {ida_volta['dif_mediana']:.0f} cm na mediana.")
 
     if inicio_rover is not None and inicio_rover < CONVERGENCIA_MINIMA_S:
-        rebaixar("atencao")
         msgs.append(
-            f"O drone gravou so {inicio_rover:.0f} s antes da primeira foto. "
-            f"O filtro precisa de uns {CONVERGENCIA_MINIMA_S // 60} minutos parado "
-            "para convergir. Da proxima vez, ligue o drone e espere 3 a 5 minutos "
-            "antes de decolar: e a mudanca que mais melhora o resultado.")
+            f"So havia {inicio_rover:.0f} s de dado antes da primeira foto, pouco para o "
+            "filtro convergir com folga. Isso NAO se resolve esperando no chao: o drone "
+            "comeca a gravar o log bruto ja em altitude de voo, e da sempre a mesma "
+            "sobra de menos de um minuto. Quem manda nisso e o firmware, nao o operador.")
 
     if escritas < total_fotos:
         rebaixar("atencao")
