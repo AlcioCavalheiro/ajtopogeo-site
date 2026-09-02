@@ -157,3 +157,34 @@ O script nao confia na organizacao da pasta. Antes de processar ele:
 Verificado na pasta que falhou: o `.OBS` do drone e recusado (antena 0.0, sem
 marco), a base ComNav e aceita (antena 1,681, marco 03322050), e das duas
 candidatas ele fica com a 3.04 e informa que descartou a 2.11.
+
+## As colunas de precisao sao PESO, nao documentacao
+
+O programa de fotogrametria usa os dois ultimos numeros de cada linha para
+decidir quanto confiar naquela foto no ajuste do bloco. Declarar precisao
+otimista faz o ajuste **conformar o bloco aos geotags** em vez de corrigi-los
+pela geometria das imagens.
+
+Medido no levantamento GUSTHAVO -- 3210 fotos, mesmo bloco, mesma maquina, so
+trocando o arquivo de geotag:
+
+| | sigma declarado | RMS medido | erro de reprojecao |
+|---|---|---|---|
+| desvio formal do RTKLIB | 0,0055 m | 0,0225 m (4,1x alem) | **0,2937 px** |
+| 0,03/0,06 fixos do DJI Terra | 0,0600 m | 0,0360 m (0,6x dentro) | **0,1519 px** |
+
+Metade do erro de reprojecao, mais 5 milhoes de pontos 2D observados e mais
+1.000 correspondencias por imagem -- tudo a favor do arquivo com sigma folgado.
+
+Por isso o padrao passou a ser `--sigma realista`, que escreve conforme a
+qualidade da epoca de cada foto:
+
+```
+solucao fixa  (Q=1)   0,05 / 0,10 m
+float         (Q=2)   0,20 / 0,40 m
+demais                0,30 / 0,60 m
+```
+
+Isso e melhor que um piso fixo porque diz ao ajuste **quais fotos** merecem
+confianca, permitindo que as bem fixadas puxem as mal fixadas. `--sigma formal`
+volta a escrever o desvio do RTKLIB, util so para conferencia.

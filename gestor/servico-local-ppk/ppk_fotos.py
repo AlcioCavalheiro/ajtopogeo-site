@@ -31,6 +31,33 @@ PASTA_TRABALHO = "_ppk"
 
 RAIO_TERRA = 6378137.0
 
+# As duas ultimas colunas do arquivo de geotag NAO sao documentacao: o programa
+# de fotogrametria usa como PESO de cada foto no ajuste do bloco. O desvio formal
+# do RTKLIB e otimista em uma ordem de grandeza, e declara-lo faz o ajuste
+# conformar o bloco a geotags possivelmente errados em vez de corrigi-los pela
+# geometria das imagens.
+#
+# Medido no levantamento GUSTHAVO (3210 fotos, mesmo bloco, so trocando o
+# arquivo de geotag): com o desvio formal (0,004/0,006 m) o erro de reprojecao
+# ficou em 0,29 px; com os 0,03/0,06 fixos do DJI Terra, 0,15 px -- metade.
+#
+# Os valores abaixo saem da qualidade da epoca de cada foto, que e o que a
+# solucao fixa ou float realmente significa, e da ordem de grandeza medida na
+# comparacao entre dois PPK independentes (9 cm / 16 cm nos voos bem fixados,
+# 16 cm / 49 cm nos mal fixados).
+SIGMA_REALISTA = {
+    1: (0.05, 0.10),   # Q=1 solucao fixa
+    2: (0.20, 0.40),   # Q=2 float
+}
+SIGMA_REALISTA_PADRAO = (0.30, 0.60)   # single, dgps ou desconhecido
+
+
+def sigma_da_foto(epoca, modo):
+    """Precisao a declarar para a foto, conforme a qualidade da epoca."""
+    if modo == "formal":
+        return math.hypot(epoca["sdn"], epoca["sde"]), epoca["sdu"]
+    return SIGMA_REALISTA.get(epoca["q"], SIGMA_REALISTA_PADRAO)
+
 
 def carregar_config(base_dir):
     with open(base_dir / "config.json", encoding="utf-8") as f:
@@ -465,7 +492,8 @@ def conferir_qualidade(epocas, eventos, escritas, total_fotos,
 
 
 def processar(projeto, lat, lon, base_z, cfg, elmask=15, altura_antena=None,
-              saida=None, progresso=None, conferir=True, trabalho=None):
+              saida=None, progresso=None, conferir=True, trabalho=None,
+              sigma="realista"):
     """Roda o PPK completo e devolve o resultado com as metricas de qualidade.
 
     `trabalho` permite tirar os arquivos intermediarios de dentro do projeto.
@@ -607,8 +635,7 @@ def processar(projeto, lat, lon, base_z, cfg, elmask=15, altura_antena=None,
                 lat_cam = p["lat"] + (evento["n"] / RAIO_TERRA) * 180 / math.pi
                 lon_cam = p["lon"] + (evento["e"] / (RAIO_TERRA * math.cos(math.radians(p["lat"])))) * 180 / math.pi
                 h_cam = p["h"] - evento["v"]
-                hacc = math.hypot(p["sdn"], p["sde"])
-                vacc = p["sdu"]
+                hacc, vacc = sigma_da_foto(p, sigma)
                 yaw, pitch, roll = atitude.get(foto.name, ("", "", ""))
 
                 f.write(f"{foto.name},{lat_cam!r},{lon_cam!r},{h_cam!r},"
@@ -722,7 +749,8 @@ def comparar_saidas(caminho_a, caminho_b):
 
 
 def processar_escolhendo_mascara(projeto, lat, lon, base_z, cfg, saida=None,
-                                 altura_antena=None, progresso=None, trabalho=None):
+                                 altura_antena=None, progresso=None, trabalho=None,
+                                 sigma="realista"):
     """Processa com 15 e com 10 graus e fica com a que fixa mais.
 
     Confere antes que as duas concordam: se divergirem muito, a de 10 graus
@@ -739,6 +767,7 @@ def processar_escolhendo_mascara(projeto, lat, lon, base_z, cfg, saida=None,
         aviso(f"--- Tentativa com mascara de {elmask} graus ---")
         r = processar(projeto, lat, lon, base_z, cfg, elmask=elmask,
                       altura_antena=altura_antena, conferir=False, trabalho=trabalho,
+                      sigma=sigma,
                       saida=trabalho / f"geotag_{elmask}.txt", progresso=progresso)
         aviso(f"Mascara {elmask}: {r['qualidade']['pct_fixas']:.0f}% das fotos em solucao fixa.")
         tentativas.append(r)
@@ -767,6 +796,7 @@ def processar_escolhendo_mascara(projeto, lat, lon, base_z, cfg, saida=None,
     aviso(f"Escolhida a mascara de {melhor['elmask']} graus. Conferindo essa solucao...")
     final = processar(projeto, lat, lon, base_z, cfg, elmask=melhor["elmask"],
                       altura_antena=altura_antena, conferir=True, trabalho=trabalho,
+                      sigma=sigma,
                       saida=saida or (projeto / "PPK FOTOS.txt"), progresso=progresso)
     final["comparacao"] = cmp
     return final
@@ -784,6 +814,11 @@ def main():
     ap.add_argument("--elmask", type=int, default=15,
                     help="mascara de elevacao em graus. 15 e o recomendado pela T2R; "
                          "10 costuma fixar bastante mais epocas em voo com boa visada")
+    ap.add_argument("--sigma", choices=("realista", "formal"), default="realista",
+                    help="o que escrever nas colunas de precisao. 'realista' usa a "
+                         "qualidade da epoca (fixa/float) e e o que o programa de "
+                         "fotogrametria precisa como peso; 'formal' escreve o desvio "
+                         "do RTKLIB, otimista, so para conferencia")
     ap.add_argument("--saida", type=Path, default=None)
     args = ap.parse_args()
 
@@ -794,7 +829,7 @@ def main():
     try:
         r = processar(args.projeto, lat, lon, args.base_z, cfg, elmask=args.elmask,
                       altura_antena=args.altura_antena, saida=args.saida,
-                      progresso=print)
+                      sigma=args.sigma, progresso=print)
     except (FileNotFoundError, RuntimeError) as erro:
         sys.exit(str(erro))
 
