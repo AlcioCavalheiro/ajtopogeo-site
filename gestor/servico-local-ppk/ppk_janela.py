@@ -127,6 +127,11 @@ class Janela:
                         variable=self.mascara, value="auto").pack(anchor="w")
         ttk.Radiobutton(bloco, text="Rapido, configuracao padrao",
                         variable=self.mascara, value="15").pack(anchor="w")
+        self.copiar = StringVar(value="0")
+        ttk.Checkbutton(bloco, variable=self.copiar, onvalue="1", offvalue="0",
+                        text="Gerar tambem uma pasta com as FOTOS ja corrigidas  "
+                             "(ocupa o mesmo espaco do acervo em disco)").pack(
+                                 anchor="w", pady=(6, 0))
 
         self.botao = ttk.Button(corpo, text="PROCESSAR", command=self.iniciar)
         self.botao.pack(fill=X, ipady=8, pady=(0, 8))
@@ -240,14 +245,18 @@ class Janela:
         self.barra.start(12)
         self.escrever(f"Base ({origem}): lat {lat:.8f}, lon {lon:.8f}, h {z:.3f} m")
 
-        threading.Thread(target=self.trabalhar, args=(pasta, lat, lon, z), daemon=True).start()
+        copiar = self.copiar.get() == "1"
+        threading.Thread(target=self.trabalhar, args=(pasta, lat, lon, z, copiar),
+                         daemon=True).start()
 
-    def trabalhar(self, pasta, lat, lon, z):
+    def trabalhar(self, pasta, lat, lon, z, copiar):
         try:
             cfg = ppk_fotos.carregar_config(Path(__file__).parent)
             fn = (ppk_fotos.processar_escolhendo_mascara if self.mascara.get() == "auto"
                   else ppk_fotos.processar)
             extra = {} if self.mascara.get() == "auto" else {"elmask": 15}
+            if copiar:
+                extra["copiar_para"] = pasta / "FOTOS CORRIGIDAS"
             r = fn(pasta, lat, lon, z, cfg, saida=pasta / "PPK FOTOS.txt",
                    progresso=lambda t: self.fila.put(("log", t)), **extra)
             self.fila.put(("fim", r))

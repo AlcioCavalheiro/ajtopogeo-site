@@ -188,3 +188,32 @@ demais                0,30 / 0,60 m
 Isso e melhor que um piso fixo porque diz ao ajuste **quais fotos** merecem
 confianca, permitindo que as bem fixadas puxem as mal fixadas. `--sigma formal`
 volta a escrever o desvio do RTKLIB, util so para conferencia.
+
+## Fotos com a coordenada ja corrigida
+
+A opcao "Gerar tambem uma pasta com as FOTOS ja corrigidas" grava, em
+`FOTOS CORRIGIDAS/` dentro da pasta do voo, uma copia de cada imagem com a
+coordenada do PPK no lugar da do voo. Serve para levar as fotos direto ao
+programa de fotogrametria, sem carregar arquivo de geotag a parte.
+
+**Os originais nunca sao tocados** -- o ExifTool escreve em outra pasta com `-o`.
+
+A coordenada e gravada em **tres lugares**, porque a DJI guarda a posicao em
+todos e um programa que leia so o XMP pegaria o valor antigo se mexessemos
+apenas no EXIF:
+
+```
+EXIF     GPSLatitude / GPSLongitude / GPSAltitude (+ Ref)
+XMP      drone-dji:GpsLatitude / GpsLongitude
+XMP      drone-dji:AbsoluteAltitude
+```
+
+A altitude vai como **elipsoidal com referencia "acima do nivel do mar"**, que e
+exatamente o que a DJI grava no arquivo original -- trocar a convencao criaria
+incoerencia com o que os programas esperam do Matrice.
+
+Custo medido (25 fotos, extrapolado para 3210): **~5 min e ~23 GB**. Confira o
+espaco antes: e o tamanho do acervo inteiro duplicado.
+
+O `-m` do ExifTool e obrigatorio: todo arquivo DJI reescrito dispara um aviso de
+maker notes, e sem ele a gravacao e recusada.

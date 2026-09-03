@@ -12,6 +12,7 @@ Uso:
 import argparse
 import json
 import math
+import os
 import re
 import shutil
 import subprocess
@@ -345,6 +346,62 @@ def interpolar(epocas, tow):
     )
 
 
+def escrever_fotos_corrigidas(exiftool, corrigidas, destino, progresso=None, lote=200):
+    """Grava copias das fotos com a coordenada do PPK no lugar da do voo.
+
+    `corrigidas` e uma lista de (caminho_da_foto, lat, lon, altitude).
+
+    Escreve em TRES lugares porque a DJI guarda a posicao em todos, e software
+    que le so o XMP pegaria o valor antigo se mexessemos apenas no EXIF:
+    EXIF GPS, XMP-drone-dji GpsLatitude/GpsLongitude e XMP AbsoluteAltitude.
+
+    A altitude vai como elipsoidal com referencia "acima do nivel do mar", que e
+    exatamente a convencao que a propria DJI usa no arquivo original -- trocar
+    isso criaria incoerencia com o que os programas esperam do Matrice.
+
+    Os originais nunca sao tocados: o ExifTool escreve com -o em outra pasta.
+    """
+    destino = Path(destino)
+    destino.mkdir(parents=True, exist_ok=True)
+    escritas, falhas = 0, []
+
+    for inicio in range(0, len(corrigidas), lote):
+        pedaco = corrigidas[inicio:inicio + lote]
+        with tempfile.NamedTemporaryFile("w", suffix=".args", delete=False,
+                                         encoding="utf-8") as f:
+            for caminho, lat, lon, alt in pedaco:
+                f.write(f"-GPSLatitude={lat!r}\n-GPSLongitude={lon!r}\n"
+                        f"-GPSAltitude={alt!r}\n"
+                        f"-GPSLatitudeRef={'S' if lat < 0 else 'N'}\n"
+                        f"-GPSLongitudeRef={'W' if lon < 0 else 'E'}\n"
+                        "-GPSAltitudeRef=0\n"
+                        f"-XMP-drone-dji:GpsLatitude={lat!r}\n"
+                        f"-XMP-drone-dji:GpsLongitude={lon!r}\n"
+                        f"-XMP-drone-dji:AbsoluteAltitude={alt!r}\n"
+                        f"-o\n{destino}{os.sep}\n{caminho}\n-execute\n")
+            # -m tolera o aviso de maker notes que todo arquivo DJI provoca ao
+            # ser reescrito; sem ele o ExifTool recusa a gravacao
+            f.write("-common_args\n-n\n-m\n-q\n")
+            lista = f.name
+        try:
+            r = subprocess.run([str(exiftool), "-charset", "filename=utf8", "-@", lista],
+                               capture_output=True, text=True, timeout=7200)
+        finally:
+            Path(lista).unlink(missing_ok=True)
+
+        for caminho, *_ in pedaco:
+            if (destino / Path(caminho).name).exists():
+                escritas += 1
+            else:
+                falhas.append(Path(caminho).name)
+        if progresso:
+            progresso(f"    {escritas} de {len(corrigidas)} fotos gravadas...")
+        if r.returncode != 0 and not escritas:
+            raise RuntimeError("O ExifTool nao conseguiu gravar as fotos:\n"
+                               + (r.stderr.strip()[:300] or "sem detalhe"))
+    return escritas, falhas
+
+
 def ler_atitude(exiftool, fotos):
     # a lista de fotos vai num arquivo de argumentos: um voo de algumas centenas
     # de imagens estoura o limite de tamanho da linha de comando do Windows.
@@ -493,11 +550,14 @@ def conferir_qualidade(epocas, eventos, escritas, total_fotos,
 
 def processar(projeto, lat, lon, base_z, cfg, elmask=15, altura_antena=None,
               saida=None, progresso=None, conferir=True, trabalho=None,
-              sigma="realista"):
+              sigma="realista", copiar_para=None):
     """Roda o PPK completo e devolve o resultado com as metricas de qualidade.
 
     `trabalho` permite tirar os arquivos intermediarios de dentro do projeto.
     Dois processamentos simultaneos da mesma pasta se sobrescreveriam sem isso.
+
+    `copiar_para` grava, alem do CSV, uma copia de cada foto com a coordenada
+    do PPK ja no EXIF. Custa o tamanho do acervo em disco.
     """
     def aviso(txt):
         if progresso:
@@ -562,6 +622,7 @@ def processar(projeto, lat, lon, base_z, cfg, elmask=15, altura_antena=None,
 
     saida = Path(saida) if saida else (projeto / "PPK FOTOS.txt")
     escritas, faltando, por_voo = 0, [], []
+    corrigidas = []   # (caminho, lat, lon, altitude) para gravar nas copias
 
     with open(saida, "w", encoding="utf-8", newline="") as f:
         for i, voo in enumerate(voos, 1):
@@ -640,6 +701,7 @@ def processar(projeto, lat, lon, base_z, cfg, elmask=15, altura_antena=None,
 
                 f.write(f"{foto.name},{lat_cam!r},{lon_cam!r},{h_cam!r},"
                         f"{num(yaw)},{num(pitch)},{num(roll)},{hacc:.5f},{vacc:.5f}\n")
+                corrigidas.append((str(foto), lat_cam, lon_cam, h_cam))
                 escritas_voo += 1
             escritas += escritas_voo
 
@@ -652,7 +714,17 @@ def processar(projeto, lat, lon, base_z, cfg, elmask=15, altura_antena=None,
             por_voo.append(dict(nome=voo["nome"], qualidade=q))
 
     qualidade = juntar_qualidade(por_voo)
+    pasta_copias = None
+    if copiar_para:
+        pasta_copias = Path(copiar_para)
+        aviso(f"Gravando copias das fotos com a coordenada corrigida em "
+              f"{pasta_copias.name}...")
+        n, ruins = escrever_fotos_corrigidas(exiftool, corrigidas, pasta_copias,
+                                             progresso=aviso)
+        aviso(f"{n} foto(s) gravadas." + (f" {len(ruins)} falharam." if ruins else ""))
+
     return dict(saida=saida, escritas=escritas, faltando=faltando, por_voo=por_voo,
+                pasta_copias=pasta_copias,
                 altura_antena=altura_antena, elmask=elmask, qualidade=qualidade)
 
 
@@ -750,7 +822,7 @@ def comparar_saidas(caminho_a, caminho_b):
 
 def processar_escolhendo_mascara(projeto, lat, lon, base_z, cfg, saida=None,
                                  altura_antena=None, progresso=None, trabalho=None,
-                                 sigma="realista"):
+                                 sigma="realista", copiar_para=None):
     """Processa com 15 e com 10 graus e fica com a que fixa mais.
 
     Confere antes que as duas concordam: se divergirem muito, a de 10 graus
@@ -796,6 +868,7 @@ def processar_escolhendo_mascara(projeto, lat, lon, base_z, cfg, saida=None,
     aviso(f"Escolhida a mascara de {melhor['elmask']} graus. Conferindo essa solucao...")
     final = processar(projeto, lat, lon, base_z, cfg, elmask=melhor["elmask"],
                       altura_antena=altura_antena, conferir=True, trabalho=trabalho,
+                      copiar_para=copiar_para,
                       sigma=sigma,
                       saida=saida or (projeto / "PPK FOTOS.txt"), progresso=progresso)
     final["comparacao"] = cmp
