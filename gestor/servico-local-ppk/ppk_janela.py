@@ -129,7 +129,7 @@ class Janela:
                         variable=self.mascara, value="15").pack(anchor="w")
         self.copiar = StringVar(value="0")
         ttk.Checkbutton(bloco, variable=self.copiar, onvalue="1", offvalue="0",
-                        text="Gerar tambem uma pasta com as FOTOS ja corrigidas  "
+                        text="Gerar tambem as FOTOS ja corrigidas, em _ppk\\FOTOS CORRIGIDAS  "
                              "(ocupa o mesmo espaco do acervo em disco)").pack(
                                  anchor="w", pady=(6, 0))
 
@@ -256,7 +256,11 @@ class Janela:
                   else ppk_fotos.processar)
             extra = {} if self.mascara.get() == "auto" else {"elmask": 15}
             if copiar:
-                extra["copiar_para"] = pasta / "FOTOS CORRIGIDAS"
+                # dentro de _ppk de proposito: essa pasta ja fica de fora da
+                # varredura, entao as copias nunca viram "foto original" num
+                # reprocessamento
+                extra["copiar_para"] = (pasta / ppk_fotos.PASTA_TRABALHO
+                                        / "FOTOS CORRIGIDAS")
             r = fn(pasta, lat, lon, z, cfg, saida=pasta / "PPK FOTOS.txt",
                    progresso=lambda t: self.fila.put(("log", t)), **extra)
             self.fila.put(("fim", r))

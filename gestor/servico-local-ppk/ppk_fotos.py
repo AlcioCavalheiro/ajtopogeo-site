@@ -381,6 +381,12 @@ def escrever_fotos_corrigidas(exiftool, corrigidas, destino, progresso=None, lot
 
     for inicio in range(0, len(corrigidas), lote):
         pedaco = corrigidas[inicio:inicio + lote]
+        # O ExifTool se RECUSA a sobrescrever com -o, sem falhar: num
+        # reprocessamento a copia antiga ficaria intacta e o programa contaria
+        # como gravada. Apagar antes e o que garante que a pasta reflita este
+        # processamento, e nao uma mistura de dois.
+        for caminho, *_ in pedaco:
+            (destino / Path(caminho).name).unlink(missing_ok=True)
         with tempfile.NamedTemporaryFile("w", suffix=".args", delete=False,
                                          encoding="utf-8") as f:
             for caminho, lat, lon, alt in pedaco:

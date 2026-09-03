@@ -191,9 +191,10 @@ volta a escrever o desvio do RTKLIB, util so para conferencia.
 
 ## Fotos com a coordenada ja corrigida
 
-A opcao "Gerar tambem uma pasta com as FOTOS ja corrigidas" grava, em
-`FOTOS CORRIGIDAS/` dentro da pasta do voo, uma copia de cada imagem com a
-coordenada do PPK no lugar da do voo. Serve para levar as fotos direto ao
+A opcao correspondente grava as copias em **`_ppk/FOTOS CORRIGIDAS/`**, cada
+imagem com a coordenada do PPK no lugar da do voo. Ficam dentro de `_ppk` de
+proposito: essa pasta ja e excluida da varredura, entao as copias nunca serao
+confundidas com fotos originais num reprocessamento. Serve para levar as fotos direto ao
 programa de fotogrametria, sem carregar arquivo de geotag a parte.
 
 **Os originais nunca sao tocados** -- o ExifTool escreve em outra pasta com `-o`.
@@ -217,6 +218,12 @@ espaco antes: e o tamanho do acervo inteiro duplicado.
 
 O `-m` do ExifTool e obrigatorio: todo arquivo DJI reescrito dispara um aviso de
 maker notes, e sem ele a gravacao e recusada.
+
+**O destino e apagado antes de gravar.** O ExifTool com `-o` se recusa a
+sobrescrever arquivo existente, e nao falha ao fazer isso: num reprocessamento a
+copia antiga ficaria intacta e o programa contaria como gravada, entregando
+coordenadas velhas com cara de novas. Verificado: sem o apagamento previo, uma
+segunda gravacao com altitude diferente deixava o valor da primeira.
 
 ## Erro nao pode usar sys.exit
 
