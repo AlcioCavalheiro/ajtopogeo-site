@@ -260,8 +260,12 @@ class Janela:
             r = fn(pasta, lat, lon, z, cfg, saida=pasta / "PPK FOTOS.txt",
                    progresso=lambda t: self.fila.put(("log", t)), **extra)
             self.fila.put(("fim", r))
-        except Exception as e:  # noqa: BLE001 - a janela precisa mostrar qualquer falha
-            self.fila.put(("erro", (str(e), traceback.format_exc())))
+        # BaseException e nao Exception: um sys.exit() dentro do processamento
+        # levanta SystemExit, que mataria a thread em silencio e deixaria a
+        # janela girando a barra para sempre -- foi o que aconteceu uma vez
+        except BaseException as e:  # noqa: BLE001
+            self.fila.put(("erro", (str(e) or e.__class__.__name__,
+                                    traceback.format_exc())))
 
     def drenar(self):
         try:

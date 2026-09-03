@@ -217,3 +217,15 @@ espaco antes: e o tamanho do acervo inteiro duplicado.
 
 O `-m` do ExifTool e obrigatorio: todo arquivo DJI reescrito dispara um aviso de
 maker notes, e sem ele a gravacao e recusada.
+
+## Erro nao pode usar sys.exit
+
+`achar_arquivos` roda dentro da thread de trabalho da janela. `sys.exit()`
+levanta `SystemExit`, que **mata a thread em silencio**: nenhuma mensagem chega
+a tela e a barra de progresso gira para sempre. Aconteceu com uma pasta que nao
+tinha o arquivo de observacao da base -- o programa detectou corretamente e o
+usuario ficou sem saber por que nada avancava.
+
+As validacoes levantam `RuntimeError`, e a janela captura `BaseException` (nao
+`Exception`) na thread, para que nem um `sys.exit()` esquecido volte a travar.
+`sys.exit` fica so no `main()`, que e a linha de comando.

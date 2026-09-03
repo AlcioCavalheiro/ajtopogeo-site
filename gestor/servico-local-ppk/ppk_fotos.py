@@ -75,7 +75,9 @@ def achar_arquivos(projeto):
     """
     mrks = sorted(projeto.rglob("*.MRK"))
     if not mrks:
-        sys.exit(f"nenhum arquivo .MRK encontrado em {projeto}")
+        raise RuntimeError(f"Nenhum arquivo .MRK encontrado em {projeto}.\n\n"
+                           "A pasta precisa conter a pasta do voo, com as fotos e os "
+                           "arquivos .MRK, .OBS e .NAV do drone.")
     pastas_drone = {m.parent for m in mrks}
 
     voos = []
@@ -84,14 +86,15 @@ def achar_arquivos(projeto):
         rover_nav = mrk.with_suffix(".NAV")
         faltando = [p.name for p in (rover_obs, rover_nav) if not p.exists()]
         if faltando:
-            sys.exit(f"o voo {mrk.parent.name} esta sem {', '.join(faltando)}")
+            raise RuntimeError(f"O voo {mrk.parent.name} esta sem "
+                               f"{', '.join(faltando)}.")
         fotos = sorted(p for p in mrk.parent.iterdir() if p.suffix.upper() == ".JPG")
         if not fotos:
             continue  # pasta de voo sem foto (so log) nao interessa
         voos.append(dict(mrk=mrk, rover_obs=rover_obs, rover_nav=rover_nav,
                          fotos=fotos, nome=mrk.parent.name))
     if not voos:
-        sys.exit(f"nenhuma foto .JPG encontrada junto dos .MRK em {projeto}")
+        raise RuntimeError(f"Nenhuma foto .JPG encontrada junto dos .MRK em {projeto}.")
 
     candidatos, base_navs, recusados = [], [], []
     for p in projeto.rglob("*"):
@@ -114,7 +117,18 @@ def achar_arquivos(projeto):
             extra = ("\n\nEncontrei arquivos de observacao, mas todos parecem ser do "
                      "drone e nao de uma base:\n  "
                      + "\n  ".join(r.name for r in recusados[:5]))
-        sys.exit(f"observacao da base nao encontrada em {projeto}." + extra)
+        if base_navs:
+            achados = ", ".join(sorted({n.suffix or n.name[-4:] for n in base_navs}))
+            detalhe = (
+                f"Encontrei os arquivos de NAVEGACAO da base ({achados}), mas nao o de "
+                "OBSERVACAO -- normalmente com extensao .26O ou .OBS.\n\n"
+                "E no arquivo de observacao que estao as medidas do receptor; sem ele "
+                "nao existe PPK. Copie-o do receptor da base para a mesma pasta dos "
+                "arquivos de navegacao.")
+        else:
+            detalhe = f"Nao achei nem observacao nem navegacao da base em {projeto}."
+        raise RuntimeError("Nao encontrei o arquivo de observacao da base.\n\n"
+                           + detalhe + extra)
 
     # prefere o RINEX 3 (multiconstelacao); em empate, o de periodo mais longo
     descritos = [descrever_rinex(p) for p in candidatos]
