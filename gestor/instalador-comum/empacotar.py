@@ -19,6 +19,18 @@ import zipfile
 from pathlib import Path
 
 COMUM = Path(__file__).resolve().parent
+MARCA = COMUM.parent / "marca"
+ICONE = MARCA / "ajtopogeo.ico"
+
+
+def marca_para_pyinstaller():
+    """Icone do executavel e arquivos de marca para dentro do pacote."""
+    if not ICONE.exists():
+        raise SystemExit(f"nao achei {ICONE} -- rode `py gestor/marca/gerar.py` antes")
+    args = ["--icon", str(ICONE), "--paths", str(MARCA), "--hidden-import", "marca"]
+    for nome in ("ajtopogeo.ico", "ajtopogeo.png"):
+        args += ["--add-data", f"{MARCA / nome}{os.pathsep}."]
+    return args
 
 
 def limpar(pasta):
@@ -83,6 +95,7 @@ def construir(nome, chave, descricao, script, projeto, aqui, copiar_ferramentas,
         "--distpath", aqui / "dist_app", "--workpath", aqui / "build" / "app",
         "--specpath", aqui / "build",
         "--paths", projeto,
+        *marca_para_pyinstaller(),
         *extras_pyinstaller,
         script,
     )
@@ -115,6 +128,7 @@ def construir(nome, chave, descricao, script, projeto, aqui, copiar_ferramentas,
         "--specpath", aqui / "build",
         "--add-data", f"{embrulho}{os.pathsep}.",
         "--add-data", f"{ficha}{os.pathsep}.",
+        *marca_para_pyinstaller(),
         COMUM / "instalar.py",
     )
     instalador = aqui / "dist" / f"Instalar {nome}.exe"

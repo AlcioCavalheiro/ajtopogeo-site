@@ -6,6 +6,7 @@ e clica em Processar. No fim a janela diz, em portugues, se o resultado presta.
 """
 
 import queue
+import sys
 import threading
 import traceback
 import webbrowser
@@ -18,9 +19,13 @@ TITULO = "PPK das Fotos de Drone - AJ TopoGeo"
 # Rodando por pythonw nao existe console: uma falha na partida (biblioteca
 # faltando, arquivo movido) deixaria a janela simplesmente nao abrir, sem dizer
 # nada. Entao o erro vira caixa de mensagem e arquivo de log ao lado do script.
+# a marca fica em gestor/marca; empacotado, o PyInstaller poe o modulo junto
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "marca"))
+
 try:
     import pyproj
 
+    import marca
     import ppk_fotos
 except Exception:  # noqa: BLE001 - qualquer falha aqui precisa ser visivel
     _erro = traceback.format_exc()
@@ -57,14 +62,18 @@ class Janela:
     def __init__(self, raiz):
         self.raiz = raiz
         raiz.title(TITULO)
-        raiz.geometry("780x680")
-        raiz.minsize(680, 560)
+        raiz.geometry("780x760")
+        raiz.minsize(680, 620)
+        marca.aplicar_icone(raiz)
 
         self.fila = queue.Queue()
         self.rodando = False
 
         corpo = ttk.Frame(raiz, padding=14)
         corpo.pack(fill=BOTH, expand=True)
+        marca.cabecalho(corpo, "PPK das Fotos de Drone",
+                        "Processa o log do voo contra a base RINEX e escreve o geotag "
+                        "no formato do DJI Terra.")
 
         # ---------- pasta do voo ----------
         bloco = ttk.LabelFrame(corpo, text=" 1. Pasta do voo ", padding=10)

@@ -72,6 +72,12 @@ No `config.json`, caminho relativo vale a partir da pasta do proprio arquivo --
 e o que permite o pacote instalado achar o GDAL que veio junto. Caminho absoluto
 continua funcionando, que e como ele aponta para o QGIS aqui.
 
+## Marca nas janelas
+
+O icone do executavel e do atalho, e o logo no topo da janela, saem de
+`gestor/marca` -- os mesmos do PPK das Fotos. Veja o README de lado para o
+detalhe de como sao gerados.
+
 ## Formatos de coordenada aceitos
 
 Uma por linha, com ou sem nome do ponto. Separador pode ser espaco, tabulacao,

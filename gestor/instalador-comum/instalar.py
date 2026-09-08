@@ -35,6 +35,12 @@ def _ficha():
         return json.load(f)
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "marca"))
+try:
+    import marca
+except ImportError:                     # rodando fora do pacote, sem a marca
+    marca = None
+
 PROGRAMA = _ficha()
 NOME = PROGRAMA["nome"]
 DESCRICAO = PROGRAMA.get("descricao", "")
@@ -207,7 +213,9 @@ def janela():
 
     raiz = Tk()
     raiz.title(TITULO)
-    raiz.geometry("640x430")
+    raiz.geometry("660x500")
+    if marca:
+        marca.aplicar_icone(raiz)
     try:
         ttk.Style().theme_use("vista")
     except Exception:  # noqa: BLE001 - tema e cosmetico
@@ -215,11 +223,14 @@ def janela():
 
     quadro = ttk.Frame(raiz, padding=14)
     quadro.pack(fill=BOTH, expand=True)
-    ttk.Label(quadro, text=f"Instalar {NOME}", font=("Segoe UI", 14, "bold")).pack(anchor="w")
-    ttk.Label(quadro, wraplength=600, justify="left",
-              text=(DESCRICAO + "\n\n" if DESCRICAO else "")
-                   + "Vai tudo embutido: nao precisa instalar mais nada nesta maquina, "
-                     "e nao pede senha de administrador.").pack(anchor="w", pady=(4, 12))
+    if marca:
+        marca.cabecalho(quadro, f"Instalar {NOME}", DESCRICAO)
+    else:
+        ttk.Label(quadro, text=f"Instalar {NOME}",
+                  font=("Segoe UI", 14, "bold")).pack(anchor="w")
+    ttk.Label(quadro, wraplength=620, justify="left",
+              text="Vai tudo embutido: nao precisa instalar mais nada nesta maquina, "
+                   "e nao pede senha de administrador.").pack(anchor="w", pady=(0, 12))
 
     caminho = StringVar(value=str(destino_padrao()))
     linha = ttk.Frame(quadro)

@@ -7,6 +7,7 @@ abas: cota de coordenadas e declividade da area.
 import csv
 import math
 import queue
+import sys
 import threading
 import traceback
 from pathlib import Path
@@ -16,7 +17,11 @@ from tkinter import scrolledtext, ttk
 TITULO = "Consulta de Cota - AJ TopoGeo"
 
 # Rodando por pythonw nao existe console: falha na partida ficaria invisivel.
+# a marca fica em gestor/marca; empacotado, o PyInstaller poe o modulo junto
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "marca"))
+
 try:
+    import marca
     import cota
 except Exception:  # noqa: BLE001
     _erro = traceback.format_exc()
@@ -49,8 +54,9 @@ class Janela:
     def __init__(self, raiz):
         self.raiz = raiz
         raiz.title(TITULO)
-        raiz.geometry("1060x780")
-        raiz.minsize(900, 640)
+        raiz.geometry("1060x860")
+        raiz.minsize(900, 700)
+        marca.aplicar_icone(raiz)
         self.fila = queue.Queue()
         self.info = None
         self.resultado = []
@@ -58,6 +64,9 @@ class Janela:
 
         corpo = ttk.Frame(raiz, padding=12)
         corpo.pack(fill=BOTH, expand=True)
+        marca.cabecalho(corpo, "Consulta de Cota",
+                        "Cota de coordenadas sobre o modelo digital, e declividade "
+                        "por faixa para projeto de terraco.")
 
         # ---------- modelo: fora das abas, vale para as duas ----------
         bloco = ttk.LabelFrame(corpo, text=" Modelo digital ", padding=10)

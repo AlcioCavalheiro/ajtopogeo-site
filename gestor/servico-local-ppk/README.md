@@ -172,6 +172,15 @@ do GPS). O RTKLIB so as reencaixa na semana certa quando elas sao a unica fonte;
 com as duas fontes ele alterna entre os dois conjuntos ao longo do voo e a
 ambiguidade reinicia toda hora.
 
+## Marca nas janelas
+
+O icone dos executaveis e dos atalhos, e o logo no topo da janela, saem de
+`gestor/marca`. Os arquivos sao gerados de uma vez por `py gestor/marca/gerar.py`
+a partir do `gestor/LOGO.png` e ficam versionados; o build so os embute.
+
+O icone usa **so o globo**: em 16 px, que e o tamanho na barra de tarefas, o
+texto "AJ TopoGeo" vira borrao.
+
 ## Janela (uso sem linha de comando)
 
 `PPK das Fotos.bat` abre `ppk_janela.py`, que e o jeito normal de usar. Ha um
