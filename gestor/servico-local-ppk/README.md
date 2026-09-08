@@ -311,6 +311,19 @@ Alem disso, a discordancia medida entre as duas mascaras vira **piso** da
 precisao de cada foto: onde as duas solucoes divergem 20 cm, o geotag sai com
 20 cm naquela foto. E medicao, nao estimativa.
 
+E **voo que fixa menos de 70% nao tem a solucao fixa levada a serio**: as fotos
+que ele declara fixas saem com 0,50/1,00 m. A mesma fragilidade que impediu a
+fixacao no resto do voo tambem trava a ambiguidade no inteiro errado onde ela
+fixa. Medido na FAZ SAO JORGE contra o PPK do DJI Terra:
+
+| fixacao do voo | fotos fixas erradas por mais de 20 cm |
+|---|---|
+| 92%, 95% e 100% | **0** de 977 |
+| 26% | **45** de 129, uma delas 2,05 m |
+
+O piso das mascaras nao pega esse caso: as duas mascaras erraram juntas, e
+concordaram em 0,0 cm. So a taxa de fixacao do voo denuncia.
+
 `--sigma formal` volta a escrever o desvio do RTKLIB, util so para conferencia.
 
 ### Por que os numeros sao folgados

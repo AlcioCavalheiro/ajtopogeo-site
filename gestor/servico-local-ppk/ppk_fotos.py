@@ -52,21 +52,47 @@ SIGMA_REALISTA = {
 }
 SIGMA_REALISTA_PADRAO = (2.00, 4.00)   # single, dgps ou desconhecido
 
+# Um voo que fixa pouco nao merece confianca nem nas epocas que ELE declara
+# fixas: a mesma fragilidade que impediu a fixacao no resto do voo tambem trava
+# a ambiguidade no inteiro errado onde ela fixa. Medido na FAZ SAO JORGE, contra
+# o PPK do DJI Terra:
+#
+#   92%, 95% e 100% de fixacao ->  0 de 977 fotos fixas erradas
+#   26% de fixacao             -> 45 de 129 fotos fixas erradas, uma delas 2,05 m
+#
+# Declarar 0,15/0,30 naquelas 45 e o caminho direto para o underflow que aborta o
+# Pix4D. Com 0,50/1,00 o pior caso vira 2 sigma -- pesa pouco, mas nao zera.
+FIXACAO_CONFIAVEL = 70          # % de fotos fixas
+SIGMA_FIXA_DUVIDOSA = (0.50, 1.00)
 
-def sigma_da_foto(foto, modo, piso=None):
+
+def sigma_da_foto(foto, modo, piso=None, voo_duvidoso=False):
     """Precisao a declarar para a foto, conforme a qualidade da epoca.
 
     `piso` e a discordancia medida entre duas solucoes independentes naquela
     foto: quando ela e maior que o valor de tabela, e ela que vale. E medicao,
-    nao estimativa, e serve exatamente para o caso em que a epoca se declara
-    fixa mas nao esta.
+    nao estimativa, e serve para o caso em que a epoca se declara fixa mas nao
+    esta -- desde que as duas solucoes discordem. Quando as duas erram junto, o
+    piso nao ve nada, e ai vale `voo_duvidoso`.
     """
     if modo == "formal":
         return math.hypot(foto["sdn"], foto["sde"]), foto["sdu"]
     h, v = SIGMA_REALISTA.get(foto["q"], SIGMA_REALISTA_PADRAO)
+    if voo_duvidoso and foto["q"] == 1:
+        h, v = SIGMA_FIXA_DUVIDOSA
     if piso:
         h, v = max(h, piso[0]), max(v, piso[1])
     return h, v
+
+
+def voos_pouco_fixados(fotos):
+    """Voos cuja fixacao esta baixa demais para a solucao fixa valer o que diz."""
+    contagem = {}
+    for f in fotos:
+        n, fixas = contagem.get(f["voo"], (0, 0))
+        contagem[f["voo"]] = (n + 1, fixas + (f["q"] == 1))
+    return {voo for voo, (n, fixas) in contagem.items()
+            if n and 100.0 * fixas / n < FIXACAO_CONFIAVEL}
 
 
 def pasta_do_programa():
@@ -661,10 +687,12 @@ def calcular_fotos(voo, epocas, eventos, atitude):
 
 def escrever_geotag(caminho, fotos, sigma="realista", piso=None):
     """Grava o CSV no formato do DJI Terra."""
+    duvidosos = voos_pouco_fixados(fotos) if sigma == "realista" else set()
     with open(caminho, "w", encoding="utf-8", newline="") as f:
         for foto in fotos:
             hacc, vacc = sigma_da_foto(foto, sigma,
-                                       (piso or {}).get(foto["nome"]))
+                                       (piso or {}).get(foto["nome"]),
+                                       voo_duvidoso=foto["voo"] in duvidosos)
             f.write(f"{foto['nome']},{foto['lat']!r},{foto['lon']!r},{foto['h']!r},"
                     f"{num(foto['yaw'])},{num(foto['pitch'])},{num(foto['roll'])},"
                     f"{hacc:.5f},{vacc:.5f}\n")
@@ -726,10 +754,16 @@ def conferir_qualidade(fotos, total_fotos, inicio_rover=None, comparacao=None,
         rebaixar("ruim")
         msgs.append("Fixacao muito baixa: a maioria das fotos entra na fotogrametria "
                     "com peso quase nulo, e o bloco fica sem amarracao.")
-    elif pct < 70:
+    elif pct < FIXACAO_CONFIAVEL:
         rebaixar("atencao")
         msgs.append("Fixacao mediana. As fotos em float estao declaradas com 1,00/2,00 m "
                     "e vao contar pouco no ajuste.")
+    if pct < FIXACAO_CONFIAVEL:
+        msgs.append(f"Como o voo fixou menos de {FIXACAO_CONFIAVEL}%, ate as fotos que ele "
+                    f"declara fixas saem com {SIGMA_FIXA_DUVIDOSA[0]:.2f}/"
+                    f"{SIGMA_FIXA_DUVIDOSA[1]:.2f} m em vez de 0,15/0,30: num voo assim a "
+                    "solucao tambem trava no inteiro errado onde ela fixa. Para usar estas "
+                    "fotos em terraco, use ponto de apoio em campo.")
 
     if comparacao:
         n = comparacao["n"]
