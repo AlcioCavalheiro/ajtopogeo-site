@@ -67,14 +67,64 @@ satelites, o comprimento da linha de base e o tempo de rastreio daquele voo.
 
 ## Mascara de elevacao
 
-O padrao e 15 graus, como o material da T2R recomenda. Em voo com boa visada,
-`--elmask 10` costuma fixar bem mais epocas -- num voo de 534 fotos passou de
-45% para 69% das fotos em solucao fixa, com as duas solucoes concordando em
-0,5-1,4 cm de media. Vale conferir a continuidade da trajetoria depois de baixar
-a mascara: satelite baixo e mais ruidoso.
+O padrao (`--elmask auto`) roda **as duas**, 15 e 10 graus, e entrega a que fixa
+mais. As duas rodadas nao sao desperdicio: comparar uma com a outra e a unica
+conferencia independente que existe sem ponto de apoio em campo (veja
+*As conferencias automaticas*).
 
-O `pos2-elmaskhold` fica fixo em 15 e nao acompanha a `--elmask`: travar a
-ambiguidade em satelite baixo derruba a fixacao (medido: 69% -> 49%).
+## Resolucao de ambiguidade: continuous, nunca fix-and-hold
+
+`pos2-armode = fix-and-hold` trava a ambiguidade e **sustenta um travamento
+errado** por minutos de voo -- com selo de "solucao fixa". Medido no voo AQUARELA
+(188 fotos, base a menos de 200 m, referencia = PPK do DJI Terra):
+
+| | fotos fixas | fotos a mais de 50 cm da referencia |
+|---|---|---|
+| fix-and-hold | 88% | 22 |
+| **continuous** | **97%** | **6** (exatamente as 6 declaradas float) |
+
+Com `continuous`, **todas** as fotos declaradas fixas cairam dentro de 6 cm no
+plano e 4 cm em altura da referencia comercial.
+
+`pos2-gloarmode = off` pelo mesmo motivo, mas por uma razao fisica: o GLONASS e
+FDMA, cada satelite transmite numa frequencia diferente, e o atraso de hardware
+do receptor varia com a frequencia. Em GPS/Galileo/BeiDou esse atraso cancela na
+dupla diferenca; no GLONASS so cancela se base e rover forem do mesmo fabricante.
+Base ComNav com rover DJI nunca sao. O GLONASS continua entrando na **posicao**,
+so sai da resolucao de ambiguidade.
+
+## Calibracao da antena da base (ANTEX)
+
+A altura de antena que o RINEX declara leva do marco ate o ARP -- a base fisica do
+equipamento. O centro de fase, que e onde o sinal realmente e medido, fica alguns
+centimetros acima disso, e quanto depende da frequencia. Na CNTT300 da base sao
+75 mm em L1 e 63 mm em L2.
+
+Sem declarar a antena, esses centimetros entram inteiros na altura de **todas** as
+fotos. Medido no AQUARELA, contra o PPK do DJI Terra:
+
+| | vies mediano em altura | fotos fixas |
+|---|---|---|
+| sem ANTEX | **-6 cm** | 88% |
+| com ANTEX | **+1 cm** | 97% |
+
+O programa le o modelo da antena no cabecalho do RINEX da base e procura no
+`igs20_*.atx` que ja vem junto do RTKLIB -- nao precisa baixar nem guardar nada.
+O RTKLIB **nao reclama** quando nao encontra a antena, so deixa de corrigir; por
+isso o programa confere por conta propria e avisa.
+
+## So a navegacao do drone
+
+O `.NAV` do proprio voo e a unica navegacao usada. Juntar os arquivos de
+navegacao da base **arrasa** a solucao: medido no AQUARELA, 96% das fotos em
+solucao fixa com o `.NAV` do drone sozinho e **27%** ao acrescentar o `.26N`
+(GPS) da base ComNav. Os outros arquivos da base (`.26G`, `.26C`, `.26L`) sao
+inofensivos -- o estrago e so do GPS.
+
+O drone grava as efemerides com a data rolada para 2007 (o salto de 1024 semanas
+do GPS). O RTKLIB so as reencaixa na semana certa quando elas sao a unica fonte;
+com as duas fontes ele alterna entre os dois conjuntos ao longo do voo e a
+ambiguidade reinicia toda hora.
 
 ## Janela (uso sem linha de comando)
 
@@ -88,23 +138,55 @@ base desloca todas as fotos em bloco.
 
 ## As conferencias automaticas
 
-O ponto do sistema nao e rodar o RTKLIB, e dizer se o resultado presta. Sao tres
-indicadores, e o segundo e o que importa:
+O ponto do sistema nao e rodar o RTKLIB, e dizer se o resultado presta.
 
-1. **Fotos em solucao fixa.** Util, mas engana sozinho: um voo defeituoso marcou
-   86% aqui e mesmo assim estava errado.
-2. **Concordancia entre as passagens de ida e volta.** As duas resolvem a
-   ambiguidade de forma independente; onde as duas fixam, a ambiguidade e
-   confiavel. Foi o unico indicador que separou os dois voos de referencia:
-   1% no voo com degrau de 37 cm, 13% no voo limpo. Abaixo de 5% e defeito.
-3. **Tempo de gravacao antes da primeira foto.** Nos dois voos medidos havia
-   ~55 s, curto demais. E a causa raiz dos dois problemas.
+1. **Duas solucoes independentes, nas mesmas fotos.** O programa processa com
+   mascara de 15 e de 10 graus e compara as duas **so nas fotos que ambas
+   declararam fixas**. Trocar a mascara troca o conjunto de satelites, entao a
+   ambiguidade e resolvida por outro caminho: se as duas caem no mesmo lugar,
+   esta firme; se nao caem, esta trocando durante o voo. E o defeito mais
+   perigoso, porque nao aparece no desvio que o RTKLIB reporta.
 
-Ficou registrado o que **nao** funciona como conferencia, para nao se tentar de
-novo: aceleracao vertical entre epocas (deixa passar degrau espalhado por
-3 epocas) e diferenca de posicao entre fotos consecutivas (o drone se move de
-verdade entre disparos). Continuidade da trajetoria tambem nao prova nada
-sozinha: ambiguidade errada de forma constante da trajetoria lisa e deslocada.
+   A restricao **as fotos fixas nas duas** e o que torna o teste util. Sem ela,
+   uma foto em float -- que pode estar metros fora em ambas sem que isso diga
+   nada sobre a ambiguidade -- domina a estatistica: foi assim que a versao
+   anterior acusou 84 cm de divergencia no AQUARELA, um voo em que todas as
+   fotos fixas estao dentro de 4 cm em altura. Restrito as fixas, o mesmo teste
+   da 0,6 cm de mediana, que e a verdade.
+
+2. **Fotos em solucao fixa.** Com a configuracao atual um voo saudavel passa de
+   90%. O que sobra em float costuma estar metros fora -- e por isso ja sai
+   declarado com 1,00/2,00 m no geotag.
+
+3. **A coordenada da base, contra o ceu.** Antes de processar, o programa
+   posiciona a base sozinha por ponto simples e compara com o que foi digitado.
+   Erro na base entra 1:1 em todas as fotos e **nao aparece em nenhuma
+   estatistica do PPK**, porque e comum a todas as epocas. Ponto simples acerta
+   poucos metros, o suficiente para pegar os dois enganos que acontecem de
+   verdade: digitar altitude ortometrica no lugar da elipsoidal (5 a 10 m no
+   Brasil) e trocar de marco ou errar digito.
+
+4. **Tempo de gravacao antes da primeira foto.** Sempre entre 53 e 59 s, medido
+   em dez voos. **Nao adianta esperar no chao**: o log bruto do Matrice so abre
+   quando a missao de mapeamento comeca, ja em altitude de cruzeiro. E firmware.
+
+O que **nao** funciona como conferencia, para nao se tentar de novo:
+
+- **Passagens de ida e volta separadas.** Foi o indicador principal ate aqui e
+  nao serve: `forward` e `backward` isolados sao muito piores que o `combined`
+  que se entrega (50% e 42% de fixacao contra 97%), e nas epocas das fotos do
+  AQUARELA elas **nunca** fixaram as duas ao mesmo tempo -- zero fotos medidas.
+  Onde coincidiam era no comeco e no fim, justamente onde uma das passagens
+  ainda nao convergiu, e ali discordavam metros. Condenava voo bom.
+- **Fracao de epocas em comum** entre duas solucoes: com uma fixando 99% e a
+  outra 4%, a intersecao fica em 4% mesmo que concordem perfeitamente.
+- **Aceleracao vertical entre epocas**: deixa passar degrau espalhado por
+  3 epocas.
+- **Diferenca de posicao entre fotos consecutivas**: o drone se move de verdade.
+- **Continuidade da trajetoria**: ambiguidade errada de forma constante da
+  trajetoria lisa e deslocada.
+- **O desvio formal do RTKLIB**: e otimista, nao e acuracia. Prometeu 7 mm em
+  altura num voo com 19 cm de discordancia real.
 
 ## Como o atalho encontra o Python
 
@@ -180,14 +262,31 @@ Por isso o padrao passou a ser `--sigma realista`, que escreve conforme a
 qualidade da epoca de cada foto:
 
 ```
-solucao fixa  (Q=1)   0,05 / 0,10 m
-float         (Q=2)   0,20 / 0,40 m
-demais                0,30 / 0,60 m
+solucao fixa  (Q=1)   0,15 / 0,30 m
+float         (Q=2)   1,00 / 2,00 m
+demais                2,00 / 4,00 m
 ```
 
-Isso e melhor que um piso fixo porque diz ao ajuste **quais fotos** merecem
-confianca, permitindo que as bem fixadas puxem as mal fixadas. `--sigma formal`
-volta a escrever o desvio do RTKLIB, util so para conferencia.
+Alem disso, a discordancia medida entre as duas mascaras vira **piso** da
+precisao de cada foto: onde as duas solucoes divergem 20 cm, o geotag sai com
+20 cm naquela foto. E medicao, nao estimativa.
+
+`--sigma formal` volta a escrever o desvio do RTKLIB, util so para conferencia.
+
+### Por que os numeros sao folgados
+
+O peso entra no ajuste como `exp(-residuo^2 / 2*sigma^2)`. Uma foto declarada com
+5 cm e que esteja 1 m fora vale `exp(-200)` -- que em ponto flutuante e zero.
+Isso nao degrada devagar, **quebra**: no AQUARELA o Pix4D chegou a 2.170.541
+pontos de amarracao, os pesos deram underflow (`GaussNoise: non-positive
+weightSum 1.18733e-119`), os pontos cairam para 19.887 -- perda de 99,1% -- e o
+passo 1 abortou com `Caught unknown exception during initial processing`. A
+precisao declarada era 0,05/0,10 m e o residuo real medido pelo proprio Pix4D
+tinha media de 1,14 m e maximo de 28 m.
+
+Declarar mais aperto do que a solucao entrega nao melhora nada: so tira do ajuste
+a liberdade de corrigir o geotag pela geometria das imagens, que e justamente o
+que ele faz melhor que o GNSS.
 
 ## Fotos com a coordenada ja corrigida
 

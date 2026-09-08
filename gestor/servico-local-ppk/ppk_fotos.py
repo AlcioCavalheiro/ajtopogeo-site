@@ -33,31 +33,40 @@ PASTA_TRABALHO = "_ppk"
 RAIO_TERRA = 6378137.0
 
 # As duas ultimas colunas do arquivo de geotag NAO sao documentacao: o programa
-# de fotogrametria usa como PESO de cada foto no ajuste do bloco. O desvio formal
-# do RTKLIB e otimista em uma ordem de grandeza, e declara-lo faz o ajuste
-# conformar o bloco a geotags possivelmente errados em vez de corrigi-los pela
-# geometria das imagens.
+# de fotogrametria usa como PESO de cada foto no ajuste do bloco. E o peso entra
+# como exp(-residuo^2 / 2*sigma^2) -- uma foto declarada com 5 cm e que esteja
+# 1 m fora vale exp(-200), que em ponto flutuante e simplesmente zero.
 #
-# Medido no levantamento GUSTHAVO (3210 fotos, mesmo bloco, so trocando o
-# arquivo de geotag): com o desvio formal (0,004/0,006 m) o erro de reprojecao
-# ficou em 0,29 px; com os 0,03/0,06 fixos do DJI Terra, 0,15 px -- metade.
+# Isso nao degrada devagar, quebra: no AQUARELA o Pix4D chegou a 2.170.541 pontos
+# de amarracao, os pesos deram underflow, os pontos cairam para 19.887 (perda de
+# 99%) e o passo 1 abortou com "unknown exception". A precisao declarada era
+# 0,05/0,10 m e o residuo medio real era 1,14 m.
 #
-# Os valores abaixo saem da qualidade da epoca de cada foto, que e o que a
-# solucao fixa ou float realmente significa, e da ordem de grandeza medida na
-# comparacao entre dois PPK independentes (9 cm / 16 cm nos voos bem fixados,
-# 16 cm / 49 cm nos mal fixados).
+# Por isso os valores abaixo sao folgados de proposito. Declarar mais aperto do
+# que a solucao entrega nao melhora nada -- so tira do ajuste a liberdade de
+# corrigir o geotag pela geometria das imagens, que e justamente o que ele sabe
+# fazer melhor que o GNSS.
 SIGMA_REALISTA = {
-    1: (0.05, 0.10),   # Q=1 solucao fixa
-    2: (0.20, 0.40),   # Q=2 float
+    1: (0.15, 0.30),   # Q=1 solucao fixa
+    2: (1.00, 2.00),   # Q=2 float -- a foto pode estar metros fora
 }
-SIGMA_REALISTA_PADRAO = (0.30, 0.60)   # single, dgps ou desconhecido
+SIGMA_REALISTA_PADRAO = (2.00, 4.00)   # single, dgps ou desconhecido
 
 
-def sigma_da_foto(epoca, modo):
-    """Precisao a declarar para a foto, conforme a qualidade da epoca."""
+def sigma_da_foto(foto, modo, piso=None):
+    """Precisao a declarar para a foto, conforme a qualidade da epoca.
+
+    `piso` e a discordancia medida entre duas solucoes independentes naquela
+    foto: quando ela e maior que o valor de tabela, e ela que vale. E medicao,
+    nao estimativa, e serve exatamente para o caso em que a epoca se declara
+    fixa mas nao esta.
+    """
     if modo == "formal":
-        return math.hypot(epoca["sdn"], epoca["sde"]), epoca["sdu"]
-    return SIGMA_REALISTA.get(epoca["q"], SIGMA_REALISTA_PADRAO)
+        return math.hypot(foto["sdn"], foto["sde"]), foto["sdu"]
+    h, v = SIGMA_REALISTA.get(foto["q"], SIGMA_REALISTA_PADRAO)
+    if piso:
+        h, v = max(h, piso[0]), max(v, piso[1])
+    return h, v
 
 
 def carregar_config(base_dir):
@@ -177,13 +186,13 @@ def tow_gps(ano, mes, dia, hora, minuto, segundo):
 
 
 def descrever_rinex(caminho):
-    """Le o cabecalho: versao, receptor, altura de antena e periodo coberto.
+    """Le o cabecalho: versao, receptor, antena, intervalo e periodo coberto.
 
     Serve para escolher a base com criterio e para avisar antes de processar,
     em vez de deixar o RTKLIB falhar com uma mensagem generica.
     """
-    d = dict(caminho=caminho, versao=0.0, receptor="", marcador="",
-             altura_antena=None, inicio=None, fim=None)
+    d = dict(caminho=caminho, versao=0.0, receptor="", marcador="", antena="",
+             altura_antena=None, intervalo=None, inicio=None, fim=None)
     try:
         with open(caminho, encoding="latin-1") as f:
             for linha in f:
@@ -197,6 +206,13 @@ def descrever_rinex(caminho):
                     d["marcador"] = linha[:60].strip()
                 elif rot == "REC # / TYPE / VERS":
                     d["receptor"] = linha[20:40].strip()
+                elif rot == "ANT # / TYPE":
+                    d["antena"] = linha[20:40].rstrip()
+                elif rot == "INTERVAL":
+                    try:
+                        d["intervalo"] = float(linha[:10])
+                    except ValueError:
+                        pass
                 elif rot == "ANTENNA: DELTA H/E/N":
                     try:
                         d["altura_antena"] = float(linha[:14])
@@ -248,10 +264,55 @@ def normalizar_rinex(origem, destino):
         shutil.copyfileobj(fe, fs)
 
 
-def escrever_conf(caminho, lat, lon, h, altura_antena, elmask=15):
-    # elmaskhold fica em 15 de proposito: travar a ambiguidade em satelite baixo
-    # derruba a taxa de fixacao (medido: 69% -> 49% num voo de 534 fotos).
-    caminho.write_text(f"""pos1-posmode       =kinematic
+def achar_antex(cfg):
+    """Arquivo de calibracao de antena (ANTEX) que acompanha o RTKLIB.
+
+    A distribuicao EX 2.5.1 traz o igs20 completo, com a CNTT300 da base entre as
+    antenas calibradas. Nao precisa baixar nada nem guardar .atx junto do projeto.
+    """
+    atx = sorted(Path(cfg["rtklibBin"]).glob("*.atx"))
+    return atx[-1] if atx else None
+
+
+def antena_no_antex(antex, nome):
+    """Diz se aquele modelo de antena tem calibracao dentro do arquivo ANTEX.
+
+    Vale conferir porque o RTKLIB NAO reclama quando nao acha a antena: ele
+    simplesmente nao aplica correcao nenhuma, e o viés de 6 a 8 cm em altura
+    passa despercebido.
+    """
+    alvo = f"{nome:<20.20s}"
+    try:
+        with open(antex, encoding="latin-1") as f:
+            for linha in f:
+                if linha[60:].startswith("TYPE / SERIAL NO") and linha[:20] == alvo:
+                    return True
+    except OSError:
+        pass
+    return False
+
+
+def escrever_conf(caminho, lat, lon, h, altura_antena, elmask=15,
+                  anttype=None, antex=None):
+    """Gera a configuracao do RTKLIB.
+
+    Duas escolhas aqui foram medidas contra o PPK do DJI Terra no voo AQUARELA
+    (188 fotos, base ComNav a menos de 200 m) e valem para qualquer voo:
+
+    armode=continuous, e nao fix-and-hold. O fix-and-hold trava a ambiguidade e
+    SUSTENTA um travamento errado por minutos de voo -- com selo de "fixa". Com
+    ele, 22 das 188 fotos ficaram a mais de 50 cm da referencia; com continuous,
+    so as 6 que ficaram declaradas float. A fixacao ainda subiu de 88% para 97%.
+
+    gloarmode=off. O GLONASS e FDMA: cada satelite transmite numa frequencia
+    diferente, e o atraso de hardware do receptor varia com a frequencia. Em
+    GPS/Galileo/BeiDou esse atraso cancela na dupla diferenca; no GLONASS so
+    cancela se base e rover forem do mesmo fabricante. Base ComNav com rover DJI
+    nunca sao, entao sobra viés interfrequencia suficiente para o LAMBDA
+    arredondar para o inteiro errado passando no teste de razao. O GLONASS
+    continua entrando na posicao, so sai da resolucao de ambiguidade.
+    """
+    texto = f"""pos1-posmode       =kinematic
 pos1-frequency     =l1+l2
 pos1-soltype       =combined
 pos1-elmask        ={elmask}
@@ -262,8 +323,8 @@ pos1-tropopt       =saas
 pos1-sateph        =brdc
 pos1-navsys        =45
 
-pos2-armode        =fix-and-hold
-pos2-gloarmode     =fix-and-hold
+pos2-armode        =continuous
+pos2-gloarmode     =off
 pos2-bdsarmode     =on
 pos2-arfilter      =on
 pos2-arthres       =3
@@ -303,10 +364,25 @@ ant2-pos3          ={h:.4f}
 ant2-antdele       =0.0000
 ant2-antdeln       =0.0000
 ant2-antdelu       ={altura_antena:.4f}
-""", encoding="utf-8")
+"""
+    # a altura de antena leva do marco ate o ARP (a base do equipamento); o
+    # centro de fase fica mais alguns centimetros acima, e quanto depende da
+    # frequencia. Sem declarar a antena, esses 6 a 8 cm entram inteiros na altura
+    # de todas as fotos.
+    if anttype and antex:
+        texto += (f"ant2-anttype       ={anttype}\n"
+                  f"file-rcvantfile    ={Path(antex).as_posix()}\n")
+    caminho.write_text(texto, encoding="utf-8")
 
 
 def ler_mrk(caminho):
+    """Le o arquivo de eventos do drone: instante do disparo e braco de alavanca.
+
+    N, E e V vem em milimetros no referencial NED -- o terceiro eixo aponta para
+    BAIXO. Faz sentido fisico: a antena fica em cima do drone e a camera embaixo,
+    no gimbal, entao V positivo quer dizer "camera abaixo da antena" e a altura
+    da camera se obtem SUBTRAINDO V.
+    """
     eventos = {}
     for linha in open(caminho, encoding="latin-1"):
         if not linha.strip():
@@ -461,97 +537,205 @@ def num(texto):
 CONVERGENCIA_MINIMA_S = 180
 
 
-def concordancia_ida_volta(frente, tras):
-    """Quanto as duas passagens do filtro concordam entre si.
+def posicionar_base(rnx2rtkp, base_obs, navs, trabalho):
+    """Posiciona a base sozinha, por ponto simples, so para conferir o digitado.
 
-    Ida e volta resolvem a ambiguidade de forma independente. Onde as duas
-    chegam em solucao fixa, a ambiguidade e confiavel; se quase nunca coincidem,
-    a solucao esta trocando de ambiguidade e as fotos saem em patamares
-    diferentes. Manobra real do drone aparece igual nas duas passagens, entao
-    este teste nao confunde voo com defeito -- foi por isso que substituiu a
-    checagem por aceleracao, que deixava passar um degrau de 37 cm.
+    Nao entra no calculo das fotos -- e uma testemunha independente. Um erro na
+    coordenada da base entra 1:1 em todas as fotos e NAO aparece em nenhuma
+    estatistica do PPK, porque e comum a todas as epocas. Ponto simples acerta a
+    altura em 2 ou 3 metros, o que ja basta para pegar os dois enganos que
+    realmente acontecem: digitar altitude ortometrica no lugar da elipsoidal
+    (5 a 10 m no Brasil) e trocar de marco ou errar digito.
     """
-    import bisect
+    import statistics as st
 
-    tt = [e["tow"] for e in tras]
-    ambas, difs = 0, []
-    for e in frente:
-        if e["q"] != 1:
+    conf = Path(trabalho) / "base_single.conf"
+    conf.write_text("""pos1-posmode       =single
+pos1-frequency     =l1
+pos1-elmask        =15
+pos1-navsys        =45
+pos1-ionoopt       =brdc
+pos1-tropopt       =saas
+pos1-sateph        =brdc
+out-solformat      =llh
+out-outhead        =on
+out-timesys        =gpst
+out-timeform       =tow
+out-degform        =deg
+out-height         =ellipsoidal
+""", encoding="utf-8")
+    pos = Path(trabalho) / "base_single.pos"
+    try:
+        # -ti 5 decima para uma epoca a cada 5 s: sobram centenas de solucoes,
+        # suficiente para a mediana, e o arquivo de horas roda em segundos
+        subprocess.run([str(rnx2rtkp), "-k", str(conf), "-ti", "5", "-o", str(pos),
+                        str(base_obs), *[str(n) for n in navs]],
+                       capture_output=True, check=True, timeout=600)
+        epocas = ler_pos(pos)
+    except (subprocess.SubprocessError, OSError):
+        return None
+    if len(epocas) < 20:
+        return None
+    return dict(n=len(epocas),
+                lat=st.median([e["lat"] for e in epocas]),
+                lon=st.median([e["lon"] for e in epocas]),
+                h=st.median([e["h"] for e in epocas]))
+
+
+def conferir_base(observada, lat, lon, h_arp):
+    """Compara a coordenada digitada com a que a propria base enxerga no ceu."""
+    if not observada:
+        return []
+    dn = (observada["lat"] - lat) * math.pi / 180 * RAIO_TERRA
+    de = (observada["lon"] - lon) * math.pi / 180 * RAIO_TERRA * math.cos(math.radians(lat))
+    dh = math.hypot(dn, de)
+    dv = observada["h"] - h_arp
+
+    avisos = []
+    if dh > 50 or abs(dv) > 50:
+        raise RuntimeError(
+            "A coordenada digitada nao bate com o lugar onde a base estava.\n\n"
+            f"Posicionando a base sozinha pelo satelite, ela cai a {dh:.0f} m no plano "
+            f"e {dv:+.0f} m em altura da coordenada informada. Ponto simples erra "
+            "poucos metros, nunca dezenas.\n\n"
+            "Confira se a coordenada e deste marco, se o fuso/EPSG esta certo e se "
+            "nenhum digito trocou. Um erro na base entra inteiro em todas as fotos.")
+    if abs(dv) > 8:
+        avisos.append(
+            f"A altura digitada esta {dv:+.1f} m da que a base enxerga sozinha no ceu. "
+            "Posicionamento por ponto simples erra alguns metros, entao isso nao e prova "
+            "de erro -- mas pede conferencia, porque o engano mais comum e informar "
+            "altitude ORTOMETRICA (do nivel do mar) onde o programa espera ELIPSOIDAL. "
+            "No Brasil as duas diferem de 5 a 10 m, e o erro entra inteiro em todas as "
+            "fotos sem aparecer em nenhuma estatistica.")
+    if dh > 10:
+        avisos.append(
+            f"A coordenada horizontal esta {dh:.0f} m da posicao que a base enxerga "
+            "sozinha. Confira o EPSG/fuso e o marco.")
+    return avisos
+
+
+def calcular_fotos(voo, epocas, eventos, atitude):
+    """Posicao de cada foto: trajetoria interpolada no disparo + braco de alavanca."""
+    fotos, faltando = [], []
+    for foto in voo["fotos"]:
+        achado = re.search(r"_(\d+)_[A-Z]\.JPG$", foto.name, re.IGNORECASE)
+        evento = eventos.get(int(achado.group(1))) if achado else None
+        p = interpolar(epocas, evento["tow"]) if evento else None
+        if p is None:
+            faltando.append(foto.name)
             continue
-        i = bisect.bisect_left(tt, e["tow"])
-        if 0 <= i < len(tras) and abs(tras[i]["tow"] - e["tow"]) < 1e-6 and tras[i]["q"] == 1:
-            ambas += 1
-            difs.append(abs(e["h"] - tras[i]["h"]) * 100)
-    total = max(len(frente), len(tras)) or 1
-    difs.sort()
-    return dict(pct_ambas=100.0 * ambas / total, epocas_ambas=ambas,
-                fix_frente=sum(1 for e in frente if e["q"] == 1),
-                fix_tras=sum(1 for e in tras if e["q"] == 1),
-                dif_mediana=difs[len(difs) // 2] if difs else None,
-                dif_p90=difs[int(0.9 * (len(difs) - 1))] if difs else None,
-                dif_maxima=difs[-1] if difs else None)
+        yaw, pitch, roll = atitude.get(foto.name, ("", "", ""))
+        fotos.append(dict(
+            nome=foto.name, caminho=str(foto), voo=voo["nome"], tow=evento["tow"],
+            lat=p["lat"] + (evento["n"] / RAIO_TERRA) * 180 / math.pi,
+            lon=p["lon"] + (evento["e"] / (RAIO_TERRA * math.cos(math.radians(p["lat"])))) * 180 / math.pi,
+            h=p["h"] - evento["v"],   # V do .MRK aponta para baixo (NED)
+            q=p["q"], sdn=p["sdn"], sde=p["sde"], sdu=p["sdu"],
+            yaw=yaw, pitch=pitch, roll=roll))
+    return fotos, faltando
 
 
-def conferir_qualidade(epocas, eventos, escritas, total_fotos,
-                       ida_volta=None, inicio_rover=None):
+def escrever_geotag(caminho, fotos, sigma="realista", piso=None):
+    """Grava o CSV no formato do DJI Terra."""
+    with open(caminho, "w", encoding="utf-8", newline="") as f:
+        for foto in fotos:
+            hacc, vacc = sigma_da_foto(foto, sigma,
+                                       (piso or {}).get(foto["nome"]))
+            f.write(f"{foto['nome']},{foto['lat']!r},{foto['lon']!r},{foto['h']!r},"
+                    f"{num(foto['yaw'])},{num(foto['pitch'])},{num(foto['roll'])},"
+                    f"{hacc:.5f},{vacc:.5f}\n")
+    return len(fotos)
+
+
+def comparar_fotos(a, b):
+    """Discordancia entre duas solucoes, so nas fotos que ficaram FIXAS nas duas.
+
+    Restringir as fixas e o que torna o teste util. Uma foto em float pode estar
+    metros fora nas duas solucoes sem que isso diga nada sobre a ambiguidade: foi
+    assim que a versao anterior acusou 84 cm de divergencia no AQUARELA, um voo
+    que, medido contra o PPK do DJI Terra, tem TODAS as fotos fixas dentro de
+    6 cm no plano e 4 cm em altura. Restrito as fixas, o mesmo teste da 0,6 cm de
+    mediana -- que e a verdade.
+    """
+    ia = {f["nome"]: f for f in a if f["q"] == 1}
+    ib = {f["nome"]: f for f in b if f["q"] == 1}
+    dh, dv, por_foto = [], [], {}
+    for nome in ia.keys() & ib.keys():
+        x, y = ia[nome], ib[nome]
+        dn = (x["lat"] - y["lat"]) * math.pi / 180 * RAIO_TERRA
+        de = (x["lon"] - y["lon"]) * math.pi / 180 * RAIO_TERRA * math.cos(math.radians(x["lat"]))
+        h, v = math.hypot(dn, de), abs(x["h"] - y["h"])
+        dh.append(h)
+        dv.append(v)
+        por_foto[nome] = (h, v)
+    if not dh:
+        return None
+    dh.sort()
+    dv.sort()
+    def pct(serie, q):
+        return serie[int(q * (len(serie) - 1))]
+    return dict(n=len(dh), por_foto=por_foto,
+                dh_mediana=pct(dh, 0.5), dh_p90=pct(dh, 0.9), dh_max=dh[-1],
+                dv_mediana=pct(dv, 0.5), dv_p90=pct(dv, 0.9), dv_max=dv[-1])
+
+
+def conferir_qualidade(fotos, total_fotos, inicio_rover=None, comparacao=None,
+                       intervalo_base=None):
     """Confere se a trajetoria presta, sem precisar de referencia externa."""
-    import bisect
-
-    tows = [e["tow"] for e in epocas]
-    fixas = avaliadas = 0
-    for ev in eventos.values():
-        i = bisect.bisect_left(tows, ev["tow"])
-        if 0 < i < len(epocas):
-            avaliadas += 1
-            fixas += epocas[i - 1]["q"] == 1
+    avaliadas = len(fotos)
+    fixas = sum(1 for f in fotos if f["q"] == 1)
     pct = 100.0 * fixas / avaliadas if avaliadas else 0.0
 
     msgs, nivel = [], "ok"
 
     def rebaixar(novo):
         nonlocal nivel
-        if {"ok": 0, "atencao": 1, "ruim": 2}[novo] > {"ok": 0, "atencao": 1, "ruim": 2}[nivel]:
+        ordem = {"ok": 0, "atencao": 1, "ruim": 2}
+        if ordem[novo] > ordem[nivel]:
             nivel = novo
 
     msgs.append(f"{fixas} de {avaliadas} fotos ({pct:.0f}%) em solucao fixa.")
-    if pct < 30:
+    # com a configuracao atual um voo saudavel fixa acima de 90%; o que sobra em
+    # float costuma estar metros fora, e por isso o geotag ja declara 1,00/2,00 m
+    # nessas fotos -- o ajuste do bloco resolve pela imagem
+    if pct < 40:
         rebaixar("ruim")
-        msgs.append("Fixacao muito baixa: as coordenadas podem errar decimetros.")
-    elif pct < 60:
+        msgs.append("Fixacao muito baixa: a maioria das fotos entra na fotogrametria "
+                    "com peso quase nulo, e o bloco fica sem amarracao.")
+    elif pct < 70:
         rebaixar("atencao")
-        msgs.append("Fixacao mediana.")
+        msgs.append("Fixacao mediana. As fotos em float estao declaradas com 1,00/2,00 m "
+                    "e vao contar pouco no ajuste.")
 
-    if ida_volta:
-        # Sao tres situacoes diferentes, e confundi-las gera alarme falso:
-        # poucas epocas em comum e FALTA DE EVIDENCIA, nao prova de erro. So da
-        # para falar em divergencia quando as duas passagens fixam na mesma epoca
-        # e mesmo assim discordam.
-        n = ida_volta["epocas_ambas"]
-        p90 = ida_volta["dif_p90"]
-        if n < 30:
+    if comparacao:
+        n = comparacao["n"]
+        p90 = comparacao["dv_p90"] * 100
+        maxv = comparacao["dv_max"] * 100
+        if n < 20:
             rebaixar("atencao")
             msgs.append(
-                f"A ambiguidade nao foi confirmada de forma independente: as passagens de "
-                f"ida e volta fixaram juntas em apenas {n} epoca(s) "
-                f"(ida fixou {ida_volta['fix_frente']}, volta {ida_volta['fix_tras']}). "
-                "Isso nao quer dizer que esteja errado -- quer dizer que nao ha como "
-                "verificar por aqui. Pode haver deslocamento sistematico de alguns "
-                "centimetros. Para amarracao absoluta, use ponto de apoio em campo.")
-        elif p90 is not None and p90 > 30:
+                f"A ambiguidade nao foi confirmada de forma independente: as duas "
+                f"mascaras de elevacao so fixaram juntas em {n} foto(s). Isso nao quer "
+                "dizer que esteja errado -- quer dizer que nao ha como verificar por "
+                "aqui. Para amarracao absoluta, use ponto de apoio em campo.")
+        elif p90 > 20:
             rebaixar("ruim")
             msgs.append(
-                f"Ida e volta fixam juntas em {n} epocas e DISCORDAM: {p90:.0f} cm no "
-                "percentil 90. Como resolvem a ambiguidade de forma independente, isso "
-                "indica que a solucao troca de ambiguidade durante o voo e as fotos saem "
-                "em patamares diferentes. E o defeito mais perigoso porque NAO aparece no "
+                f"Duas solucoes independentes DISCORDAM nas mesmas fotos: {p90:.0f} cm no "
+                f"percentil 90 e ate {maxv:.0f} cm em altura, em {n} fotos que ambas "
+                "declararam fixas. Trocar so a mascara de elevacao nao deveria mover "
+                "nada; se move, a ambiguidade nao esta firme e as fotos saem em "
+                "patamares diferentes. E o defeito mais perigoso porque NAO aparece no "
                 "desvio que o programa reporta.")
-        elif p90 is not None and p90 > 10:
+        elif p90 > 5:
             rebaixar("atencao")
-            msgs.append(f"Ida e volta fixam juntas em {n} epocas e concordam de forma "
-                        f"apenas razoavel ({p90:.0f} cm no percentil 90).")
+            msgs.append(f"As duas mascaras concordam apenas razoavelmente: {p90:.0f} cm no "
+                        f"percentil 90 em altura ({n} fotos fixas nas duas).")
         else:
-            msgs.append(f"Ambiguidade confirmada: ida e volta fixam juntas em {n} epocas "
-                        f"e concordam em {ida_volta['dif_mediana']:.0f} cm na mediana.")
+            msgs.append(f"Ambiguidade confirmada: duas solucoes independentes concordam em "
+                        f"{comparacao['dv_mediana'] * 100:.1f} cm de mediana em altura "
+                        f"({n} fotos fixas nas duas).")
 
     if inicio_rover is not None and inicio_rover < CONVERGENCIA_MINIMA_S:
         msgs.append(
@@ -560,21 +744,30 @@ def conferir_qualidade(epocas, eventos, escritas, total_fotos,
             "comeca a gravar o log bruto ja em altitude de voo, e da sempre a mesma "
             "sobra de menos de um minuto. Quem manda nisso e o firmware, nao o operador.")
 
-    if escritas < total_fotos:
+    if intervalo_base and intervalo_base > 0.5:
+        msgs.append(
+            f"A base gravou a cada {intervalo_base:g} s e o drone grava 5 vezes por "
+            "segundo, entao a maioria das epocas usa observacao da base extrapolada. "
+            "Funciona, mas no proximo voo configure a base para 5 Hz.")
+
+    if avaliadas < total_fotos:
         rebaixar("atencao")
-        msgs.append(f"{total_fotos - escritas} foto(s) ficaram sem coordenada.")
+        msgs.append(f"{total_fotos - avaliadas} foto(s) ficaram sem coordenada.")
 
     return dict(pct_fixas=pct, fotos_fixas=fixas, fotos_avaliadas=avaliadas,
-                ida_volta=ida_volta, nivel=nivel, mensagens=msgs)
+                comparacao=comparacao, nivel=nivel, mensagens=msgs)
 
 
 def processar(projeto, lat, lon, base_z, cfg, elmask=15, altura_antena=None,
-              saida=None, progresso=None, conferir=True, trabalho=None,
-              sigma="realista", copiar_para=None):
+              saida=None, progresso=None, trabalho=None, sigma="realista",
+              copiar_para=None, piso=None, conferir_coordenada=True, comparacoes=None):
     """Roda o PPK completo e devolve o resultado com as metricas de qualidade.
 
     `trabalho` permite tirar os arquivos intermediarios de dentro do projeto.
     Dois processamentos simultaneos da mesma pasta se sobrescreveriam sem isso.
+
+    `piso` (nome da foto -> (sigma_h, sigma_v) medidos) eleva a precisao
+    declarada onde duas solucoes independentes discordaram.
 
     `copiar_para` grava, alem do CSV, uma copia de cada foto com a coordenada
     do PPK ja no EXIF. Custa o tamanho do acervo em disco.
@@ -593,14 +786,9 @@ def processar(projeto, lat, lon, base_z, cfg, elmask=15, altura_antena=None,
     trabalho = Path(trabalho) if trabalho else (projeto / PASTA_TRABALHO)
     trabalho.mkdir(parents=True, exist_ok=True)
 
+    b = arq["base"]
     if altura_antena is None:
-        altura_antena = 0.0
-        for linha in open(arq["base_obs"], encoding="latin-1"):
-            if "ANTENNA: DELTA H/E/N" in linha:
-                altura_antena = float(linha[:14])
-                break
-            if "END OF HEADER" in linha:
-                break
+        altura_antena = b["altura_antena"] if b["altura_antena"] is not None else 0.0
     # base em RINEX 2.11 grava L2 em codigo-P enquanto o drone grava L2C: a
     # ambiguidade nunca fixa e o erro passa de 1 m. Melhor parar aqui e explicar
     # do que devolver um resultado ruim com cara de bom.
@@ -615,7 +803,6 @@ def processar(projeto, lat, lon, base_z, cfg, elmask=15, altura_antena=None,
 
     voos = arq["voos"]
     total_fotos = sum(len(v["fotos"]) for v in voos)
-    b = arq["base"]
     periodo = (f", gravou de {hora_do_tow(b['inicio'][1])} a {hora_do_tow(b['fim'][1])}"
                if b["inicio"] and b["fim"] else "")
     aviso(f"Base: {arq['base_obs'].name} (RINEX {b['versao']:.2f}"
@@ -630,6 +817,27 @@ def processar(projeto, lat, lon, base_z, cfg, elmask=15, altura_antena=None,
     if arq["recusados"]:
         aviso(f"      ({len(arq['recusados'])} arquivo(s) do drone fora das pastas de voo "
               "foram ignorados como base)")
+
+    # calibracao da antena da base: sem ela sobra viés de 6 a 8 cm em TODAS as
+    # alturas, e o RTKLIB nao avisa que deixou de aplicar
+    antex = achar_antex(cfg)
+    anttype = b["antena"].strip()
+    if not anttype:
+        aviso("ATENCAO  O RINEX da base nao diz o modelo da antena, entao nao da para "
+              "aplicar a calibracao de centro de fase. Pode sobrar de 6 a 8 cm "
+              "sistematicos na altura de todas as fotos.")
+        anttype = None
+    elif not antex:
+        aviso(f"ATENCAO  Nao achei arquivo ANTEX junto do RTKLIB, entao a antena "
+              f"{anttype.strip()} entra sem calibracao (6 a 8 cm em altura).")
+        anttype = None
+    elif not antena_no_antex(antex, b["antena"]):
+        aviso(f"ATENCAO  A antena {anttype.strip()} nao esta no {antex.name}: entra sem "
+              "calibracao de centro de fase (6 a 8 cm em altura).")
+        anttype = None
+    else:
+        aviso(f"      antena {anttype.strip()} calibrada pelo {antex.name}.")
+
     aviso(f"{len(voos)} voo(s) na pasta, {total_fotos} fotos no total.")
 
     for a in conferir_cobertura(b, voos):
@@ -638,113 +846,103 @@ def processar(projeto, lat, lon, base_z, cfg, elmask=15, altura_antena=None,
     base_obs = trabalho / "base.obs"
     normalizar_rinex(arq["base_obs"], base_obs)
     conf = trabalho / "rtklib.conf"
-    escrever_conf(conf, lat, lon, base_z, altura_antena, elmask)
+    escrever_conf(conf, lat, lon, base_z, altura_antena, elmask,
+                  anttype=b["antena"] if anttype else None, antex=antex)
+
+    # testemunha independente da coordenada digitada, antes de gastar o
+    # processamento inteiro em cima de uma base errada
+    if conferir_coordenada:
+        aviso("Conferindo a coordenada da base contra o ceu...")
+        # a mesma navegacao do PPK, pelo mesmo motivo: a do receptor da base
+        # piora o resultado, e aqui isso viraria alarme falso de altura
+        rover_nav_conf = trabalho / "nav_conferencia.nav"
+        normalizar_rinex(voos[0]["rover_nav"], rover_nav_conf)
+        observada = posicionar_base(rnx2rtkp, base_obs, [rover_nav_conf], trabalho)
+        if observada:
+            for a in conferir_base(observada, lat, lon, base_z + altura_antena):
+                aviso(f"ATENCAO  {a}")
+        else:
+            aviso("      (nao deu para posicionar a base sozinha; conferencia pulada)")
 
     saida = Path(saida) if saida else (projeto / "PPK FOTOS.txt")
-    escritas, faltando, por_voo = 0, [], []
-    corrigidas = []   # (caminho, lat, lon, altitude) para gravar nas copias
+    todas, faltando, por_voo = [], [], []
 
-    with open(saida, "w", encoding="utf-8", newline="") as f:
-        for i, voo in enumerate(voos, 1):
-            aviso(f"--- Voo {i} de {len(voos)}: {voo['nome']} ({len(voo['fotos'])} fotos) ---")
-            rover_obs = trabalho / f"rover_{i}.obs"
-            rover_nav = trabalho / f"rover_{i}.nav"
-            normalizar_rinex(voo["rover_obs"], rover_obs)
-            normalizar_rinex(voo["rover_nav"], rover_nav)
-            entradas = [str(rover_obs), str(base_obs), str(rover_nav)]
-            entradas += [str(p) for p in arq["base_navs"]]
+    for i, voo in enumerate(voos, 1):
+        aviso(f"--- Voo {i} de {len(voos)}: {voo['nome']} ({len(voo['fotos'])} fotos) ---")
+        rover_obs = trabalho / f"rover_{i}.obs"
+        rover_nav = trabalho / f"rover_{i}.nav"
+        normalizar_rinex(voo["rover_obs"], rover_obs)
+        normalizar_rinex(voo["rover_nav"], rover_nav)
+        # SO a navegacao do proprio drone. Juntar a da base ARRASA a solucao:
+        # medido no AQUARELA, 96% das fotos em solucao fixa com o .NAV do drone
+        # sozinho e 27% ao acrescentar o .26N (GPS) da base ComNav -- os outros
+        # arquivos da base (.26G, .26C, .26L) sao inofensivos, o estrago e so do
+        # GPS. O drone grava as efemerides com a data rolada para 2007 (o salto
+        # de 1024 semanas do GPS), e o RTKLIB so as reencaixa na semana certa
+        # quando elas sao a unica fonte; com as duas fontes ele alterna entre os
+        # dois conjuntos ao longo do voo e a ambiguidade reinicia toda hora.
+        entradas = [str(rover_obs), str(base_obs), str(rover_nav)]
 
-            def rodar(caminho_conf, caminho_pos, _entradas=entradas):
-                subprocess.run([str(rnx2rtkp), "-k", str(caminho_conf),
-                                "-o", str(caminho_pos), *_entradas],
-                               capture_output=True, check=True)
-                return ler_pos(caminho_pos)
-
-            aviso(f"    processando no RTKLIB (mascara {elmask} graus)...")
-            epocas = rodar(conf, trabalho / f"trajetoria_{i}.pos")
-            if not epocas:
-                # diz o que foi conferido, em vez de mandar o usuario adivinhar
-                eventos = ler_mrk(voo["mrk"])
-                t0 = min(e["tow"] for e in eventos.values()) if eventos else None
-                detalhe = [f"O RTKLIB nao produziu solucao para o voo {voo['nome']}.", ""]
-                detalhe.append(f"Base usada:  {arq['base_obs'].name}"
-                               f"  (RINEX {b['versao']:.2f})")
-                if b["inicio"] and b["fim"]:
-                    detalhe.append(f"  base gravou de {hora_do_tow(b['inicio'][1])} "
-                                   f"a {hora_do_tow(b['fim'][1])}")
-                if t0 is not None:
-                    t1 = max(e["tow"] for e in eventos.values())
-                    detalhe.append(f"  voo aconteceu de {hora_do_tow(t0)} a {hora_do_tow(t1)}")
-                    if b["inicio"] and (t0 < b["inicio"][1] or t1 > b["fim"][1]):
-                        detalhe.append("\n>> A base NAO cobre o horario do voo. "
-                                       "E essa a causa mais provavel.")
-                    else:
-                        detalhe.append("\nOs horarios batem, entao o problema esta nos "
-                                       "dados: confira se a base saiu em RINEX 3.04 com "
-                                       "todas as constelacoes e se o arquivo nao esta "
-                                       "truncado.")
-                raise RuntimeError("\n".join(detalhe))
-
-            # ida e volta separadas, so para conferir se a ambiguidade e confiavel
-            ida_volta = None
-            if conferir:
-                aviso("    conferindo a ambiguidade (ida e volta separadas)...")
-                passagens = {}
-                for tipo in ("forward", "backward"):
-                    c = trabalho / f"rtklib_{tipo}.conf"
-                    c.write_text(conf.read_text(encoding="utf-8").replace(
-                        "pos1-soltype       =combined",
-                        f"pos1-soltype       ={tipo}"), encoding="utf-8")
-                    passagens[tipo] = rodar(c, trabalho / f"trajetoria_{i}_{tipo}.pos")
-                if passagens["forward"] and passagens["backward"]:
-                    ida_volta = concordancia_ida_volta(passagens["forward"],
-                                                       passagens["backward"])
-
+        aviso(f"    processando no RTKLIB (mascara {elmask} graus)...")
+        pos = trabalho / f"trajetoria_{i}_{elmask}.pos"
+        subprocess.run([str(rnx2rtkp), "-k", str(conf), "-o", str(pos), *entradas],
+                       capture_output=True, check=True)
+        epocas = ler_pos(pos)
+        if not epocas:
+            # diz o que foi conferido, em vez de mandar o usuario adivinhar
             eventos = ler_mrk(voo["mrk"])
-            aviso("    lendo a atitude do gimbal...")
-            atitude = ler_atitude(exiftool, voo["fotos"])
+            t0 = min(e["tow"] for e in eventos.values()) if eventos else None
+            detalhe = [f"O RTKLIB nao produziu solucao para o voo {voo['nome']}.", ""]
+            detalhe.append(f"Base usada:  {arq['base_obs'].name}"
+                           f"  (RINEX {b['versao']:.2f})")
+            if b["inicio"] and b["fim"]:
+                detalhe.append(f"  base gravou de {hora_do_tow(b['inicio'][1])} "
+                               f"a {hora_do_tow(b['fim'][1])}")
+            if t0 is not None:
+                t1 = max(e["tow"] for e in eventos.values())
+                detalhe.append(f"  voo aconteceu de {hora_do_tow(t0)} a {hora_do_tow(t1)}")
+                if b["inicio"] and (t0 < b["inicio"][1] or t1 > b["fim"][1]):
+                    detalhe.append("\n>> A base NAO cobre o horario do voo. "
+                                   "E essa a causa mais provavel.")
+                else:
+                    detalhe.append("\nOs horarios batem, entao o problema esta nos "
+                                   "dados: confira se a base saiu em RINEX 3.04 com "
+                                   "todas as constelacoes e se o arquivo nao esta "
+                                   "truncado.")
+            raise RuntimeError("\n".join(detalhe))
 
-            escritas_voo = 0
-            for foto in voo["fotos"]:
-                achado = re.search(r"_(\d+)_[A-Z]\.JPG$", foto.name, re.IGNORECASE)
-                evento = eventos.get(int(achado.group(1))) if achado else None
-                p = interpolar(epocas, evento["tow"]) if evento else None
-                if p is None:
-                    faltando.append(foto.name)
-                    continue
+        eventos = ler_mrk(voo["mrk"])
+        aviso("    lendo a atitude do gimbal...")
+        atitude = ler_atitude(exiftool, voo["fotos"])
 
-                lat_cam = p["lat"] + (evento["n"] / RAIO_TERRA) * 180 / math.pi
-                lon_cam = p["lon"] + (evento["e"] / (RAIO_TERRA * math.cos(math.radians(p["lat"])))) * 180 / math.pi
-                h_cam = p["h"] - evento["v"]
-                hacc, vacc = sigma_da_foto(p, sigma)
-                yaw, pitch, roll = atitude.get(foto.name, ("", "", ""))
+        fotos, sem_solucao = calcular_fotos(voo, epocas, eventos, atitude)
+        todas.extend(fotos)
+        faltando.extend(sem_solucao)
 
-                f.write(f"{foto.name},{lat_cam!r},{lon_cam!r},{h_cam!r},"
-                        f"{num(yaw)},{num(pitch)},{num(roll)},{hacc:.5f},{vacc:.5f}\n")
-                corrigidas.append((str(foto), lat_cam, lon_cam, h_cam))
-                escritas_voo += 1
-            escritas += escritas_voo
+        convergencia = None
+        if eventos and epocas:
+            convergencia = min(e["tow"] for e in eventos.values()) - epocas[0]["tow"]
+        q = conferir_qualidade(fotos, len(voo["fotos"]), inicio_rover=convergencia,
+                               comparacao=(comparacoes or {}).get(voo["nome"]),
+                               intervalo_base=b["intervalo"])
+        aviso(f"    {q['pct_fixas']:.0f}% em solucao fixa  ->  {q['nivel'].upper()}")
+        por_voo.append(dict(nome=voo["nome"], qualidade=q))
 
-            convergencia = None
-            if eventos and epocas:
-                convergencia = min(e["tow"] for e in eventos.values()) - epocas[0]["tow"]
-            q = conferir_qualidade(epocas, eventos, escritas_voo, len(voo["fotos"]),
-                                   ida_volta=ida_volta, inicio_rover=convergencia)
-            aviso(f"    {q['pct_fixas']:.0f}% em solucao fixa  ->  {q['nivel'].upper()}")
-            por_voo.append(dict(nome=voo["nome"], qualidade=q))
-
+    escritas = escrever_geotag(saida, todas, sigma=sigma, piso=piso)
     qualidade = juntar_qualidade(por_voo)
+
     pasta_copias = None
     if copiar_para:
         pasta_copias = Path(copiar_para)
         aviso(f"Gravando copias das fotos com a coordenada corrigida em "
               f"{pasta_copias.name}...")
-        n, ruins = escrever_fotos_corrigidas(exiftool, corrigidas, pasta_copias,
-                                             progresso=aviso)
+        n, ruins = escrever_fotos_corrigidas(
+            exiftool, [(f["caminho"], f["lat"], f["lon"], f["h"]) for f in todas],
+            pasta_copias, progresso=aviso)
         aviso(f"{n} foto(s) gravadas." + (f" {len(ruins)} falharam." if ruins else ""))
 
     return dict(saida=saida, escritas=escritas, faltando=faltando, por_voo=por_voo,
-                pasta_copias=pasta_copias,
+                fotos=todas, pasta_copias=pasta_copias, base=b,
                 altura_antena=altura_antena, elmask=elmask, qualidade=qualidade)
 
 
@@ -816,37 +1014,20 @@ def ler_ppp_ibge(caminho):
                 processado=campos.get("PROCES", ""))
 
 
-def comparar_saidas(caminho_a, caminho_b):
-    """Diferenca entre dois arquivos de geotag, em cm, foto a foto."""
-    def ler(p):
-        d = {}
-        for linha in open(p, encoding="utf-8"):
-            if linha.strip():
-                c = linha.split(",")
-                d[c[0]] = (float(c[1]), float(c[2]), float(c[3]))
-        return d
-
-    a, b = ler(caminho_a), ler(caminho_b)
-    dn, de, dh = [], [], []
-    for nome in a.keys() & b.keys():
-        pa, pb = a[nome], b[nome]
-        dn.append((pa[0] - pb[0]) * math.pi / 180 * RAIO_TERRA * 100)
-        de.append((pa[1] - pb[1]) * math.pi / 180 * RAIO_TERRA * math.cos(math.radians(pa[0])) * 100)
-        dh.append((pa[2] - pb[2]) * 100)
-    if not dh:
-        return None
-    maior = max(max(abs(x) for x in v) for v in (dn, de, dh))
-    return dict(n=len(dh), maior=maior,
-                media=(sum(dn) / len(dn), sum(de) / len(de), sum(dh) / len(dh)))
-
-
 def processar_escolhendo_mascara(projeto, lat, lon, base_z, cfg, saida=None,
                                  altura_antena=None, progresso=None, trabalho=None,
                                  sigma="realista", copiar_para=None):
-    """Processa com 15 e com 10 graus e fica com a que fixa mais.
+    """Processa com 15 e com 10 graus, compara as duas e entrega a melhor.
 
-    Confere antes que as duas concordam: se divergirem muito, a de 10 graus
-    esta pegando satelite baixo demais e nao merece confianca.
+    A comparacao nao e so para escolher: e a unica verificacao independente que
+    existe sem ponto de apoio em campo. Mudar a mascara troca o conjunto de
+    satelites, entao a ambiguidade e resolvida de novo por outro caminho -- se as
+    duas solucoes caem no mesmo lugar nas fotos que ambas declaram fixas, a
+    ambiguidade esta firme; se nao caem, esta trocando durante o voo.
+
+    A discordancia medida ainda vira PISO da precisao declarada em cada foto:
+    onde as duas solucoes divergem 20 cm, o geotag sai com 20 cm, e a
+    fotogrametria pesa aquela foto pelo que ela realmente vale.
     """
     def aviso(t):
         if progresso:
@@ -855,43 +1036,64 @@ def processar_escolhendo_mascara(projeto, lat, lon, base_z, cfg, saida=None,
     trabalho = Path(trabalho) if trabalho else (projeto / PASTA_TRABALHO)
     trabalho.mkdir(parents=True, exist_ok=True)
     tentativas = []
-    for elmask in (15, 10):
+    for k, elmask in enumerate((15, 10)):
         aviso(f"--- Tentativa com mascara de {elmask} graus ---")
         r = processar(projeto, lat, lon, base_z, cfg, elmask=elmask,
-                      altura_antena=altura_antena, conferir=False, trabalho=trabalho,
-                      sigma=sigma,
+                      altura_antena=altura_antena, trabalho=trabalho, sigma=sigma,
+                      conferir_coordenada=(k == 0),
                       saida=trabalho / f"geotag_{elmask}.txt", progresso=progresso)
         aviso(f"Mascara {elmask}: {r['qualidade']['pct_fixas']:.0f}% das fotos em solucao fixa.")
         tentativas.append(r)
 
+    cmp = comparar_fotos(tentativas[0]["fotos"], tentativas[1]["fotos"])
     melhor = max(tentativas, key=lambda r: r["qualidade"]["pct_fixas"])
-    cmp = comparar_saidas(tentativas[0]["saida"], tentativas[1]["saida"])
     if cmp:
-        media_h = abs(cmp["media"][2])
-        # a diferenca entre as duas mascaras e um teste de estabilidade por si so:
-        # dado bom quase nao muda quando so a mascara muda
-        if media_h < 5:
-            aviso(f"As duas mascaras concordam ({media_h:.1f} cm de media em altura, "
-                  f"maior diferenca {cmp['maior']:.0f} cm): solucao estavel.")
-        else:
-            aviso(f"ATENCAO  As duas mascaras DIVERGEM: {media_h:.0f} cm de media em altura "
-                  f"e ate {cmp['maior']:.0f} cm. Mudar so a mascara de elevacao nao deveria "
-                  "mover as fotos assim -- e sinal de que a ambiguidade nao esta firme "
-                  "nesses dados, independente de qual das duas se escolha.")
-            melhor["divergencia_mascaras"] = media_h
-        if cmp["maior"] > 100:
+        aviso(f"As duas solucoes fixaram juntas em {cmp['n']} fotos e discordam "
+              f"{cmp['dv_mediana'] * 100:.1f} cm em altura na mediana "
+              f"(ate {cmp['dv_max'] * 100:.0f} cm).")
+        if cmp["dv_max"] > 1.0:
             melhor = tentativas[0]
-            aviso("Ficando com a mascara de 15 graus, que e a mais conservadora.")
+            aviso("Como ha foto com mais de 1 m de divergencia, fico com a mascara de "
+                  "15 graus, que e a mais conservadora.")
 
-    # roda de novo a vencedora, agora com a conferencia de ida e volta -- que e o
-    # indicador que realmente diz se a ambiguidade e confiavel
-    aviso(f"Escolhida a mascara de {melhor['elmask']} graus. Conferindo essa solucao...")
-    final = processar(projeto, lat, lon, base_z, cfg, elmask=melhor["elmask"],
-                      altura_antena=altura_antena, conferir=True, trabalho=trabalho,
-                      copiar_para=copiar_para,
-                      sigma=sigma,
-                      saida=saida or (projeto / "PPK FOTOS.txt"), progresso=progresso)
-    final["comparacao"] = cmp
+    # a solucao vencedora ja esta calculada: aqui so se reescreve o geotag no
+    # lugar definitivo, agora com o piso de precisao medido, e se copiam as fotos
+    aviso(f"Escolhida a mascara de {melhor['elmask']} graus.")
+    saida = Path(saida) if saida else (projeto / "PPK FOTOS.txt")
+    piso = cmp["por_foto"] if cmp else None
+    escritas = escrever_geotag(saida, melhor["fotos"], sigma=sigma, piso=piso)
+
+    # a qualidade e recalculada porque agora existe a comparacao independente
+    por_voo = []
+    for v in melhor["por_voo"]:
+        fotos_voo = [f for f in melhor["fotos"] if f["voo"] == v["nome"]]
+        parcial = comparar_fotos(
+            [f for f in tentativas[0]["fotos"] if f["voo"] == v["nome"]],
+            [f for f in tentativas[1]["fotos"] if f["voo"] == v["nome"]])
+        q = conferir_qualidade(fotos_voo, v["qualidade"]["fotos_avaliadas"],
+                               comparacao=parcial,
+                               intervalo_base=melhor["base"]["intervalo"])
+        # a mensagem de convergencia so existe no calculo original
+        for m in v["qualidade"]["mensagens"][1:]:
+            if m.startswith("So havia"):
+                q["mensagens"].append(m)
+        por_voo.append(dict(nome=v["nome"], qualidade=q))
+
+    pasta_copias = None
+    if copiar_para:
+        exiftool = Path(cfg["exiftoolBin"]) / "exiftool.exe"
+        pasta_copias = Path(copiar_para)
+        aviso(f"Gravando copias das fotos com a coordenada corrigida em "
+              f"{pasta_copias.name}...")
+        n, ruins = escrever_fotos_corrigidas(
+            exiftool, [(f["caminho"], f["lat"], f["lon"], f["h"]) for f in melhor["fotos"]],
+            pasta_copias, progresso=aviso)
+        aviso(f"{n} foto(s) gravadas." + (f" {len(ruins)} falharam." if ruins else ""))
+
+    final = dict(melhor)
+    final.update(saida=saida, escritas=escritas, por_voo=por_voo,
+                 pasta_copias=pasta_copias, comparacao=cmp,
+                 qualidade=juntar_qualidade(por_voo))
     return final
 
 
@@ -904,9 +1106,10 @@ def main():
     ap.add_argument("--epsg", default="31981", help="EPSG da coordenada da base (padrao SIRGAS2000/UTM 21S)")
     ap.add_argument("--altura-antena", type=float, default=None,
                     help="altura da antena sobre o marco; por padrao le do cabecalho da base")
-    ap.add_argument("--elmask", type=int, default=15,
-                    help="mascara de elevacao em graus. 15 e o recomendado pela T2R; "
-                         "10 costuma fixar bastante mais epocas em voo com boa visada")
+    ap.add_argument("--elmask", default="auto",
+                    help="mascara de elevacao em graus. 'auto' roda 15 e 10, compara as "
+                         "duas solucoes e entrega a melhor -- e a unica conferencia "
+                         "independente que existe sem ponto de apoio em campo")
     ap.add_argument("--sigma", choices=("realista", "formal"), default="realista",
                     help="o que escrever nas colunas de precisao. 'realista' usa a "
                          "qualidade da epoca (fixa/float) e e o que o programa de "
@@ -920,9 +1123,15 @@ def main():
     lon, lat = transformador.transform(args.base_e, args.base_n)
 
     try:
-        r = processar(args.projeto, lat, lon, args.base_z, cfg, elmask=args.elmask,
-                      altura_antena=args.altura_antena, saida=args.saida,
-                      sigma=args.sigma, progresso=print)
+        if args.elmask == "auto":
+            r = processar_escolhendo_mascara(
+                args.projeto, lat, lon, args.base_z, cfg,
+                altura_antena=args.altura_antena, saida=args.saida,
+                sigma=args.sigma, progresso=print)
+        else:
+            r = processar(args.projeto, lat, lon, args.base_z, cfg,
+                          elmask=int(args.elmask), altura_antena=args.altura_antena,
+                          saida=args.saida, sigma=args.sigma, progresso=print)
     except (FileNotFoundError, RuntimeError) as erro:
         sys.exit(str(erro))
 
