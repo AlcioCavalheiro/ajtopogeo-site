@@ -15925,13 +15925,19 @@ async function rTarefas(){
   html+='<div class="card"><div class="fx g8 mb1"><input class="fc" id="nova-tarefa-txt" placeholder="Nova tarefa... (ex: ligar para o cliente)" onkeydown="if(event.key==\'Enter\')addTarefaPessoal()" style="flex:1"><button class="btn bp2 bsm" onclick="addTarefaPessoal()"><i class="ti ti-plus"></i> Adicionar</button></div>'
     +'<div id="tarefas-lista"></div></div>';
   el.innerHTML=html;
+  _tarefasPessoaisCache=itens;
   _renderTarefasLista(itens);
-  const si=gid('si');if(si)si.oninput=null;
+  const si=gid('si');
+  if(si){si.value='';si.oninput=function(){
+    if(CP!=='tarefas')return;
+    const q=this.value.trim();
+    const t=q?_tarefasPessoaisCache.filter(function(x){return _normOS(x.texto||'').includes(_normOS(q));}):_tarefasPessoaisCache;
+    _renderTarefasLista(t);
+  };}
 }
 let _tarefasPessoaisCache=[];
 function _renderTarefasLista(itens){
   const el=gid('tarefas-lista');if(!el)return;
-  _tarefasPessoaisCache=itens;
   const hj=hojeLocal();
   el.innerHTML=itens.map(function(t){
     const venc=t.data_validade&&!t.concluida&&t.data_validade<hj;
