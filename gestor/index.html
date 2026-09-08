@@ -3888,19 +3888,24 @@ async function abrirNovaMedicaoModal(){
   const usedOsIds=new Set();
   (meds||[]).forEach(m=>(m.os_ids||[]).forEach(id=>usedOsIds.add(id)));
   const aptas=ossAptas.filter(o=>!usedOsIds.has(o.id));
+  const obraIdsAptas=new Set(aptas.map(o=>o.obra_id).filter(Boolean));
+  const obrasDisponiveis=obras.filter(o=>obraIdsAptas.has(o.id));
   document.getElementById('mt2').textContent='Nova Medição';
   document.getElementById('mb2').innerHTML=
     '<div class="fg"><label class="fl">Descrição *</label><input class="fc" id="nm-desc" placeholder="Ex: Medição 01 — Jardim Monaco Maio/2026"></div>'
-    +'<div class="g2"><div class="fg"><label class="fl">Medição Nº</label><input class="fc" id="nm-num" value="01" readonly placeholder="Selecione obra e OS..." style="background:#f0f7ff;font-weight:600;color:#0d4fa0" title="Gerado automaticamente por cliente + obra"></div>'
+    +'<div class="g2"><div class="fg"><label class="fl">Medição Nº</label><input class="fc" id="nm-num" value="01" readonly placeholder="Selecione a obra..." style="background:#f0f7ff;font-weight:600;color:#0d4fa0" title="Gerado automaticamente pela sequência da obra"></div>'
     +'<div class="fg"><label class="fl">Período</label><input class="fc" id="nm-periodo" placeholder="Maio/2026"></div></div>'
     +'<div class="fg"><label class="fl">Status</label><select class="fc" id="nm-status"><option>Fechar Medição</option><option>Gerar NF</option><option>Falta Pagamento</option><option>Recebido</option></select></div>'
     +'<div class="st mb1 mt1" style="font-size:12px;color:var(--mu)"><i class="ti ti-file-download"></i> Dados para o PDF de medição</div>'
     +'<div class="g2 mb1">'
     +'<div class="fg"><label class="fl">Nome da Obra</label>'
-    +'<select class="fc" id="nm-obra" onchange="atualizarNumeroMedicao()">'
-    +'<option value="">— Selecione a obra —</option>'
-    +obras.map(o=>`<option value="${o.nome}">${o.nome}${o.municipio?' — '+o.municipio:''}</option>`).join('')
-    +'</select></div>'
+    +(obrasDisponiveis.length
+      ?'<select class="fc" id="nm-obra" onchange="atualizarNumeroMedicao();filtrarOSPorObra()">'
+        +'<option value="">— Selecione a obra —</option>'
+        +obrasDisponiveis.map(o=>`<option value="${o.nome}" data-id="${o.id}">${o.nome}${o.municipio?' — '+o.municipio:''}</option>`).join('')
+        +'</select>'
+      :'<select class="fc" id="nm-obra" disabled><option value="">— Nenhuma obra com OS disponível —</option></select>')
+    +'</div>'
     +'<div class="fg"><label class="fl">Contrato</label>'
     +'<select class="fc" id="nm-contrato">'
     +'<option value="">— Selecione o contrato —</option>'
@@ -3913,7 +3918,7 @@ async function abrirNovaMedicaoModal(){
     +'<div class="fg"><label class="fl">OS aptas para esta medição</label>'
     +(aptas.length
       ?'<div style="border:1px solid var(--bor);border-radius:8px;padding:.5rem;max-height:260px;overflow-y:auto" id="nm-os-box">'
-        +aptas.map(o=>`<label style="display:flex;align-items:center;gap:10px;padding:8px 6px;cursor:pointer;border-bottom:.5px solid var(--bor);transition:background .1s" onmouseover="this.style.background='#f4f4f0'" onmouseout="this.style.background=''"><input type="checkbox" class="nm-os-chk" value="${o.id}" data-num="${o.numero}" data-tipo="${o.tipo}" data-valor="${o.orcamento_valor||0}" data-resp="${o.responsavel||''}" data-cli="${o.cliente_nome||''}" data-cpf="${o.clientes?.cpfcnpj||''}" data-local="${o.local_endereco||''}" data-data="${o.data||''}" style="width:16px;height:16px;accent-color:var(--brand);flex-shrink:0" onchange="calcTotalNovaMed();atualizarNumeroMedicao()"><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span class="w6" style="font-size:13px;color:var(--bd)">${o.numero}</span><span style="font-size:12px;font-weight:500;color:#444">${o.tipo||'—'}</span><span class="w6" style="font-size:13px;color:#854F0B;margin-left:auto">${fmt(o.orcamento_valor||0)}</span></div><div style="font-size:12px;color:var(--mu);margin-top:2px"><i class="ti ti-user" style="font-size:11px"></i> ${cliById[o.cliente_id]||o.cliente_nome||'—'}</div>${(obraById[o.obra_id]||o.local_endereco)?`<div style="font-size:11px;color:#999;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><i class="ti ti-map-pin" style="font-size:10px"></i> ${obraById[o.obra_id]||o.local_endereco}</div>`:''}</div></label>`).join('')
+        +aptas.map(o=>`<label data-obra-lbl="${o.obra_id||''}" style="display:flex;align-items:center;gap:10px;padding:8px 6px;cursor:pointer;border-bottom:.5px solid var(--bor);transition:background .1s" onmouseover="this.style.background='#f4f4f0'" onmouseout="this.style.background=''"><input type="checkbox" class="nm-os-chk" value="${o.id}" data-obra="${o.obra_id||''}" data-num="${o.numero}" data-tipo="${o.tipo}" data-valor="${o.orcamento_valor||0}" data-resp="${o.responsavel||''}" data-cli="${o.cliente_nome||''}" data-cpf="${o.clientes?.cpfcnpj||''}" data-local="${o.local_endereco||''}" data-data="${o.data||''}" style="width:16px;height:16px;accent-color:var(--brand);flex-shrink:0" onchange="calcTotalNovaMed()"><div style="flex:1;min-width:0"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px"><span class="w6" style="font-size:13px;color:var(--bd)">${o.numero}</span><span style="font-size:12px;font-weight:500;color:#444">${o.tipo||'—'}</span><span class="w6" style="font-size:13px;color:#854F0B;margin-left:auto">${fmt(o.orcamento_valor||0)}</span></div><div style="font-size:12px;color:var(--mu);margin-top:2px"><i class="ti ti-user" style="font-size:11px"></i> ${cliById[o.cliente_id]||o.cliente_nome||'—'}</div>${(obraById[o.obra_id]||o.local_endereco)?`<div style="font-size:11px;color:#999;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><i class="ti ti-map-pin" style="font-size:10px"></i> ${obraById[o.obra_id]||o.local_endereco}</div>`:''}</div></label>`).join('')
         +'</div>'
         +'<div class="fxb mt1"><span class="mu sm">Total selecionado:</span><span class="w7" id="nm-total" style="color:#0d4fa0">R$ 0,00</span></div>'
       :'<div style="padding:.75rem;background:#FAEEDA;border-radius:8px;font-size:13px;color:#854F0B"><i class="ti ti-info-circle"></i> Nenhuma OS com status "Encaminhada para Medição" disponível.</div>'
@@ -3923,6 +3928,7 @@ async function abrirNovaMedicaoModal(){
     '<button class="btn" onclick="closeModal2()">Cancelar</button>'
     +'<button class="btn bp2" onclick="salvarNovaMedicao()"><i class="ti ti-device-floppy"></i> Salvar Medição</button>';
   document.getElementById('ov2').classList.add('open');
+  filtrarOSPorObra();
 }
 
 function calcTotalNovaMed(){
@@ -3930,15 +3936,25 @@ function calcTotalNovaMed(){
   const el=document.getElementById('nm-total');if(el)el.textContent=fmt(total);
 }
 
+function filtrarOSPorObra(){
+  const sel=document.getElementById('nm-obra');
+  const obraId=sel?.selectedOptions?.[0]?.dataset.id||'';
+  document.querySelectorAll('#nm-os-box label').forEach(lb=>{
+    const show=!!obraId&&lb.dataset.obraLbl===obraId;
+    lb.style.display=show?'flex':'none';
+    if(!show){const c=lb.querySelector('.nm-os-chk');if(c)c.checked=false;}
+  });
+  calcTotalNovaMed();
+}
+
 async function atualizarNumeroMedicao(){
   const numEl=document.getElementById('nm-num');
   if(!numEl) return;
   const obra=(document.getElementById('nm-obra')?.value||'').trim();
-  const cliente=(document.querySelector('.nm-os-chk:checked')?.dataset.cli||'').trim();
-  if(!obra||!cliente){numEl.value='01';return;}
-  const{data}=await sb.from('medicoes').select('numero,obra,cliente_nome');
+  if(!obra){numEl.value='01';return;}
+  const{data}=await sb.from('medicoes').select('numero,obra');
   const nums=(data||[])
-    .filter(m=>(m.cliente_nome||'').trim().toLowerCase()===cliente.toLowerCase()&&(m.obra||'').trim().toLowerCase()===obra.toLowerCase())
+    .filter(m=>(m.obra||'').trim().toLowerCase()===obra.toLowerCase())
     .map(m=>parseInt(m.numero,10)||0);
   const prox=(nums.length?Math.max(...nums):0)+1;
   numEl.value=String(prox).padStart(2,'0');
