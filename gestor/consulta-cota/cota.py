@@ -1,14 +1,16 @@
 """Consulta a cota de coordenadas sobre um modelo digital (DSM/DTM).
 
-Le o raster com o GDAL que vem do QGIS. Nao reprojeta nada: as coordenadas
-precisam estar no mesmo sistema do raster -- a janela mostra qual e para
-conferencia.
+Le o raster com o GDAL -- o que vem junto no pacote instalado, ou o do QGIS,
+conforme o `config.json`. Nao reprojeta nada: as coordenadas precisam estar no
+mesmo sistema do raster, e a janela mostra qual e para conferencia.
 """
 
 import json
 import math
+import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 # Em UTM no hemisferio sul o Norte passa de 7 milhoes e o Leste fica na casa das
@@ -16,12 +18,52 @@ from pathlib import Path
 LIMITE_NORTE = 1_000_000
 
 
-def carregar_config(base_dir):
-    with open(Path(base_dir) / "config.json", encoding="utf-8") as f:
-        return json.load(f)
+def pasta_do_programa():
+    """Onde ficam o config.json e a pasta de ferramentas.
+
+    Empacotado pelo PyInstaller, `__file__` aponta para a pasta temporaria em que
+    o executavel se descompacta -- e nao para onde o programa foi instalado. O
+    que vale nesse caso e a pasta do proprio .exe.
+    """
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).parent
+    return Path(__file__).parent
+
+
+def carregar_config(base_dir=None):
+    """Le o config.json aceitando caminho de ferramenta relativo a ele.
+
+    Caminho relativo e o que permite instalar em qualquer pasta e em qualquer
+    maquina sem reescrever o arquivo. Caminho absoluto continua valendo: no
+    Windows, `Path("...") / "C:/x"` devolve `C:/x` -- entao o config que aponta
+    para o QGIS instalado segue funcionando.
+    """
+    base_dir = Path(base_dir) if base_dir else pasta_do_programa()
+    with open(base_dir / "config.json", encoding="utf-8") as f:
+        cfg = json.load(f)
+    for chave in ("gdalBin", "gdalData", "projData"):
+        if cfg.get(chave):
+            cfg[chave] = str((base_dir / cfg[chave]).resolve())
+    return cfg
+
+
+def preparar_ambiente(cfg):
+    """Aponta o GDAL para as tabelas que vieram junto, quando vieram.
+
+    Rodando pelo QGIS, o proprio QGIS define GDAL_DATA e PROJ_LIB. Instalado por
+    fora, ninguem define, e ai o GDAL abre o raster mas nao sabe dizer em que
+    sistema de coordenadas ele esta -- a janela mostraria "nao informado" e a
+    conferencia do sistema, que e a defesa contra consultar com a coordenada
+    errada, deixaria de existir.
+    """
+    for variavel, pasta in (("GDAL_DATA", cfg.get("gdalData")),
+                            ("PROJ_LIB", cfg.get("projData"))):
+        if pasta and Path(pasta).is_dir():
+            os.environ[variavel] = str(pasta)
 
 
 def ferramentas(cfg):
+    preparar_ambiente(cfg)
     binario = Path(cfg["gdalBin"])
     info = binario / "gdalinfo.exe"
     consulta = binario / "gdallocationinfo.exe"
@@ -31,7 +73,8 @@ def ferramentas(cfg):
         raise FileNotFoundError(
             "Nao encontrei o GDAL. Esperava estes arquivos:\n  "
             + "\n  ".join(faltando)
-            + "\n\nConfira o caminho em config.json (vem junto com o QGIS)."
+            + "\n\nConfira o caminho em config.json. No pacote instalado o GDAL vem "
+              "na subpasta ferramentas; na maquina de desenvolvimento, o do QGIS serve."
         )
     return info, consulta, dem
 

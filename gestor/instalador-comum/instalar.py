@@ -1,14 +1,19 @@
-"""Instalador do PPK das Fotos.
+"""Instalador comum dos programas de servico local da AJ TopoGeo.
 
-Vira um unico "Instalar PPK das Fotos.exe" que carrega o programa inteiro
-dentro de si -- inclusive o Python, o RTKLIB e o ExifTool. Na maquina de destino
-nao precisa instalar mais nada.
+Vira um unico "Instalar <programa>.exe" que carrega o programa inteiro dentro de
+si -- o Python e as ferramentas de linha de comando que ele chama. Na maquina de
+destino nao precisa instalar mais nada.
 
 Instala **por usuario**, em %LOCALAPPDATA%\\Programs, de proposito: instalacao em
 Arquivos de Programas exigiria elevacao, e pedir UAC e o que costuma travar o
 processo em maquina de cliente ou em ambiente controlado por TI.
+
+Este arquivo nao sabe qual programa esta instalando: nome, chave de registro e
+descricao vem do `programa.json` que o build embute junto. E o que permite que
+o PPK das Fotos e a Consulta de Cota usem o mesmo instalador.
 """
 
+import json
 import os
 import shutil
 import subprocess
@@ -19,10 +24,23 @@ import winreg
 import zipfile
 from pathlib import Path
 
-NOME = "PPK das Fotos"
-TITULO = f"Instalar {NOME} - AJ TopoGeo"
-CHAVE_DESINSTALAR = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\AJTopoGeo_PPKFotos"
 EMBRULHO = "app.zip"
+FICHA = "programa.json"
+
+
+def _ficha():
+    raiz = getattr(sys, "_MEIPASS", None)
+    caminho = (Path(raiz) if raiz else Path(__file__).parent) / FICHA
+    with open(caminho, encoding="utf-8") as f:
+        return json.load(f)
+
+
+PROGRAMA = _ficha()
+NOME = PROGRAMA["nome"]
+DESCRICAO = PROGRAMA.get("descricao", "")
+TITULO = f"Instalar {NOME} - AJ TopoGeo"
+CHAVE_DESINSTALAR = ("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\"
+                     + PROGRAMA["chave"])
 
 # o instalador e "windowed": sem console, um subprocesso comum abriria uma
 # janela preta piscando a cada atalho criado
@@ -40,7 +58,7 @@ def relatar(texto):
 def recurso(nome):
     """Arquivo que veio dentro do executavel."""
     raiz = getattr(sys, "_MEIPASS", None)
-    return Path(raiz) / nome if raiz else Path(__file__).parent.parent / "build" / nome
+    return Path(raiz) / nome if raiz else Path(__file__).parent / nome
 
 
 def destino_padrao():
@@ -171,7 +189,7 @@ def instalar(destino, avisar=relatar):
     feitos = []
     for pasta in (area_de_trabalho(), menu_iniciar()):
         if criar_atalho(pasta / f"{NOME}.lnk", exe, destino,
-                        "PPK das fotos de drone - AJ TopoGeo"):
+                        f"{NOME} - AJ TopoGeo"):
             feitos.append(str(pasta))
     registrar(destino)
     avisar("")
@@ -199,9 +217,9 @@ def janela():
     quadro.pack(fill=BOTH, expand=True)
     ttk.Label(quadro, text=f"Instalar {NOME}", font=("Segoe UI", 14, "bold")).pack(anchor="w")
     ttk.Label(quadro, wraplength=600, justify="left",
-              text="Instala o programa completo, com o Python, o RTKLIB e o ExifTool "
-                   "ja embutidos. Nao precisa instalar mais nada nesta maquina e nao "
-                   "pede senha de administrador.").pack(anchor="w", pady=(4, 12))
+              text=(DESCRICAO + "\n\n" if DESCRICAO else "")
+                   + "Vai tudo embutido: nao precisa instalar mais nada nesta maquina, "
+                     "e nao pede senha de administrador.").pack(anchor="w", pady=(4, 12))
 
     caminho = StringVar(value=str(destino_padrao()))
     linha = ttk.Frame(quadro)
@@ -258,7 +276,7 @@ def main():
             if a == "--destino" and i + 1 < len(sys.argv):
                 alvo = Path(sys.argv[i + 1])
         # sem console nao ha para onde imprimir, entao o relato vai para arquivo
-        registro = Path(tempfile.gettempdir()) / "instalar-ppk.log"
+        registro = Path(tempfile.gettempdir()) / f"instalar-{PROGRAMA['chave']}.log"
         linhas = []
 
         def anotar(t):

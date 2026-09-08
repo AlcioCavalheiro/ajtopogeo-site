@@ -6,6 +6,72 @@ atalho "Consulta de Cota" na Area de Trabalho.
 Fluxo: escolher o `.tif` do modelo, colar a lista de coordenadas, Consultar.
 O resultado sai em tabela e pode ser copiado ou salvo em CSV.
 
+## Instalacao em outra maquina
+
+`instalador/dist/Instalar Consulta de Cota.exe` -- um arquivo so, 79 MB. Leva o
+Python e o GDAL dentro dele: **na maquina de destino nao precisa de QGIS**, nem
+de Python.
+
+Instala em `%LOCALAPPDATA%\Programs\Consulta de Cota`, por usuario, e **nao pede
+senha de administrador**. Cria atalho na Area de Trabalho e no menu Iniciar, e
+aparece em Configuracoes > Aplicativos para desinstalar. Quem preferir nao
+instalar usa `Consulta de Cota - portatil.zip`.
+
+Para conferir uma instalacao que nao abre (sem console nao ha mensagem de erro):
+
+```
+"Consulta de Cota.exe" --autoteste
+```
+
+### O que vai dentro, e por que so isso
+
+A pasta `bin` do QGIS tem **424 MB** e a `share/proj`, **774 MB**. Nada disso
+precisa ir junto:
+
+| o que | tamanho | por que |
+|---|---|---|
+| 3 executaveis + 51 DLLs | 122 MB | o fecho de dependencia real do `gdalinfo`, `gdallocationinfo` e `gdaldem`, lido da tabela de importacao de cada arquivo |
+| `gdal-data` | 3 MB | tabelas de formato e de sistema de coordenadas |
+| `proj.db` | 9 MB | o banco de projecoes |
+
+As grades de transformacao entre datums (os 765 MB restantes de `share/proj`)
+ficam de fora porque **este programa nao reprojeta nada** -- ele exige que a
+coordenada ja esteja no sistema do raster.
+
+Sem o `gdal-data` e o `proj.db` o GDAL ainda abre o raster, mas nao sabe dizer em
+que sistema de coordenadas ele esta -- e a conferencia do sistema, que e a defesa
+contra consultar com a coordenada errada, deixaria de existir em silencio. Por
+isso o programa aponta `GDAL_DATA` e `PROJ_LIB` para as pastas que vieram junto,
+e o `--autoteste` confere as duas.
+
+Conferido contra o GDAL do QGIS no mesmo raster, com o QGIS fora do PATH: cota,
+analise de vizinhanca e as seis faixas de declividade batem **casa por casa**.
+
+### Gerar o instalador
+
+```
+py instalador/build.py
+```
+
+Precisa, **so na maquina que constroi**, de Python com `pyinstaller` e `pefile`,
+e do QGIS onde o `config.json` de desenvolvimento aponta. O build so embrulha
+depois que o pacote passa no proprio `--autoteste`.
+
+O trabalho comum aos dois programas de servico local mora em
+`gestor/instalador-comum`: `empacotar.py` (congelar, conferir, compactar,
+embrulhar) e `instalar.py` (o instalador em si, que le nome e chave de registro
+de um `programa.json` embutido). O `build.py` daqui so diz o nome e como
+desmontar o GDAL do QGIS.
+
+## Instalacao para desenvolver
+
+O GDAL sai do QGIS instalado, pelo caminho em `config.json`. Do lado do Python,
+so a biblioteca padrao e o `numpy` (usado no ajuste de plano da vizinhanca).
+
+No `config.json`, caminho relativo vale a partir da pasta do proprio arquivo --
+e o que permite o pacote instalado achar o GDAL que veio junto. Caminho absoluto
+continua funcionando, que e como ele aponta para o QGIS aqui.
+
 ## Formatos de coordenada aceitos
 
 Uma por linha, com ou sem nome do ponto. Separador pode ser espaco, tabulacao,

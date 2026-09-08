@@ -199,7 +199,7 @@ class Janela:
 
     def ler_info(self, caminho):
         try:
-            cfg = cota.carregar_config(Path(__file__).parent)
+            cfg = cota.carregar_config()
             gdalinfo, _, _ = cota.ferramentas(cfg)
             self.fila.put(("info", cota.info_modelo(gdalinfo, caminho)))
         except Exception as e:  # noqa: BLE001
@@ -300,7 +300,7 @@ class Janela:
 
     def trabalhar(self, caminho, pontos, opcoes):
         try:
-            cfg = cota.carregar_config(Path(__file__).parent)
+            cfg = cota.carregar_config()
             gdalinfo, consulta, _ = cota.ferramentas(cfg)
             info = self.info or cota.info_modelo(gdalinfo, caminho)
             resultado = cota.consultar(consulta, caminho, pontos, info)
@@ -377,7 +377,7 @@ class Janela:
 
     def trabalhar_declive(self, caminho):
         try:
-            cfg = cota.carregar_config(Path(__file__).parent)
+            cfg = cota.carregar_config()
             gdalinfo, _, gdaldem = cota.ferramentas(cfg)
             saida = Path(caminho).with_name(Path(caminho).stem + "_declividade.tif")
             cota.gerar_declividade(gdaldem, caminho, saida)
@@ -498,7 +498,48 @@ class Janela:
         self.raiz.after(120, self.drenar)
 
 
+def autoteste():
+    """Confere a instalacao sem abrir janela: `Consulta de Cota.exe --autoteste`.
+
+    Existe porque, sem console, uma instalacao quebrada apenas nao abre. Aqui a
+    falha sai escrita e com codigo de saida, e e isso que o instalador consulta
+    antes de dar o servico por concluido.
+    """
+    from pathlib import Path as _P
+    try:
+        cfg = cota.carregar_config()
+    except OSError as e:
+        print("config.json:", e)
+        return 1
+    print("pasta do programa:", cota.pasta_do_programa())
+    problemas = []
+    try:
+        info, consulta, dem = cota.ferramentas(cfg)
+        for rotulo, caminho in (("gdalinfo", info), ("gdallocationinfo", consulta),
+                                ("gdaldem", dem)):
+            print(f"  {rotulo:16s} OK    {caminho}")
+    except FileNotFoundError as e:
+        print(e)
+        return 1
+    for rotulo, chave in (("GDAL_DATA", "gdalData"), ("PROJ_LIB", "projData")):
+        pasta = cfg.get(chave)
+        ok = pasta and _P(pasta).is_dir()
+        print(f"  {rotulo:16s} {'OK   ' if ok else 'AUSENTE'} {pasta or '(nao declarado)'}")
+    # so rodar nao basta: sem as tabelas o GDAL abre o raster e nao sabe dizer
+    # o sistema de coordenadas, que e a conferencia que a janela mostra
+    import subprocess as _sp
+    r = _sp.run([str(info), "--version"], capture_output=True, text=True, timeout=120)
+    print("  " + (r.stdout.strip() or r.stderr.strip() or "sem resposta"))
+    if r.returncode != 0:
+        problemas.append("gdalinfo nao executou")
+    print("FALTANDO: " + ", ".join(problemas) if problemas else "Instalacao completa.")
+    return 1 if problemas else 0
+
+
 def main():
+    import sys as _sys
+    if "--autoteste" in _sys.argv:
+        _sys.exit(autoteste())
     raiz = Tk()
     try:
         ttk.Style().theme_use("vista")

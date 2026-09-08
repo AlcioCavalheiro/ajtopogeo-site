@@ -1,0 +1,4 @@
+# saidas do build.py: pesam dezenas de MB e sao geradas em 3 minutos
+build/
+dist/
+dist_app/

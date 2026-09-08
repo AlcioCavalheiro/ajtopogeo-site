@@ -42,6 +42,12 @@ Leva uns 3 minutos. Precisa, **so na maquina que constroi**, de Python com
 `config.json` de desenvolvimento. O build so embrulha depois que o pacote passa
 no proprio `--autoteste`, entao nao sai instalador quebrado.
 
+O trabalho comum aos dois programas de servico local mora em
+`gestor/instalador-comum`: `empacotar.py` (congelar, conferir, compactar,
+embrulhar) e `instalar.py` (o instalador em si, que le nome e chave de registro
+de um `programa.json` embutido). O `build.py` daqui so diz o nome e como copiar
+o RTKLIB e o ExifTool.
+
 Do RTKLIB vao junto apenas o `rnx2rtkp.exe` e o `igs20_*.atx` (a calibracao de
 antena); o resto da distribuicao seriam dezenas de MB sem uso aqui dentro.
 
