@@ -10,6 +10,7 @@ Uso:
 """
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -52,47 +53,53 @@ SIGMA_REALISTA = {
 }
 SIGMA_REALISTA_PADRAO = (2.00, 4.00)   # single, dgps ou desconhecido
 
-# Um voo que fixa pouco nao merece confianca nem nas epocas que ELE declara
-# fixas: a mesma fragilidade que impediu a fixacao no resto do voo tambem trava
-# a ambiguidade no inteiro errado onde ela fixa. Medido na FAZ SAO JORGE, contra
-# o PPK do DJI Terra:
+# Um trecho de voo que fixa pouco nao merece confianca nem nas epocas que ELE
+# declara fixas: a mesma fragilidade que impediu a fixacao em volta tambem trava
+# a ambiguidade no inteiro errado onde ela fixa.
 #
-#   92%, 95% e 100% de fixacao ->  0 de 977 fotos fixas erradas
-#   26% de fixacao             -> 45 de 129 fotos fixas erradas, uma delas 2,05 m
+# A medida tem de ser LOCAL, na vizinhanca de cada disparo, e nao a media do voo:
+# na FAZ SAO JORGE a missao inteira fixa 73%, o que passaria por aceitavel, mas
+# os ultimos seis minutos estao errados. Calibrado contra o PPK do DJI Terra nas
+# 1106 fotos que a solucao declarou fixas (45 delas erradas por mais de 20 cm):
+#
+#   janela  corte   pega das erradas   rebaixa das boas
+#   +-20 s    90%        45 de 45          214 de 1061
+#   +-30 s    70%        42 de 45          113 de 1061
+#   +-60 s    70%        45 de 45           99 de 1061   <- escolhido
 #
 # Declarar 0,15/0,30 naquelas 45 e o caminho direto para o underflow que aborta o
-# Pix4D. Com 0,50/1,00 o pior caso vira 2 sigma -- pesa pouco, mas nao zera.
-FIXACAO_CONFIAVEL = 70          # % de fotos fixas
+# Pix4D. Com 0,50/1,00 o pior caso (2,05 m) vira 2 sigma: pesa pouco, mas nao
+# zera, e o ajuste do bloco corrige a foto pela imagem.
+FIXACAO_CONFIAVEL = 70          # % de epocas fixas em volta do disparo
+JANELA_FIXACAO_S = 60           # metade da janela, em segundos
 SIGMA_FIXA_DUVIDOSA = (0.50, 1.00)
 
 
-def sigma_da_foto(foto, modo, piso=None, voo_duvidoso=False):
+def solucao_duvidosa(foto):
+    """Foto declarada fixa num trecho do voo em que a fixacao nao se sustenta."""
+    return foto["q"] == 1 and foto.get("fix_local", 100.0) < FIXACAO_CONFIAVEL
+
+
+def sigma_da_foto(foto, modo, piso=None):
     """Precisao a declarar para a foto, conforme a qualidade da epoca.
 
-    `piso` e a discordancia medida entre duas solucoes independentes naquela
-    foto: quando ela e maior que o valor de tabela, e ela que vale. E medicao,
-    nao estimativa, e serve para o caso em que a epoca se declara fixa mas nao
-    esta -- desde que as duas solucoes discordem. Quando as duas erram junto, o
-    piso nao ve nada, e ai vale `voo_duvidoso`.
+    Tres coisas podem piorar o numero de tabela, e a pior manda:
+
+    - a epoca estar em float, que ja e a propria tabela;
+    - o trecho do voo fixar pouco em volta do disparo (`fix_local`), que pega a
+      fixa que nao se sustenta;
+    - `piso`, a discordancia medida entre duas solucoes independentes naquela
+      foto. E medicao, nao estimativa -- mas so enxerga quando as duas solucoes
+      discordam. Quando as duas erram junto, quem pega e a fixacao local.
     """
     if modo == "formal":
         return math.hypot(foto["sdn"], foto["sde"]), foto["sdu"]
     h, v = SIGMA_REALISTA.get(foto["q"], SIGMA_REALISTA_PADRAO)
-    if voo_duvidoso and foto["q"] == 1:
+    if solucao_duvidosa(foto):
         h, v = SIGMA_FIXA_DUVIDOSA
     if piso:
         h, v = max(h, piso[0]), max(v, piso[1])
     return h, v
-
-
-def voos_pouco_fixados(fotos):
-    """Voos cuja fixacao esta baixa demais para a solucao fixa valer o que diz."""
-    contagem = {}
-    for f in fotos:
-        n, fixas = contagem.get(f["voo"], (0, 0))
-        contagem[f["voo"]] = (n + 1, fixas + (f["q"] == 1))
-    return {voo for voo, (n, fixas) in contagem.items()
-            if n and 100.0 * fixas / n < FIXACAO_CONFIAVEL}
 
 
 def pasta_do_programa():
@@ -197,6 +204,56 @@ def achar_arquivos(projeto):
 
     return dict(voos=voos, base_obs=melhor["caminho"], base=melhor,
                 base_navs=base_navs, candidatos=descritos, recusados=recusados)
+
+
+def impressao_do_arquivo(caminho, pedaco=1 << 20):
+    """Identidade do conteudo do arquivo, para reconhecer copia."""
+    h = hashlib.blake2b(digest_size=16)
+    with open(caminho, "rb") as f:
+        for bloco in iter(lambda: f.read(pedaco), b""):
+            h.update(bloco)
+    return h.hexdigest()
+
+
+def agrupar_voos(voos):
+    """Junta as pastas que carregam exatamente as mesmas leituras do drone.
+
+    Um cartao com muitas fotos reparte um voo so em varias pastas, e copia em
+    cada uma o MESMO .OBS, .NAV e .MRK -- na FAZ SAO JORGE foram tres pastas com
+    o mesmo arquivo de 56 MB e os mesmos 1488 eventos. Processar as tres seria
+    gastar o triplo do tempo no RTKLIB para chegar a trajetoria identica, e o
+    relatorio ainda falaria em "3 voos" quando existe um, o que leva a decisao
+    errada em campo: manda revoar uma pasta em vez do trecho do voo que falhou.
+
+    So arquivos do mesmo tamanho chegam a ser lidos, entao o custo e desprezivel
+    quando nao ha repeticao.
+    """
+    por_tamanho = {}
+    for v in voos:
+        por_tamanho.setdefault(v["rover_obs"].stat().st_size, []).append(v)
+
+    grupos = []
+    for iguais in por_tamanho.values():
+        if len(iguais) == 1:
+            grupos.append(iguais)
+            continue
+        por_conteudo = {}
+        for v in iguais:
+            por_conteudo.setdefault(impressao_do_arquivo(v["rover_obs"]), []).append(v)
+        grupos.extend(por_conteudo.values())
+
+    montados = []
+    for partes in grupos:
+        partes = sorted(partes, key=lambda v: v["nome"])
+        principal = partes[0]
+        fotos = sorted((f for v in partes for f in v["fotos"]), key=lambda p: p.name)
+        montados.append(dict(
+            nome=principal["nome"] if len(partes) == 1
+                 else f"{principal['nome']} ({len(partes)} pastas, mesmo voo)",
+            partes=[v["nome"] for v in partes], fotos=fotos,
+            mrk=principal["mrk"], rover_obs=principal["rover_obs"],
+            rover_nav=principal["rover_nav"]))
+    return sorted(montados, key=lambda g: g["nome"])
 
 
 def conferir_cobertura(base, voos):
@@ -664,9 +721,20 @@ def conferir_base(observada, lat, lon, h_arp):
     return avisos
 
 
+def fixacao_na_vizinhanca(epocas, tows, tow, janela=JANELA_FIXACAO_S):
+    """Fracao de epocas fixas numa janela em torno do disparo."""
+    import bisect
+    a = bisect.bisect_left(tows, tow - janela)
+    b = bisect.bisect_right(tows, tow + janela)
+    if b <= a:
+        return 0.0
+    return 100.0 * sum(1 for e in epocas[a:b] if e["q"] == 1) / (b - a)
+
+
 def calcular_fotos(voo, epocas, eventos, atitude):
     """Posicao de cada foto: trajetoria interpolada no disparo + braco de alavanca."""
     fotos, faltando = [], []
+    tows = [e["tow"] for e in epocas]
     for foto in voo["fotos"]:
         achado = re.search(r"_(\d+)_[A-Z]\.JPG$", foto.name, re.IGNORECASE)
         evento = eventos.get(int(achado.group(1))) if achado else None
@@ -681,18 +749,16 @@ def calcular_fotos(voo, epocas, eventos, atitude):
             lon=p["lon"] + (evento["e"] / (RAIO_TERRA * math.cos(math.radians(p["lat"])))) * 180 / math.pi,
             h=p["h"] - evento["v"],   # V do .MRK aponta para baixo (NED)
             q=p["q"], sdn=p["sdn"], sde=p["sde"], sdu=p["sdu"],
+            fix_local=fixacao_na_vizinhanca(epocas, tows, evento["tow"]),
             yaw=yaw, pitch=pitch, roll=roll))
     return fotos, faltando
 
 
 def escrever_geotag(caminho, fotos, sigma="realista", piso=None):
     """Grava o CSV no formato do DJI Terra."""
-    duvidosos = voos_pouco_fixados(fotos) if sigma == "realista" else set()
     with open(caminho, "w", encoding="utf-8", newline="") as f:
         for foto in fotos:
-            hacc, vacc = sigma_da_foto(foto, sigma,
-                                       (piso or {}).get(foto["nome"]),
-                                       voo_duvidoso=foto["voo"] in duvidosos)
+            hacc, vacc = sigma_da_foto(foto, sigma, (piso or {}).get(foto["nome"]))
             f.write(f"{foto['nome']},{foto['lat']!r},{foto['lon']!r},{foto['h']!r},"
                     f"{num(foto['yaw'])},{num(foto['pitch'])},{num(foto['roll'])},"
                     f"{hacc:.5f},{vacc:.5f}\n")
@@ -758,12 +824,17 @@ def conferir_qualidade(fotos, total_fotos, inicio_rover=None, comparacao=None,
         rebaixar("atencao")
         msgs.append("Fixacao mediana. As fotos em float estao declaradas com 1,00/2,00 m "
                     "e vao contar pouco no ajuste.")
-    if pct < FIXACAO_CONFIAVEL:
-        msgs.append(f"Como o voo fixou menos de {FIXACAO_CONFIAVEL}%, ate as fotos que ele "
-                    f"declara fixas saem com {SIGMA_FIXA_DUVIDOSA[0]:.2f}/"
-                    f"{SIGMA_FIXA_DUVIDOSA[1]:.2f} m em vez de 0,15/0,30: num voo assim a "
-                    "solucao tambem trava no inteiro errado onde ela fixa. Para usar estas "
-                    "fotos em terraco, use ponto de apoio em campo.")
+    rebaixadas = [f for f in fotos if solucao_duvidosa(f)]
+    if rebaixadas:
+        instantes = sorted(f["tow"] for f in rebaixadas)
+        rebaixar("atencao")
+        msgs.append(
+            f"{len(rebaixadas)} foto(s) se declaram fixas em trechos onde a fixacao nao se "
+            f"sustenta (menos de {FIXACAO_CONFIAVEL}% das epocas em volta), de "
+            f"{hora_do_tow(instantes[0])} a {hora_do_tow(instantes[-1])}. Elas saem com "
+            f"{SIGMA_FIXA_DUVIDOSA[0]:.2f}/{SIGMA_FIXA_DUVIDOSA[1]:.2f} m em vez de "
+            "0,15/0,30: onde a ambiguidade nao para em pe, ela tambem trava no inteiro "
+            "errado onde fixa. Para terraco nesse trecho, use ponto de apoio em campo.")
 
     if comparacao:
         n = comparacao["n"]
@@ -858,7 +929,7 @@ def processar(projeto, lat, lon, base_z, cfg, elmask=15, altura_antena=None,
             "Exporte a base de novo, em RINEX 3.04 com todas as constelacoes, pelo "
             "programa do receptor ComNav, e coloque o arquivo na pasta do voo.")
 
-    voos = arq["voos"]
+    voos = agrupar_voos(arq["voos"])
     total_fotos = sum(len(v["fotos"]) for v in voos)
     periodo = (f", gravou de {hora_do_tow(b['inicio'][1])} a {hora_do_tow(b['fim'][1])}"
                if b["inicio"] and b["fim"] else "")
@@ -896,6 +967,10 @@ def processar(projeto, lat, lon, base_z, cfg, elmask=15, altura_antena=None,
         aviso(f"      antena {anttype.strip()} calibrada pelo {antex.name}.")
 
     aviso(f"{len(voos)} voo(s) na pasta, {total_fotos} fotos no total.")
+    for g in voos:
+        if len(g["partes"]) > 1:
+            aviso(f"      {' , '.join(g['partes'])}: mesmas leituras do drone "
+                  f"(.OBS e .MRK identicos) -- e um voo so, processado uma vez.")
 
     for a in conferir_cobertura(b, voos):
         aviso(f"ATENCAO  {a}")

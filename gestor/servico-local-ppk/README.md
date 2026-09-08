@@ -243,6 +243,21 @@ Rodando por `pythonw` nao ha console, entao uma falha na partida nao apareceria
 em lugar nenhum. Quando isso acontece o programa grava `erro_na_partida.txt` na
 propria pasta e tenta mostrar uma caixa de mensagem.
 
+## Pastas diferentes com o mesmo voo
+
+Um cartao com muitas fotos reparte **um voo so** em varias pastas e copia em cada
+uma o MESMO `.OBS`, `.NAV` e `.MRK`. Na FAZ SAO JORGE foram tres pastas com o
+mesmo arquivo de 56 MB e os mesmos 1488 eventos -- so as fotos mudavam.
+
+O programa reconhece isso pelo conteudo do `.OBS` (compara o tamanho e, so entre
+os de mesmo tamanho, o hash) e processa uma vez so. Sao dois ganhos:
+
+- **tempo**: 6 min para 3 min nesse voo, porque o RTKLIB rodava tres vezes para
+  chegar a trajetoria identica;
+- **relatorio que nao induz ao erro**: antes ele falava em "4 voos" e apontava
+  uma pasta como RUIM. Ninguem precisa revoar uma pasta -- o que falhou foi um
+  **trecho** do voo, das 15:18 as 15:24. O relatorio agora diz a hora.
+
 ## Varios voos na mesma pasta
 
 Um cartao costuma trazer varios voos, cada um na sua pasta com `.MRK`, `.OBS`,
@@ -311,18 +326,27 @@ Alem disso, a discordancia medida entre as duas mascaras vira **piso** da
 precisao de cada foto: onde as duas solucoes divergem 20 cm, o geotag sai com
 20 cm naquela foto. E medicao, nao estimativa.
 
-E **voo que fixa menos de 70% nao tem a solucao fixa levada a serio**: as fotos
-que ele declara fixas saem com 0,50/1,00 m. A mesma fragilidade que impediu a
-fixacao no resto do voo tambem trava a ambiguidade no inteiro errado onde ela
-fixa. Medido na FAZ SAO JORGE contra o PPK do DJI Terra:
+E **foto que se declara fixa num trecho onde a fixacao nao se sustenta sai com
+0,50/1,00 m**. Onde a ambiguidade nao para em pe, ela tambem trava no inteiro
+errado nas epocas em que fixa.
 
-| fixacao do voo | fotos fixas erradas por mais de 20 cm |
-|---|---|
-| 92%, 95% e 100% | **0** de 977 |
-| 26% | **45** de 129, uma delas 2,05 m |
+A medida e **local**, numa janela de +-60 s em torno do disparo, e nao a media do
+voo. Tem de ser: na FAZ SAO JORGE a missao inteira fixa 73%, o que passaria por
+aceitavel, mas os ultimos seis minutos estao errados. Calibrado contra o PPK do
+DJI Terra, nas 1106 fotos que a solucao declarou fixas (45 delas erradas por mais
+de 20 cm, uma por 2,05 m):
 
-O piso das mascaras nao pega esse caso: as duas mascaras erraram juntas, e
-concordaram em 0,0 cm. So a taxa de fixacao do voo denuncia.
+| janela | corte | pega das erradas | rebaixa das boas |
+|---|---|---|---|
+| +-20 s | 90% | 45 de 45 | 214 de 1061 |
+| +-30 s | 70% | 42 de 45 | 113 de 1061 |
+| **+-60 s** | **70%** | **45 de 45** | **99 de 1061** |
+
+Depois de aplicada, nenhuma foto errada por mais de 20 cm continua declarada com
+0,15/0,30, e a pior entre as que continuam apertadas erra 10,1 cm.
+
+O piso das mascaras nao pega esse caso: as duas mascaras erraram juntas e
+concordaram em 0,0 cm. So a fixacao local denuncia.
 
 `--sigma formal` volta a escrever o desvio do RTKLIB, util so para conferencia.
 
