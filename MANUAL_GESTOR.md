@@ -13,25 +13,30 @@
 3. [Agenda](#3-agenda)
 4. [Pendências](#4-pendências)
 5. [Ordens de Serviço](#5-ordens-de-serviço)
-6. [Clientes](#6-clientes)
-7. [Obras](#7-obras)
-8. [Serviços](#8-serviços)
-9. [Orçamentos](#9-orçamentos)
-10. [Contratos](#10-contratos)
-11. [Medições](#11-medições)
-12. [Financeiro (Contas, Recebimentos, Pagamentos, Impostos, Folha, Notas Fiscais)](#12-financeiro)
-13. [DRE / Resultado](#13-dre--resultado)
-14. [Acompanhamento por Obra](#14-acompanhamento-por-obra)
-15. [Controle Tributário](#15-controle-tributário)
-16. [Ferramentas Geo](#16-ferramentas-geo)
-17. [Rotinas Recorrentes](#17-rotinas-recorrentes)
-18. [Documentos](#18-documentos)
-19. [Funcionários](#19-funcionários)
-20. [Frotas](#20-frotas)
-21. [Ponto de Campo](#21-ponto-de-campo)
-22. [Estabelecimentos](#22-estabelecimentos)
-23. [Relatórios / PDF](#23-relatórios--pdf)
-24. [Configuração](#24-configuração)
+6. [Minhas Tarefas](#6-minhas-tarefas)
+7. [Clientes](#7-clientes)
+8. [Obras](#8-obras)
+9. [Serviços](#9-serviços)
+10. [Orçamentos](#10-orçamentos)
+11. [Contratos](#11-contratos)
+12. [Fazendas à Venda](#12-fazendas-à-venda)
+13. [Medições](#13-medições)
+14. [Financeiro (Contas, Recebimentos, Pagamentos, Impostos, Folha, Notas Fiscais)](#14-financeiro)
+15. [DRE / Resultado](#15-dre--resultado)
+16. [Acompanhamento por Obra](#16-acompanhamento-por-obra)
+17. [Controle Tributário](#17-controle-tributário)
+18. [Ferramentas Geo](#18-ferramentas-geo)
+19. [Rotinas Recorrentes](#19-rotinas-recorrentes)
+20. [Documentos](#20-documentos)
+21. [Funcionários](#21-funcionários)
+22. [Frotas](#22-frotas)
+23. [Ponto de Campo](#23-ponto-de-campo)
+24. [Estabelecimentos](#24-estabelecimentos)
+25. [Relatórios / PDF](#25-relatórios--pdf)
+26. [Configuração](#26-configuração)
+27. [Usuários](#27-usuários)
+28. [Segurança e Trabalho — EPIs & Ordens de Serviço](#28-segurança-e-trabalho--epis--ordens-de-serviço)
+29. [Treinamentos](#29-treinamentos)
 
 ---
 
@@ -62,7 +67,7 @@ Cadastro de compromissos (reuniões, prazos, entregas, tarefas de OS).
 2. Preencha: **Título*** (obrigatório), **Tipo** (Geral/OS/Prazo/Reunião/Entrega), **Data*** (obrigatória), **Hora**, **OS Vinculada** (número, texto livre), **Responsável**, **Descrição**.
 3. Salvar.
 
-Itens de agenda vinculados a uma OS aparecem também na tela daquela OS e no app de Campo (aba Agenda), e alimentam a lista de **Pendências** quando vencem sem serem concluídos.
+Itens de agenda vinculados a uma OS aparecem também na tela daquela OS e no app de Campo (aba Agenda), e alimentam a lista de **Pendências** quando vencem sem serem concluídos. Ao salvar um compromisso (ou reenviar depois, pelo botão dedicado na linha do compromisso) o sistema também dispara um **convite por e-mail** para o responsável.
 
 📸 *[Print sugerido: lista da Agenda com alguns compromissos, e o formulário "Novo Compromisso" aberto]*
 
@@ -78,7 +83,7 @@ Painel somente leitura que reúne tudo que está **atrasado** no sistema: rotina
 
 ## 5. Ordens de Serviço
 
-As OS **não são criadas diretamente** neste módulo — elas nascem automaticamente quando um **Orçamento é aprovado** (veja [seção 9](#9-orçamentos)). O botão "Novo" desta tela mostra esse aviso e não abre formulário.
+As OS **não são criadas diretamente** neste módulo — elas nascem automaticamente quando um **Orçamento é aprovado** (veja [seção 10](#10-orçamentos)). O botão "Novo" desta tela mostra esse aviso e não abre formulário.
 
 ### 5.1 Lista e filtros
 A lista mostra **abas por status** (uma aba para cada etapa do fluxo: Agendada, Logística/Preparação, Em campo, Em andamento, Processamento, Desenho, Revisão Técnica, Análise Jurídica, Pendência Documental, Pronto para Protocolo, Protocolada, Encaminhada para Medição, Medição Realizada, NF Gerada, Recebido, Pronto para Enviar ao Cliente, Documentos Enviados ao Cliente, Concluída, Cancelada) — clique na aba para ver só as OS daquele status; a contagem de cada aba aparece no próprio rótulo. Ao mudar o status de uma OS, ela migra automaticamente para a aba correspondente. Há também filtro por Cliente, ordenação e busca por texto.
@@ -89,7 +94,7 @@ A lista mostra **abas por status** (uma aba para cada etapa do fluxo: Agendada, 
 Clique em **Abrir** na linha da OS. A janela tem 4 abas:
 
 - **Geral** — dados só-leitura (cliente, obra, responsável, orçamento de origem) + campos editáveis: **Data de Execução**, **Status da OS** (select com todo o fluxo), **Responsável(is)** (marcar funcionários), **Observações**.
-- **Andamento** — histórico de anotações (texto + data/hora + autor); permite registrar nova anotação e agendar uma tarefa vinculada à OS. As tarefas agendadas ligadas à OS também aparecem aqui.
+- **Andamento** — histórico de anotações (texto + data/hora + autor); permite registrar nova anotação e agendar uma tarefa vinculada à OS (que também dispara convite por e-mail ao responsável). As tarefas agendadas ligadas à OS também aparecem aqui.
 - **Checklist docs** — lista de documentos necessários, marcáveis como concluídos, com botão para adicionar itens extras.
 - **Financeiro** — resumo de custos de equipe, despesas, recebimentos e saldo daquela OS especificamente.
 
@@ -99,7 +104,26 @@ Botões no rodapé: **Salvar alterações**, **Ordem de Serviço** (PDF resumido
 
 ---
 
-## 6. Clientes
+## 6. Minhas Tarefas
+
+Lista de tarefas pessoais do usuário logado — um checklist simples e privado (cada pessoa só vê as próprias tarefas), separado das OS e da Agenda. O menu mostra um contador com a quantidade de tarefas pendentes.
+
+**Para usar:**
+1. Menu → **Minhas Tarefas**.
+2. Digite a tarefa no campo no topo (ex.: "ligar para o cliente") e clique **Adicionar** (ou Enter).
+3. Marque a caixinha para concluir — o texto fica riscado e ela sobe para o fim da lista.
+4. Botão **lápis** abre a edição do texto e de uma **data de validade** opcional; passada essa data sem concluir, a tarefa aparece em destaque (vermelho, com ícone de alerta) na própria lista.
+5. Botão **lixeira** exclui a tarefa.
+
+A busca no topo da tela (barra de busca padrão) filtra as tarefas pelo texto digitado.
+
+> Requer a migration `add_tarefas_pessoais.sql` no Supabase — se aparecer o aviso "Minhas Tarefas indisponível", é esse o caso.
+
+📸 *[Print sugerido: tela de Minhas Tarefas com pendentes e concluídas, uma delas com data de validade vencida em vermelho]*
+
+---
+
+## 7. Clientes
 
 **Para cadastrar:** Menu → **Clientes** → **Novo Cliente**.
 
@@ -111,15 +135,15 @@ Campos: **Nome / Razão Social*** · **CPF/CNPJ** · **RG** · **Tipo** (PF/PJ) 
 
 ---
 
-## 7. Obras
+## 8. Obras
 
 Representa o imóvel/empreendimento onde o serviço será executado — vinculado a um cliente.
 
 **Campos principais:** Nome da obra*, Tipo de obra (Georreferenciamento, Loteamento, Construção, Levantamento Planialtimétrico, Demarcação, Locação de Obras, Regularização Fundiária, Desmembramento, Incorporação Imobiliária, Infraestrutura Urbana, Outro), Cliente, Estado/Município, Endereço, **Área (ha)**, **Matrícula (CRI)**, **Tipo de cadastro do imóvel** (INCRA/SNCR para imóvel rural ou Prefeitura para imóvel urbano — muda os campos seguintes), **Código INCRA/SNCR** ou inscrição municipal, **CCIR**, **Comarca**, **Cartório de Registro de Imóveis**, **RT** (registro/ART do responsável técnico), Observações.
 
-> Os dados da obra alimentam automaticamente várias Ferramentas Geo (Requerimentos, Memorial, Planilha SIGEF, Anuência de Limites, Mapa PDF) — vale a pena preencher com cuidado.
+> Os dados da obra alimentam automaticamente várias Ferramentas Geo (Requerimentos, Memorial, Planilha SIGEF, Anuência de Limites, Mapa PDF) e também podem ser reaproveitados para anunciar o imóvel em **Fazendas à Venda** — vale a pena preencher com cuidado.
 
-### 7.1 Vizinhos / Proprietários da obra
+### 8.1 Vizinhos / Proprietários da obra
 Na lista de Obras, botão **Vizinhos** abre um cadastro à parte com duas abas:
 - **Proprietário(s)** do imóvel principal.
 - **Vizinhos** (confrontantes) — cada um com pessoa(s) física(s)/jurídica(s), documento, estado civil, cônjuge (se casado), percentual de participação.
@@ -130,7 +154,7 @@ Esse cadastro alimenta a geração da **Anuência de Limites** e dos **Requerime
 
 ---
 
-## 8. Serviços
+## 9. Serviços
 
 Catálogo de serviços que podem ser adicionados como itens de um Orçamento.
 
@@ -140,9 +164,9 @@ Catálogo de serviços que podem ser adicionados como itens de um Orçamento.
 
 ---
 
-## 9. Orçamentos
+## 10. Orçamentos
 
-### 9.1 Criar um orçamento
+### 10.1 Criar um orçamento
 Menu → **Orçamentos** → **Novo Orçamento**.
 
 1. **Cliente*** e **Obra/Imóvel** (a lista de obras é filtrada pelo cliente escolhido).
@@ -158,19 +182,19 @@ Menu → **Orçamentos** → **Novo Orçamento**.
 
 📸 *[Print sugerido: formulário de Novo Orçamento com pelo menos 2 itens adicionados na tabela e o total calculado]*
 
-### 9.2 Aprovar e gerar a Ordem de Serviço
+### 10.2 Aprovar e gerar a Ordem de Serviço
 Ao abrir um orçamento com status **Aprovado**, aparece o botão **Criar OS** — ele gera a Ordem de Serviço automaticamente a partir dos dados do orçamento (cliente, itens, valor, responsáveis). É esse o único caminho para criar uma OS no sistema.
 
-### 9.3 Gerar o PDF da proposta
+### 10.3 Gerar o PDF da proposta
 Botão **Gerar PDF** (na lista ou dentro do orçamento) monta um PDF profissional: capa com número/validade, dados do cliente e da obra, tabela de itens com quantidade/valor unitário/subtotal, total, forma de pagamento, observações e página de assinatura.
 
 📸 *[Print sugerido: primeira página do PDF de orçamento gerado, mostrando a capa e a tabela de itens]*
 
 ---
 
-## 10. Contratos
+## 11. Contratos
 
-### 10.1 Criar um contrato
+### 11.1 Criar um contrato
 Menu → **Contratos** → **Novo Contrato**.
 
 1. **Orçamento de origem** — selecione um orçamento **Aprovado** na lista; ao escolher, o sistema preenche automaticamente **Cliente**, **Descrição/Objeto** (com o texto do próprio orçamento) e **Valor**.
@@ -181,7 +205,7 @@ Menu → **Contratos** → **Novo Contrato**.
 
 📸 *[Print sugerido: formulário de Novo Contrato logo após selecionar um orçamento de origem, mostrando os campos preenchidos automaticamente]*
 
-### 10.2 Visualizar e gerar o PDF
+### 11.2 Visualizar e gerar o PDF
 Na lista de Contratos, botão **olho** abre um resumo (cliente, status, valor, recebido, saldo, e — se houver orçamento vinculado — o objeto e a tabela de itens/valores dele). Botão **Gerar Contrato** monta o PDF completo:
 
 - Capa com número e nome do cliente.
@@ -195,50 +219,76 @@ Se o cliente for pessoa física com **RG**, **Estado civil** e/ou **Profissão**
 
 ---
 
-## 11. Medições
+## 12. Fazendas à Venda
+
+Módulo de corretagem de imóveis rurais (CRECI), separado do restante do sistema — os dados aqui não têm ligação com a marca AJ TopoGeo: é o site institucional de fazendas que consome esses cadastros como vitrine.
+
+### 12.1 Cadastrar uma fazenda
+Menu → **Fazendas à Venda** → **Nova Fazenda**.
+
+- **Puxar dados de uma obra salva** — seletor no topo do formulário: escolhe uma Obra já cadastrada e preenche automaticamente título, área, matrícula, município/UF e os dados do proprietário (a partir do cadastro de Vizinhos/Proprietários da obra ou, se não houver, do próprio Cliente vinculado). Sempre confira antes de salvar.
+- **Dados do anúncio:** Título*, Área (ha), Município, UF, Preço (R$), Matrícula, Status (Rascunho/Disponível/Reservada/Vendida), "Destacar no site", Descrição (benfeitorias, água, energia, acesso, aptidão), Fotos (upload múltiplo, comprimidas automaticamente antes de subir).
+- **Dados do proprietário e condições da Autorização de Venda** (nunca aparecem no site, só alimentam o documento): Nome completo, CPF/CNPJ, RG, Estado civil, Endereço completo, Comissão (%), Condições de pagamento, Validade da autorização, Exclusividade (CC art. 726) e se a Autorização já foi assinada.
+
+> Só entram no site as fazendas com status **Disponível** ou **Reservada**; "Rascunho" fica visível só aqui no Gestor.
+
+### 12.2 Gerar a Autorização de Venda
+Botão **Gerar Autorização de Venda (.docx)**, no rodapé do formulário — monta o contrato de autorização (exigido pelo CRECI antes de anunciar) já preenchido com os dados do proprietário e do imóvel, cláusula de exclusividade conforme a caixinha marcada, e a validade por extenso. Assine com o proprietário e só então marque "Autorização já assinada" ao salvar.
+
+📸 *[Print sugerido: lista de Fazendas em cards com foto/preço/status, e o formulário de Nova Fazenda com uma obra já puxada]*
+
+---
+
+## 13. Medições
 
 Usadas para faturamento parcial/por etapas de uma obra (medições de andamento físico-financeiro).
 
-### 11.1 Lista por status
+### 13.1 Lista por status
 A lista tem **abas por status**: Fechar Medição, Gerar NF, Falta Pagamento, Recebido — cada aba mostra só as medições daquele status, com a contagem no rótulo. Ao mudar o status de uma medição, ela migra de aba automaticamente.
 
 📸 *[Print sugerido: lista de Medições com as 4 abas de status visíveis]*
 
-### 11.2 Criar uma medição
-Botão **Nova Medição**: Descrição*, Cliente, OS Vinculada, Valor*, % Executado, Status, Observações.
+### 13.2 Criar uma medição
+Botão **Nova Medição**:
 
-### 11.3 Gerar a planilha de medição (PDF)
+1. Escolha primeiro a **Obra** — só aparecem obras que têm alguma OS "Encaminhada para Medição" ainda não usada em outra medição; se nenhuma obra tem OS disponível, o seletor fica desabilitado.
+2. Ao escolher a obra, a lista de **OS aptas para esta medição** filtra automaticamente para mostrar só as daquela obra; marque as que entram nesta medição para calcular o total.
+3. O **Medição Nº** é preenchido sozinho, seguindo a sequência já usada **para aquela obra** (não depende mais do cliente da OS marcada).
+4. Complete Descrição*, Período, Contrato, Status e demais dados para o PDF.
+5. Salvar.
+
+### 13.3 Gerar a planilha de medição (PDF)
 Botão **Gerar PDF** monta a planilha no padrão da empresa, com os dados da OS vinculada, período e valores.
 
 ---
 
-## 12. Financeiro
+## 14. Financeiro
 
-### 12.1 Contas Bancárias
+### 14.1 Contas Bancárias
 Cadastro das contas/carteiras usadas para saber o saldo real. Campos: Banco/Nome*, Tipo (Conta Corrente, Poupança, Conta Digital, Investimento, Caixa), Saldo inicial, Agência, Conta, Cor (usada nos gráficos), Observação. **O saldo não é digitado depois** — ele é calculado automaticamente a partir dos Recebimentos e Pagamentos vinculados à conta.
 
-### 12.2 Recebimentos
+### 14.2 Recebimentos
 Contas a receber de clientes. Campos: Descrição*, Cliente, Valor*, Forma de pagamento, Vencimento, Data de recebimento, **OS Vinculada*** (obrigatória, a menos que marque "Receita avulsa — não pertence a nenhuma OS"), Conta movimentada, Status (Pendente/Recebido). A tela tem abas **A Receber** / **Recebidos**, com os vencidos destacados em vermelho.
 
 > Sem vínculo com OS (e sem marcar avulsa), o valor não abate o saldo de nenhuma ordem e ela continua aparecendo como não paga na cobrança — o sistema bloqueia salvar nesse caso.
 
-### 12.3 Pagamentos
+### 14.3 Pagamentos
 Contas a pagar da empresa — reúne o que antes eram telas separadas (Contas Fixas, Saídas Variáveis, Passivo) em uma só, com sub-abas. Campos: Descrição*, Categoria (Combustível, Alimentação, Pessoal, Pró-labore, Salário, INSS/FGTS/IRRF Folha, Infraestrutura, Equipamentos, Software, Financiamento, Parcelamento Tributário, Impostos, Outros), Valor*, Vencimento, Data de pagamento, Juros/Multa (com cálculo automático do total efetivo), OS Vinculada, Conta movimentada, **Natureza** (Fixo = repete todo mês / Variável), Tipo de custo (OS/Operacional/Administrativo), Status, Competência, anexo de boleto/comprovante (PDF/imagem). Pode marcar **pagamento recorrente** para gerar vários meses de uma vez (número definido ou contínuo, 24 meses).
 
-### 12.4 Impostos
+### 14.4 Impostos
 Registro de tributos pagos: Tipo (Simples Nacional/DAS, INSS, IRPJ/CSLL, FGTS, ISS, IRRF, Outro), Valor*, Descrição, OS Vinculada (se não vincular, o valor pode ser distribuído entre as OS do mês), Data, Período de referência, comprovante em PDF.
 
-### 12.5 Folha / Pró-labore
+### 14.5 Folha / Pró-labore
 Visão filtrada dos Pagamentos nas categorias de folha (Pró-labore, Salário, INSS/FGTS/IRRF Folha), com indicadores de total pago no período. Lançar usa o mesmo formulário de Pagamentos.
 
-### 12.6 Notas Fiscais
+### 14.6 Notas Fiscais
 Campos: Número da NF*, Cliente, Valor*, Alíquota ISS % (calcula o valor do ISS automaticamente), OS Vinculada, Data de emissão, Status (Pendente/Emitida/Cancelada), anexo do PDF da NF.
 
 📸 *[Print sugerido: tela de Pagamentos com as sub-abas "Contas Fixas / Saídas Variáveis / Por Mês" visíveis]*
 
 ---
 
-## 13. DRE / Resultado
+## 15. DRE / Resultado
 
 Demonstrativo de Resultado do Exercício — relatório (só leitura) do mês selecionado, cruzando Recebimentos, Pagamentos, Impostos e Custos de equipe para mostrar receita, despesas categorizadas e resultado do período. Selecione o mês no topo da tela.
 
@@ -246,13 +296,13 @@ Demonstrativo de Resultado do Exercício — relatório (só leitura) do mês se
 
 ---
 
-## 14. Acompanhamento por Obra
+## 16. Acompanhamento por Obra
 
 Relatório (só leitura) por Ordem de Serviço: valor contratado × recebido × custos (pagamentos + equipe + impostos) = resultado, percentual já recebido e situação do próximo vencimento (em dia, vencendo, atrasado). Ajuda a enxergar rapidamente quais OS estão dando lucro e quais têm saldo em aberto.
 
 ---
 
-## 15. Controle Tributário
+## 17. Controle Tributário
 
 Painel do Simples Nacional: calcula a **RBT12** (receita bruta dos últimos 12 meses), a **alíquota efetiva do DAS** conforme a faixa vigente, compara Anexo III × Anexo V, projeta os próximos 3 meses e gera alertas (ex.: proximidade de mudar de faixa). Alimentado pelos sub-cadastros:
 
@@ -265,34 +315,34 @@ Painel do Simples Nacional: calcula a **RBT12** (receita bruta dos últimos 12 m
 
 ---
 
-## 16. Ferramentas Geo
+## 18. Ferramentas Geo
 
-Conjunto de 12 ferramentas técnicas de topografia, acessadas em abas dentro de **Ferramentas Geo**.
+Conjunto de 13 ferramentas técnicas de topografia, acessadas em abas dentro de **Ferramentas Geo**.
 
-### 16.1 Conversor de Arquivos
+### 18.1 Conversor de Arquivos
 Converte entre **KML**, **Shapefile (.zip)** e **DXF**. Para DXF é preciso informar o Datum e a Zona UTM do arquivo (coordenada projetada, não graus). DWG não é suportado — só DXF.
 
-### 16.2 Conversor de Coordenadas
+### 18.2 Conversor de Coordenadas
 Converte coordenadas entre formatos (Decimal, GMS, UTM) e datums, por **entrada manual** (linha a linha) ou **arquivo TXT**. A cota Z, se informada, é só repassada (sem conversão de datum altimétrico).
 
-### 16.3 Extrair Pontos DXF
+### 18.3 Extrair Pontos DXF
 Lê um arquivo DXF e exporta os pontos encontrados para TXT, com prefixo/numeração e código configuráveis, na ordem de colunas escolhida.
 
-### 16.4 Pontos → Arquivo
+### 18.4 Pontos → Arquivo
 Caminho inverso: lê um TXT de pontos (nome, E, N, Z), opcionalmente liga como perímetro fechado, e gera KML, Shapefile ou DXF.
 
-### 16.5 Memorial Descritivo
+### 18.5 Memorial Descritivo
 Monta o texto do memorial descritivo a partir do cliente/obra selecionados (imóvel, proprietário, comarca, local, confrontantes e vértices).
 
-### 16.6 Shape para CAR
+### 18.6 Shape para CAR
 Gera o shapefile no padrão exigido para o CAR (Resolução SEMAC nº 12/2014) a partir de um DXF de perímetro — contém só a geometria e o atributo CLASSE, sem elementos gráficos extras, conforme a norma.
 
-### 16.7 Importar Memorial INCRA
+### 18.7 Importar Memorial INCRA
 Importa o **PDF do memorial descritivo** gerado pelo SIGEF/INCRA (precisa ser PDF com texto real, não escaneado) — extrai automaticamente o cabeçalho e a tabela de vértices, que alimentam as demais ferramentas (Anuência, DXF, Requerimentos).
 
 > Na tabela de vértices importada há uma caixa de seleção por linha — **desmarque os pontos que não quer usar** antes de clicar em "Usar na Anuência de Limites" ou gerar o DXF: só os marcados são levados adiante.
 
-### 16.8 Anuência de Limites
+### 18.8 Anuência de Limites
 Gera o documento de anuência (.docx) entre o proprietário e um vizinho confrontante:
 1. Selecione a **Obra** e o **Vizinho** (imóvel 2) — ambos vêm do cadastro de Vizinhos da Obra.
 2. Marque quais **proprietários** assinam.
@@ -300,34 +350,34 @@ Gera o documento de anuência (.docx) entre o proprietário e um vizinho confron
 4. Preencha ART/RT, credenciamento, responsável técnico, local/UF.
 5. **Gerar Anuência (.docx)**.
 
-### 16.9 Requerimentos
+### 18.9 Requerimentos
 Gera 9 modelos de documento diferentes (Solicitação de Anuência, Requerimento ao Cartório, Cancelamento de Georreferenciamento no INCRA, Certidão Comprobatória, Certidão de Zoneamento, Procuração Particular, Declaração de Responsabilidade do Profissional, Declaração dos Proprietários, Declaração do art. 213 §14 II) a partir dos dados da Obra e dos Vizinhos/Proprietários cadastrados. Selecione o **Tipo de requerimento** e a **Obra**; os campos mudam conforme o tipo escolhido.
 
-### 16.10 CAD
+### 18.10 CAD
 Editor de desenho: importa DXF/KML/Shapefile, permite criar/editar pontos por coordenada ou clicando no desenho, organizar em camadas, medir distâncias, desenhar polilinhas, ativar um fundo de satélite (Esri/Google/Sentinel-2), consultar parcelas do **INCRA** e do **CAR/SICAR** na área visível na tela, gerar o **Mapa de Perímetro em PDF A3**, e gerar **curvas de nível**.
 
 **Curvas de nível:** no painel "Curvas de Nível", escolha a camada de pontos com cota (Z) real — normalmente pontos importados via TXT ou Reporte HTML de levantamento RTK/GNSS, não pontos criados manualmente — defina a equidistância (metros entre curvas) e clique em **Gerar curvas de nível**. O sistema avisa se houver poucos pontos ou se os pontos não tiverem variação de cota suficiente.
 
 📸 *[Print sugerido: tela do CAD com um perímetro importado, camadas listadas à direita, e curvas de nível geradas sobre os pontos]*
 
-### 16.11 Planilha SIGEF (.ods)
+### 18.11 Planilha SIGEF (.ods)
 Preenche a planilha oficial do INCRA (.ods) com os dados do cliente/obra e a lista de vértices do perímetro (pode reaproveitar pontos já lançados na CAD), mantendo a formatação e as demais abas do modelo intactas.
 
-### 16.12 Ponto do Maps
+### 18.12 Ponto do Maps
 Cole um link do Google Maps ou coordenadas decimais para extrair a posição, opcionalmente com nome e cota Z, e exportar como TXT/arquivo topográfico.
 
-### 16.13 Pastas para Monitor
+### 18.13 Pastas para Monitor
 Envia o desenho (linhas de plantio/pulverização ou limite de área) e escolhe a marca/modelo do monitor agrícola de bordo — o sistema gera um .zip já com a pasta e os nomes de arquivo certos para copiar direto no pendrive do monitor.
 
 ---
 
-## 17. Rotinas Recorrentes
+## 19. Rotinas Recorrentes
 
-Checklist de tarefas que se repetem (ex.: conferir protocolos no INCRA todo mês). Campos: Nome*, Descrição, Frequência (Diária/Semanal/Quinzenal/Mensal/Trimestral/Anual), Responsável, Próxima execução. Rotinas vencidas aparecem em **Pendências** e no Dashboard; o botão **Concluir** já agenda a próxima ocorrência.
+Checklist de tarefas que se repetem (ex.: conferir protocolos no INCRA todo mês). Campos: Nome*, Descrição, Frequência (Diária/Semanal/Quinzenal/Mensal/Trimestral/Anual), Responsável, Próxima execução. Rotinas vencidas aparecem em **Pendências** e no Dashboard; o botão **Concluir** já agenda a próxima ocorrência. Ao criar uma rotina nova, e também ao editar uma já existente, o sistema envia um e-mail de aviso/convite ao responsável.
 
 ---
 
-## 18. Documentos
+## 20. Documentos
 
 Arquivo de documentos separado por dono e com cobrança automática dos que vencem todo mês.
 
@@ -346,19 +396,21 @@ Arquivo de documentos separado por dono e com cobrança automática dos que venc
 
 ---
 
-## 19. Funcionários
+## 21. Funcionários
 
 Cadastro da equipe: Nome*, Tipo (Funcionário/Diarista), CPF, Cargo, Telefone, E-mail, **Valor hora**, **Valor diária**, Data de admissão, Status (Ativo/Inativo). Esses valores são usados no lançamento de **Custo de Equipe** por OS (Financeiro da OS → funcionário, tipo de custo Hora/Diária/Empreitada, quantidade → total calculado automaticamente).
 
+> Funcionários e Sócios ativos são também a base de quem pode entrar no controle de [Segurança e Trabalho](#28-segurança-e-trabalho--epis--ordens-de-serviço) e nas listas de presença de [Treinamentos](#29-treinamentos).
+
 ---
 
-## 20. Frotas
+## 22. Frotas
 
 Cadastro dos veículos usados em campo: Apelido/Nome*, Placa, Marca, Modelo, Ano, Tipo (Caminhonete/Carro/Moto/Caminhão/Máquina/Outro), Combustível, Cor, **Hodômetro atual**, Responsável, Status (Ativo/Em manutenção/Inativo/Vendido), RENAVAM, Observações. É esse cadastro que aparece nos seletores de veículo do app de Campo (Ponto, Abastecimento, Checklist).
 
 ---
 
-## 21. Ponto de Campo
+## 23. Ponto de Campo
 
 Painel **só leitura** que mostra os expedientes registrados pelo app de Campo: operador, veículo, quantas OS foram trabalhadas em cada turno, horário de entrada/saída, km rodado e status (em andamento/encerrado). Também mostra totais do mês (expedientes, km rodado, quantos estão em campo agora). Não tem cadastro manual — os dados vêm do app de Campo.
 
@@ -366,19 +418,19 @@ Painel **só leitura** que mostra os expedientes registrados pelo app de Campo: 
 
 ---
 
-## 22. Estabelecimentos
+## 24. Estabelecimentos
 
 Cadastro de postos, restaurantes e outros locais parceiros usados em campo: Nome*, Tipo (Posto/Restaurante/Material de Construção/Outro), Cidade, Telefone, Status (Ativo/Inativo), Observações.
 
 ---
 
-## 23. Relatórios / PDF
+## 25. Relatórios / PDF
 
 Central para gerar (ou regerar) qualquer PDF do sistema sem precisar abrir o registro original: selecione o Orçamento, a OS (com opção "Ordem de Serviço" resumida ou "Impressão Completa"), o Contrato, ou vá direto para o DRE. Também é aqui que se carrega a **imagem da assinatura do técnico**, usada em todos os PDFs de orçamento.
 
 ---
 
-## 24. Configuração
+## 26. Configuração
 
 Tem dois cartões de dados da empresa:
 
@@ -391,7 +443,55 @@ Cada cartão tem seu próprio botão **Salvar**. Também é aqui que fica o bot�
 
 ---
 
+## 27. Usuários
+
+Tela de administração de acesso — **restrita ao perfil admin** (quem não é admin vê "Acesso restrito ao administrador").
+
+Cada pessoa com login tem um **perfil** (admin, comercial, financeiro, ferramentas, empresa, campo), que controla tanto o que aparece no menu quanto o que o banco de dados efetivamente permite acessar.
+
+**Para dar acesso a alguém novo:**
+1. Crie o login primeiro no painel do Supabase (Authentication → Add User).
+2. Aqui em Usuários, no card **Vincular usuário existente**, informe o e-mail já cadastrado no Supabase Auth e escolha o Perfil.
+3. Clique **Vincular**.
+
+A tabela abaixo lista todos os usuários vinculados, com Perfil (select editável) e Ativo (checkbox); botão de disquete na linha salva a alteração.
+
+> Requer a migration `add_rbac_perfis.sql` no Supabase.
+
+---
+
+## 28. Segurança e Trabalho — EPIs & Ordens de Serviço
+
+Controle de EPIs e das Ordens de Serviço de segurança (NR-1) por pessoa — módulo dentro do grupo de menu "Segurança e Trabalho".
+
+### 28.1 Quem entra no controle
+A tela lista cards de pessoas já adicionadas ao controle, com o total de **EPIs ativos** e a **última O.S.** emitida para cada uma. Botão **Adicionar pessoa** abre a lista de Funcionários e Sócios ativos que ainda não estão no controle (ela vem sempre desses dois cadastros). Botão **x** no card remove a pessoa do controle — as entregas de EPI e Ordens de Serviço já registradas continuam salvas, só somem do painel.
+
+### 28.2 Catálogo de EPIs
+Botão **Catálogo de EPIs** abre a lista de tipos de EPI cadastrados (Nome, Categoria, C.A. padrão, Ativo/Inativo) e permite criar um novo — esses itens aparecem depois no seletor rápido ao registrar uma entrega.
+
+### 28.3 Entregas de EPI
+Clique em uma pessoa → aba **Entregas de EPI** → **Registrar entrega**: escolha um EPI do catálogo (ou descreva manualmente), Quantidade, C.A., Data de entrega, Data de devolução (opcional), Registro/matrícula, Observações. A tabela mostra o histórico completo; botão **Gerar Ficha de EPI (PDF)** monta a ficha de controle assinável com todas as entregas daquela pessoa.
+
+### 28.4 Ordens de Serviço (NR-1)
+Aba **Ordens de Serviço** → **Nova Ordem de Serviço** — formulário pré-preenchido automaticamente conforme o **cargo** da pessoa (padrões prontos para topógrafo, auxiliar/campo e administrativo, cobrindo atividades, riscos físicos/químicos/biológicos/ergonômicos/de acidentes, EPIs necessários, medidas preventivas e orientações de segurança); revise e ajuste o texto antes de salvar. Cada O.S. recebe um **número sequencial** único no sistema. Botão de download na linha gera o PDF da Ordem de Serviço; a lixeira exclui.
+
+> Requer a migration `add_sst_pessoas.sql` no Supabase.
+
+---
+
+## 29. Treinamentos
+
+Registro dos treinamentos de segurança realizados (ex.: uso de EPIs), para fins de comprovação.
+
+**Para registrar:** Menu → Treinamentos → **Novo treinamento**: Título* (já vem preenchido com "Treinamento no uso de EPIs e Ordem de Serviço", editável), Instituição (padrão: dados da empresa), Data, Turno (Diurno-Manhã/Diurno-Tarde/Noturno), e a lista de **Participantes** — marque quem participou entre os Funcionários e Sócios ativos.
+
+A lista mostra Título, Data, Turno e quantidade de Participantes de cada treinamento. Botão de download gera a **Lista de Presença em PDF** (cabeçalho com instituição/data/turno + tabela com nome, CPF e coluna de assinatura em branco para cada participante); a lixeira exclui o registro.
+
+---
+
 ## Observações gerais
 
 - **Colunas novas do banco de dados:** alguns campos adicionados recentemente (`clientes.rg`, `clientes.profissao`, `clientes.estado_civil`, `contratos.orcamento_id`) exigem rodar um comando `ALTER TABLE` uma única vez no SQL Editor do Supabase antes de usar — os comandos exatos estão comentados no próprio código-fonte (`gestor/index.html`, procure por `ALTER TABLE`). Se ao salvar aparecer o aviso "Salvo, mas sem o campo ... — essa coluna ainda não existe no banco", é esse o caso.
 - **Vínculo com Orçamento:** vários módulos (Contratos, Ordens de Serviço) buscam os dados do orçamento de origem **ao vivo** a cada vez que são abertos — ou seja, alterar o orçamento depois reflete automaticamente nos documentos gerados a partir dele, sem precisar recriar nada.
+- **Perfis de acesso:** desde a introdução da tela [Usuários](#27-usuários), o que cada pessoa vê no menu e consegue salvar no banco depende do perfil vinculado ao seu login (admin, comercial, financeiro, ferramentas, empresa, campo) — não é mais tudo liberado para qualquer login válido.
