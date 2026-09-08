@@ -251,7 +251,7 @@ class Janela:
 
     def trabalhar(self, pasta, lat, lon, z, copiar):
         try:
-            cfg = ppk_fotos.carregar_config(Path(__file__).parent)
+            cfg = ppk_fotos.carregar_config()
             fn = (ppk_fotos.processar_escolhendo_mascara if self.mascara.get() == "auto"
                   else ppk_fotos.processar)
             extra = {} if self.mascara.get() == "auto" else {"elmask": 15}
@@ -324,7 +324,40 @@ class Janela:
         messagebox.showerror(TITULO, msg)
 
 
+def autoteste():
+    """Confere a instalacao sem abrir janela: `PPK das Fotos.exe --autoteste`.
+
+    Existe porque, sem console, uma instalacao quebrada apenas nao abre. Aqui a
+    falha sai escrita e com codigo de saida, o que tambem serve para o
+    instalador conferir o que acabou de gravar.
+    """
+    from pathlib import Path as _P
+    problemas = []
+    try:
+        cfg = ppk_fotos.carregar_config()
+    except OSError as e:
+        print("config.json:", e)
+        return 1
+    print("pasta do programa:", ppk_fotos.pasta_do_programa())
+    for rotulo, caminho in (("rnx2rtkp", _P(cfg["rtklibBin"]) / "rnx2rtkp.exe"),
+                            ("exiftool", _P(cfg["exiftoolBin"]) / "exiftool.exe")):
+        ok = caminho.exists()
+        print(f"  {rotulo:9s} {'OK  ' if ok else 'FALTA'} {caminho}")
+        if not ok:
+            problemas.append(rotulo)
+    atx = ppk_fotos.achar_antex(cfg)
+    print(f"  {'antex':9s} {'OK  ' if atx else 'FALTA'} {atx or '(nenhum .atx junto do RTKLIB)'}")
+    if not atx:
+        problemas.append("antex")
+    print(f"  {'pyproj':9s} OK   {pyproj.__version__}")
+    print("FALTANDO: " + ", ".join(problemas) if problemas else "Instalacao completa.")
+    return 1 if problemas else 0
+
+
 def main():
+    import sys as _sys
+    if "--autoteste" in _sys.argv:
+        _sys.exit(autoteste())
     raiz = Tk()
     try:
         ttk.Style().theme_use("vista")

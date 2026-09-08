@@ -9,16 +9,56 @@ Validado contra um voo do Matrice 4 RTK ja processado no Terra: 42 fotos,
 diferenca media zero e desvio de 5 cm em Norte, 1,5 cm em Leste e 19 cm em
 altura, com atitude identica.
 
-## Instalacao
+## Instalacao em outra maquina
 
-Precisa de duas ferramentas portateis (nenhuma pede administrador) e dos
-caminhos apontados no `config.json`:
+`instalador/dist/Instalar PPK das Fotos.exe` -- um arquivo so, 44 MB. Leva o
+Python, o RTKLIB e o ExifTool dentro dele: **na maquina de destino nao precisa
+instalar mais nada**, nem Python.
+
+Instala em `%LOCALAPPDATA%\Programs\PPK das Fotos`, por usuario, e **nao pede
+senha de administrador** -- de proposito. Instalar em Arquivos de Programas
+exigiria elevacao, e o pedido de UAC e o que costuma travar a instalacao em
+maquina de cliente ou em rede administrada por TI. Cria atalho na Area de
+Trabalho e no menu Iniciar, e aparece em Configuracoes > Aplicativos para
+desinstalar.
+
+Quem preferir nao instalar usa `PPK das Fotos - portatil.zip`: descompacta em
+qualquer pasta (ou num pendrive) e roda o `PPK das Fotos.exe` de dentro dela.
+
+Para conferir uma instalacao que nao abre, sem console nao ha mensagem de erro:
+
+```
+"PPK das Fotos.exe" --autoteste
+```
+
+### Gerar o instalador
+
+```
+py instalador/build.py
+```
+
+Leva uns 3 minutos. Precisa, **so na maquina que constroi**, de Python com
+`pyproj` e `pyinstaller`, mais o RTKLIB e o ExifTool nos caminhos do
+`config.json` de desenvolvimento. O build so embrulha depois que o pacote passa
+no proprio `--autoteste`, entao nao sai instalador quebrado.
+
+Do RTKLIB vao junto apenas o `rnx2rtkp.exe` e o `igs20_*.atx` (a calibracao de
+antena); o resto da distribuicao seriam dezenas de MB sem uso aqui dentro.
+
+## Instalacao para desenvolver
+
+Duas ferramentas portateis (nenhuma pede administrador) e os caminhos apontados
+no `config.json`:
 
 - **RTKLIB** (motor de pos-processamento) — https://github.com/rtklibexplorer/RTKLIB/releases
 - **ExifTool** (le a atitude do gimbal) — https://exiftool.org
   (renomear `exiftool(-k).exe` para `exiftool.exe`)
 
 Do lado do Python: `pyproj`.
+
+No `config.json`, caminho relativo vale a partir da pasta do proprio arquivo --
+e o que permite o pacote instalado achar suas ferramentas em qualquer pasta.
+Caminho absoluto continua funcionando.
 
 ## Uso
 

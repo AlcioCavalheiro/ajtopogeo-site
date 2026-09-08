@@ -69,9 +69,32 @@ def sigma_da_foto(foto, modo, piso=None):
     return h, v
 
 
-def carregar_config(base_dir):
+def pasta_do_programa():
+    """Onde ficam o config.json e a pasta de ferramentas.
+
+    Empacotado pelo PyInstaller, `__file__` aponta para a pasta temporaria em que
+    o executavel se descompacta -- e nao para onde o programa foi instalado. O
+    que vale nesse caso e a pasta do proprio .exe.
+    """
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).parent
+    return Path(__file__).parent
+
+
+def carregar_config(base_dir=None):
+    """Le o config.json aceitando caminho de ferramenta relativo a ele.
+
+    Caminho relativo e o que permite instalar em qualquer pasta e em qualquer
+    maquina sem reescrever o arquivo. Caminho absoluto continua valendo: no
+    Windows, `Path("...") / "C:/x"` devolve `C:/x`.
+    """
+    base_dir = Path(base_dir) if base_dir else pasta_do_programa()
     with open(base_dir / "config.json", encoding="utf-8") as f:
-        return json.load(f)
+        cfg = json.load(f)
+    for chave in ("rtklibBin", "exiftoolBin"):
+        if cfg.get(chave):
+            cfg[chave] = str((base_dir / cfg[chave]).resolve())
+    return cfg
 
 
 def achar_arquivos(projeto):
