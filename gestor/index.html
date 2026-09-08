@@ -15928,16 +15928,41 @@ async function rTarefas(){
   _renderTarefasLista(itens);
   const si=gid('si');if(si)si.oninput=null;
 }
+let _tarefasPessoaisCache=[];
 function _renderTarefasLista(itens){
   const el=gid('tarefas-lista');if(!el)return;
+  _tarefasPessoaisCache=itens;
+  const hj=hojeLocal();
   el.innerHTML=itens.map(function(t){
+    const venc=t.data_validade&&!t.concluida&&t.data_validade<hj;
     return '<div class="fx g8" style="padding:8px 2px;border-bottom:.5px solid var(--bor)">'
       +'<input type="checkbox" '+(t.concluida?'checked':'')+' onchange="toggleTarefaPessoal(\''+t.id+'\',this.checked)" style="width:16px;height:16px;accent-color:var(--brand);flex-shrink:0">'
       +'<span style="flex:1;font-size:13px;'+(t.concluida?'text-decoration:line-through;color:#999':'')+'">'+t.texto+'</span>'
+      +(t.data_validade?'<span class="mu sm" style="white-space:nowrap;'+(venc?'color:#A32D2D;font-weight:600':'')+'">'+(venc?'<i class="ti ti-alert-triangle"></i> ':'')+'Val: '+fd(t.data_validade)+'</span>':'')
       +'<span class="mu sm">'+fd((t.criado_em||'').slice(0,10))+'</span>'
+      +'<button class="btn bxs" onclick="editarTarefaPessoal(\''+t.id+'\')"><i class="ti ti-pencil"></i></button>'
       +'<button class="btn bxs bdr" onclick="excluirTarefaPessoal(\''+t.id+'\')"><i class="ti ti-trash"></i></button>'
       +'</div>';
   }).join('')||'<div class="mu sm" style="text-align:center;padding:2rem">Nenhuma tarefa. Adicione a primeira acima.</div>';
+}
+function editarTarefaPessoal(id){
+  const t=_tarefasPessoaisCache.find(function(x){return x.id===id;});if(!t)return;
+  document.getElementById('mt').textContent='Editar Tarefa';
+  document.getElementById('mb').innerHTML='<div class="fg"><label class="fl">Descrição *</label><textarea class="fc" id="edt-tarefa-texto" rows="2"></textarea></div><div class="fg"><label class="fl">Data de validade</label><input class="fc" type="date" id="edt-tarefa-validade"></div>';
+  document.getElementById('edt-tarefa-texto').value=t.texto||'';
+  document.getElementById('edt-tarefa-validade').value=t.data_validade||'';
+  document.getElementById('mf').innerHTML='<button class="btn" onclick="closeModal()">Cancelar</button><button class="btn bp2" onclick="salvarEdicaoTarefaPessoal(\''+id+'\')"><i class="ti ti-device-floppy"></i> Salvar</button>';
+  EID=null;CM=null;
+  const ov=document.getElementById('ov');ov.style.zIndex='200';ov.classList.add('open');
+}
+async function salvarEdicaoTarefaPessoal(id){
+  const texto=(document.getElementById('edt-tarefa-texto')?.value||'').trim();
+  const validade=document.getElementById('edt-tarefa-validade')?.value||null;
+  if(!texto){toast('Descreva a tarefa!',true);return;}
+  const{error}=await sb.from('tarefas_pessoais').update({texto,data_validade:validade}).eq('id',id);
+  if(error){toast('Erro: '+error.message,true);return;}
+  toast('Tarefa atualizada!');closeModal();
+  rTarefas();
 }
 async function addTarefaPessoal(){
   const inp=gid('nova-tarefa-txt');const texto=(inp?.value||'').trim();

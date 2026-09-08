@@ -17,9 +17,13 @@ create table if not exists tarefas_pessoais (
   texto text not null,
   concluida boolean default false,
   criado_em timestamptz default now(),
-  concluido_em timestamptz
+  concluido_em timestamptz,
+  data_validade date
 );
 create index if not exists idx_tarefas_usuario on tarefas_pessoais (usuario_id, concluida);
+
+-- Rodando a migration de novo em banco já criado antes da coluna existir:
+alter table tarefas_pessoais add column if not exists data_validade date;
 
 alter table tarefas_pessoais enable row level security;
 drop policy if exists tarefas_pessoais_rw_own on tarefas_pessoais;
