@@ -752,7 +752,7 @@ async function renderOS(id){
     <button class="btn" onclick="abrirGasto('${os.id}','${esc(os.numero)}')"><i class="ti ti-cash"></i>Gasto</button>
     ${OS_ASSUMIDA&&OS_ASSUMIDA.os_id===os.id
       ?`<button class="btn ok" onclick="concluirOS('${os.id}','${esc(os.numero)}')"><i class="ti ti-flag-check"></i>Concluir OS</button>`
-      :`<button class="btn warn" onclick="assumirOS('${os.id}','${esc(os.numero)}','${esc(os.status)}')"><i class="ti ti-player-play"></i>Assumir OS</button>`}
+      :`<button class="btn warn" onclick="assumirOS('${os.id}','${esc(os.numero)}','${esc(os.status)}','${esc(os.local_execucao||'')}')"><i class="ti ti-player-play"></i>Assumir OS</button>`}
   </div>`;
 }
 
@@ -1018,7 +1018,7 @@ async function salvarEncerrar(){
 /* ════════════ ASSUMIR / CONCLUIR OS (dentro do expediente aberto) ════════════
    O km agora é digitado aqui — km inicial ao assumir (indo pra obra), km
    final ao concluir — em vez de um único km pro expediente inteiro. */
-function assumirOS(osId,numero,statusAtual){
+function assumirOS(osId,numero,statusAtual,localExec){
   if(!ATIVO){toast('Bata o ponto para iniciar o expediente antes de assumir uma OS.',true);return;}
   if(OS_ASSUMIDA){
     if(OS_ASSUMIDA.os_id===osId){toast('Você já está nesta OS.');return;}
@@ -1026,13 +1026,24 @@ function assumirOS(osId,numero,statusAtual){
   }
   const v=ATIVO.veiculo_id?VEICS.find(x=>x.id===ATIVO.veiculo_id):null;
   const kmAtual=v?Number(v.km_atual||0):null;
+  const precisaVeic=localExec==='Campo'&&!ATIVO.veiculo_id;
   openSheet('Assumir '+numero,
+    (precisaVeic?`<div class="f"><label class="fl">Veículo <span class="mu">(obrigatório — OS de campo)</span></label><select class="fc" id="as-veic"><option value="">Selecione o veículo...</option>${veicOptions()}</select></div>`:'')+
     `<div class="f"><label class="fl">Km inicial <span class="mu">(indo pra obra — opcional)</span></label>
        <input class="fc" id="as-km" type="number" inputmode="decimal" step="1" placeholder="${kmAtual?('atual: '+kmAtual.toLocaleString('pt-BR')):'Ex: 145820'}"${kmAtual?` value="${kmAtual}"`:''}></div>`,
     `<button class="btn" onclick="closeSheet()">Cancelar</button><button class="btn warn" id="as-b" onclick="confirmarAssumirOS('${osId}','${esc(numero)}','${esc(statusAtual)}')"><i class="ti ti-player-play"></i> Assumir</button>`);
 }
 async function confirmarAssumirOS(osId,numero,statusAtual){
+  const veicEl=$('as-veic');
+  if(veicEl&&!veicEl.value){toast('Selecione o veículo — obrigatório para OS de campo.',true);return;}
   const b=$('as-b');b.disabled=true;b.innerHTML='<span class="sp"></span>';
+  if(veicEl&&veicEl.value){
+    const veicId=veicEl.value,vSel=VEICS.find(x=>x.id===veicId),veicNome=vSel?(vSel.nome||vSel.placa||'Veículo'):null;
+    try{
+      await doWriteChained({kind:'update',table:'atendimentos_campo',matchCol:'id',matchVal:ATIVO.id,payload:{veiculo_id:veicId,veiculo_nome:veicNome}},'atendimentos_campo',ATIVO.id);
+      ATIVO.veiculo_id=veicId;ATIVO.veiculo_nome=veicNome;await kvPut('ativo_cache',ATIVO);
+    }catch(e){b.disabled=false;b.innerHTML='<i class="ti ti-player-play"></i> Assumir';toast('Erro ao salvar veículo: '+e.message,true);return;}
+  }
   if(navigator.onLine){
     const{data:outros}=await sb.from('atendimentos_campo_os').select('operador').eq('os_id',osId).eq('status','assumida').neq('operador_uid',OPUID).limit(1);
     if(outros&&outros.length){b.disabled=false;b.innerHTML='<i class="ti ti-player-play"></i> Assumir';toast('Esta OS já está sendo executada por '+(outros[0].operador||'outro operador')+'.',true);return;}
