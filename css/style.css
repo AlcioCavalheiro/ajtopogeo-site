@@ -636,6 +636,19 @@ footer {
   line-height: 1.7;
 }
 
+.resumo-rapido {
+  background: var(--azul2);
+  border-left: 3px solid var(--verde);
+  border-radius: 0 10px 10px 0;
+  padding: 18px 22px;
+  margin-bottom: 8px;
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: var(--texto);
+  max-width: 680px;
+}
+.resumo-rapido strong { color: var(--branco); }
+
 .artigo { background: var(--azul); padding: 72px 0; }
 .artigo-grid {
   display: grid;
