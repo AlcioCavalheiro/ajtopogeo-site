@@ -9,6 +9,11 @@ Validado contra um voo do Matrice 4 RTK ja processado no Terra: 42 fotos,
 diferenca media zero e desvio de 5 cm em Norte, 1,5 cm em Leste e 19 cm em
 altura, com atitude identica.
 
+> **Este programa tambem vem dentro do [Ferramentas AJ TopoGeo](../servico-local/README.md)**,
+> que junta os dois programas de servico local numa janela so -- um instalador e
+> um atalho em vez de dois. O codigo da tela e o mesmo: la ela e montada como
+> aba. Instalar separado continua valendo para quem so precisa de um dos dois.
+
 ## Instalacao em outra maquina
 
 `instalador/dist/Instalar PPK das Fotos.exe` -- um arquivo so, 44 MB. Leva o

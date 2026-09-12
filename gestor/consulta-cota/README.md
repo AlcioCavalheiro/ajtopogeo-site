@@ -6,6 +6,11 @@ atalho "Consulta de Cota" na Area de Trabalho.
 Fluxo: escolher o `.tif` do modelo, colar a lista de coordenadas, Consultar.
 O resultado sai em tabela e pode ser copiado ou salvo em CSV.
 
+> **Este programa tambem vem dentro do [Ferramentas AJ TopoGeo](../servico-local/README.md)**,
+> que junta os dois programas de servico local numa janela so -- um instalador e
+> um atalho em vez de dois. O codigo da tela e o mesmo: la ela e montada como
+> aba. Instalar separado continua valendo para quem so precisa de um dos dois.
+
 ## Instalacao em outra maquina
 
 `instalador/dist/Instalar Consulta de Cota.exe` -- um arquivo so, 79 MB. Leva o

@@ -15,6 +15,8 @@ from tkinter import BOTH, END, LEFT, RIGHT, StringVar, Tk, X, Y, filedialog, mes
 from tkinter import scrolledtext, ttk
 
 TITULO = "PPK das Fotos de Drone - AJ TopoGeo"
+DESCRICAO = ("Processa o log do voo contra a base RINEX e escreve o geotag "
+             "no formato do DJI Terra.")
 
 # Rodando por pythonw nao existe console: uma falha na partida (biblioteca
 # faltando, arquivo movido) deixaria a janela simplesmente nao abrir, sem dizer
@@ -29,6 +31,11 @@ try:
     import ppk_fotos
 except Exception:  # noqa: BLE001 - qualquer falha aqui precisa ser visivel
     _erro = traceback.format_exc()
+    if __name__ != "__main__":
+        # importado pelo programa unico: quem importou mostra a falha na aba e
+        # mantem a outra metade do programa de pe. Abrir caixa de mensagem e
+        # matar o processo aqui derrubaria as duas.
+        raise
     try:
         Path(__file__).with_name("erro_na_partida.txt").write_text(_erro, encoding="utf-8")
     except OSError:
@@ -59,21 +66,35 @@ CORES = {"ok": ("#0b6b3a", "#e6f4ea"), "atencao": ("#8a5300", "#fdf2e0"),
 
 
 class Janela:
-    def __init__(self, raiz):
+    """A tela do PPK.
+
+    `raiz` e a janela quando o programa roda sozinho, ou o quadro da aba quando
+    ele vem dentro do programa unico. `embutido=True` pula o que pertence a
+    janela -- titulo, tamanho, icone -- e troca o cabecalho com logo por uma
+    linha de descricao: o nome ja esta no rotulo da aba, e o logo aparece uma
+    vez so, no alto da janela.
+    """
+
+    def __init__(self, raiz, embutido=False):
         self.raiz = raiz
-        raiz.title(TITULO)
-        raiz.geometry("780x760")
-        raiz.minsize(680, 620)
-        marca.aplicar_icone(raiz)
+        if not embutido:
+            raiz.title(TITULO)
+            raiz.geometry("780x760")
+            raiz.minsize(680, 620)
+            marca.aplicar_icone(raiz)
 
         self.fila = queue.Queue()
         self.rodando = False
 
         corpo = ttk.Frame(raiz, padding=14)
         corpo.pack(fill=BOTH, expand=True)
-        marca.cabecalho(corpo, "PPK das Fotos de Drone",
-                        "Processa o log do voo contra a base RINEX e escreve o geotag "
-                        "no formato do DJI Terra.")
+        if embutido:
+            # o rotulo da aba ja diz o nome; repetir o titulo aqui embaixo so
+            # gastaria a altura de que a tela precisa
+            ttk.Label(corpo, text=DESCRICAO, foreground="#555",
+                      wraplength=900, justify="left").pack(anchor="w", pady=(0, 10))
+        else:
+            marca.cabecalho(corpo, "PPK das Fotos de Drone", DESCRICAO)
 
         # ---------- pasta do voo ----------
         bloco = ttk.LabelFrame(corpo, text=" 1. Pasta do voo ", padding=10)

@@ -16,6 +16,8 @@ from tkinter import BOTH, END, LEFT, RIGHT, StringVar, Tk, X, filedialog, messag
 from tkinter import scrolledtext, ttk
 
 TITULO = "Consulta de Cota - AJ TopoGeo"
+DESCRICAO = ("Cota de coordenadas, declividade por faixa com mapa em PDF e "
+             "curvas de nivel em DXF, tudo sobre o mesmo modelo digital.")
 
 # Rodando por pythonw nao existe console: falha na partida ficaria invisivel.
 # a marca fica em gestor/marca; empacotado, o PyInstaller poe o modulo junto
@@ -29,6 +31,11 @@ try:
     import relatorio as leitor_relatorio
 except Exception:  # noqa: BLE001
     _erro = traceback.format_exc()
+    if __name__ != "__main__":
+        # importado pelo programa unico: quem importou mostra a falha na aba e
+        # mantem a outra metade do programa de pe. Abrir caixa de mensagem e
+        # matar o processo aqui derrubaria as duas.
+        raise
     try:
         Path(__file__).with_name("erro_na_partida.txt").write_text(_erro, encoding="utf-8")
     except OSError:
@@ -70,12 +77,22 @@ DESENHOS = {
 
 
 class Janela:
-    def __init__(self, raiz):
+    """A tela da consulta ao modelo digital.
+
+    `raiz` e a janela quando o programa roda sozinho, ou o quadro da aba quando
+    ele vem dentro do programa unico. `embutido=True` pula o que pertence a
+    janela -- titulo, tamanho, icone -- e troca o cabecalho com logo por uma
+    linha de descricao: o nome ja esta no rotulo da aba, e o logo aparece uma
+    vez so, no alto da janela.
+    """
+
+    def __init__(self, raiz, embutido=False):
         self.raiz = raiz
-        raiz.title(TITULO)
-        raiz.geometry("1060x860")
-        raiz.minsize(900, 700)
-        marca.aplicar_icone(raiz)
+        if not embutido:
+            raiz.title(TITULO)
+            raiz.geometry("1060x860")
+            raiz.minsize(900, 700)
+            marca.aplicar_icone(raiz)
         self.fila = queue.Queue()
         self.info = None
         self.resultado = []
@@ -85,9 +102,13 @@ class Janela:
 
         corpo = ttk.Frame(raiz, padding=12)
         corpo.pack(fill=BOTH, expand=True)
-        marca.cabecalho(corpo, "Consulta de Cota",
-                        "Cota de coordenadas sobre o modelo digital, e declividade "
-                        "por faixa para projeto de terraco.")
+        if embutido:
+            # o rotulo da aba ja diz o nome; repetir o titulo aqui embaixo so
+            # gastaria a altura de que a tela precisa
+            ttk.Label(corpo, text=DESCRICAO, foreground="#555",
+                      wraplength=900, justify="left").pack(anchor="w", pady=(0, 10))
+        else:
+            marca.cabecalho(corpo, "Consulta de Cota", DESCRICAO)
 
         # ---------- modelo: fora das abas, vale para as duas ----------
         bloco = ttk.LabelFrame(corpo, text=" Modelo digital ", padding=10)
