@@ -19,6 +19,11 @@ curva de espaguete:
 3. **Comprimento minimo.** Poca de ruido vira circulo fechado de 2 m que nao
    representa relevo nenhum. Abaixo do limite, a curva e descartada.
 
+4. **Simplificacao.** O contorno sai com um vertice por pixel -- 260 a cada
+   100 m num pixel de 0,4 m. Curva desenhada por topografo tem 2 ou 3. O
+   excesso nao e informacao: e a escada do pixel. Douglas-Peucker tira os
+   vertices que nao mudam o tracado alem da tolerancia dada.
+
 E a curva sai do **DTM**. Sobre o DSM ela contorna copa de arvore e telhado.
 """
 
@@ -151,6 +156,9 @@ def abrir_biblioteca(pastas: dict | None = None):
     d("OGR_F_SetFieldString", None, p, C.c_int, C.c_char_p)
     d("OGR_FD_GetFieldIndex", C.c_int, p, C.c_char_p)
     d("OGR_G_Length", C.c_double, p)
+    d("OGR_G_Simplify", p, p, C.c_double)
+    d("OGR_G_DestroyGeometry", None, p)
+    d("OGR_G_GetPointCount", C.c_int, p)
     d("CPLGetLastErrorMsg", C.c_char_p)
     d("CPLErrorReset", None)
     d("CPLSetConfigOption", None, C.c_char_p, C.c_char_p)
@@ -438,7 +446,7 @@ def _camada_saida(lib, caminho: Path, wkt):
 
 def gerar_curvas(raster, saida, equidistancia=1.0, mestra_a_cada=5,
                  pixel=None, suavizacao=None, comprimento_minimo=None,
-                 base=0.0, nodata=None, progresso=None) -> dict:
+                 simplificacao=None, base=0.0, nodata=None, progresso=None) -> dict:
     """Gera as curvas de nivel do modelo e grava em DXF, SHP, GPKG ou GeoJSON.
 
     raster             modelo digital de terreno (.tif)
@@ -451,6 +459,9 @@ def gerar_curvas(raster, saida, equidistancia=1.0, mestra_a_cada=5,
                        trabalho, 0 desliga
     comprimento_minimo curvas menores que isso sao descartadas; None usa
                        oito pixels de trabalho, 0 mantem tudo
+    simplificacao      tolerancia de Douglas-Peucker em metros: o tracado nao
+                       se afasta mais que isso do original. None usa metade do
+                       pixel de trabalho, 0 desliga
     base               cota de referencia; as curvas saem em base + n*equidistancia
     nodata             valor de vazio, quando o raster nao declara o proprio
     progresso          funcao opcional recebendo fracao de 0 a 1
@@ -541,6 +552,11 @@ def gerar_curvas(raster, saida, equidistancia=1.0, mestra_a_cada=5,
 
         if comprimento_minimo is None:
             comprimento_minimo = 8 * pixel
+        if simplificacao is None:
+            # meio pixel: o tracado nao se move mais que isso, o que esta bem
+            # dentro da propria incerteza do modelo, e a escada do pixel some
+            simplificacao = pixel / 2.0
+        simplificacao = float(simplificacao or 0)
 
         saida_ds, saida_camada, formato = _camada_saida(lib, saida, wkt)
         abertos.append(saida_ds)
@@ -550,7 +566,7 @@ def gerar_curvas(raster, saida, equidistancia=1.0, mestra_a_cada=5,
         i_mestra = lib.OGR_FD_GetFieldIndex(defn, b"MESTRA")
 
         passo_mestra = equidistancia * mestra_a_cada if mestra_a_cada else 0
-        contagem = mestras = descartadas = 0
+        contagem = mestras = descartadas = vertices = 0
         cota_min = cota_max = None
 
         total = lib.OGR_L_GetFeatureCount(mem_camada, 1) or 0
@@ -571,6 +587,18 @@ def gerar_curvas(raster, saida, equidistancia=1.0, mestra_a_cada=5,
                 if comprimento_minimo and lib.OGR_G_Length(geometria) < comprimento_minimo:
                     descartadas += 1
                     continue
+
+                simplificada = None
+                if simplificacao > 0:
+                    simplificada = lib.OGR_G_Simplify(geometria, simplificacao)
+                    if simplificada:
+                        geometria = simplificada
+
+                # contado aqui, e nao depois de gravar: o `finally` abaixo
+                # destroi a geometria simplificada, e perguntar o numero de
+                # vertices a ela depois disso e ler memoria ja liberada -- o
+                # processo morre seco, sem excecao que aponte para a causa
+                n_vertices = lib.OGR_G_GetPointCount(geometria)
 
                 elev = lib.OGR_F_GetFieldAsDouble(feicao, 0)
                 e_mestra = False
@@ -595,8 +623,11 @@ def gerar_curvas(raster, saida, equidistancia=1.0, mestra_a_cada=5,
                         raise _erro(lib, "Nao consegui gravar uma curva")
                 finally:
                     lib.OGR_F_Destroy(nova)
+                    if simplificada:
+                        lib.OGR_G_DestroyGeometry(simplificada)
 
                 contagem += 1
+                vertices += n_vertices
                 mestras += 1 if e_mestra else 0
                 cota_min = elev if cota_min is None else min(cota_min, elev)
                 cota_max = elev if cota_max is None else max(cota_max, elev)
@@ -635,6 +666,8 @@ def gerar_curvas(raster, saida, equidistancia=1.0, mestra_a_cada=5,
             "pixel": pixel,
             "suavizacao": raio_px * pixel,
             "comprimento_minimo": comprimento_minimo,
+            "simplificacao": simplificacao,
+            "vertices": vertices,
         }
     finally:
         for aberto in reversed(abertos):

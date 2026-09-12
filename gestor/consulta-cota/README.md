@@ -84,7 +84,29 @@ Tambem grava SHP, GPKG e GeoJSON; nesses tres a cota vai tambem nos campos
 exporta `GDALContourGenerateEx`; o `curvas.py` fala com ela por `ctypes`. Nao
 existe `gdal_contour.exe` no pacote e nao precisa existir.
 
-### Os tres cuidados que separam prancha de espaguete
+### Nivel de detalhe
+
+O campo "Nivel de detalhe" preenche os quatro numeros do ajuste fino, em
+multiplos da equidistancia. Preenche em vez de guardar escondido: da para ver o
+que foi aplicado e mexer em um numero so.
+
+Os fatores nao sao chute. Saem da comparacao com curvas desenhadas a mao que o
+usuario mandou como referencia -- 9 linhas, **2,5 vertices por 100 m**, 948 m de
+comprimento mediano. Medido no MDT do Sao Jorge com equidistancia de 2 m:
+
+| nivel | pixel | suav | minimo | simpl | vertices/100 m | comprimento mediano |
+|---|---|---|---|---|---|---|
+| Detalhado | 1 | 2 | 8 | 0,5 | 23,4 | 18 m |
+| Equilibrado | 2 | 4 | 100 | 1 | 10,0 | 140 m |
+| **Prancha** | 4 | 8 | 300 | 3 | **3,5** | **1736 m** |
+| *referencia desenhada* | | | | | *2,5* | *948 m* |
+
+Sobrepondo o resultado de "Prancha" as linhas de referencia, elas caem uma sobre
+a outra. O preco e o comprimento minimo: a 300 m ele descarta curva curta que e
+relevo de verdade, entao para entrega vale conferir se nao sumiu nada que
+importa.
+
+### Os quatro cuidados que separam prancha de espaguete
 
 1. **Reamostragem** para um pixel de trabalho compativel com a equidistancia
    (padrao: metade dela). Contornar pixel bruto de fotogrametria de 3 cm devolve
@@ -94,8 +116,14 @@ existe `gdal_contour.exe` no pacote e nao precisa existir.
    puxaria a cota e deformaria a curva justo onde o modelo ja e fraco.
 3. **Comprimento minimo**: poca de ruido vira circulinho fechado que nao
    representa relevo. Abaixo do limite, descartada.
+4. **Simplificacao** (Douglas-Peucker): o contorno sai com um vertice por pixel.
+   O excesso nao e informacao, e a escada do pixel -- e a tolerancia limita o
+   quanto o tracado pode se afastar do original. Usa o GEOS, que ja vinha no
+   pacote. Efeito colateral grande: o mesmo DXF de 6.397 curvas caiu de 21 MB
+   para 6,3 MB, e um modelo que levava 20 s passou a levar 3 s, porque quase
+   todo o tempo do driver DXF e proporcional ao numero de vertices.
 
-Os tres campos ficam no "Ajuste fino" e em branco usam o automatico.
+Os quatro campos ficam no "Ajuste fino" e em branco usam o automatico.
 
 ### O que o programa recusa, e por que
 
@@ -136,6 +164,39 @@ correta. Repetido depois de cada mudanca no modulo.
 
 Tambem conferido com o GDAL **do pacote**, com o QGIS fora do PATH: mesmas 3.201
 curvas do QGIS, DXF gravado.
+
+## Relatorio de processamento
+
+O campo "Relatorio", junto do modelo digital, preenche os sigmas do levantamento
+a partir do `report.xml` do Pix4D. Ele e achado sozinho pela arvore de pastas do
+projeto Pix4D (`<projeto>/1_initial/report/report.xml`); o botao **Escolher...**
+existe porque o do Agisoft nao segue essa arvore e porque voo antigo pode ter
+sido movido de lugar.
+
+O PDF do Agisoft nao da para ler sozinho -- nesse caso o programa avisa e os
+sigmas vao a mao nos campos E, N e Z.
+
+Lembrete que a janela repete: esses numeros sao **precisao interna**. Medem o
+quanto o ajuste do bloco moveu as cameras em relacao ao geotag que entrou, nao a
+posicao no terreno.
+
+## Mapa de declividade em PDF
+
+Depois de calcular a declividade, o botao **MAPA EM PDF...** monta a prancha: o
+raster colorido por classe, as curvas de nivel por cima, legenda com hectares e
+porcentagem de cada faixa, area total, quanto e terraceavel ate 13%, barra de
+escala, norte e rodape com modelo, sistema de coordenadas e data. A3 paisagem.
+
+As curvas entram se ja tiverem sido geradas na aba delas nesta sessao; se nao,
+o programa pergunta e gera o mapa so com as classes.
+
+**O PDF e escrito a mao**, em `mapa.py`. A regra do pacote e nao acrescentar
+dependencia, e uma biblioteca de PDF custaria megabytes para desenhar um raster,
+umas linhas e uma legenda. A parte do formato usada aqui -- imagem em
+FlateDecode, caminhos vetoriais e texto em Helvetica -- cabe em poucas dezenas de
+linhas com o `zlib` da biblioteca padrao. O raster vai como imagem reamostrada
+para 1600 px de largura; as curvas vao como **vetor**, entao continuam nitidas
+em qualquer ampliacao.
 
 ## Marca nas janelas
 

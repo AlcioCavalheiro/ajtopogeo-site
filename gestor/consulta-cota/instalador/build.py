@@ -112,9 +112,11 @@ if __name__ == "__main__":
     empacotar.construir(
         nome=NOME, chave="AJTopoGeo_ConsultaCota",
         descricao="Cota de coordenadas sobre o modelo digital, declividade por faixa "
-                  "e curvas de nivel em DXF para o CAD. Leva o Python e o GDAL ja "
-                  "embutidos -- nao precisa de QGIS na maquina.",
+                  "com mapa em PDF, e curvas de nivel em DXF para o CAD. Leva o Python "
+                  "e o GDAL ja embutidos -- nao precisa de QGIS na maquina.",
         script=PROJETO / "cota_janela.py", projeto=PROJETO, aqui=AQUI,
         copiar_ferramentas=copiar_ferramentas,
         extras_pyinstaller=("--hidden-import", "cota", "--hidden-import", "curvas",
+                            "--hidden-import", "mapa",
+                            "--hidden-import", "relatorio",
                             "--collect-submodules", "numpy"))
