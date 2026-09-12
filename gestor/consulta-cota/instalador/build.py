@@ -111,9 +111,10 @@ def copiar_ferramentas(destino):
 if __name__ == "__main__":
     empacotar.construir(
         nome=NOME, chave="AJTopoGeo_ConsultaCota",
-        descricao="Consulta a cota de coordenadas sobre o modelo digital e calcula "
-                  "declividade por faixa. Leva o Python e o GDAL ja embutidos -- "
-                  "nao precisa de QGIS na maquina.",
+        descricao="Cota de coordenadas sobre o modelo digital, declividade por faixa "
+                  "e curvas de nivel em DXF para o CAD. Leva o Python e o GDAL ja "
+                  "embutidos -- nao precisa de QGIS na maquina.",
         script=PROJETO / "cota_janela.py", projeto=PROJETO, aqui=AQUI,
         copiar_ferramentas=copiar_ferramentas,
-        extras_pyinstaller=("--hidden-import", "cota", "--collect-submodules", "numpy"))
+        extras_pyinstaller=("--hidden-import", "cota", "--hidden-import", "curvas",
+                            "--collect-submodules", "numpy"))

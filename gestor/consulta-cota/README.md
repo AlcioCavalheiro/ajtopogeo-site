@@ -72,6 +72,71 @@ No `config.json`, caminho relativo vale a partir da pasta do proprio arquivo --
 e o que permite o pacote instalado achar o GDAL que veio junto. Caminho absoluto
 continua funcionando, que e como ele aponta para o QGIS aqui.
 
+## Curvas de nivel
+
+Terceira aba. Gera as curvas do modelo em DXF, com a cota no **Z de cada
+vertice** -- o Civil 3D consome direto como superficie, sem precisar ler campo
+de atributo. As curvas saem separadas nos layers `CN_SIMPLES` e `CN_MESTRA`.
+Tambem grava SHP, GPKG e GeoJSON; nesses tres a cota vai tambem nos campos
+`ELEV` e `MESTRA`, que o DXF nao aceita (o esquema dele e fixo).
+
+**Nao entra binario novo no instalador.** A `gdal311.dll` que ja vem no pacote
+exporta `GDALContourGenerateEx`; o `curvas.py` fala com ela por `ctypes`. Nao
+existe `gdal_contour.exe` no pacote e nao precisa existir.
+
+### Os tres cuidados que separam prancha de espaguete
+
+1. **Reamostragem** para um pixel de trabalho compativel com a equidistancia
+   (padrao: metade dela). Contornar pixel bruto de fotogrametria de 3 cm devolve
+   linha serrilhada com milhares de vertices por hectare.
+2. **Suavizacao** por media movel que ignora vazio -- divide pela contagem de
+   pixels validos da janela, nao pelo tamanho dela, senao a borda de um buraco
+   puxaria a cota e deformaria a curva justo onde o modelo ja e fraco.
+3. **Comprimento minimo**: poca de ruido vira circulinho fechado que nao
+   representa relevo. Abaixo do limite, descartada.
+
+Os tres campos ficam no "Ajuste fino" e em branco usam o automatico.
+
+### O que o programa recusa, e por que
+
+- **Modelo em graus.** Equidistancia, pixel e suavizacao sao metricas; num
+  raster em grau, pedir pixel de 0,5 reamostraria o voo inteiro para um punhado
+  de pixels, e o erro que o GDAL devolve ("too many levels") nao aponta para a
+  causa. O programa barra na entrada e manda reprojetar para UTM. **O MDT que
+  sai do Agisoft vem assim**; o do Pix4D ja vem em UTM.
+- **Desnivel absurdo.** Mais de 2000 niveis nao e relevo, e buraco entrando como
+  terreno: o classico e o MDT sem o valor de vazio gravado, com o buraco em
+  -9999 ou -10000. Medido: sem essa conferencia o GDAL fica **mais de dez
+  minutos** gerando curvas ate a cota -10000, que numa janela se le como
+  travamento. Com ela, o programa recusa em **0,8 s** e diz para preencher o
+  campo "Vazio do modelo". Informando -10000, o resultado bate exatamente com o
+  do mesmo raster que declara o vazio.
+
+### A fase que nao tem barra
+
+O GDAL grava o arquivo no fechamento, e essa parte nao reporta progresso. No DXF
+ela e a maior parte do tempo -- medido num modelo de 1918x1818:
+
+| formato | total | contorno + laco | gravacao no fechamento |
+|---|---|---|---|
+| DXF | 44,5 s | 8,6 s | **35,9 s** |
+| GPKG | 11,2 s | 11,1 s | 0,1 s |
+| SHP | 1,6 s | 1,6 s | 0,0 s |
+
+Por isso, ao chegar ao fim das feicoes a janela troca o texto para "gravando o
+arquivo em disco" e passa a barra para indeterminada. Barra cheia e parada por
+36 segundos e o que faz o usuario achar que travou.
+
+### Como foi conferido
+
+Contra o `gdal_contour` do QGIS, no mesmo raster, com
+`pixel=0, suavizacao=0, comprimento_minimo=0`: **365.524 feicoes nos dois,
+exatamente**. E a paridade que prova que a sequencia de chamadas via ctypes esta
+correta. Repetido depois de cada mudanca no modulo.
+
+Tambem conferido com o GDAL **do pacote**, com o QGIS fora do PATH: mesmas 3.201
+curvas do QGIS, DXF gravado.
+
 ## Marca nas janelas
 
 O icone do executavel e do atalho, e o logo no topo da janela, saem de

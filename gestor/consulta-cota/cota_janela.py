@@ -1,7 +1,7 @@
 """Janela de consulta sobre o modelo digital do terreno.
 
-Abre pelo atalho "Consulta de Cota". Escolhe o .tif uma vez e trabalha nas duas
-abas: cota de coordenadas e declividade da area.
+Abre pelo atalho "Consulta de Cota". Escolhe o .tif uma vez e trabalha nas tres
+abas: cota de coordenadas, declividade da area e curvas de nivel.
 """
 
 import csv
@@ -10,6 +10,7 @@ import queue
 import sys
 import threading
 import traceback
+import webbrowser
 from pathlib import Path
 from tkinter import BOTH, END, LEFT, RIGHT, StringVar, Tk, X, filedialog, messagebox
 from tkinter import scrolledtext, ttk
@@ -23,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "marca"))
 try:
     import marca
     import cota
+    import curvas
 except Exception:  # noqa: BLE001
     _erro = traceback.format_exc()
     try:
@@ -61,6 +63,7 @@ class Janela:
         self.info = None
         self.resultado = []
         self.faixas = []
+        self.arquivo_curvas = None
 
         corpo = ttk.Frame(raiz, padding=12)
         corpo.pack(fill=BOTH, expand=True)
@@ -84,6 +87,7 @@ class Janela:
         abas.pack(fill=BOTH, expand=True)
         self.montar_aba_cota(abas)
         self.montar_aba_declive(abas)
+        self.montar_aba_curvas(abas)
 
         self.raiz.after(120, self.drenar)
 
@@ -193,6 +197,166 @@ class Janela:
                    command=self.salvar_declive).pack(side=RIGHT)
         ttk.Button(rodape, text="Copiar",
                    command=self.copiar_declive).pack(side=RIGHT, padx=(0, 6))
+
+    # ================= aba 3: curvas de nivel =================
+
+    def montar_aba_curvas(self, abas):
+        aba = ttk.Frame(abas, padding=10)
+        abas.add(aba, text="  Curvas de nivel  ")
+
+        ttk.Label(aba, justify="left", foreground="#555", text=
+                  "Gera as curvas de nivel do modelo em DXF, com a cota no Z de cada\n"
+                  "vertice -- o Civil 3D consome direto como superficie. Use o DTM: sobre\n"
+                  "o DSM a curva contorna copa de arvore e telhado. O DXF e o formato mais\n"
+                  "lento de gravar; SHP e GPKG saem em uma fracao do tempo."
+                  ).pack(anchor="w", pady=(0, 10))
+
+        bloco = ttk.LabelFrame(aba, text=" Como desenhar ", padding=10)
+        bloco.pack(fill=X, pady=(0, 8))
+        grade = ttk.Frame(bloco)
+        grade.pack(fill=X)
+
+        self.eq = StringVar(value="1")
+        self.mestra = StringVar(value="5")
+        ttk.Label(grade, text="Equidistancia [m]:").grid(row=0, column=0, sticky="w")
+        ttk.Combobox(grade, textvariable=self.eq, width=8,
+                     values=("0,5", "1", "2", "5")).grid(row=0, column=1, sticky="w", padx=(6, 20))
+        ttk.Label(grade, text="Mestra a cada:").grid(row=0, column=2, sticky="w")
+        ttk.Spinbox(grade, textvariable=self.mestra, from_=0, to=10, width=6,
+                    ).grid(row=0, column=3, sticky="w", padx=(6, 0))
+        ttk.Label(grade, text="curvas (0 desliga)", foreground="#777",
+                  ).grid(row=0, column=4, sticky="w", padx=(6, 0))
+
+        avancado = ttk.LabelFrame(aba, text=" Ajuste fino (deixe em branco para o automatico) ",
+                                  padding=10)
+        avancado.pack(fill=X, pady=(0, 8))
+        fina = ttk.Frame(avancado)
+        fina.pack(fill=X)
+        self.pixel = StringVar()
+        self.suave = StringVar()
+        self.minimo = StringVar()
+        self.vazio = StringVar()
+        campos = (("Pixel de trabalho [m]:", self.pixel, "metade da equidistancia"),
+                  ("Suavizacao [m]:", self.suave, "um pixel de trabalho"),
+                  ("Descartar trechos abaixo de [m]:", self.minimo, "oito pixels"),
+                  ("Vazio do modelo:", self.vazio, "o que o raster declarar"))
+        for i, (rotulo, variavel, padrao) in enumerate(campos):
+            ttk.Label(fina, text=rotulo).grid(row=i, column=0, sticky="w", pady=2)
+            ttk.Entry(fina, textvariable=variavel, width=10).grid(row=i, column=1,
+                                                                  sticky="w", padx=(6, 8))
+            ttk.Label(fina, text="em branco: " + padrao, foreground="#777",
+                      ).grid(row=i, column=2, sticky="w")
+
+        self.botao_cur = ttk.Button(aba, text="GERAR CURVAS", command=self.gerar_curvas)
+        self.botao_cur.pack(fill=X, ipady=6, pady=(4, 4))
+        self.barra_cur = ttk.Progressbar(aba, mode="determinate", maximum=100)
+
+        rodape = ttk.Frame(aba)
+        rodape.pack(fill=X, pady=(8, 0))
+        self.situacao_cur = ttk.Label(rodape, text="", foreground="#444", justify="left",
+                                      wraplength=760)
+        self.situacao_cur.pack(side=LEFT, fill=X, expand=True)
+        self.botao_pasta = ttk.Button(rodape, text="Abrir a pasta",
+                                      command=self.abrir_pasta_curvas, state="disabled")
+        self.botao_pasta.pack(side=RIGHT)
+
+    def numero_opcional(self, variavel, rotulo):
+        """Le um campo que pode ficar vazio, aceitando virgula decimal."""
+        texto = variavel.get().strip()
+        if not texto:
+            return None
+        try:
+            return cota.numero(texto)
+        except ValueError:
+            raise ValueError(f"O campo \"{rotulo}\" nao e um numero: {texto}") from None
+
+    def gerar_curvas(self):
+        caminho = self.tif.get().strip()
+        if not caminho or not Path(caminho).exists():
+            messagebox.showerror(TITULO, "Escolha o arquivo do modelo digital (.tif).")
+            return
+        if "dsm" in Path(caminho).name.lower():
+            if not messagebox.askyesno(
+                    TITULO,
+                    "O arquivo escolhido parece ser um DSM (modelo de superficie).\n\n"
+                    "As curvas sairiam contornando a copa das arvores e os telhados, nao "
+                    "o terreno. O certo e usar o DTM.\n\nGerar assim mesmo?"):
+                return
+        try:
+            opcoes = dict(
+                equidistancia=cota.numero(self.eq.get() or "1"),
+                mestra_a_cada=int(self.mestra.get() or 0),
+                pixel=self.numero_opcional(self.pixel, "Pixel de trabalho"),
+                suavizacao=self.numero_opcional(self.suave, "Suavizacao"),
+                comprimento_minimo=self.numero_opcional(self.minimo, "Descartar trechos"),
+                nodata=self.numero_opcional(self.vazio, "Vazio do modelo"),
+            )
+        except ValueError as e:
+            messagebox.showerror(TITULO, str(e))
+            return
+        if opcoes["equidistancia"] <= 0:
+            messagebox.showerror(TITULO, "A equidistancia precisa ser maior que zero.")
+            return
+
+        base = Path(caminho)
+        saida = filedialog.asksaveasfilename(
+            title="Salvar as curvas",
+            initialfile=base.stem + "_curvas.dxf", initialdir=str(base.parent),
+            defaultextension=".dxf",
+            filetypes=[("DXF para CAD", "*.dxf"), ("Shapefile", "*.shp"),
+                       ("GeoPackage", "*.gpkg"), ("GeoJSON", "*.geojson")])
+        if not saida:
+            return
+
+        self.botao_cur.config(state="disabled", text="Gerando...")
+        self.botao_pasta.config(state="disabled")
+        self.barra_cur.stop()
+        self.barra_cur.config(mode="determinate")
+        self.barra_cur.pack(fill=X, pady=(0, 6))
+        self.barra_cur["value"] = 0
+        self.situacao_cur.config(text="lendo o modelo...", foreground="#444")
+        threading.Thread(target=self.trabalhar_curvas, args=(caminho, saida, opcoes),
+                         daemon=True).start()
+
+    def trabalhar_curvas(self, caminho, saida, opcoes):
+        # o GDAL chama o progresso milhares de vezes; so o que muda o inteiro na
+        # barra vai para a fila, senao a janela gasta mais tempo redesenhando do
+        # que o contorno gasta calculando
+        ultimo = [-1]
+
+        def progresso(fracao):
+            pct = int(fracao * 100)
+            if pct != ultimo[0]:
+                ultimo[0] = pct
+                self.fila.put(("curvas_andamento", pct))
+                # Depois da ultima feicao ainda vem a gravacao em disco, que o
+                # GDAL faz no fechamento e nao reporta. No DXF ela e a maior
+                # parte do tempo -- medido, 36 s de 44 s. Sem dizer isso, a
+                # barra ficaria cheia e parada, que e como travamento parece.
+                if pct >= 100:
+                    self.fila.put(("curvas_gravando", None))
+
+        try:
+            res = curvas.gerar_curvas(caminho, saida, progresso=progresso, **opcoes)
+            self.fila.put(("curvas", res))
+        except Exception as e:  # noqa: BLE001
+            self.fila.put(("curvas_erro", str(e)))
+
+    def terminar_curvas(self, res):
+        self.arquivo_curvas = Path(res["arquivo"])
+        self.botao_cur.config(state="normal", text="GERAR CURVAS")
+        self.barra_cur.stop()
+        self.barra_cur.pack_forget()
+        self.botao_pasta.config(state="normal")
+        # o aviso e a unica defesa contra entregar curva de buraco como curva de
+        # terreno: quando existe, ele manda no texto e na cor
+        self.situacao_cur.config(
+            text=curvas.resumo(res) + "\n" + self.arquivo_curvas.name,
+            foreground="#a4232b" if res.get("aviso") else "#0b6b3a")
+
+    def abrir_pasta_curvas(self):
+        if self.arquivo_curvas and self.arquivo_curvas.exists():
+            webbrowser.open(str(self.arquivo_curvas.parent))
 
     # ================= modelo =================
 
@@ -496,6 +660,24 @@ class Janela:
                     messagebox.showerror(TITULO, carga)
                 elif tipo == "declive":
                     self.terminar_declive(carga)
+                elif tipo == "curvas_andamento":
+                    self.barra_cur["value"] = carga
+                    self.situacao_cur.config(text=f"gerando as curvas... {carga}%",
+                                             foreground="#444")
+                elif tipo == "curvas_gravando":
+                    self.barra_cur.config(mode="indeterminate")
+                    self.barra_cur.start(12)
+                    self.situacao_cur.config(
+                        text="curvas prontas; gravando o arquivo em disco...",
+                        foreground="#444")
+                elif tipo == "curvas":
+                    self.terminar_curvas(carga)
+                elif tipo == "curvas_erro":
+                    self.botao_cur.config(state="normal", text="GERAR CURVAS")
+                    self.barra_cur.stop()
+                    self.barra_cur.pack_forget()
+                    self.situacao_cur.config(text="")
+                    messagebox.showerror(TITULO, carga)
                 elif tipo == "declive_erro":
                     self.botao_dec.config(state="normal", text="GERAR DECLIVIDADE")
                     self.barra_dec.stop()
@@ -541,6 +723,21 @@ def autoteste():
     print("  " + (r.stdout.strip() or r.stderr.strip() or "sem resposta"))
     if r.returncode != 0:
         problemas.append("gdalinfo nao executou")
+
+    # A aba de curvas nao usa executavel: fala com a propria DLL por ctypes. Se
+    # o pacote vier com um GDAL velho demais, o simbolo nao existe e a falha so
+    # apareceria no primeiro uso, com a janela ja aberta.
+    try:
+        lib = curvas.abrir_biblioteca(cfg)
+        tem = hasattr(lib, "GDALContourGenerateEx")
+        print(f"  {'biblioteca GDAL':16s} OK    {curvas._localizar(_P(cfg['gdalBin'])).name}")
+        print(f"  {'curvas de nivel':16s} {'OK   ' if tem else 'FALTA'} "
+              f"GDALContourGenerateEx")
+        if not tem:
+            problemas.append("GDALContourGenerateEx ausente")
+    except Exception as e:  # noqa: BLE001
+        print(f"  {'curvas de nivel':16s} FALHOU  {e}")
+        problemas.append("biblioteca do GDAL nao carregou")
     print("FALTANDO: " + ", ".join(problemas) if problemas else "Instalacao completa.")
     return 1 if problemas else 0
 
