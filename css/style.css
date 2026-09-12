@@ -797,6 +797,9 @@ footer {
 @media (max-width: 900px) {
   .artigo-grid { grid-template-columns: 1fr; }
   .sidebar-card { position: static; }
+  /* No mobile, o CTA da sidebar sobe para antes do artigo em vez de só
+     aparecer depois de rolar todo o conteúdo técnico. */
+  .artigo-grid > aside { order: -1; margin-bottom: 28px; }
 }
 
 /* Link "saiba mais" nos cards de serviço */
