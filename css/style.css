@@ -636,6 +636,19 @@ footer {
   line-height: 1.7;
 }
 
+.resumo-rapido {
+  background: var(--azul2);
+  border-left: 3px solid var(--verde);
+  border-radius: 0 10px 10px 0;
+  padding: 18px 22px;
+  margin-bottom: 8px;
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: var(--texto);
+  max-width: 680px;
+}
+.resumo-rapido strong { color: var(--branco); }
+
 .artigo { background: var(--azul); padding: 72px 0; }
 .artigo-grid {
   display: grid;
@@ -797,6 +810,9 @@ footer {
 @media (max-width: 900px) {
   .artigo-grid { grid-template-columns: 1fr; }
   .sidebar-card { position: static; }
+  /* No mobile, o CTA da sidebar sobe para antes do artigo em vez de só
+     aparecer depois de rolar todo o conteúdo técnico. */
+  .artigo-grid > aside { order: -1; margin-bottom: 28px; }
 }
 
 /* Link "saiba mais" nos cards de serviço */
