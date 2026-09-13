@@ -123,7 +123,10 @@ async function consultarUf(tema, uf, bboxStr, max) {
     }
     return { uf, features: gmlToFeatures(text, uf, tema) };
   } catch (e) {
-    return { uf, erro: e.name === 'AbortError' ? 'Tempo esgotado ao consultar o INCRA' : String(e.message || e) };
+    // "fetch failed" sozinho não diz nada; a causa real (DNS, TLS, conexão
+    // recusada) vem em e.cause. Sem ela não dá para diagnosticar pelo Gestor.
+    const causa = e.cause ? (e.cause.code || e.cause.message || String(e.cause)) : '';
+    return { uf, erro: e.name === 'AbortError' ? 'Tempo esgotado ao consultar o INCRA' : String(e.message || e) + (causa ? ` (${causa})` : '') };
   } finally {
     clearTimeout(timer);
   }

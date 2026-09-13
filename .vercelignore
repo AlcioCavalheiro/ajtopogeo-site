@@ -21,3 +21,14 @@ gestor/Manual_Sistema_Gestao_AJ_TopoGeo.docx
 gestor/Manual_Sistema_Gestao_AJ_TopoGeo.pdf
 gestor/Relatorio_OS_AJTopoGeo.pdf
 gestor/gerar_relatorio_os.py
+
+# Ferramentas que rodam no computador do escritorio (Python, instaladores,
+# config.json com caminhos desta maquina). O Gestor nao busca nada nelas --
+# o Relatorio da Fazenda do Gestor usa gestor/relatorio-fazenda.js e
+# gestor/dados/, que NAO podem entrar nesta lista.
+gestor/servico-local/
+gestor/servico-local-ppk/
+gestor/consulta-cota/
+gestor/relatorio-fazenda/
+gestor/instalador-comum/
+gestor/marca/

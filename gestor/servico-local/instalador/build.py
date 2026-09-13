@@ -13,6 +13,10 @@ daqui. O unico acrescimo e juntar os dois `config.json` num so -- e o que precis
 ser feito porque, instalado, os dois modulos leem o mesmo arquivo, o que esta ao
 lado do executavel.
 
+O Relatorio da Fazenda chegou a ser a terceira aba e saiu em 13/09/2026: foi
+para o Gestor (gestor/relatorio-fazenda.js), onde roda no navegador sem
+instalar nada. O codigo Python dele ficou em gestor/relatorio-fazenda.
+
 Precisa, **so na maquina que constroi**: Python com pyproj, PyInstaller e
 pefile; o RTKLIB e o ExifTool onde o config.json do PPK apontar; e o QGIS onde o
 config.json da Consulta apontar. Na maquina de destino nao precisa de nada.
@@ -89,4 +93,8 @@ if __name__ == "__main__":
             "--hidden-import", "cota_janela", "--hidden-import", "cota",
             "--hidden-import", "curvas", "--hidden-import", "mapa",
             "--hidden-import", "relatorio",
-            "--collect-data", "pyproj", "--collect-submodules", "numpy"))
+            "--collect-data", "pyproj", "--collect-submodules", "numpy",
+            # pesos-mortos que entram por import opcional de outras bibliotecas
+            "--exclude-module", "pandas", "--exclude-module", "IPython",
+            "--exclude-module", "jinja2", "--exclude-module", "scipy",
+            "--exclude-module", "pytest", "--exclude-module", "matplotlib"))
