@@ -1,5 +1,6 @@
 {
   "cleanUrls": true,
+  "regions": ["gru1"],
   "trailingSlash": false,
   "redirects": [
     { "source": "/georreferenciamento",                    "destination": "/georreferenciamento-incra",               "permanent": true },
