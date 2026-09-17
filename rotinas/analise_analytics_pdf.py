@@ -111,8 +111,9 @@ def faixa_secao(texto, cor, largura, st):
 
 
 def bloco_metricas(itens, largura, st):
+    # v já vem formatado (fmt_delta produz markup <font> confiável) — não escapar de novo.
     t = Table(
-        [[Paragraph(rt(v), st["metric_v"]) for v, _ in itens],
+        [[Paragraph(v, st["metric_v"]) for v, _ in itens],
          [Paragraph(rt(l), st["metric_l"]) for _, l in itens]],
         colWidths=[largura / len(itens)] * len(itens),
     )
