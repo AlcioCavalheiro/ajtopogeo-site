@@ -131,6 +131,13 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script>
 (function(){
+  document.addEventListener('click', function(e) {
+    var a = e.target.closest('a[href^="https://wa.me/"], a[href^="https://api.whatsapp.com/"], a[href^="mailto:"]');
+    if (!a || typeof gtag !== 'function') return;
+    var tipo = a.href.indexOf('mailto:') === 0 ? 'email' : 'whatsapp';
+    var local = a.classList.contains('whatsapp-float') ? 'flutuante' : (a.classList.contains('social-link') ? 'rodape' : 'cta');
+    gtag('event', 'cta_click_' + tipo, { local: local, pagina: location.pathname });
+  });
   var SUPABASE_URL = 'https://wwmlrifoxnekhgppikxa.supabase.co';
   var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3bWxyaWZveG5la2hncHBpa3hhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2NTE3OTQsImV4cCI6MjA5NTIyNzc5NH0.6VIS72AJC8VOArvXh-4sXDuyrYRkj3zP5cUhuEaYPHo';
 

@@ -17,6 +17,19 @@ document.querySelectorAll('.faq-pergunta').forEach(btn => {
   });
 });
 
+// Rastreamento de cliques em WhatsApp / e-mail (menu, CTAs, rodapé, botão flutuante)
+document.addEventListener('click', function(e) {
+  const a = e.target.closest('a[href^="https://wa.me/"], a[href^="https://api.whatsapp.com/"], a[href^="mailto:"]');
+  if (!a || typeof gtag !== 'function') return;
+  const tipo = a.href.indexOf('mailto:') === 0 ? 'email' : 'whatsapp';
+  let local = 'cta';
+  if (a.closest('#main-nav') || a.closest('nav')) local = 'menu';
+  else if (a.classList.contains('whatsapp-float')) local = 'flutuante';
+  else if (a.classList.contains('social-link')) local = 'rodape';
+  else if (a.closest('#contato')) local = 'secao_contato';
+  gtag('event', 'cta_click_' + tipo, { local: local, pagina: location.pathname });
+});
+
 // Filtro de categorias do blog
 const filtroBtns = document.querySelectorAll('.filtro-btn');
 if (filtroBtns.length) {

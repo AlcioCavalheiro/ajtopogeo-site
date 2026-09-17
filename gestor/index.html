@@ -346,6 +346,7 @@ select.fc{cursor:pointer}
       <div class="ni" onclick="nav('ordens')"><i class="ti ti-clipboard-list"></i>Ordens de Serviço</div>
       <div class="ni" onclick="nav('tarefas')"><i class="ti ti-list-check"></i>Minhas Tarefas<span class="nb" id="bta" style="display:none">0</span></div>
       <div class="ng">Comercial</div>
+      <div class="ni" onclick="nav('leads')"><i class="ti ti-message-2"></i>Leads do Site<span class="nb" id="bl" style="display:none">0</span></div>
       <div class="ni" onclick="nav('clientes')"><i class="ti ti-users"></i>Clientes</div>
           <div class="ni" onclick="nav('obras')"><i class="ti ti-building-community"></i>Obras</div>
       <div class="ni" onclick="nav('servicos')"><i class="ti ti-tools"></i>Serviços</div>
@@ -429,7 +430,7 @@ let MEU_PERFIL=null,MEUS_MODULOS=new Set();
 const PAGE_MODULO={
   dashboard:null, agenda:null, pendencias:null,
   ordens:'producao',
-  clientes:'comercial', obras:'comercial', servicos:'comercial', orcamentos:'comercial', contratos:'comercial', fazendas:'comercial',
+  clientes:'comercial', obras:'comercial', servicos:'comercial', orcamentos:'comercial', contratos:'comercial', fazendas:'comercial', leads:'comercial',
   contas:'financeiro', recebimentos:'financeiro', pagamentos:'financeiro', impostos:'financeiro', folha:'financeiro',
   medicao:'financeiro', nfe:'financeiro', dre:'financeiro', acompanhamento:'financeiro', tributario:'financeiro',
   geoferramentas:'ferramentas',
@@ -577,6 +578,7 @@ function toast(msg,e=false){const t=document.getElementById('toast');document.ge
 
 const PCFG={
   dashboard:{t:'Dashboard',a:null},
+  leads:{t:'Leads do Site',a:null},
   agenda:{t:'Agenda',a:'Novo Compromisso',tb:'agenda',h:function(o){return '<div class="fg"><label class="fl">Título *</label><input class="fc" id="f-titulo" placeholder="Ex: Reunião com cliente..."></div><div class="g2"><div class="fg"><label class="fl">Tipo</label><select class="fc" id="f-tipo"><option>Geral</option><option>OS</option><option>Prazo</option><option>Reunião</option><option>Entrega</option></select></div><div class="fg"><label class="fl">Data *</label><input class="fc" type="date" id="f-data"></div></div><div class="g2"><div class="fg"><label class="fl">Hora</label><input class="fc" type="time" id="f-hora"></div><div class="fg"><label class="fl">OS Vinculada</label><input class="fc" id="f-os_numero" placeholder="Ex: OS-001"></div></div><div class="fg"><label class="fl">Responsável</label><input class="fc" id="f-responsavel" placeholder="Nome do responsável pela tarefa"></div><div class="fg"><label class="fl">Descrição</label><textarea class="fc" id="f-descricao" rows="2"></textarea></div>';}},
   clientes:{t:'Clientes',a:'Novo Cliente',tb:'clientes',h:function(o){return '<div class="fg"><label class="fl">Nome / Razão Social *</label><input class="fc" id="f-nome"></div><div class="g3"><div class="fg"><label class="fl">CPF / CNPJ</label><input class="fc" id="f-cpfcnpj"></div><div class="fg"><label class="fl">RG</label><input class="fc" id="f-rg" placeholder="Ex: 001.664.097 SSP/MS"></div><div class="fg"><label class="fl">Tipo</label><select class="fc" id="f-tipo"><option>PF</option><option selected>PJ</option></select></div></div><div class="g2"><div class="fg"><label class="fl">Profissão</label><input class="fc" id="f-profissao" placeholder="Ex: Produtor rural"></div><div class="fg"><label class="fl">Estado civil</label><select class="fc" id="f-estado_civil"><option value="">Selecione...</option><option>solteiro(a)</option><option>casado(a)</option><option>divorciado(a)</option><option>viúvo(a)</option><option>separado(a) judicialmente</option></select></div></div><div class="g2"><div class="fg"><label class="fl">Telefone</label><input class="fc" id="f-telefone"></div><div class="fg"><label class="fl">E-mail</label><input class="fc" type="email" id="f-email"></div></div><div class="fg"><label class="fl">Endereço</label><input class="fc" id="f-endereco" placeholder="Rua, número, bairro..."></div>'+buildLocalizacao('f-estado','f-cidade')+'<div class="g2"><div class="fg"><label class="fl">CEP</label><input class="fc" id="f-cep" placeholder="00000-000" oninput="buscarCEP(this.value)"></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-ativo"><option value="true">Ativo</option><option value="false">Inativo</option></select></div></div>';}},
   servicos:{t:'Novo Serviço',a:'Novo Serviço',tb:'servicos',h:function(o){return '<div class="fg"><label class="fl">Nome *</label><input class="fc" id="f-nome" placeholder="Ex: Georreferenciamento Rural"></div><div class="g2"><div class="fg"><label class="fl">Categoria</label><select class="fc" id="f-categoria"><option>Georreferenciamento</option><option>Levantamento</option><option>Locação</option><option>Nivelamento</option><option>Regularização Fundiária</option><option>Diárias</option><option>Deslocamento</option><option>Materiais</option><option>Outro</option></select></div><div class="fg"><label class="fl">Unidade</label><input class="fc" id="f-unidade" placeholder="serviço, ha, km..."></div></div><div class="fg"><label class="fl">Valor unitário (R$)</label><input class="fc" type="number" step="0.01" id="f-valor_unitario"></div><div class="fg"><label class="fl">Descrição</label><textarea class="fc" id="f-descricao" rows="2"></textarea></div><div class="fg"><label class="fl">Documentos gerados (separados por vírgula)</label><input class="fc" id="f-docs_str" placeholder="Planta georreferenciada, ART..."></div>';}},
@@ -7271,21 +7273,25 @@ async function gerarPDFMedicao(){
 async function checkPendencias(){
   try{
     const hj=hojeLocal();
-    const[r1,r2,r3,r4]=await Promise.all([
+    const[r1,r2,r3,r4,r5]=await Promise.all([
       sb.from('agenda').select('id,concluido,concluida').lt('data',hj),
       sb.from('projetos').select('id,pendencias'),
       sb.from('pagamentos').select('id').lt('vencimento',hj).eq('status','Pendente'),
       sb.from('rotinas').select('id,proxima_data').lt('proxima_data',hj),
+      sb.from('leads_site').select('id').eq('contatado',false),
     ]);
     const agCount=(r1.data||[]).filter(a=>!a.concluido&&!a.concluida).length;
     const projCount=(r2.data||[]).filter(p=>(p.pendencias||[]).some(d=>!d.ok)).length;
     const pagCount=(r3.data||[]).length;
     const rotCount=(r4.data||[]).filter(r=>r.proxima_data&&r.proxima_data<hj).length;
+    const leadsCount=(r5.data||[]).length;
     const total=agCount+projCount+pagCount+rotCount;
     const b=document.getElementById('bnp');
     const ni=document.getElementById('nav-pendencias');
     if(b){b.textContent=total;b.style.display=total>0?'inline':'none';}
     setPendSidebar(ni,total>0);
+    const bl=document.getElementById('bl');
+    if(bl){bl.textContent=leadsCount;bl.style.display=leadsCount>0?'inline':'none';}
   }catch(e){console.warn('checkPendencias erro:',e);}
   if(typeof atualizarBadgeTarefas==='function') atualizarBadgeTarefas();
 }
@@ -15213,6 +15219,52 @@ async function preencherFazendaDeObra(obraId){
   toast('Dados da obra preenchidos. Confira e ajuste antes de salvar.');
 }
 pageMap.fazendas=rFazendas;
+
+// ═══════════════════════════════════════════════════════════
+// LEADS DO SITE — capturados pelo formulário de contato, inclusive
+// quem preencheu nome/telefone mas não chegou a enviar a mensagem
+// no WhatsApp. Depende da migration add_leads_site.sql.
+// ═══════════════════════════════════════════════════════════
+function waLinkLead(tel){
+  let d=(tel||'').replace(/\D/g,'');
+  if(!d) return null;
+  if(!d.startsWith('55')) d='55'+d;
+  return 'https://wa.me/'+d;
+}
+async function rLeads(){
+  const ct=document.getElementById('ct');
+  const{data,error}=await sb.from('leads_site').select('*').order('criado_em',{ascending:false});
+  if(error){ct.innerHTML='<div class="card"><div class="mu sm">Leads do Site indisponível. Rode a migration <b>add_leads_site.sql</b> no Supabase para ativar.<br>'+error.message+'</div></div>';return;}
+  const leads=data||[];
+  const bl=document.getElementById('bl');
+  const pendentes=leads.filter(l=>!l.contatado).length;
+  if(bl){bl.textContent=pendentes;bl.style.display=pendentes>0?'inline':'none';}
+  if(!leads.length){ct.innerHTML='<div class="card" style="text-align:center;padding:2rem"><i class="ti ti-inbox" style="font-size:40px;color:var(--cinza);display:block;margin-bottom:.5rem"></i><div class="w6">Nenhum lead do site ainda</div></div>';return;}
+  let html='<div class="card mb1"><div class="mu sm">Leads capturados pelo formulário de contato do site — inclusive quem preencheu os dados mas não chegou a enviar a mensagem pelo WhatsApp.</div></div>';
+  html+=leads.map(function(l){
+    const wa=waLinkLead(l.telefone);
+    const dt=l.criado_em?new Date(l.criado_em).toLocaleString('pt-BR'):'—';
+    return '<div class="card mb1" style="border-left:4px solid '+(l.contatado?'#3B6D11':'#E24B4A')+'">'
+      +'<div class="fxb"><div class="w6">'+_esc(l.nome||'(sem nome)')+'</div><span class="mu sm">'+dt+'</span></div>'
+      +(l.servico?'<div class="mu sm" style="margin-top:.2rem">'+_esc(l.servico)+'</div>':'')
+      +(l.mensagem?'<div class="mu sm" style="margin-top:.3rem">'+_esc(l.mensagem)+'</div>':'')
+      +'<div class="fxb" style="margin-top:.6rem;flex-wrap:wrap;gap:8px">'
+      +'<div style="display:flex;gap:10px;flex-wrap:wrap">'
+      +(wa?'<a class="btn bsm" href="'+wa+'" target="_blank" rel="noopener"><i class="ti ti-brand-whatsapp"></i> '+_esc(l.telefone)+'</a>':'')
+      +(l.email?'<a class="btn bsm" href="mailto:'+_esc(l.email)+'"><i class="ti ti-mail"></i> '+_esc(l.email)+'</a>':'')
+      +'</div>'
+      +'<button class="btn bsm" onclick="marcarLeadContatado(\''+l.id+'\','+(!l.contatado)+')">'+(l.contatado?'Marcar como pendente':'Marcar como contatado')+'</button>'
+      +'</div></div>';
+  }).join('');
+  ct.innerHTML=html;
+}
+async function marcarLeadContatado(id,val){
+  const{error}=await sb.from('leads_site').update({contatado:val}).eq('id',id);
+  if(error){toast('Erro: '+error.message,true);return;}
+  toast(val?'Lead marcado como contatado':'Lead marcado como pendente');
+  rLeads();
+}
+pageMap.leads=rLeads;
 
 async function gerarAutorizacaoVendaDocx(){
   const v=id=>(document.getElementById(id)?.value||'').trim();
