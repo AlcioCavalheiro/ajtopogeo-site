@@ -7278,7 +7278,7 @@ async function checkPendencias(){
       sb.from('projetos').select('id,pendencias'),
       sb.from('pagamentos').select('id').lt('vencimento',hj).eq('status','Pendente'),
       sb.from('rotinas').select('id,proxima_data').lt('proxima_data',hj),
-      sb.from('leads_site').select('id').eq('contatado',false),
+      sb.from('leads_site').select('id').eq('contatado',false).neq('origem','rascunho'),
     ]);
     const agCount=(r1.data||[]).filter(a=>!a.concluido&&!a.concluida).length;
     const projCount=(r2.data||[]).filter(p=>(p.pendencias||[]).some(d=>!d.ok)).length;
@@ -15221,27 +15221,34 @@ async function preencherFazendaDeObra(obraId){
 pageMap.fazendas=rFazendas;
 
 // ═══════════════════════════════════════════════════════════
-// LEADS DO SITE — capturados pelo formulário de contato, inclusive
-// quem preencheu nome/telefone mas não chegou a enviar a mensagem
-// no WhatsApp. Depende da migration add_leads_site.sql.
+// LEADS DO SITE — capturados pelo formulário de contato. Aba "Enviados"
+// (origem='formulario'): clicou em Enviar via WhatsApp, mesmo que não
+// tenha chegado a mandar a mensagem lá dentro. Aba "Rascunhos"
+// (origem='rascunho'): só preencheu nome/telefone e saiu do campo, sem
+// nunca clicar em enviar — sinal mais fraco, fica separado.
+// Depende da migration add_leads_site.sql.
 // ═══════════════════════════════════════════════════════════
+let _leadsTab='formulario';
+let _leadsCache=[];
 function waLinkLead(tel){
   let d=(tel||'').replace(/\D/g,'');
   if(!d) return null;
   if(!d.startsWith('55')) d='55'+d;
   return 'https://wa.me/'+d;
 }
-async function rLeads(){
-  const ct=document.getElementById('ct');
-  const{data,error}=await sb.from('leads_site').select('*').order('criado_em',{ascending:false});
-  if(error){ct.innerHTML='<div class="card"><div class="mu sm">Leads do Site indisponível. Rode a migration <b>add_leads_site.sql</b> no Supabase para ativar.<br>'+error.message+'</div></div>';return;}
-  const leads=data||[];
-  const bl=document.getElementById('bl');
-  const pendentes=leads.filter(l=>!l.contatado).length;
-  if(bl){bl.textContent=pendentes;bl.style.display=pendentes>0?'inline':'none';}
-  if(!leads.length){ct.innerHTML='<div class="card" style="text-align:center;padding:2rem"><i class="ti ti-inbox" style="font-size:40px;color:var(--cinza);display:block;margin-bottom:.5rem"></i><div class="w6">Nenhum lead do site ainda</div></div>';return;}
-  let html='<div class="card mb1"><div class="mu sm">Leads capturados pelo formulário de contato do site — inclusive quem preencheu os dados mas não chegou a enviar a mensagem pelo WhatsApp.</div></div>';
-  html+=leads.map(function(l){
+function leadsTab(t){_leadsTab=t;_leadsPaint();}
+function _leadsTabsBar(){
+  const envCount=_leadsCache.filter(l=>l.origem!=='rascunho').length;
+  const rascCount=_leadsCache.filter(l=>l.origem==='rascunho').length;
+  const mk=(id,ic,lbl,badge)=>'<button onclick="leadsTab(\''+id+'\')" style="display:flex;align-items:center;gap:6px;padding:8px 15px;border-radius:10px;border:1px solid '+(_leadsTab===id?'var(--brand)':'var(--bor)')+';background:'+(_leadsTab===id?'var(--brand)':'transparent')+';color:'+(_leadsTab===id?'#fff':'var(--mu)')+';font-size:13px;font-weight:600;cursor:pointer"><i class="ti ti-'+ic+'"></i> '+lbl+'<span style="background:'+(_leadsTab===id?'rgba(255,255,255,.22)':'var(--bg)')+';border-radius:99px;padding:1px 8px;font-size:11px">'+badge+'</span></button>';
+  return mk('formulario','send','Enviados',envCount)+mk('rascunho','edit','Rascunhos',rascCount);
+}
+function _leadsPaint(){
+  const tb=document.getElementById('leads-tabs');if(tb)tb.innerHTML=_leadsTabsBar();
+  const body=document.getElementById('leads-body');if(!body)return;
+  const leads=_leadsCache.filter(l=>_leadsTab==='rascunho'?l.origem==='rascunho':l.origem!=='rascunho');
+  if(!leads.length){body.innerHTML='<div class="card" style="text-align:center;padding:2rem"><i class="ti ti-inbox" style="font-size:40px;color:var(--cinza);display:block;margin-bottom:.5rem"></i><div class="w6">'+(_leadsTab==='rascunho'?'Nenhum rascunho':'Nenhum lead enviado')+'</div></div>';return;}
+  body.innerHTML=leads.map(function(l){
     const wa=waLinkLead(l.telefone);
     const dt=l.criado_em?new Date(l.criado_em).toLocaleString('pt-BR'):'—';
     return '<div class="card mb1" style="border-left:4px solid '+(l.contatado?'#3B6D11':'#E24B4A')+'">'
@@ -15256,13 +15263,28 @@ async function rLeads(){
       +'<button class="btn bsm" onclick="marcarLeadContatado(\''+l.id+'\','+(!l.contatado)+')">'+(l.contatado?'Marcar como pendente':'Marcar como contatado')+'</button>'
       +'</div></div>';
   }).join('');
-  ct.innerHTML=html;
+}
+async function rLeads(){
+  const ct=document.getElementById('ct');
+  const{data,error}=await sb.from('leads_site').select('*').order('criado_em',{ascending:false});
+  if(error){ct.innerHTML='<div class="card"><div class="mu sm">Leads do Site indisponível. Rode a migration <b>add_leads_site.sql</b> no Supabase para ativar.<br>'+error.message+'</div></div>';return;}
+  _leadsCache=data||[];
+  const bl=document.getElementById('bl');
+  const pendentes=_leadsCache.filter(l=>l.origem!=='rascunho'&&!l.contatado).length;
+  if(bl){bl.textContent=pendentes;bl.style.display=pendentes>0?'inline':'none';}
+  ct.innerHTML='<div class="card mb1"><div class="mu sm">Leads capturados pelo formulário de contato do site. "Enviados" clicaram em Enviar via WhatsApp; "Rascunhos" só deixaram nome/telefone sem chegar a enviar.</div></div>'
+    +'<div id="leads-tabs" class="fx g8 mb1" style="flex-wrap:wrap"></div><div id="leads-body"></div>';
+  _leadsPaint();
 }
 async function marcarLeadContatado(id,val){
   const{error}=await sb.from('leads_site').update({contatado:val}).eq('id',id);
   if(error){toast('Erro: '+error.message,true);return;}
   toast(val?'Lead marcado como contatado':'Lead marcado como pendente');
-  rLeads();
+  const l=_leadsCache.find(x=>x.id===id);if(l)l.contatado=val;
+  _leadsPaint();
+  const bl=document.getElementById('bl');
+  const pendentes=_leadsCache.filter(x=>x.origem!=='rascunho'&&!x.contatado).length;
+  if(bl){bl.textContent=pendentes;bl.style.display=pendentes>0?'inline':'none';}
 }
 pageMap.leads=rLeads;
 

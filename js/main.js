@@ -55,7 +55,7 @@ document.getElementById('form-contato').addEventListener('submit', function(e) {
   if (sbSite) {
     sbSite.from('leads_site').insert({
       nome: nome, telefone: telefone, servico: servico, mensagem: mensagem,
-      pagina: location.pathname
+      pagina: location.pathname, origem: 'formulario'
     }).then(function(r) {
       if (r.error) console.warn('Lead não salvo:', r.error.message);
     });
@@ -68,6 +68,29 @@ document.getElementById('form-contato').addEventListener('submit', function(e) {
   const url = `https://wa.me/5567991379210?text=${encodeURIComponent(texto)}`;
   window.open(url, '_blank');
 });
+
+// Rascunho: quem preenche nome/telefone mas nunca chega a clicar em "Enviar
+// via WhatsApp" também fica salvo, pra equipe poder retornar o contato.
+// Dispara uma única vez (no primeiro "sair do campo telefone" com dados
+// mínimos), fica em origem='rascunho' — separado do envio real no Gestor.
+let _leadRascunhoEnviado = false;
+function _tentarSalvarRascunho() {
+  if (_leadRascunhoEnviado || !sbSite) return;
+  const telefone = document.getElementById('telefone').value.trim();
+  if (telefone.replace(/\D/g, '').length < 8) return;
+  _leadRascunhoEnviado = true;
+  sbSite.from('leads_site').insert({
+    nome: document.getElementById('nome').value.trim(),
+    telefone: telefone,
+    servico: document.getElementById('servico').value,
+    mensagem: document.getElementById('mensagem').value.trim(),
+    pagina: location.pathname,
+    origem: 'rascunho'
+  }).then(function(r) {
+    if (r.error) console.warn('Rascunho não salvo:', r.error.message);
+  });
+}
+document.getElementById('telefone').addEventListener('blur', _tentarSalvarRascunho);
 
 // Contador animado nas estatísticas
 function animarContador(el) {

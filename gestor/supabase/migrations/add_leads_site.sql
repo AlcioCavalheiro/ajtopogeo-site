@@ -9,6 +9,11 @@
 --
 -- Execute no Supabase (SQL Editor) antes de usar a aba "Leads do Site".
 -- Seguro rodar mais de uma vez. Não altera nenhuma tabela existente.
+--
+-- Coluna "origem": 'formulario' = clicou em Enviar via WhatsApp (pode não
+-- ter chegado a mandar a mensagem lá dentro). 'rascunho' = só preencheu
+-- nome e telefone e saiu do campo, sem nunca clicar em enviar — sinal mais
+-- fraco, fica separado na aba "Rascunhos" do Gestor.
 -- ═══════════════════════════════════════════════════════════════════════
 
 create table if not exists leads_site (
@@ -19,11 +24,16 @@ create table if not exists leads_site (
   servico text,
   mensagem text,
   pagina text,            -- ex: /  (de onde veio o formulário)
+  origem text not null default 'formulario', -- 'formulario' | 'rascunho'
   contatado boolean not null default false,
   criado_em timestamptz not null default now()
 );
 
+-- Rodando a migration de novo em banco já criado antes da coluna existir:
+alter table leads_site add column if not exists origem text not null default 'formulario';
+
 create index if not exists leads_site_contatado_idx on leads_site(contatado);
+create index if not exists leads_site_origem_idx on leads_site(origem);
 
 alter table leads_site enable row level security;
 
