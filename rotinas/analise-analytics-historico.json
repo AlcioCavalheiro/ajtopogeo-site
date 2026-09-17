@@ -7,9 +7,11 @@
     "cliques_busca": 10,
     "impressoes_busca": 2813,
     "posicao_media": 7.42,
-    "decisoes": ["Redirect de georreferenciamento-campo-grade-ms para georreferenciamento-campo-grande-ms"],
+    "decisoes": [
+      "Redirect de georreferenciamento-campo-grade-ms para georreferenciamento-campo-grande-ms",
+      "FAQ (+ schema FAQPage) no blog-sigef-incra mirando 'o que é sigef incra' / 'o que é o sigef do incra' — SERP confirmou concorrência de conteúdo (não é só navegacional), então em vez de mudar título (briga perdida contra sigef.incra.gov.br), acrescentei perguntas respondendo as variações informacionais que já convertiam um pouco"
+    ],
     "oportunidades_pendentes": [
-      "sigef incra / blog-sigef-incra: CTR muito baixo apesar de boa posição — possível intenção navegacional, não editado",
       "blog-topografo-ou-agrimensor: 0% CTR há 2 semanas — se persistir na próxima rodada, reescrever título/meta"
     ]
   }
