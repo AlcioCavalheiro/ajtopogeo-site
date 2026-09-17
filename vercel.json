@@ -26,6 +26,7 @@
     { "source": "/georreferenciamento-sidrolandia",        "destination": "/georreferenciamento-sidrolandia-ms",       "permanent": true },
     { "source": "/georreferenciamento-maracaju",           "destination": "/georreferenciamento-maracaju-ms",          "permanent": true },
     { "source": "/topografia-drone-aerofotogrametria",     "destination": "/blog-aerofotogrametria-drone",             "permanent": true },
-    { "source": "/topografia-servicos",                    "destination": "/topografia-levantamento-planialtimetrico", "permanent": true }
+    { "source": "/topografia-servicos",                    "destination": "/topografia-levantamento-planialtimetrico", "permanent": true },
+    { "source": "/georreferenciamento-campo-grade-ms",     "destination": "/georreferenciamento-campo-grande-ms",     "permanent": true }
   ]
 }
