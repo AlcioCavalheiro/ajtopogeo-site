@@ -36,9 +36,9 @@ async function enviarWhatsApp(telefone: string, mensagem: string) {
   });
   if (!res.ok) {
     const err = await res.text();
-    console.error(`Erro ao enviar para ${numero}:`, err);
+    console.error('Erro ao enviar para', numero, ':', err);
   } else {
-    console.log(`Enviado para ${numero}`);
+    console.log('Enviado para', numero);
   }
 }
 
