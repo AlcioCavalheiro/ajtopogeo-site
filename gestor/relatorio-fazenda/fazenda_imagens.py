@@ -21,7 +21,7 @@ from __future__ import annotations
 import csv
 import math
 import zipfile
-import xml.etree.ElementTree as ET
+import defusedxml.ElementTree as ET
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime

@@ -26,7 +26,7 @@ from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 import re
-import xml.etree.ElementTree as ET
+import defusedxml.ElementTree as ET
 
 ENV_PATH = Path.home() / ".ajtopogeo" / "google_analytics.env"
 SITE_ROOT = "https://ajtopogeo.com.br"

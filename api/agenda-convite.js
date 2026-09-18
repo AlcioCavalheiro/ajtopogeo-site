@@ -25,6 +25,15 @@ function escapeICS(str) {
   return String(str || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
 }
 
+function escapeHTML(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 function ymd(dateStr) {
   return String(dateStr || '').replace(/-/g, '');
 }
@@ -120,17 +129,17 @@ module.exports = async (req, res) => {
     const tituloAviso = editado ? 'Rotina atualizada' : frequencia ? 'Nova rotina agendada' : 'Nova tarefa agendada';
     const introAviso = editado
       ? 'Uma rotina sua foi editada — os detalhes abaixo mudaram.'
-      : (frequencia ? 'Uma rotina recorrente foi agendada para você' : 'Uma tarefa foi agendada para você') + (osNumero ? ' na OS <strong>' + osNumero + '</strong>' : '');
+      : (frequencia ? 'Uma rotina recorrente foi agendada para você' : 'Uma tarefa foi agendada para você') + (osNumero ? ' na OS <strong>' + escapeHTML(osNumero) + '</strong>' : '');
 
     const html = `
       <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto">
         <h2 style="color:#1a1a1a;margin-bottom:4px">${tituloAviso}</h2>
-        <p style="color:#555">Olá${nome ? ', ' + nome : ''}! ${introAviso}</p>
+        <p style="color:#555">Olá${nome ? ', ' + escapeHTML(nome) : ''}! ${introAviso}</p>
         <div style="background:#f7f7f5;border-radius:8px;padding:16px;margin:16px 0">
-          <p style="margin:0 0 8px;font-weight:600">${titulo}</p>
-          ${descricao ? '<p style="margin:0 0 8px;color:#555">' + descricao + '</p>' : ''}
+          <p style="margin:0 0 8px;font-weight:600">${escapeHTML(titulo)}</p>
+          ${descricao ? '<p style="margin:0 0 8px;color:#555">' + escapeHTML(descricao) + '</p>' : ''}
           <p style="margin:0;color:#854F0B"><strong>${frequencia ? 'Próxima execução' : 'Prazo'}:</strong> ${fdBR(data)}</p>
-          ${frequencia ? '<p style="margin:4px 0 0;color:#854F0B"><strong>Repete:</strong> ' + frequencia + '</p>' : ''}
+          ${frequencia ? '<p style="margin:4px 0 0;color:#854F0B"><strong>Repete:</strong> ' + escapeHTML(frequencia) + '</p>' : ''}
         </div>
         <p><a href="${gcalLink}" style="background:#4285F4;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600">${editado ? 'Atualizar no Google Calendar' : 'Adicionar ao Google Calendar'}</a></p>
         <p style="color:#999;font-size:12px">${editado ? 'Também anexamos o .ics atualizado — se você já tinha adicionado esta rotina ao calendário, abrir o anexo atualiza o mesmo evento (em apps compatíveis, como Gmail/Google Calendar). Se preferir, adicione novamente pelo botão acima.' : 'Também anexamos um arquivo .ics — abra-o para adicionar em qualquer app de calendário' + (frequencia ? ' (já com a recorrência configurada)' : '') + '.'}</p>

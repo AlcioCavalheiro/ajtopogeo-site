@@ -264,7 +264,7 @@ def ler_relatorio_pix4d(caminho):
     continuariam pequenos. Sem ponto de apoio em campo nada aqui prova posicao
     absoluta.
     """
-    import xml.etree.ElementTree as ET
+    import defusedxml.ElementTree as ET
 
     raiz = ET.parse(caminho).getroot()
 
