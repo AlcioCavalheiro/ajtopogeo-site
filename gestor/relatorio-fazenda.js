@@ -3,7 +3,14 @@
  * Porte do gerador que rodava no programa do computador (Python + GDAL). Aqui
  * tudo roda no navegador de quem usa o Gestor:
  *
- *   perímetro KML/KMZ ...... lido na página (DOMParser, JSZip)
+ *   perímetro ............... KML/KMZ (DOMParser, JSZip), DXF (dxf-parser) ou
+ *                            shapefile .zip (shpjs); DXF sem coordenadas em
+ *                            graus é tratado como SIRGAS 2000/UTM na zona
+ *                            informada na aba
+ *   prioridade do perímetro . se o SIGEF ou o CAR sobreposto ao perímetro
+ *                            enviado for MAIOR que ele, o relatório troca para
+ *                            o oficial (SIGEF > CAR > enviado) e reconsulta
+ *                            tudo sobre essa geometria — ver RF.gerar
  *   CAR e SIGEF ............ proxies /api/car e /api/incra (os servidores do
  *                            governo não liberam CORS)
  *   Sentinel-2 ............. catálogo STAC + GeoTIFF remoto (geotiff.js), só os
@@ -37,6 +44,10 @@
     autotable: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js',
     proj4: 'https://cdn.jsdelivr.net/npm/proj4@2.9.2/dist/proj4.js',
     JSZip: 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',
+    // mesmas versões já usadas no CAD do Gestor (gestor/index.html), para o
+    // relatório aceitar perímetro em DXF e em shapefile (.zip).
+    dxfparser: 'https://cdn.jsdelivr.net/npm/dxf-parser@1.1.2/dist/dxf-parser.js',
+    shpjs: 'https://cdn.jsdelivr.net/npm/shpjs@4.0.4/dist/shp.js',
   };
   const STAC = 'https://earth-search.aws.element84.com/v1/search';
   const POWER = 'https://power.larc.nasa.gov/api/temporal/daily/point';
@@ -80,12 +91,14 @@
     });
   }
 
-  async function garantirBibliotecas() {
+  async function garantirBibliotecas(extensaoArquivo) {
     const faltando = [];
     if (!window.GeoTIFF) faltando.push(carregarScript(LIBS.GeoTIFF));
     if (!window.polygonClipping) faltando.push(carregarScript(LIBS.polygonClipping));
     if (!window.proj4) faltando.push(carregarScript(LIBS.proj4));
     if (!window.JSZip) faltando.push(carregarScript(LIBS.JSZip));
+    if (extensaoArquivo === 'dxf' && !window.DxfParser) faltando.push(carregarScript(LIBS.dxfparser));
+    if (extensaoArquivo === 'zip' && typeof window.shp !== 'function') faltando.push(carregarScript(LIBS.shpjs));
     if (!(window.jspdf && window.jspdf.jsPDF)) {
       faltando.push(carregarScript(LIBS.jspdf).then(() => carregarScript(LIBS.autotable)));
     }
@@ -218,7 +231,61 @@
     return poligonos;
   };
 
-  RF.lerPerimetro = async function (arquivo) {
+  // Um DXF de topografia quase sempre vem em coordenadas projetadas (UTM), não
+  // em graus — ao contrário do KML e do shapefile (que o shpjs já reprojeta
+  // pelo .prj). Sem essa informação no próprio arquivo, checa se os valores já
+  // parecem lon/lat (raro, mas alguns DXF saem assim); senão exige a zona UTM
+  // informada na aba (mesmo padrão de seletor de zona/hemisfério do CAD do
+  // Gestor, em gestor/index.html).
+  function dxfEhGeografico(poligonos) {
+    let n = 0;
+    for (const [anel] of poligonos) {
+      for (const [x, y] of anel) {
+        n++;
+        if (!isFinite(x) || !isFinite(y) || Math.abs(x) > 180 || Math.abs(y) > 90) return false;
+      }
+    }
+    return n > 0;
+  }
+
+  function lerDxfPerimetro(texto, opcoesDxf) {
+    if (!window.DxfParser) throw new Error('Biblioteca de leitura de DXF não carregada.');
+    const dxf = new DxfParser().parse(texto);
+    const poligonos = [];
+    for (const en of dxf.entities || []) {
+      if (!((en.type === 'LWPOLYLINE' || en.type === 'POLYLINE') && en.vertices && en.vertices.length > 2)) continue;
+      const fechada = !!(en.shape || en.closed || (en.flags && (en.flags & 1)));
+      if (!fechada) continue;
+      const anel = en.vertices.map((v) => [v.x, v.y]);
+      const a = anel[0], b = anel[anel.length - 1];
+      if (a[0] !== b[0] || a[1] !== b[1]) anel.push([a[0], a[1]]);
+      poligonos.push([anel, []]);
+    }
+    if (!poligonos.length) throw new Error('Nenhuma polilinha fechada encontrada no DXF. No CAD, feche o perímetro (polyline fechada) antes de exportar.');
+    if (dxfEhGeografico(poligonos)) return poligonos;
+    const zona = (opcoesDxf && opcoesDxf.zona) || 21;
+    const sul = !opcoesDxf || opcoesDxf.sul !== false;
+    const def = `+proj=utm +zone=${zona}${sul ? ' +south' : ''} +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs`;
+    const conv = proj4(def, WGS);
+    return poligonos.map(([anel]) => [anel.map((p) => conv.forward(p)), []]);
+  }
+
+  async function lerShapefilePerimetro(buffer) {
+    if (typeof window.shp !== 'function') throw new Error('Biblioteca de leitura de shapefile não carregada.');
+    let gj = await window.shp(buffer);
+    if (Array.isArray(gj)) gj = gj[0];
+    const poligonos = [];
+    for (const f of (gj && gj.features) || []) {
+      const g = f.geometry;
+      if (!g) continue;
+      if (g.type === 'Polygon') poligonos.push([g.coordinates[0], g.coordinates.slice(1)]);
+      else if (g.type === 'MultiPolygon') for (const poli of g.coordinates) poligonos.push([poli[0], poli.slice(1)]);
+    }
+    if (!poligonos.length) throw new Error('Nenhum polígono encontrado no shapefile (esperado Polygon ou MultiPolygon). Envie o .zip com .shp, .shx, .dbf e .prj.');
+    return poligonos;
+  }
+
+  RF.lerPerimetro = async function (arquivo, opcoesDxf) {
     const nome = (arquivo.name || '').toLowerCase();
     if (nome.endsWith('.kmz')) {
       const zip = await JSZip.loadAsync(await arquivo.arrayBuffer());
@@ -226,7 +293,10 @@
       if (!kml) throw new Error('O KMZ não contém nenhum arquivo .kml.');
       return RF.lerKmlTexto(await zip.file(kml).async('string'));
     }
-    return RF.lerKmlTexto(await arquivo.text());
+    if (nome.endsWith('.kml')) return RF.lerKmlTexto(await arquivo.text());
+    if (nome.endsWith('.dxf')) return lerDxfPerimetro(await arquivo.text(), opcoesDxf);
+    if (nome.endsWith('.zip')) return lerShapefilePerimetro(await arquivo.arrayBuffer());
+    throw new Error('Formato não suportado. Use .kml, .kmz, .dxf ou .zip (shapefile).');
   };
 
   // ------------------------------------------------------------ geometria
@@ -335,9 +405,16 @@
     return m;
   }
 
-  RF.preparar = async function (arquivo, log) {
+  RF.preparar = async function (arquivo, log, opcoesDxf) {
     log('Lendo o perímetro...');
-    const poligonos = await RF.lerPerimetro(arquivo);
+    const poligonos = await RF.lerPerimetro(arquivo, opcoesDxf);
+    return RF.construirCtx(poligonos, log);
+  };
+
+  // Monta o contexto geométrico (grade, máscara, área) a partir de polígonos já
+  // lidos em lon/lat — usado tanto para o arquivo enviado quanto para trocar o
+  // perímetro pelo do CAR/SIGEF quando ele é maior (ver RF.gerar).
+  RF.construirCtx = async function (poligonos, log) {
     let l = Infinity, b = Infinity, r = -Infinity, t = -Infinity;
     for (const [ext] of poligonos) {
       for (const [x, y] of ext) {
@@ -389,6 +466,16 @@
     return null;
   }
 
+  // Geometria GeoJSON (lon/lat) de uma feição do CAR/SIGEF -> formato interno de
+  // polígonos [[anelExterno, [aneisInternos]], ...], o mesmo que RF.lerKmlTexto
+  // devolve. Usado para trocar o perímetro analisado pelo do CAR/SIGEF.
+  function geojsonParaPoligonos(g) {
+    if (!g) return [];
+    if (g.type === 'Polygon') return [[g.coordinates[0], g.coordinates.slice(1)]];
+    if (g.type === 'MultiPolygon') return g.coordinates.map((poli) => [poli[0], poli.slice(1)]);
+    return [];
+  }
+
   // Área comum de cada feição com o perímetro. Abaixo de 100 m² é lasca de
   // divisa — dois levantamentos nunca coincidem no vértice — e não conflito.
   function sobreposicao(features, ctx) {
@@ -409,6 +496,7 @@
       const area = areaMulti(mp);
       saida.push({
         atributos: f.properties || {},
+        geometria: f.geometry,
         area_feicao_ha: area / 10000,
         area_comum_ha: comum / 10000,
         pct_do_perimetro: areaAlvo ? (100 * comum) / areaAlvo : 0,
@@ -1727,7 +1815,7 @@
     if (d.figRgb) figura(d.figRgb, 112);
     espaco(4);
     tabela(null, [
-      ['Área do perímetro informado', `${num(ha, 4)} ha`],
+      [d.perimetroFonte === 'enviado' ? 'Área do perímetro informado' : `Área analisada (perímetro do ${d.perimetroFonte === 'sigef' ? 'SIGEF' : 'CAR'})`, `${num(ha, 4)} ha`],
       ['Perímetro', `${num(d.perimetro, 2)} m`],
       ['Sistema de referência', `SIRGAS 2000 / UTM ${d.sis.fuso}${d.sis.sul ? 'S' : 'N'} (EPSG:${d.sis.epsg})`],
       ['Data de emissão', d.data],
@@ -1738,6 +1826,10 @@
     novaPagina();
     h1('DIAGNÓSTICO EXECUTIVO');
     par('Ficha-resumo do imóvel e verificação de conformidade contra as bases públicas cruzadas nesta execução. Os números abaixo são os mesmos usados nos capítulos correspondentes — nenhum valor é digitado duas vezes.');
+    if (d.perimetroFonte !== 'enviado') {
+      const FONTE_PERIM_NOME2 = { sigef: 'SIGEF/INCRA', car: 'CAR/SICAR' };
+      nota(`Perímetro analisado: ${FONTE_PERIM_NOME2[d.perimetroFonte]} (${num(ha, 2)} ha), não o arquivo enviado (${num(d.perimetroEnviadoHa, 2)} ha) — o oficial é maior. Detalhe em 1.`);
+    }
     espaco(1);
     tabela(['Área', 'Município', 'UF', 'Módulos fiscais', 'RL mínima (Lei 12.651)'], [[
       `${num(ha, 2)} ha`, d.municipio, d.uf,
@@ -1791,8 +1883,13 @@
     // ---------------- 1. cadastral
     novaPagina();
     h1('1. IDENTIFICAÇÃO E SITUAÇÃO CADASTRAL');
-    par('Os limites analisados são os do arquivo KML fornecido. As consultas abaixo verificam a existência de registros oficiais que se sobrepõem a esse polígono. Sobreposição parcial não significa erro: pode indicar limite desatualizado, desmembramento não averbado ou divergência entre o levantamento e o cadastro.');
-    const itens = [['Área do KML', `${num(ha, 4)} ha`], ['Município', d.municipioFonte]];
+    const FONTE_PERIM_NOME = { enviado: 'arquivo enviado', sigef: 'SIGEF/INCRA', car: 'CAR/SICAR' };
+    if (d.perimetroFonte === 'enviado') {
+      par('Os limites analisados são os do arquivo enviado. As consultas abaixo verificam a existência de registros oficiais que se sobrepõem a esse polígono. Sobreposição parcial não significa erro: pode indicar limite desatualizado, desmembramento não averbado ou divergência entre o levantamento e o cadastro.');
+    } else {
+      par(`O arquivo enviado tem ${num(d.perimetroEnviadoHa, 4)} ha — menor que o registro do ${FONTE_PERIM_NOME[d.perimetroFonte]} sobreposto a ele. Por isso os limites analisados neste relatório são os do ${FONTE_PERIM_NOME[d.perimetroFonte]} (${num(ha, 4)} ha), não os do arquivo enviado: entre um perímetro enviado incompleto e o registro oficial maior, o relatório usa o oficial. Se o perímetro enviado é o correto (ex.: retificação em andamento, ainda não refletida no cadastro), desconsidere esta troca e confira a área diretamente pelo arquivo original.`);
+    }
+    const itens = [[d.perimetroFonte === 'enviado' ? 'Área do perímetro enviado' : `Área analisada (${FONTE_PERIM_NOME[d.perimetroFonte]})`, `${num(ha, 4)} ha`], ['Município', d.municipioFonte]];
     if (d.modulo) {
       itens.push(['Módulo fiscal do município', `${num(d.modulo.mf, 0)} ha – ${d.modulo.fonte}`]);
       itens.push(['Módulos fiscais do imóvel', `${num(d.modulo.n, 2)} – ${d.modulo.classe}`]);
@@ -2018,7 +2115,9 @@
     h1('9. RESSALVAS TÉCNICAS E FONTES');
     for (const t of [
       'Este relatório é um estudo de caracterização por sensoriamento remoto e cruzamento de bases públicas. Não substitui levantamento topográfico, memorial descritivo, laudo de avaliação, parecer jurídico nem perícia.',
-      'Os limites analisados são os do arquivo digital fornecido pelo contratante. Não houve conferência de campo dos marcos e das divisas.',
+      d.perimetroFonte === 'enviado'
+        ? 'Os limites analisados são os do arquivo digital fornecido pelo contratante. Não houve conferência de campo dos marcos e das divisas.'
+        : `Os limites analisados são os do ${d.perimetroFonte === 'sigef' ? 'SIGEF' : 'CAR'} sobreposto ao arquivo enviado, não os do arquivo em si — ver 1. Não houve conferência de campo dos marcos e das divisas em nenhum dos dois.`,
       'As consultas cadastrais e fundiárias refletem a base disponível na data de emissão. Os cadastros são alterados diariamente; confirme na consulta oficial antes de qualquer ato jurídico.',
       'O diagnóstico executivo e o pareamento SIGEF × CAR comparam apenas geometria. Nenhum dado de titularidade (nome de proprietário) foi cruzado entre bases — quando um nome aparece em um cadastro, o relatório não afirma que essa pessoa é a proprietária atual do imóvel.',
       'A Reserva Legal mínima informada (cap. 1.4) é o percentual legal, não uma verificação de conformidade: não foi medida a vegetação nativa existente nem a RL averbada em matrícula.',
@@ -2026,7 +2125,11 @@
       'Os índices de vegetação medem vigor, não produtividade. A comparação entre datas só é válida dentro do mesmo estádio fenológico.',
       'As distâncias de logística são em linha reta, a partir do centro do imóvel, e limitadas à capital do estado nesta versão.',
       'As referências de valor são dados públicos de ordem de grandeza. A avaliação de imóvel rural segue a NBR 14653-3 e exige vistoria, pesquisa de mercado e ART.',
-    ]) par('– ' + t);
+    ].concat(d.perimetroExtensao === 'dxf' ? [
+      `O perímetro veio de um DXF. Se as coordenadas do arquivo já estavam em graus (lon/lat), foram usadas como enviadas; caso contrário, foram tratadas como SIRGAS 2000 / UTM fuso ${d.dxfZona}${d.dxfHemisferio} — confira se essa é a zona correta do arquivo original antes de usar os resultados.`,
+    ] : []).concat(d.perimetroExtensao === 'zip' ? [
+      'O perímetro veio de um shapefile (.zip). A reprojeção para graus depende do .prj enviado junto — sem ele, as coordenadas podem estar erradas sem nenhum aviso do sistema.',
+    ] : [])) par('– ' + t);
     espaco(2);
     h2('Fontes utilizadas');
     tabela(['Dado', 'Fonte', 'Referência temporal'], d.fontes, { 0: { cellWidth: 34 }, 2: { cellWidth: 44 } });
@@ -2073,20 +2176,55 @@
       if (cancelar()) throw new Cancelado();
     };
     const uf = String(opcoes.uf || 'MS').toUpperCase();
-    await garantirBibliotecas();
+    const extensao = (opcoes.arquivo.name || '').toLowerCase().split('.').pop();
+    await garantirBibliotecas(extensao);
     passo();
-    const ctx = await RF.preparar(opcoes.arquivo, log);
+    log('Lendo o perímetro...');
+    const poligonosEnviados = await RF.lerPerimetro(opcoes.arquivo, { zona: Number(opcoes.dxfZona) || 21, sul: opcoes.dxfHemisferio !== 'N' });
+    let ctx = await RF.construirCtx(poligonosEnviados, log);
+    const areaEnviadaHa = ctx.ha;
+    passo();
+
+    // ---- cadastro, e prioridade do perímetro (SIGEF > CAR > enviado)
+    //
+    // O arquivo enviado pode estar incompleto (não pega toda a área real). Se o
+    // SIGEF ou o CAR sobreposto for MAIOR que o enviado, o oficial é que vira a
+    // base de toda a análise (imagem, relevo, RL etc.) — nunca o contrário: um
+    // perímetro enviado maior que o oficial é respeitado (pode ser retificação
+    // em andamento, ainda não refletida no cadastro). Exige a sobreposição
+    // cobrir mais da metade do perímetro enviado, para não trocar pela terra do
+    // vizinho por causa de uma lasca de divisa com área grande.
+    log('Consultas cadastrais...');
+    let [carBusca, sigefBusca] = await Promise.all([consultarCar(ctx, uf, log), consultarSigef(ctx, uf, log)]);
+    passo();
+    const bomMatch = (r) => r && r.pct_do_perimetro > 50;
+    const sigefPrincipal = sigefBusca.resultados && sigefBusca.resultados[0];
+    const carPrincipal = carBusca.resultados && carBusca.resultados[0];
+    let fontePerimetro = 'enviado';
+    if (bomMatch(sigefPrincipal) && sigefPrincipal.area_feicao_ha > areaEnviadaHa + 0.001) fontePerimetro = 'sigef';
+    else if (bomMatch(carPrincipal) && carPrincipal.area_feicao_ha > areaEnviadaHa + 0.001) fontePerimetro = 'car';
+
+    let carFinal = carBusca, sigefFinal = sigefBusca;
+    if (fontePerimetro !== 'enviado') {
+      const escolhida = fontePerimetro === 'sigef' ? sigefPrincipal : carPrincipal;
+      const nomeFonte = fontePerimetro === 'sigef' ? 'SIGEF' : 'CAR';
+      log(`  Perímetro enviado (${num(areaEnviadaHa, 4)} ha) menor que o ${nomeFonte} sobreposto (${num(escolhida.area_feicao_ha, 4)} ha) — usando o perímetro do ${nomeFonte} para a análise.`);
+      ctx = await RF.construirCtx(geojsonParaPoligonos(escolhida.geometria), log);
+      passo();
+      log('Reconsultando CAR e SIGEF sobre o perímetro oficial...');
+      [carFinal, sigefFinal] = await Promise.all([consultarCar(ctx, uf, log), consultarSigef(ctx, uf, log)]);
+      passo();
+    }
     const [lonC, latC] = ctx.centro;
-    const nome = (opcoes.nome || '').trim() || (opcoes.arquivo.name || 'Fazenda').replace(/\.(kml|kmz)$/i, '').replace(/_/g, ' ');
+    const nome = (opcoes.nome || '').trim() || (opcoes.arquivo.name || 'Fazenda').replace(/\.(kml|kmz|dxf|zip)$/i, '').replace(/_/g, ' ');
     const d = {
       nome, uf, ha: ctx.ha, perimetro: ctx.perimetro, sis: ctx.sis,
       data: dataBr(isoHoje(0)), responsavel: (opcoes.responsavel || '').trim(), empresa: (opcoes.empresa || 'AJ TopoGeo').trim(),
+      car: carFinal, sigef: sigefFinal, perimetroFonte: fontePerimetro, perimetroEnviadoHa: areaEnviadaHa,
+      perimetroExtensao: extensao, dxfZona: Number(opcoes.dxfZona) || 21, dxfHemisferio: opcoes.dxfHemisferio !== 'N' ? 'S' : 'N',
     };
 
-    // ---- cadastro, município e módulo fiscal
-    log('Consultas cadastrais...');
-    [d.car, d.sigef] = await Promise.all([consultarCar(ctx, uf, log), consultarSigef(ctx, uf, log)]);
-    passo();
+    // ---- município e módulo fiscal
     const peloCar = municipioPeloCar(d.car);
     let municipio = (opcoes.municipio || '').trim();
     if (municipio) d.municipioFonte = `${municipio} (informado)`;
@@ -2292,8 +2430,12 @@
     const ufs = ['AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT', 'PA', 'PB', 'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO'];
     return '<div class="card mb1">'
       + '<div class="st mb1"><i class="ti ti-report-analytics" style="color:var(--brand)"></i>Relatório da Fazenda</div>'
-      + '<div class="mu sm mb1">Relatório técnico em PDF a partir do perímetro em KML/KMZ: diagnóstico executivo, situação no CAR e no SIGEF (com pareamento por geometria), Reserva Legal mínima pela Lei 12.651, sobreposição com Terra Indígena, Unidade de Conservação, assentamento, quilombola e embargos do IBAMA, imagem de satélite, NDVI e série temporal, relevo e declividade, regime de chuvas, logística até a capital e referências de valor da terra (VTN 2026 e mercado regional do INCRA). Tudo é consultado na hora, pela internet.</div>'
-      + '<div class="fg mb1"><label class="fl">Perímetro (KML ou KMZ)</label><input class="fc" id="relfaz-arquivo" type="file" accept=".kml,.kmz" onchange="relfazArquivoEscolhido(this)"></div>'
+      + '<div class="mu sm mb1">Relatório técnico em PDF a partir do perímetro em KML/KMZ, DXF ou shapefile (.zip): diagnóstico executivo, situação no CAR e no SIGEF (com pareamento por geometria — se o CAR ou o SIGEF sobreposto for maior que o arquivo enviado, o relatório usa o oficial, prioridade SIGEF), Reserva Legal mínima pela Lei 12.651, sobreposição com Terra Indígena, Unidade de Conservação, assentamento, quilombola e embargos do IBAMA, imagem de satélite, NDVI e série temporal, relevo e declividade, regime de chuvas, logística até a capital e referências de valor da terra (VTN 2026 e mercado regional do INCRA). Tudo é consultado na hora, pela internet.</div>'
+      + '<div class="fg mb1"><label class="fl">Perímetro (KML, KMZ, DXF ou .zip de shapefile)</label><input class="fc" id="relfaz-arquivo" type="file" accept=".kml,.kmz,.dxf,.zip" onchange="relfazArquivoEscolhido(this)"></div>'
+      + '<div class="g2 mb1" id="relfaz-dxf-crs" style="display:none">'
+      + '<div class="fg"><label class="fl">Zona UTM do DXF <span class="mu">(só se as coordenadas não forem lon/lat)</span></label><select class="fc" id="relfaz-dxf-zona">' + Array.from({ length: 9 }, (_, i) => 17 + i).map((z) => `<option value="${z}"${z === 21 ? ' selected' : ''}>${z}</option>`).join('') + '</select></div>'
+      + '<div class="fg"><label class="fl">Hemisfério</label><select class="fc" id="relfaz-dxf-hemis"><option value="S" selected>Sul</option><option value="N">Norte</option></select></div>'
+      + '</div>'
       + '<div class="g2 mb1">'
       + '<div class="fg"><label class="fl">Nome do imóvel</label><input class="fc" id="relfaz-nome" placeholder="ex. Fazenda São Jorge"></div>'
       + '<div class="fg"><label class="fl">Município <span class="mu">(em branco: identifica pelo CAR)</span></label><input class="fc" id="relfaz-municipio"></div>'
@@ -2331,7 +2473,9 @@
   window.relfazArquivoEscolhido = function (input) {
     const f = input.files && input.files[0];
     const nome = document.getElementById('relfaz-nome');
-    if (f && nome && !nome.value.trim()) nome.value = f.name.replace(/\.(kml|kmz)$/i, '').replace(/_/g, ' ');
+    if (f && nome && !nome.value.trim()) nome.value = f.name.replace(/\.(kml|kmz|dxf|zip)$/i, '').replace(/_/g, ' ');
+    const bloco = document.getElementById('relfaz-dxf-crs');
+    if (bloco) bloco.style.display = f && /\.dxf$/i.test(f.name) ? '' : 'none';
   };
 
   window.relfazParar = function () {
@@ -2369,6 +2513,7 @@
       const r = await RF.gerar({
         arquivo, nome: val('nome'), municipio: val('municipio'), uf: val('uf'), responsavel: val('responsavel'),
         empresa: val('empresa'), dias: val('dias'), nuvemMax: val('nuvem'),
+        dxfZona: val('dxf-zona'), dxfHemisferio: val('dxf-hemis'),
         comSerie: document.getElementById('relfaz-serie').checked, log, cancelado: () => _relfazCancelar,
       });
       r.doc.save(r.nomeArquivo);
