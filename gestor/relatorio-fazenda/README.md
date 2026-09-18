@@ -6,6 +6,14 @@
 > programa Ferramentas AJ TopoGeo do computador. Este código Python fica como
 > referência — foi nele que os serviços e as tabelas foram conferidos contra o
 > dado real, e o porte em JavaScript segue as mesmas regras.
+>
+> **Ampliado em 17/09/2026** com diagnóstico fundiário e ambiental (Terra
+> Indígena, Unidade de Conservação federal, assentamento, quilombola e
+> embargos do IBAMA), pareamento geométrico SIGEF × CAR, cálculo da Reserva
+> Legal mínima pela Lei 12.651/2012, página de diagnóstico executivo com
+> semáforo e um capítulo de logística. A tabela abaixo é a versão anterior,
+> só com sensoriamento remoto; a lista de capítulos atual está em
+> `gestor/relatorio-fazenda.js` (função `montarPdf`).
 
 Relatório técnico de caracterização de imóvel rural em PDF, a partir do
 perímetro em KML/KMZ. Rodando do fonte, ainda abre sozinho:

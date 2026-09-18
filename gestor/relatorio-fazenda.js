@@ -444,6 +444,7 @@
     log('  SIGEF/INCRA:');
     const hoje = dataBr(isoHoje(0));
     const resultados = [];
+    const features = [];
     let respondeu = false;
     const erros = [];
     for (const [tema, natureza] of [['certificada_sigef_particular', 'particular'], ['certificada_sigef_publico', 'pública']]) {
@@ -453,6 +454,7 @@
         if (!feats.length && j.erros && j.erros.length) throw new Error(j.erros.join('; '));
         respondeu = true;
         log(`    ${tema}: ${feats.length} parcela(s) na janela`);
+        for (const f of feats) features.push(Object.assign({}, f, { properties: Object.assign({}, f.properties, { natureza }) }));
         for (const r of sobreposicao(feats, ctx)) {
           r.atributos = Object.assign({}, r.atributos, { natureza });
           resultados.push(r);
@@ -463,10 +465,10 @@
       }
     }
     if (!respondeu) {
-      return { resultados: null, origem: null, aviso: 'Não foi possível consultar o SIGEF: o acervo fundiário do INCRA não respondeu (' + erros.join('; ') + ').' };
+      return { resultados: null, features: [], origem: null, aviso: 'Não foi possível consultar o SIGEF: o acervo fundiário do INCRA não respondeu (' + erros.join('; ') + ').' };
     }
     resultados.sort((a, b) => b.area_comum_ha - a.area_comum_ha);
-    return { resultados, origem: `WFS do Acervo Fundiário do INCRA, consulta ao vivo em ${hoje}`, aviso: null };
+    return { resultados, features, origem: `WFS do Acervo Fundiário do INCRA, consulta ao vivo em ${hoje}`, aviso: null };
   }
 
   // Município do imóvel de maior área comum e o módulo fiscal dele: cada imóvel
@@ -496,6 +498,217 @@
       moduloFiscal: amostra.length ? Math.round(percentil(amostra, 0.5)) : null,
       amostra: amostra.length,
     };
+  }
+
+  // -------------------------------------------------- fundiário, ambiental e riscos
+
+  // Terra Indígena e Unidade de Conservação federal têm "entorno" que importa
+  // mesmo sem sobreposição (art. 4º, III do SNUC; diretrizes de licenciamento
+  // perto de TI). Por isso a consulta busca numa janela maior que o imóvel, e o
+  // relatório declara sempre o mesmo raio que consultou — nunca um raio no texto
+  // e outro na tabela.
+  const RAIO_ENTORNO_KM = 10;
+  const RAIO_ENTORNO_GRAUS = RAIO_ENTORNO_KM / 111;
+
+  function pick(atributos, candidatos) {
+    for (const c of candidatos) {
+      const v = atributos[c];
+      if (v != null && String(v).trim() !== '') return String(v).trim();
+    }
+    return null;
+  }
+
+  function contarPontos(mp) {
+    let n = 0;
+    for (const poli of mp || []) for (const anel of poli) n += anel.length;
+    return n;
+  }
+
+  // Menor distância (m) entre dois MultiPolygon em UTM, pela distância de cada
+  // vértice de um aos segmentos do outro. Suficiente na escala de km do entorno;
+  // evita o custo de um algoritmo exato de menor distância entre polígonos.
+  function distanciaMinima(mpA, mpB) {
+    function distPontoSegmento(px, py, ax, ay, bx, by) {
+      const dx = bx - ax, dy = by - ay;
+      const len2 = dx * dx + dy * dy;
+      let t = len2 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0;
+      t = Math.max(0, Math.min(1, t));
+      return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+    }
+    function segmentos(mp) {
+      const segs = [];
+      for (const poli of mp || []) for (const anel of poli) for (let i = 0; i < anel.length - 1; i++) segs.push([anel[i], anel[i + 1]]);
+      return segs;
+    }
+    const segsA = segmentos(mpA), segsB = segmentos(mpB);
+    if (!segsA.length || !segsB.length) return Infinity;
+    let min = Infinity;
+    for (const [a0, a1] of segsA) {
+      for (const [b0, b1] of segsB) {
+        const d = Math.min(
+          distPontoSegmento(a0[0], a0[1], b0[0], b0[1], b1[0], b1[1]),
+          distPontoSegmento(a1[0], a1[1], b0[0], b0[1], b1[0], b1[1]),
+          distPontoSegmento(b0[0], b0[1], a0[0], a0[1], a1[0], a1[1]),
+          distPontoSegmento(b1[0], b1[1], a0[0], a0[1], a1[0], a1[1]));
+        if (d < min) min = d;
+        if (min === 0) return 0;
+      }
+    }
+    return min;
+  }
+
+  // Feições não sobrepostas, mas dentro do raio de entorno. Geometria grande
+  // demais (TI e UC podem ter milhares de vértices) é descartada da lista em vez
+  // de arriscar travar o navegador ou devolver uma distância errada.
+  function entornoNaoSobreposto(features, ctx, sobrepostos) {
+    const conv = proj4(WGS, ctx.sis.def);
+    const jaContadas = new Set(sobrepostos.map((r) => JSON.stringify(r.atributos)));
+    const custoImovel = contarPontos(ctx.multiUtm);
+    const saida = [];
+    for (const f of features || []) {
+      if (jaContadas.has(JSON.stringify(f.properties || {}))) continue;
+      const mp = geometriaUtm(f.geometry, conv);
+      if (!mp) continue;
+      if (custoImovel * contarPontos(mp) > 3000000) continue;
+      const d = distanciaMinima(ctx.multiUtm, mp);
+      if (d <= RAIO_ENTORNO_KM * 1000) saida.push({ atributos: f.properties || {}, distanciaKm: d / 1000 });
+    }
+    saida.sort((a, b) => a.distanciaKm - b.distanciaKm);
+    return saida.slice(0, 5);
+  }
+
+  // Consulta genérica com sobreposição exata + entorno, usada para TI, UC,
+  // assentamento e quilombola — mesmo padrão de tratamento de erro do CAR/SIGEF:
+  // falhou uma fonte, o relatório diz isso e segue, nunca finge que é "conforme".
+  async function consultarComEntorno(url, nome, ctx, log) {
+    log('  ' + nome + ':');
+    try {
+      const j = await buscarJson(url, null, 60000);
+      const feats = j.features || [];
+      const erroBase = j.erro || (j.erros && j.erros.length ? j.erros.join('; ') : null);
+      if (!feats.length && erroBase) throw new Error(erroBase);
+      const resultados = sobreposicao(feats, ctx);
+      const entorno = entornoNaoSobreposto(feats, ctx, resultados);
+      log(`    ${feats.length} feição(ões) na janela | ${resultados.length} sobreposta(s) | ${entorno.length} no entorno de ${RAIO_ENTORNO_KM} km`);
+      return { resultados, entorno, raioKm: RAIO_ENTORNO_KM, origem: `${nome}, consulta ao vivo em ${dataBr(isoHoje(0))}`, aviso: erroBase || null };
+    } catch (e) {
+      log('    falhou: ' + e.message);
+      return { resultados: null, entorno: [], raioKm: RAIO_ENTORNO_KM, origem: null, aviso: 'Não foi possível consultar ' + nome + ': ' + e.message };
+    }
+  }
+
+  function urlRestricao(ctx, fonte) {
+    return `${RF.apiBase()}/restricoes?fonte=${fonte}&bbox=${bboxParam(ctx, RAIO_ENTORNO_GRAUS)}&max=500`;
+  }
+  function urlFundiario(ctx, uf, tema) {
+    return `${RF.apiBase()}/incra?tema=${tema}&bbox=${bboxParam(ctx, RAIO_ENTORNO_GRAUS)}&uf=${uf}&max=500`;
+  }
+
+  // Embargo do IBAMA: a base pública já mudou nome de campo entre atualizações,
+  // então a identificação tenta várias chaves plausíveis em vez de supor um
+  // esquema fixo — na dúvida, mostra o que existe em vez de imprimir "–" errado.
+  async function consultarEmbargos(ctx, log) {
+    log('  Embargos ambientais (IBAMA/SISCOM):');
+    try {
+      const j = await buscarJson(`${RF.apiBase()}/embargos?bbox=${bboxParam(ctx)}`, null, 60000);
+      const feats = j.features || [];
+      if (!feats.length && j.erro) throw new Error(j.erro);
+      const resultados = sobreposicao(feats, ctx);
+      log(`    ${feats.length} termo(s) na janela | ${resultados.length} sobreposto(s)`);
+      return { resultados, origem: `SISCOM/IBAMA (PAMGIA), consulta ao vivo em ${dataBr(isoHoje(0))}`, aviso: j.erro || null };
+    } catch (e) {
+      log('    falhou: ' + e.message);
+      return { resultados: null, origem: null, aviso: 'Não foi possível consultar o IBAMA: ' + e.message };
+    }
+  }
+
+  // Pareamento SIGEF x CAR pela sobreposição geométrica (IoU = interseção / união)
+  // — a mesma ideia usada por serviços de dossiê fundiário para não contar a
+  // mesma terra duas vezes. IoU ≥ 0,95: mesma terra (a mesma área tem os dois
+  // registros). IoU ≥ 0,70: pareados, mas as áreas não coincidem o bastante para
+  // afirmar que é a mesma terra. Abaixo disso: sobreposição parcial, apenas
+  // informativa. Nunca infere titularidade — só compara geometria.
+  function parearSigefCar(ctx, carFeatures, sigefFeatures) {
+    const conv = proj4(WGS, ctx.sis.def);
+    const cars = (carFeatures || []).map((f) => ({ atributos: f.properties || {}, mp: geometriaUtm(f.geometry, conv) })).filter((x) => x.mp);
+    const sigefs = (sigefFeatures || []).map((f) => ({ atributos: f.properties || {}, mp: geometriaUtm(f.geometry, conv) })).filter((x) => x.mp);
+    const pares = [];
+    for (const s of sigefs) {
+      const areaS = areaMulti(s.mp);
+      if (areaS < 100) continue;
+      let melhor = null;
+      for (const c of cars) {
+        let inter;
+        try { inter = polygonClipping.intersection(s.mp, c.mp); } catch (e) { continue; }
+        const comum = areaMulti(inter);
+        if (comum < 100) continue;
+        const areaC = areaMulti(c.mp);
+        let areaU;
+        try { areaU = areaMulti(polygonClipping.union(s.mp, c.mp)); } catch (e) { areaU = areaS + areaC - comum; }
+        const iou = areaU ? comum / areaU : 0;
+        if (!melhor || iou > melhor.iou) melhor = { atributos: c.atributos, iou, areaCarHa: areaC / 10000 };
+      }
+      if (melhor) {
+        const classe = melhor.iou >= 0.95 ? 'mesma_terra' : melhor.iou >= 0.70 ? 'pareado' : 'sobreposicao_parcial';
+        pares.push({ sigef: s.atributos, car: melhor.atributos, iouPct: melhor.iou * 100, areaSigefHa: areaS / 10000, areaCarHa: melhor.areaCarHa, classe });
+      }
+    }
+    pares.sort((a, b) => b.iouPct - a.iouPct);
+    return pares;
+  }
+
+  // -------------------------------------------------- Reserva Legal (Lei 12.651)
+
+  // Amazônia Legal (Lei Complementar 124/2007): só nesses estados o percentual
+  // muda por bioma (floresta 80 %, cerrado 35 %, campos gerais 20 %) — em todo o
+  // resto do país é 20 % fixo (art. 12, IV). O Maranhão entra na lista por ter
+  // parte do território na Amazônia Legal, mesmo sem estar 100 % nela.
+  const UF_AMAZONIA_LEGAL = new Set(['AC', 'AP', 'AM', 'MA', 'MT', 'PA', 'RO', 'RR', 'TO']);
+
+  function calcularRL(uf, ha, modulo) {
+    const naAmazonia = UF_AMAZONIA_LEGAL.has(uf);
+    const r = { amazoniaLegal: naAmazonia, pctMin: null, minHa: null, baseLegal: '', nota: '' };
+    if (!naAmazonia) {
+      r.pctMin = 20;
+      r.minHa = (ha * 20) / 100;
+      r.baseLegal = 'Lei 12.651/2012, art. 12, IV — fora da Amazônia Legal, Reserva Legal mínima de 20 % em qualquer bioma.';
+    } else {
+      r.baseLegal = 'Lei 12.651/2012, art. 12, I — dentro da Amazônia Legal, o mínimo varia por bioma (floresta 80 %, cerrado 35 %, campos gerais 20 %).';
+      r.nota = 'O bioma/fitofisionomia predominante do imóvel não foi classificado nesta execução (exigiria a camada de vegetação do IBGE cruzada com o perímetro). Sem essa classificação, o relatório não aplica um percentual — aplicar 80 % por padrão, como faz o concorrente, erra sempre que o imóvel não é de floresta.';
+    }
+    if (modulo && modulo.n != null && modulo.n <= 4) {
+      r.art67 = `O imóvel tem ${num(modulo.n, 2)} módulos fiscais (≤ 4) — pode se enquadrar no art. 67 da Lei 12.651/2012: a Reserva Legal fica limitada à área de vegetação nativa existente em 22/07/2008, mediante inscrição no CAR. Este relatório não mede a vegetação de 2008 (exige série histórica de imagens ou declaração no CAR); a aplicação do artigo depende dessa comprovação.`;
+    }
+    return r;
+  }
+
+  // -------------------------------------------------- logística
+
+  const CAPITAIS_UF = {
+    AC: ['Rio Branco', -9.9750, -67.8243], AL: ['Maceió', -9.6498, -35.7089], AP: ['Macapá', 0.0349, -51.0694],
+    AM: ['Manaus', -3.1190, -60.0217], BA: ['Salvador', -12.9777, -38.5016], CE: ['Fortaleza', -3.7172, -38.5433],
+    DF: ['Brasília', -15.7939, -47.8828], ES: ['Vitória', -20.3155, -40.3128], GO: ['Goiânia', -16.6869, -49.2648],
+    MA: ['São Luís', -2.5307, -44.3068], MT: ['Cuiabá', -15.6014, -56.0979], MS: ['Campo Grande', -20.4697, -54.6201],
+    MG: ['Belo Horizonte', -19.9167, -43.9345], PA: ['Belém', -1.4558, -48.4902], PB: ['João Pessoa', -7.1195, -34.8450],
+    PR: ['Curitiba', -25.4284, -49.2733], PE: ['Recife', -8.0476, -34.8770], PI: ['Teresina', -5.0892, -42.8019],
+    RJ: ['Rio de Janeiro', -22.9068, -43.1729], RN: ['Natal', -5.7945, -35.2110], RS: ['Porto Alegre', -30.0346, -51.2177],
+    RO: ['Porto Velho', -8.7619, -63.9039], RR: ['Boa Vista', 2.8235, -60.6758], SC: ['Florianópolis', -27.5954, -48.5480],
+    SP: ['São Paulo', -23.5505, -46.6333], SE: ['Aracaju', -10.9472, -37.0731], TO: ['Palmas', -10.1689, -48.3317],
+  };
+
+  function haversineKm(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const rad = (d) => (d * Math.PI) / 180;
+    const dLat = rad(lat2 - lat1), dLon = rad(lon2 - lon1);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function logisticaCapital(lonC, latC, uf) {
+    const cap = CAPITAIS_UF[uf];
+    if (!cap) return null;
+    const [nome, lat, lon] = cap;
+    return { capital: nome, km: haversineKm(latC, lonC, lat, lon) };
   }
 
   // ------------------------------------------------------------ rasters remotos
@@ -1521,6 +1734,60 @@
       ['Responsável técnico', d.responsavel || '–'],
     ], { 0: { cellWidth: 72 } }, { margin: { left: ML + 7, right: MR + 7 }, alternateRowStyles: {} });
 
+    // ---------------- diagnóstico executivo
+    novaPagina();
+    h1('DIAGNÓSTICO EXECUTIVO');
+    par('Ficha-resumo do imóvel e verificação de conformidade contra as bases públicas cruzadas nesta execução. Os números abaixo são os mesmos usados nos capítulos correspondentes — nenhum valor é digitado duas vezes.');
+    espaco(1);
+    tabela(['Área', 'Município', 'UF', 'Módulos fiscais', 'RL mínima (Lei 12.651)'], [[
+      `${num(ha, 2)} ha`, d.municipio, d.uf,
+      d.modulo ? `${num(d.modulo.n, 2)} – ${d.modulo.classe}` : 'não identificado',
+      d.rl.pctMin != null ? `${d.rl.pctMin} % = ${num(d.rl.minHa, 2)} ha` : 'requer classificação de bioma',
+    ]]);
+    espaco(2);
+    h2('Conformidade e riscos');
+    const itensDiag = [];
+    const diag = (nome, status, texto) => itensDiag.push({ nome, status, texto });
+    if (d.car.resultados == null) diag('Cadastro Ambiental Rural (CAR)', 'SEM_DADOS', 'Não foi possível consultar.');
+    else if (!d.car.resultados.length) diag('Cadastro Ambiental Rural (CAR)', 'ATENCAO', 'Nenhum registro do CAR sobreposto ao perímetro.');
+    else {
+      const p = d.car.resultados[0];
+      const dif = Math.abs(ha - p.area_feicao_ha);
+      diag('Cadastro Ambiental Rural (CAR)', dif > Math.max(0.5, ha * 0.01) ? 'ATENCAO' : 'CONFORME',
+        dif > Math.max(0.5, ha * 0.01) ? `Área do CAR diverge ${num(dif, 2)} ha da informada.` : 'Sobreposição encontrada, área compatível.');
+    }
+    if (d.sigef.resultados == null) diag('Georreferenciamento (SIGEF)', 'SEM_DADOS', 'Não foi possível consultar.');
+    else if (!d.sigef.resultados.length) diag('Georreferenciamento (SIGEF)', 'ATENCAO', 'Imóvel sem certificação SIGEF localizada.');
+    else diag('Georreferenciamento (SIGEF)', 'CONFORME', `${d.sigef.resultados.length} parcela(s) certificada(s) sobreposta(s).`);
+    for (const [chave, nomeItem] of [['ti', 'Terra Indígena'], ['uc', 'Unidade de Conservação federal'], ['assentamento', 'Assentamento'], ['quilombola', 'Território quilombola']]) {
+      const r = d.restricoes[chave];
+      if (r.resultados == null) diag(nomeItem, 'SEM_DADOS', 'Não foi possível consultar.');
+      else if (r.resultados.length) diag(nomeItem, 'CRITICO', `Sobreposição direta com ${r.resultados.length} feição(ões).`);
+      else if (r.entorno.length) diag(nomeItem, 'CONFORME', `Sem sobreposição; a mais próxima está a ${num(r.entorno[0].distanciaKm, 1)} km (entorno de ${r.raioKm} km consultado).`);
+      else diag(nomeItem, 'CONFORME', `Sem sobreposição nem ocorrência no entorno de ${r.raioKm} km consultado.`);
+    }
+    if (d.embargos.resultados == null) diag('Embargos ambientais (IBAMA)', 'SEM_DADOS', 'Não foi possível consultar.');
+    else if (d.embargos.resultados.length) diag('Embargos ambientais (IBAMA)', 'CRITICO', `${d.embargos.resultados.length} termo(s) de embargo sobrepõe(m) o perímetro.`);
+    else diag('Embargos ambientais (IBAMA)', 'CONFORME', 'Nenhum termo de embargo sobreposto.');
+    diag('Reserva Legal — mínimo legal', 'SEM_DADOS', d.rl.pctMin != null
+      ? `Mínimo calculado: ${num(d.rl.minHa, 2)} ha. Conformidade real depende da RL averbada e da vegetação nativa existente — não medidas nesta execução.`
+      : d.rl.nota);
+    const CORES_STATUS = { CONFORME: [39, 80, 10], ATENCAO: [156, 97, 9], CRITICO: [163, 45, 45], SEM_DADOS: [102, 102, 102] };
+    const ROTULOS_STATUS = { CONFORME: 'CONFORME', ATENCAO: 'ATENÇÃO', CRITICO: 'CRÍTICO', SEM_DADOS: 'SEM DADOS' };
+    tabela(['Item', 'Status', 'Leitura'], itensDiag.map((l) => [l.nome, { content: ROTULOS_STATUS[l.status], styles: { textColor: CORES_STATUS[l.status], fontStyle: 'bold' } }, l.texto]),
+      { 0: { cellWidth: 50 }, 1: { cellWidth: 22 }, 2: { fontSize: 7.6 } });
+    const relevantes = itensDiag.filter((l) => l.status === 'CRITICO' || l.status === 'ATENCAO');
+    if (relevantes.length) {
+      espaco(1);
+      h2('Principais pontos de atenção');
+      relevantes.slice(0, 5).forEach((l) => par(`– ${l.nome}: ${l.texto}`));
+    }
+    if (d.parIou.length) {
+      const mesma = d.parIou.filter((p) => p.classe === 'mesma_terra').length;
+      nota(`Pareamento SIGEF × CAR (ver 1.3): ${d.parIou.length} parcela(s) do SIGEF cruzada(s) com o CAR, sendo ${mesma} classificada(s) como mesma terra (IoU ≥ 95 %).`);
+    }
+    nota('Diagnóstico automático a partir das mesmas consultas detalhadas nos capítulos seguintes. "Sem dados" indica falha na consulta ao vivo, não conformidade — gerar de novo tenta a consulta outra vez.');
+
     // ---------------- 1. cadastral
     novaPagina();
     h1('1. IDENTIFICAÇÃO E SITUAÇÃO CADASTRAL');
@@ -1532,7 +1799,7 @@
     } else {
       itens.push(['Módulo fiscal', 'não identificado']);
     }
-    itens.push(['Reserva Legal de referência', `${num(d.rlPct, 0)} % = ${num((ha * d.rlPct) / 100, 4)} ha`]);
+    itens.push(['Reserva Legal mínima (Lei 12.651)', d.rl.pctMin != null ? `${d.rl.pctMin} % = ${num(d.rl.minHa, 4)} ha` : 'requer classificação de bioma (ver 1.4)']);
     tabela(['Item', 'Situação'], itens, { 0: { cellWidth: 58 } });
     const STATUS = { AT: 'ativo', PE: 'pendente', SU: 'suspenso', CA: 'cancelado' };
     for (const [chave, titulo] of [['car', '1.1 Cadastro Ambiental Rural (CAR)'], ['sigef', '1.2 Georreferenciamento certificado (SIGEF/INCRA)']]) {
@@ -1566,15 +1833,92 @@
       }
     }
 
-    // ---------------- 2. imagem
+    espaco(2);
+    h2('1.3 Pareamento SIGEF × CAR');
+    par('Compara a geometria de cada parcela SIGEF sobreposta ao perímetro com o CAR mais próximo, pela razão entre a área comum e a área conjunta dos dois (IoU). O pareamento só compara geometria — nunca infere quem é o titular a partir dele.');
+    if (!d.parIou.length) {
+      par('Nenhuma parcela SIGEF sobreposta ao perímetro para parear com o CAR.');
+    } else {
+      const ROT_CLASSE = { mesma_terra: 'mesma terra (IoU ≥ 95 %)', pareado: 'pareado (IoU ≥ 70 %)', sobreposicao_parcial: 'sobreposição parcial' };
+      tabela(['Parcela SIGEF', 'Imóvel CAR', 'Área SIGEF (ha)', 'Área CAR (ha)', 'IoU', 'Classe'],
+        d.parIou.slice(0, 8).map((p) => [p.sigef.parcela_codigo || '–', p.car.cod_imovel || '–', num(p.areaSigefHa, 2), num(p.areaCarHa, 2), `${num(p.iouPct, 1)} %`, ROT_CLASSE[p.classe]]),
+        { 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { fontSize: 7.4 } });
+      nota('IoU (interseção sobre união) mede o quanto as duas geometrias coincidem. Abaixo de 70 % as áreas divergem demais para tratar como a mesma terra — pode ser desmembramento, remembramento ou cadastro desatualizado.');
+    }
+
+    espaco(2);
+    h2('1.4 Reserva Legal — enquadramento legal');
+    par(d.rl.baseLegal);
+    if (d.rl.pctMin != null) {
+      par(`Mínimo exigido: ${d.rl.pctMin} % da área do imóvel = ${num(d.rl.minHa, 4)} ha.`);
+    } else {
+      par(d.rl.nota);
+    }
+    if (d.rl.art67) par(d.rl.art67);
+    nota('Este cálculo é o mínimo legal, não uma verificação de conformidade: dizer se a Reserva Legal exigida está cumprida exige medir a vegetação nativa existente (MapBiomas ou classificação equivalente) e conferir a RL averbada na matrícula — nenhuma das duas foi feita nesta execução. O art. 15 (cômputo de APP dentro da RL) e o art. 12, §§ 4º–5º (redução a 50 % com ZEE/UC/TI) são possibilidades que dependem de análise caso a caso e não foram aplicados automaticamente.');
+
+    // ---------------- 2. diagnóstico fundiário e ambiental
     novaPagina();
-    h1('2. IMAGEM DE SATÉLITE');
+    h1('2. DIAGNÓSTICO FUNDIÁRIO E AMBIENTAL');
+    par('Sobreposição exata do perímetro com Terra Indígena, Unidade de Conservação federal, assentamento e território quilombola; e, quando não há sobreposição, a distância até a ocorrência mais próxima dentro do raio consultado. O mesmo raio declarado no texto é o raio efetivamente consultado.');
+    const CAMPOS_ID = {
+      ti: ['terrai_nom', 'nome', 'ti_nome', 'terra_indi'],
+      uc: ['nome_uc', 'nome', 'nome_uc1', 'nm_uc'],
+      assentamento: ['nome_proje', 'nome_pa', 'nome', 'projeto'],
+      quilombola: ['nome_comun', 'comunidade', 'nome'],
+    };
+    const NUM = { ti: '2.1', uc: '2.2', assentamento: '2.3', quilombola: '2.4' };
+    const TITULOS = {
+      ti: 'Terra Indígena (FUNAI)', uc: 'Unidade de Conservação federal (ICMBio)',
+      assentamento: 'Assentamento (INCRA)', quilombola: 'Território quilombola (INCRA/Fundação Palmares)',
+    };
+    for (const chave of ['ti', 'uc', 'assentamento', 'quilombola']) {
+      espaco(2);
+      h2(`${NUM[chave]} ${TITULOS[chave]}`);
+      const r = d.restricoes[chave];
+      if (r.resultados == null) {
+        par(r.aviso || 'Não foi possível consultar.');
+        continue;
+      }
+      if (r.resultados.length) {
+        par(`Base consultada: ${r.origem}. ${r.resultados.length} feição(ões) sobreposta(s) ao perímetro.`);
+        tabela(['#', 'Identificação', 'Área da feição (ha)', 'Área comum (ha)', '% do perímetro'],
+          r.resultados.slice(0, 6).map((f, i) => [String(i + 1), pick(f.atributos, CAMPOS_ID[chave]) || `(ver consulta oficial, ${Object.keys(f.atributos).length} campo(s) na fonte)`,
+            num(f.area_feicao_ha, 2), num(f.area_comum_ha, 2), `${num(f.pct_do_perimetro, 1)} %`],
+          ), { 0: { cellWidth: 8 }, 1: { cellWidth: 68, fontSize: 7.4 }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } });
+      } else if (r.entorno.length) {
+        par(`Base consultada: ${r.origem}. Nenhuma sobreposição direta. Ocorrência(s) no entorno de ${r.raioKm} km:`);
+        tabela(['Identificação', 'Distância (km)'], r.entorno.map((e) => [pick(e.atributos, CAMPOS_ID[chave]) || '(ver consulta oficial)', num(e.distanciaKm, 1)]), { 1: { halign: 'right' } });
+      } else {
+        par(`Base consultada: ${r.origem}. Sem sobreposição e sem ocorrência no entorno de ${r.raioKm} km consultado.`);
+      }
+    }
+    espaco(2);
+    h2('2.5 Embargos ambientais (IBAMA/SISCOM)');
+    if (d.embargos.resultados == null) {
+      par(d.embargos.aviso || 'Não foi possível consultar.');
+    } else if (!d.embargos.resultados.length) {
+      par(`Base consultada: ${d.embargos.origem}. Nenhum termo de embargo sobreposto ao perímetro.`);
+    } else {
+      par(`Base consultada: ${d.embargos.origem}. ${d.embargos.resultados.length} termo(s) de embargo sobreposto(s) ao perímetro.`);
+      tabela(['#', 'Identificação', 'Área do termo (ha)', 'Área comum (ha)', '% do perímetro'],
+        d.embargos.resultados.slice(0, 6).map((f, i) => [String(i + 1),
+          pick(f.atributos, ['nu_ato', 'numero_ato', 'nu_auto_infracao', 'seq_embargo']) || `(ver consulta oficial, ${Object.keys(f.atributos).length} campo(s) na fonte)`,
+          num(f.area_feicao_ha, 2), num(f.area_comum_ha, 2), `${num(f.pct_do_perimetro, 1)} %`]),
+        { 0: { cellWidth: 8 }, 1: { cellWidth: 60 }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } });
+      nota('Um termo de embargo restringe o uso da área; não é, por si só, uma condenação — o auto de infração que originou o embargo pode estar em recurso ou já ter sido baixado. Confirme a situação atual na consulta oficial do IBAMA antes de qualquer decisão.');
+    }
+    nota('Terra Indígena, Unidade de Conservação e território quilombola consultados na base federal; unidades e áreas de proteção estaduais (ex.: Imasul, no caso de MS) não estão nesta consulta. A distância de entorno não é calculada para feições com geometria muito grande (algumas Terras Indígenas e Unidades de Conservação têm dezenas de milhares de vértices) — quando isso ocorre, a feição some da lista de entorno em vez de mostrar uma distância aproximada. Sobreposição parcial não significa irregularidade — pode indicar zona de amortecimento, limite a atualizar ou sobreposição heterogênea já tratada em processo próprio.');
+
+    // ---------------- 3. imagem
+    novaPagina();
+    h1('3. IMAGEM DE SATÉLITE');
     par(d.textoImagem);
     if (d.figRgb) figura(d.figRgb);
 
-    // ---------------- 3. vegetação
+    // ---------------- 4. vegetação
     novaPagina();
-    h1('3. ÍNDICES DE VEGETAÇÃO');
+    h1('4. ÍNDICES DE VEGETAÇÃO');
     par('O NDVI (índice de vegetação por diferença normalizada) mede o vigor da cobertura vegetal a partir da razão entre as bandas do infravermelho próximo e do vermelho. Varia de -1 a 1: solo exposto e palhada ficam abaixo de 0,20; pastagem em uso, entre 0,30 e 0,55; lavoura em pleno desenvolvimento, acima de 0,65. Os pixels de nuvem e de sombra foram removidos antes do cálculo.');
     if (d.figNdvi) figura(d.figNdvi);
     if (d.stats) {
@@ -1585,14 +1929,14 @@
     }
     if (d.figSerie) {
       espaco(2);
-      h2('3.1 Evolução temporal');
+      h2('4.1 Evolução temporal');
       figura(d.figSerie);
       nota(d.textoSerie);
     }
 
-    // ---------------- 4. relevo
+    // ---------------- 5. relevo
     novaPagina();
-    h1('4. RELEVO E DECLIVIDADE');
+    h1('5. RELEVO E DECLIVIDADE');
     par(d.textoRelevo);
     if (d.figHipso) figura(d.figHipso);
     if (d.figDecl) figura(d.figDecl);
@@ -1602,7 +1946,7 @@
         { 2: { halign: 'right' }, 3: { halign: 'right' } });
       const rr = d.decl.restricoes;
       espaco(1);
-      h2('4.1 Restrições por declividade – Lei 12.651/2012');
+      h2('5.1 Restrições por declividade – Lei 12.651/2012');
       tabela(['Enquadramento', 'Critério', 'Área (ha)', '% da área'], [
         ['APP de encosta (art. 4º, V)', '> 45° (100 %)', num(rr.appHa, 2), num(rr.appPct, 1)],
         ['Área de uso restrito (art. 11)', '25° a 45° (46,6 % a 100 %)', num(rr.restritoHa, 2), num(rr.restritoPct, 1)],
@@ -1610,9 +1954,9 @@
       nota('Indicativo apenas. O enquadramento legal exige levantamento altimétrico de campo; um modelo de 30 metros suaviza encostas curtas e pode subestimar tanto a APP quanto a área de uso restrito.');
     }
 
-    // ---------------- 5. chuva
+    // ---------------- 6. chuva
     novaPagina();
-    h1('5. REGIME DE CHUVAS');
+    h1('6. REGIME DE CHUVAS');
     const ch = d.chuva;
     if (ch) {
       par(`A normal do local, calculada sobre o período ${ch.periodoNormal}, é de ${num(ch.totalNormal, 0)} mm por ano. Nos últimos doze meses choveu ${num(ch.totalRecente, 0)} mm, ${num(Math.abs(ch.desvioPct), 1)} % ${ch.desvioPct >= 0 ? 'acima' : 'abaixo'} da normal. O mês mais chuvoso é ${MESES[ch.mesChuvoso]} (${num(ch.normal[ch.mesChuvoso], 0)} mm) e o mais seco é ${MESES[ch.mesSeco]} (${num(ch.normal[ch.mesSeco], 0)} mm).`);
@@ -1622,13 +1966,25 @@
       par('Dados de precipitação não obtidos nesta execução.');
     }
 
-    // ---------------- 6. valor
+    // ---------------- 7. logística
     novaPagina();
-    h1('6. REFERÊNCIAS DE VALOR POR HECTARE');
+    h1('7. LOGÍSTICA');
+    par('Distâncias em linha reta a partir do centro do imóvel. Não é rota rodoviária: o percurso real por estrada costuma ser maior, principalmente em relevo recortado ou sem acesso pavimentado direto.');
+    espaco(1);
+    if (d.logistica) {
+      tabela(['Referência', 'Distância em linha reta'], [[`Capital do estado (${d.logistica.capital})`, `${num(d.logistica.km, 0)} km`]]);
+      nota('Distância até armazéns, frigoríficos SIF e aeródromos mais próximos não está disponível nesta versão do relatório: exige uma tabela geocodificada própria (CONAB, MAPA/SIF, ANAC), ainda não incorporada ao Gestor.');
+    } else {
+      par('Não foi possível calcular a distância até a capital: UF não identificada na tabela de capitais.');
+    }
+
+    // ---------------- 8. valor
+    novaPagina();
+    h1('8. REFERÊNCIAS DE VALOR POR HECTARE');
     par('Este capítulo não é uma avaliação de imóvel. Um laudo de avaliação de imóvel rural exige vistoria, pesquisa de mercado com amostra de elementos comparáveis, tratamento estatístico e Anotação de Responsabilidade Técnica, conforme a NBR 14653-3. O que segue são valores públicos de referência, úteis para ordem de grandeza e para conferência de declaração fiscal.', { negrito: false });
     const vr = d.valores;
     if (vr.vtn) {
-      h2(`6.1 Valor da Terra Nua – referência fiscal (Receita Federal, exercício ${vr.vtn.exercicio})`);
+      h2(`8.1 Valor da Terra Nua – referência fiscal (Receita Federal, exercício ${vr.vtn.exercicio})`);
       tabela(['Aptidão agrícola', 'VTN por ha', `Total para ${num(ha, 2)} ha`],
         vr.vtn.linhas.map((v) => v.valor == null ? [v.aptidao, 'sem informação', '–'] : [v.aptidao, 'R$ ' + num(v.valor, 2), 'R$ ' + num(v.valor * ha, 2)]),
         { 1: { halign: 'right' }, 2: { halign: 'right' } });
@@ -1637,7 +1993,7 @@
     }
     if (vr.mercado && vr.mercado.linhas.length) {
       const m = vr.mercado;
-      h2(`6.2 Mercado regional de terras – MRT-${String(m.mrt).padStart(2, '0')} ${m.mercado} (INCRA, RAMT ${m.ano})`);
+      h2(`8.2 Mercado regional de terras – MRT-${String(m.mrt).padStart(2, '0')} ${m.mercado} (INCRA, RAMT ${m.ano})`);
       const marcados = [];
       tabela(['Nível', 'Tipologia de uso', 'VTN mínimo', 'VTN mediano', 'VTN máximo'],
         m.linhas.map((v) => {
@@ -1657,15 +2013,18 @@
     if (!vr.vtn && !(vr.mercado && vr.mercado.linhas.length)) par('Nenhuma tabela de referência foi localizada para este município.');
     for (const aviso of vr.avisos) nota(aviso);
 
-    // ---------------- 7. ressalvas
+    // ---------------- 9. ressalvas
     novaPagina();
-    h1('7. RESSALVAS TÉCNICAS E FONTES');
+    h1('9. RESSALVAS TÉCNICAS E FONTES');
     for (const t of [
-      'Este relatório é um estudo de caracterização por sensoriamento remoto. Não substitui levantamento topográfico, memorial descritivo, laudo de avaliação nem perícia.',
+      'Este relatório é um estudo de caracterização por sensoriamento remoto e cruzamento de bases públicas. Não substitui levantamento topográfico, memorial descritivo, laudo de avaliação, parecer jurídico nem perícia.',
       'Os limites analisados são os do arquivo digital fornecido pelo contratante. Não houve conferência de campo dos marcos e das divisas.',
-      'As consultas cadastrais refletem a base disponível na data de emissão. Os cadastros são alterados diariamente; confirme na consulta oficial antes de qualquer ato jurídico.',
+      'As consultas cadastrais e fundiárias refletem a base disponível na data de emissão. Os cadastros são alterados diariamente; confirme na consulta oficial antes de qualquer ato jurídico.',
+      'O diagnóstico executivo e o pareamento SIGEF × CAR comparam apenas geometria. Nenhum dado de titularidade (nome de proprietário) foi cruzado entre bases — quando um nome aparece em um cadastro, o relatório não afirma que essa pessoa é a proprietária atual do imóvel.',
+      'A Reserva Legal mínima informada (cap. 1.4) é o percentual legal, não uma verificação de conformidade: não foi medida a vegetação nativa existente nem a RL averbada em matrícula.',
       'O modelo digital de elevação é de superfície (MDS) e tem resolução de 30 metros. As áreas de APP e de uso restrito indicadas por declividade são estimativas preliminares.',
       'Os índices de vegetação medem vigor, não produtividade. A comparação entre datas só é válida dentro do mesmo estádio fenológico.',
+      'As distâncias de logística são em linha reta, a partir do centro do imóvel, e limitadas à capital do estado nesta versão.',
       'As referências de valor são dados públicos de ordem de grandeza. A avaliação de imóvel rural segue a NBR 14653-3 e exige vistoria, pesquisa de mercado e ART.',
     ]) par('– ' + t);
     espaco(2);
@@ -1702,7 +2061,9 @@
 
   /**
    * Gera o relatório. opcoes: {arquivo, nome, municipio, uf, responsavel,
-   * empresa, rlPct, dias, nuvemMax, comSerie, log(texto), cancelado()}.
+   * empresa, dias, nuvemMax, comSerie, log(texto), cancelado()}.
+   * A Reserva Legal mínima é calculada pela Lei 12.651/2012 (ver calcularRL),
+   * não é mais um percentual digitado.
    * Devolve {doc, nomeArquivo, dados}.
    */
   RF.gerar = async function (opcoes) {
@@ -1720,7 +2081,6 @@
     const d = {
       nome, uf, ha: ctx.ha, perimetro: ctx.perimetro, sis: ctx.sis,
       data: dataBr(isoHoje(0)), responsavel: (opcoes.responsavel || '').trim(), empresa: (opcoes.empresa || 'AJ TopoGeo').trim(),
-      rlPct: Number(opcoes.rlPct) || 20,
     };
 
     // ---- cadastro, município e módulo fiscal
@@ -1747,6 +2107,23 @@
     }
     const [nMod, classe] = classificarPorModulos(ctx.ha, mf);
     d.modulo = mf ? { mf, fonte: mfFonte, n: nMod, classe } : null;
+    d.parIou = parearSigefCar(ctx, d.car.features || [], d.sigef.features || []);
+    d.rl = calcularRL(uf, ctx.ha, d.modulo);
+    d.logistica = logisticaCapital(lonC, latC, uf);
+    passo();
+
+    // ---- diagnóstico fundiário e ambiental (TI, UC, assentamento, quilombola, embargos)
+    log('Diagnóstico fundiário e ambiental...');
+    const [ti, uc, assent, quilombo, embargos] = await Promise.all([
+      consultarComEntorno(urlRestricao(ctx, 'funai_ti'), 'Terras Indígenas (FUNAI)', ctx, log),
+      consultarComEntorno(urlRestricao(ctx, 'icmbio_uc'), 'Unidades de Conservação federais (ICMBio)', ctx, log),
+      consultarComEntorno(urlFundiario(ctx, uf, 'assentamentos'), 'Assentamentos (INCRA)', ctx, log),
+      consultarComEntorno(urlFundiario(ctx, uf, 'quilombolas'), 'Territórios quilombolas (INCRA/Fundação Palmares)', ctx, log),
+      consultarEmbargos(ctx, log),
+    ]);
+    d.restricoes = { ti, uc, assentamento: assent, quilombola: quilombo };
+    d.embargos = embargos;
+    passo();
 
     // ---- imagem e NDVI
     log('Imagem de satélite...');
@@ -1889,9 +2266,14 @@
       ['Precipitação', d.chuva ? d.chuva.fonte : '–', d.chuva ? d.chuva.periodoNormal : '–'],
       ['CAR', 'SICAR – Sistema Nacional de Cadastro Ambiental Rural', d.car.origem || 'não consultado'],
       ['Georreferenciamento', 'SIGEF / Acervo Fundiário – INCRA', d.sigef.origem || 'não consultado'],
+      ['Terra Indígena', 'FUNAI – Terras Indígenas (poligonais)', d.restricoes.ti.origem || 'não consultado'],
+      ['Unidade de Conservação', 'ICMBio – Limites das UC federais (INDE)', d.restricoes.uc.origem || 'não consultado'],
+      ['Assentamento e quilombola', 'INCRA – Acervo Fundiário', d.restricoes.assentamento.origem || d.restricoes.quilombola.origem || 'não consultado'],
+      ['Embargos ambientais', 'IBAMA – SISCOM (PAMGIA)', d.embargos.origem || 'não consultado'],
       ['Valor fiscal', 'Receita Federal – Valores de Terra Nua (SIPT)', d.valores.vtn ? `exercício ${d.valores.vtn.exercicio}` : 'não disponível'],
       ['Mercado de terras', 'INCRA – Relatório de Análise de Mercados de Terras (RAMT)', d.valores.mercado ? `RAMT ${d.valores.mercado.ano}` : 'não disponível'],
       ['Módulo fiscal', (d.modulo && d.modulo.fonte) || 'não identificado', '–'],
+      ['Capital do estado', 'IBGE (coordenadas de referência)', '–'],
     ];
 
     log('Montando o PDF...');
@@ -1910,7 +2292,7 @@
     const ufs = ['AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT', 'PA', 'PB', 'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO'];
     return '<div class="card mb1">'
       + '<div class="st mb1"><i class="ti ti-report-analytics" style="color:var(--brand)"></i>Relatório da Fazenda</div>'
-      + '<div class="mu sm mb1">Relatório técnico em PDF a partir do perímetro em KML/KMZ: situação no CAR e no SIGEF, imagem de satélite, NDVI e série temporal, relevo e declividade, regime de chuvas e referências de valor da terra (VTN 2026 e mercado regional do INCRA). Tudo é consultado na hora, pela internet.</div>'
+      + '<div class="mu sm mb1">Relatório técnico em PDF a partir do perímetro em KML/KMZ: diagnóstico executivo, situação no CAR e no SIGEF (com pareamento por geometria), Reserva Legal mínima pela Lei 12.651, sobreposição com Terra Indígena, Unidade de Conservação, assentamento, quilombola e embargos do IBAMA, imagem de satélite, NDVI e série temporal, relevo e declividade, regime de chuvas, logística até a capital e referências de valor da terra (VTN 2026 e mercado regional do INCRA). Tudo é consultado na hora, pela internet.</div>'
       + '<div class="fg mb1"><label class="fl">Perímetro (KML ou KMZ)</label><input class="fc" id="relfaz-arquivo" type="file" accept=".kml,.kmz" onchange="relfazArquivoEscolhido(this)"></div>'
       + '<div class="g2 mb1">'
       + '<div class="fg"><label class="fl">Nome do imóvel</label><input class="fc" id="relfaz-nome" placeholder="ex. Fazenda São Jorge"></div>'
@@ -1918,12 +2300,9 @@
       + '</div>'
       + '<div class="g2 mb1">'
       + '<div class="fg"><label class="fl">UF</label><select class="fc" id="relfaz-uf">' + ufs.map((u) => `<option${u === 'MS' ? ' selected' : ''}>${u}</option>`).join('') + '</select></div>'
-      + '<div class="fg"><label class="fl">Reserva Legal (%)</label><input class="fc" id="relfaz-rl" type="number" value="20" min="0" max="100"></div>'
-      + '</div>'
-      + '<div class="g2 mb1">'
       + '<div class="fg"><label class="fl">Responsável técnico</label><input class="fc" id="relfaz-responsavel"></div>'
-      + '<div class="fg"><label class="fl">Empresa</label><input class="fc" id="relfaz-empresa" value="AJ TopoGeo"></div>'
       + '</div>'
+      + '<div class="fg mb1"><label class="fl">Empresa</label><input class="fc" id="relfaz-empresa" value="AJ TopoGeo"></div>'
       + '<div class="g2 mb1">'
       + '<div class="fg"><label class="fl">Janela de busca da imagem (dias)</label><input class="fc" id="relfaz-dias" type="number" value="365" min="10" max="1095"></div>'
       + '<div class="fg"><label class="fl">Nuvem máxima na cena (%)</label><input class="fc" id="relfaz-nuvem" type="number" value="70" min="1" max="100"></div>'
@@ -1989,7 +2368,7 @@
     try {
       const r = await RF.gerar({
         arquivo, nome: val('nome'), municipio: val('municipio'), uf: val('uf'), responsavel: val('responsavel'),
-        empresa: val('empresa'), rlPct: val('rl'), dias: val('dias'), nuvemMax: val('nuvem'),
+        empresa: val('empresa'), dias: val('dias'), nuvemMax: val('nuvem'),
         comSerie: document.getElementById('relfaz-serie').checked, log, cancelado: () => _relfazCancelar,
       });
       r.doc.save(r.nomeArquivo);
