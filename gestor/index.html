@@ -15287,6 +15287,21 @@ async function marcarLeadContatado(id,val){
   if(bl){bl.textContent=pendentes;bl.style.display=pendentes>0?'inline':'none';}
 }
 pageMap.leads=rLeads;
+// Contador da sidebar: leads enviados ainda não contatados. Reconsultado a
+// cada 60 s e ao voltar para a aba do navegador, para um lead novo aparecer
+// sem precisar navegar ou recarregar o Gestor.
+async function atualizarBadgeLeads(){
+  if(!CU)return;
+  try{
+    const{data,error}=await sb.from('leads_site').select('id').eq('contatado',false).neq('origem','rascunho');
+    if(error)return;
+    const n=(data||[]).length;
+    const b=gid('bl');
+    if(b){b.textContent=n;b.style.display=n>0?'inline':'none';}
+  }catch(e){}
+}
+setInterval(atualizarBadgeLeads,60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)atualizarBadgeLeads();});
 
 async function gerarAutorizacaoVendaDocx(){
   const v=id=>(document.getElementById(id)?.value||'').trim();
