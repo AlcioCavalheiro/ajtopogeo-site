@@ -14382,7 +14382,9 @@ function _docPaneMensais(){
     const cels=meses.map(m=>{
       if(!comps[m])return'<td style="text-align:center;color:var(--mu)">·</td>';
       const env=_docCompEnviada(d.id,m);
-      if(env)return'<td style="text-align:center"><button class="btn bxs" title="Baixar '+_compLabel(m)+'" style="background:#EAF3DE;color:#27500A;border-color:#b5d98a" onclick="baixarCompetencia(\''+env.id+'\',\''+encodeURIComponent(d.nome||'documento')+'\',\''+m+'\')"><i class="ti ti-check"></i></button></td>';
+      if(env)return'<td style="text-align:center;white-space:nowrap"><button class="btn bxs" title="Baixar '+_compLabel(m)+'" style="background:#EAF3DE;color:#27500A;border-color:#b5d98a" onclick="baixarCompetencia(\''+env.id+'\',\''+encodeURIComponent(d.nome||'documento')+'\',\''+m+'\')"><i class="ti ti-check"></i></button>'
+        +'<label class="btn bxs" title="Trocar o arquivo de '+_compLabel(m)+'" style="cursor:pointer;color:#666;margin-left:2px"><i class="ti ti-refresh"></i>'
+        +'<input type="file" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" style="display:none" onchange="trocarCompetencia(\''+d.id+'\',\''+m+'\',this)"></label></td>';
       const venc=_docVencComp(d,m),atrasada=hj>venc;
       return'<td style="text-align:center"><label class="btn bxs" title="Enviar '+_compLabel(m)+' — '+(atrasada?'venceu em ':'até ')+fd(venc)+'" style="cursor:pointer;'+(atrasada?'background:#FCEBEB;color:#A32D2D;border-color:#e8bcbc':'background:#FAEEDA;color:#854F0B;border-color:#e8d3ad')+'"><i class="ti ti-upload"></i>'
         +'<input type="file" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" style="display:none" onchange="uploadCompetencia(\''+d.id+'\',\''+m+'\',this)"></label></td>';
@@ -14516,8 +14518,11 @@ async function verHistoricoDoc(docId){
         const e=env[c];
         return'<tr><td class="w6">'+_compLabel(c)+'</td>'
           +'<td>'+(e?'<span style="color:#2f7d32;font-weight:600"><i class="ti ti-check"></i> Enviado</span>':'<span style="color:#A32D2D;font-weight:600">Pendente</span>')+'</td>'
-          +'<td>'+(e
+          +'<td class="fx g8">'+(e
             ?'<button class="btn bxs" style="background:#E6F1FB;color:#0d4fa0" onclick="baixarCompetencia(\''+e.id+'\',\''+nomeEnc+'\',\''+c+'\')"><i class="ti ti-download"></i> '+_esc(e.arquivo_nome||'Baixar')+'</button>'
+              +'<label class="btn bxs" style="cursor:pointer;color:#666" title="Trocar o arquivo desta competência"><i class="ti ti-refresh"></i> Trocar'
+              +'<input type="file" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" style="display:none" onchange="trocarCompetencia(\''+d.id+'\',\''+c+'\',this)"></label>'
+              +'<button class="btn bxs bdr" title="Remover o arquivo (a competência volta a ficar pendente)" onclick="removerCompetencia(\''+e.id+'\',\''+d.id+'\',\''+c+'\')"><i class="ti ti-trash"></i></button>'
             :'<label class="btn bxs" style="cursor:pointer;background:#F5FAF0;color:#27500A"><i class="ti ti-upload"></i> Enviar<input type="file" accept=".pdf,.png,.jpg,.jpeg,.docx,.xlsx" style="display:none" onchange="uploadCompetencia(\''+d.id+'\',\''+c+'\',this)"></label>')
           +'</td></tr>';
       }).join('')||'<tr><td colspan="3" class="mu sm" style="padding:1rem">Nenhuma competência cobrada ainda.</td></tr>')
@@ -14585,6 +14590,26 @@ async function uploadCompetencia(docId, comp, input){
   };
   reader.onerror=()=>toast('Erro ao ler o arquivo.',true);
   reader.readAsDataURL(file);
+}
+
+// Lançamento errado (arquivo do mês trocado, PDF errado): troca o arquivo
+// da competência por outro ou remove, e ela volta a ficar pendente.
+async function trocarCompetencia(docId, comp, input){
+  if(!input.files[0])return;
+  const d=_docsCache.find(x=>x.id===docId);
+  if(!confirm('Substituir o arquivo de '+_compLabel(comp)+(d?' — '+d.nome:'')+' por "'+input.files[0].name+'"?\n\nO arquivo atual será apagado.')){input.value='';return;}
+  await uploadCompetencia(docId,comp,input);
+}
+
+async function removerCompetencia(compId, docId, comp){
+  const d=_docsCache.find(x=>x.id===docId);
+  if(!confirm('Remover o arquivo de '+_compLabel(comp)+(d?' — '+d.nome:'')+'?\n\nA competência volta a ficar pendente e você pode anexar o arquivo certo.'))return;
+  const{error}=await sb.from('documentos_competencia').delete().eq('id',compId);
+  if(error){toast('Erro ao remover: '+error.message,true);return;}
+  toast('Arquivo de '+_compLabel(comp)+' removido — competência pendente.');
+  if(CP==='administrativo')await rDocumentos();
+  else if(CP==='pendencias')await rPendencias();
+  if(document.getElementById('ov2').classList.contains('open'))verHistoricoDoc(docId);
 }
 
 async function baixarCompetencia(compId, nomeEnc, comp){
