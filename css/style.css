@@ -717,6 +717,23 @@ footer {
   color: var(--verde);
   font-weight: 800;
 }
+.fotos-obra {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 8px 0 28px;
+}
+.fotos-obra img {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border-radius: 10px;
+}
+.fotos-obra.duas { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 560px) {
+  .fotos-obra { grid-template-columns: 1fr 1fr; }
+  .fotos-obra img:nth-child(3):last-child { grid-column: 1 / -1; aspect-ratio: 16 / 10; }
+}
 .artigo-conteudo strong { color: var(--branco); }
 .artigo-img {
   width: 100%;
