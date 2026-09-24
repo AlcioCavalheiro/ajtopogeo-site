@@ -54,6 +54,7 @@
     .fz-badge-inline { position:static; display:inline-block; margin-bottom:10px; }
     .fz-card-actions { display:flex; flex-direction:column; gap:10px; }
     .fz-card-actions .btn-secondary, .fz-card-actions .btn-primary { width:100%; justify-content:center; }
+    .fz-aviso-jur { background:rgba(224,160,48,0.10); border:1px solid #e0a030; color:#f0c878; border-radius:10px; padding:10px 14px; font-size:0.85rem; line-height:1.5; margin-bottom:12px; }
     .fz-meta { display:flex; flex-wrap:wrap; gap:6px 14px; font-size:0.82rem; color:var(--cinza); margin-bottom:10px; }
     .fz-meta span { display:flex; align-items:center; gap:5px; }
     .fz-preco { font-size:1.15rem; font-weight:800; color:var(--branco); margin-bottom:14px; }
@@ -140,6 +141,13 @@
   function fmtArea(v){ return Number(v||0).toLocaleString('pt-BR',{maximumFractionDigits:2}); }
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 
+  var SJ_TXT = { espolio:'Imóvel de espólio, em inventário', usufruto:'Imóvel gravado com usufruto', litigio:'Imóvel em litígio' };
+  function avisoJuridico(f){
+    if (!f.situacao_juridica || f.situacao_juridica === 'livre') return '';
+    return '<div class="fz-aviso-jur">⚠️ <strong>' + esc(SJ_TXT[f.situacao_juridica] || f.situacao_juridica) + '</strong>'
+      + (f.condicao_venda ? '<br>' + esc(f.condicao_venda) : '') + '</div>';
+  }
+
   function renderCard(f){
     var foto = (f.fotos && f.fotos.length) ? f.fotos[0] : null;
     var detalheUrl = 'fazenda-detalhe?id=' + encodeURIComponent(f.id);
@@ -157,6 +165,7 @@
     var meta = [];
     if (f.municipio || f.uf) meta.push('<span>📍 ' + esc([f.municipio, f.uf].filter(Boolean).join(' - ')) + '</span>');
     if (f.area_ha) meta.push('<span>📐 ' + fmtArea(f.area_ha) + ' ha</span>');
+    if (f.distancia_sede_km) meta.push('<span>🚗 ' + fmtArea(f.distancia_sede_km) + ' km da sede</span>');
     var preco = f.preco
       ? '<div class="fz-preco"><small>Valor</small>' + fmtMoeda(f.preco) + '</div>'
       : '<div class="fz-preco"><small>Valor</small>Consulte</div>';
@@ -168,6 +177,7 @@
       + '<a href="' + detalheUrl + '" class="fz-card-link"><h3>' + esc(f.titulo || 'Fazenda à venda') + '</h3></a>'
       + '<div class="fz-meta">' + meta.join('') + '</div>'
       + (f.descricao ? '<p>' + esc(f.descricao).slice(0,140) + (f.descricao.length>140?'…':'') + '</p>' : '')
+      + avisoJuridico(f)
       + preco
       + '<div class="fz-card-actions">'
       + '<a href="' + detalheUrl + '" class="btn-secondary">🔍 Ver Fotos e Detalhes</a>'

@@ -27,6 +27,7 @@
     .fz-nav-back:hover { color:var(--verde); }
     .fz-badge { display:inline-block; background:rgba(13,27,42,0.85); color:var(--verde); border:1px solid var(--verde); border-radius:999px; padding:4px 12px; font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:14px; }
     .fz-badge.reservada { color:#e0a030; border-color:#e0a030; }
+    .fz-aviso-jur { background:rgba(224,160,48,0.10); border:1px solid #e0a030; color:#f0c878; border-radius:10px; padding:10px 14px; font-size:0.95rem; line-height:1.5; margin-bottom:24px; }
     .fz-meta { display:flex; flex-wrap:wrap; gap:8px 20px; font-size:0.92rem; color:var(--cinza); margin:14px 0 24px; }
     .fz-meta span { display:flex; align-items:center; gap:6px; }
     .fz-preco-box { background:var(--azul2); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:22px 26px; margin-bottom:28px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
@@ -88,6 +89,8 @@
 
       <div id="fz-gallery" class="fz-gallery"></div>
       <div id="fz-sem-foto" class="fz-sem-foto" style="display:none;">Ainda não há fotos cadastradas para esta propriedade.</div>
+
+      <div id="fz-aviso-jur"></div>
 
       <div id="fz-preco-box" class="fz-preco-box">
         <div><small>Valor</small><strong id="fz-preco"></strong></div>
@@ -175,6 +178,13 @@
     if (e.key === 'ArrowRight') navegarLightbox(1);
   });
 
+  var SJ_TXT = { espolio:'Imóvel de espólio, em inventário', usufruto:'Imóvel gravado com usufruto', litigio:'Imóvel em litígio' };
+  function avisoJuridico(f){
+    if (!f.situacao_juridica || f.situacao_juridica === 'livre') return '';
+    return '<div class="fz-aviso-jur">⚠️ <strong>' + esc(SJ_TXT[f.situacao_juridica] || f.situacao_juridica) + '</strong>'
+      + (f.condicao_venda ? '<br>' + esc(f.condicao_venda) : '') + '</div>';
+  }
+
   function render(f){
     document.getElementById('fz-loading').style.display = 'none';
     document.getElementById('fz-conteudo').style.display = 'block';
@@ -186,7 +196,11 @@
     var meta = [];
     if (f.municipio || f.uf) meta.push('<span>📍 ' + esc([f.municipio, f.uf].filter(Boolean).join(' - ')) + '</span>');
     if (f.area_ha) meta.push('<span>📐 ' + fmtArea(f.area_ha) + ' ha</span>');
+    if (f.area_util_ha) meta.push('<span>🌾 ' + fmtArea(f.area_util_ha) + ' ha úteis</span>');
+    if (f.area_mata_ha) meta.push('<span>🌳 ' + fmtArea(f.area_mata_ha) + ' ha de mata</span>');
+    if (f.distancia_sede_km) meta.push('<span>🚗 ' + fmtArea(f.distancia_sede_km) + ' km da sede</span>');
     document.getElementById('fz-meta').innerHTML = meta.join('');
+    document.getElementById('fz-aviso-jur').innerHTML = avisoJuridico(f);
 
     if (f.status === 'Reservada') {
       document.getElementById('fz-badge-wrap').innerHTML = '<span class="fz-badge reservada">Reservada</span>';

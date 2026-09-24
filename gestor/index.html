@@ -623,9 +623,18 @@ const PCFG={
     +'<div class="fg"><label class="fl">UF</label><select class="fc" id="f-uf"><option value="">—</option>'+['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'].map(u=>'<option>'+u+'</option>').join('')+'</select></div></div>'
     +'<div class="g2"><div class="fg"><label class="fl">Preço (R$)</label><input class="fc" type="number" step="0.01" id="f-preco"></div>'
     +'<div class="fg"><label class="fl">Matrícula</label><input class="fc" id="f-matricula"></div></div>'
-    +'<div class="g2"><div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option>Rascunho</option><option>Disponível</option><option>Reservada</option><option>Vendida</option></select></div>'
+    +'<div class="g2"><div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option>Rascunho</option><option>Pendente de alvará</option><option>Disponível</option><option>Reservada</option><option>Vendida</option></select></div>'
     +'<div class="fg"><label class="fl">&nbsp;</label><label style="display:flex;align-items:center;gap:8px;cursor:pointer;height:40px"><input type="checkbox" id="f-destaque" style="width:14px;height:14px;accent-color:var(--brand)"> Destacar no site</label></div></div>'
     +'<div class="fg"><label class="fl">Descrição</label><textarea class="fc" id="f-descricao" rows="4" placeholder="Benfeitorias, água, energia, acesso, aptidão..."></textarea></div>'
+    +'<div class="g3"><div class="fg"><label class="fl">Mata / vegetação nativa (ha)</label><input class="fc" type="number" step="0.0001" id="f-area_mata_ha"></div>'
+    +'<div class="fg"><label class="fl">Área útil — pasto/lavoura (ha)</label><input class="fc" type="number" step="0.0001" id="f-area_util_ha"></div>'
+    +'<div class="fg"><label class="fl">Distância da sede (km)</label><input class="fc" type="number" step="0.1" id="f-distancia_sede_km"></div></div>'
+    +'<div class="g2"><div class="fg"><label class="fl">Certificação INCRA</label><input class="fc" id="f-certificacao_incra"></div>'
+    +'<div class="fg"><label class="fl">CAR</label><input class="fc" id="f-car"></div></div>'
+    +'<div class="g2"><div class="fg"><label class="fl">CCIR</label><input class="fc" id="f-ccir"></div>'
+    +'<div class="fg"><label class="fl">CIB</label><input class="fc" id="f-cib"></div></div>'
+    +'<div class="g2"><div class="fg"><label class="fl">Situação jurídica</label><select class="fc" id="f-situacao_juridica"><option value="livre">Livre</option><option value="espolio">Espólio (inventário)</option><option value="usufruto">Usufruto</option><option value="litigio">Litígio</option></select></div>'
+    +'<div class="fg"><label class="fl">Condição de venda</label><input class="fc" id="f-condicao_venda" placeholder="Ex: venda condicionada a alvará judicial"></div></div>'
     +'<div class="fg"><label class="fl">Fotos</label>'
     +'<input type="file" accept="image/*" multiple onchange="onFazendaFotoInput(this.files);this.value=\'\'" style="margin-bottom:8px">'
     +'<div id="fz-fotos-grid" style="display:flex;flex-wrap:wrap;gap:8px"></div></div>'
@@ -5683,7 +5692,15 @@ async function saveRecord(){
     if(!EID && CU?.id) payload.user_id = CU.id;
   }
   if(CM==='clientes'){payload.cidade=document.getElementById('f-cidade')?.value||null;payload.estado=document.getElementById('f-estado')?.value||null;}
-  if(CM==='fazendas'){payload.fotos=_fazendaFotos;}
+  if(CM==='fazendas'){
+    payload.fotos=_fazendaFotos;
+    // Mata + útil tem que fechar com a área total (mesma regra do CHECK no banco)
+    const tot=parseFloat(payload.area_ha),mata=parseFloat(payload.area_mata_ha),util=parseFloat(payload.area_util_ha);
+    if(!isNaN(tot)&&!isNaN(mata)&&!isNaN(util)&&Math.abs(mata+util-tot)>0.0001){
+      const f4=v=>v.toLocaleString('pt-BR',{maximumFractionDigits:4});
+      toast('Mata ('+f4(mata)+' ha) + área útil ('+f4(util)+' ha) = '+f4(mata+util)+' ha, mas a área total é '+f4(tot)+' ha. Corrija antes de salvar.',true);return;
+    }
+  }
   if(CM==='orcamentos'){
     const items=[];
     OI.forEach((it,i)=>{
@@ -15100,8 +15117,9 @@ function _pintaFazendas(q){
   const el=gid('ct');if(!el)return;
   const nq=(q||'').toLowerCase();
   const list=nq?_fazendasCache.filter(f=>((f.titulo||'')+(f.municipio||'')+(f.uf||'')).toLowerCase().includes(nq)):_fazendasCache;
-  const stCor={'Disponível':'#2f7d32','Reservada':'#BA7517','Vendida':'#A32D2D','Rascunho':'#666'};
-  let html='<div class="mu sm mb1">Só entram no site fazendas com status <b>Disponível</b> ou <b>Reservada</b>. "Rascunho" fica visível só aqui no Gestor.</div>';
+  const stCor={'Disponível':'#2f7d32','Reservada':'#BA7517','Vendida':'#A32D2D','Rascunho':'#666','Pendente de alvará':'#6B4FA0'};
+  const sjTxt={espolio:'Espólio — imóvel em inventário',usufruto:'Imóvel com usufruto',litigio:'Imóvel em litígio'};
+  let html='<div class="mu sm mb1">Só entram no site fazendas com status <b>Disponível</b> ou <b>Reservada</b>. "Rascunho" e "Pendente de alvará" ficam visíveis só aqui no Gestor.</div>';
   html+='<div class="gr" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px">';
   html+=list.map(f=>{
     const cor=stCor[f.status]||'#666';
@@ -15112,6 +15130,7 @@ function _pintaFazendas(q){
       +'<div class="fxb mb1"><div style="font-weight:700">'+(f.titulo||'Sem título')+'</div><span style="background:'+cor+'22;color:'+cor+';border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;white-space:nowrap">'+(f.status||'Rascunho')+'</span></div>'
       +'<div class="mu sm">'+[f.municipio,f.uf].filter(Boolean).join(' - ')+(f.area_ha?' · '+fnum(f.area_ha)+' ha':'')+'</div>'
       +(f.preco?'<div style="font-weight:700;margin-top:4px">'+fmt(f.preco)+'</div>':'')
+      +(f.situacao_juridica&&f.situacao_juridica!=='livre'?'<div class="sm" style="margin-top:8px;background:#FFF4E0;border:1px solid #E8B04B;color:#7A4B00;border-radius:6px;padding:6px 8px"><i class="ti ti-alert-triangle"></i> <b>'+(sjTxt[f.situacao_juridica]||f.situacao_juridica)+'</b>'+(f.condicao_venda?'<br>'+reqEsc(f.condicao_venda):'')+'</div>':'')
       +(f.destaque?'<div class="sm" style="margin-top:4px;color:#BA7517"><i class="ti ti-star"></i> Destaque</div>':'')
       +'<div class="fx g8" style="margin-top:10px"><button class="btn bsm" onclick="editRecord(\'fazendas\',\''+f.id+'\')"><i class="ti ti-edit"></i> Editar</button>'
       +'<button class="btn bxs bdr" onclick="excluirReg(\'fazendas\',\''+f.id+'\',\''+(f.titulo||'').replace(/'/g,"\\'")+'\')"><i class="ti ti-trash"></i></button></div>'
