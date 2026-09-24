@@ -1,7 +1,10 @@
 [
   {
     "data": "2026-09-17",
-    "periodo_atual": ["2026-09-07", "2026-09-13"],
+    "periodo_atual": [
+      "2026-09-07",
+      "2026-09-13"
+    ],
     "sessoes": 18,
     "usuarios": 11,
     "cliques_busca": 10,
@@ -13,6 +16,26 @@
     ],
     "oportunidades_pendentes": [
       "blog-topografo-ou-agrimensor: 0% CTR há 2 semanas — se persistir na próxima rodada, reescrever título/meta"
+    ]
+  },
+  {
+    "data": "2026-09-24",
+    "periodo_atual": [
+      "2026-09-14",
+      "2026-09-20"
+    ],
+    "sessoes": 26,
+    "usuarios": 25,
+    "cliques_busca": 10,
+    "impressoes_busca": 2987,
+    "posicao_media": 6.54,
+    "decisoes": [
+      "Título/meta do blog-topografo-ou-agrimensor reescritos para 'Agrimensor: o que faz e qual a diferença para o topógrafo' (254 impr, 0 cliques, 3ª semana)"
+    ],
+    "oportunidades_pendentes": [
+      "blog-topografo-ou-agrimensor: conferir CTR 2 semanas após o deploy do novo título",
+      "blog-itr-2026-sistema-obrigatorio-100-hectares: 69 impr, 0 cliques na 1ª semana — reavaliar título se persistir",
+      "'incra dourados' (consulta nova, pos 11,6) — oportunidade de conteúdo local, decisão do usuário"
     ]
   }
 ]

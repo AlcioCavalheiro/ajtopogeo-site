@@ -54,9 +54,11 @@ def variacao(atual, anterior):
     return (atual - anterior) / anterior * 100
 
 
-def cor_variacao_hex(v):
+def cor_variacao_hex(v, menor_melhor=False):
     if v is None:
         return "#444444"
+    if menor_melhor:
+        v = -v
     if v > 0:
         return "#1B7A3D"
     if v < 0:
@@ -64,18 +66,19 @@ def cor_variacao_hex(v):
     return "#444444"
 
 
-def fmt_delta(atual, anterior, casas=0, sufixo=""):
+def fmt_delta(atual, anterior, casas=0, sufixo="", menor_melhor=False):
+    # menor_melhor: para posição média, cair é bom (verde).
     v = variacao(atual, anterior)
     seta = "" if v is None else ("▲" if v > 0 else ("▼" if v < 0 else "•"))
-    delta_txt = "" if v is None else f' <font color="{cor_variacao_hex(v)}">{seta} {abs(v):.0f}%</font>'
-    base = f"{atual:,.{casas}f}{sufixo}".replace(",", ".")
+    delta_txt = "" if v is None else f' <font color="{cor_variacao_hex(v, menor_melhor)}">{seta} {abs(v):.0f}%</font>'
+    base = f"{atual:,.{casas}f}{sufixo}".replace(",", "_").replace(".", ",").replace("_", ".")
     return base + delta_txt
 
 
 def estilos():
     base = getSampleStyleSheet()
     s = {}
-    s["titulo"] = ParagraphStyle("titulo", parent=base["Normal"], fontSize=22,
+    s["titulo"] = ParagraphStyle("titulo", parent=base["Normal"], fontSize=22, leading=27,
                                  fontName="Helvetica-Bold", textColor=AZUL, spaceAfter=4)
     s["sub"] = ParagraphStyle("sub", parent=base["Normal"], fontSize=11,
                               textColor=colors.HexColor("#555555"), spaceAfter=2)
@@ -183,7 +186,8 @@ def gerar(dossie, saida):
         (fmt_delta(a.get("totalUsers", 0), b.get("totalUsers", 0)), "USUÁRIOS"),
         (fmt_delta(ga.get("clicks", 0), gb.get("clicks", 0)), "CLIQUES (BUSCA)"),
         (fmt_delta(ga.get("impressions", 0), gb.get("impressions", 0)), "IMPRESSÕES (BUSCA)"),
-        (fmt_delta(ga.get("position", 0) or 0, gb.get("position", 0) or 0, casas=1), "POSIÇÃO MÉDIA"),
+        (fmt_delta(ga.get("position", 0) or 0, gb.get("position", 0) or 0, casas=1,
+                   menor_melhor=True), "POSIÇÃO MÉDIA"),
     ], largura, st))
     story.append(Spacer(1, 4))
     story.append(Paragraph("▲/▼ comparado à semana anterior. Posição: menor é melhor "
