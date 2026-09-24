@@ -694,6 +694,29 @@ footer {
   color: var(--verde);
   font-weight: 800;
 }
+.artigo-conteudo ol {
+  margin: 0 0 22px 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: passo;
+}
+.artigo-conteudo ol li {
+  position: relative;
+  padding: 8px 0 8px 30px;
+  font-size: 0.98rem;
+  color: var(--texto);
+  line-height: 1.6;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  counter-increment: passo;
+}
+.artigo-conteudo ol li::before {
+  content: counter(passo) '.';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  color: var(--verde);
+  font-weight: 800;
+}
 .artigo-conteudo strong { color: var(--branco); }
 .artigo-img {
   width: 100%;
