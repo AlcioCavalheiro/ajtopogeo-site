@@ -635,7 +635,7 @@ const PCFG={
     +'<div class="fg"><label class="fl">CIB</label><input class="fc" id="f-cib"></div></div>'
     +'<div class="g2"><div class="fg"><label class="fl">Situação jurídica</label><select class="fc" id="f-situacao_juridica"><option value="livre">Livre</option><option value="espolio">Espólio (inventário)</option><option value="usufruto">Usufruto</option><option value="litigio">Litígio</option></select></div>'
     +'<div class="fg"><label class="fl">Condição de venda</label><input class="fc" id="f-condicao_venda" placeholder="Ex: venda condicionada a alvará judicial"></div></div>'
-    +'<div class="fg"><label class="fl">Fotos</label>'
+    +'<div class="fg"><label class="fl">Fotos <span class="mu sm" style="font-weight:400;text-transform:none">— clique em "Capa" para escolher a foto de fundo do topo da página</span></label>'
     +'<input type="file" accept="image/*" multiple onchange="onFazendaFotoInput(this.files);this.value=\'\'" style="margin-bottom:8px">'
     +'<div id="fz-fotos-grid" style="display:flex;flex-wrap:wrap;gap:8px"></div></div>'
     +'<hr style="border:none;border-top:1px solid var(--bor);margin:20px 0">'
@@ -15178,10 +15178,15 @@ function renderFazendaFotos(){
     '<div style="position:relative;width:84px;height:84px">'
     +'<img src="'+url+'" style="width:84px;height:84px;object-fit:cover;border-radius:8px;border:1px solid var(--bor)">'
     +'<button type="button" onclick="removerFazendaFoto('+i+')" style="position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;background:#A32D2D;color:#fff;border:none;cursor:pointer;font-size:12px;line-height:1">✕</button>'
+    +(i===0
+      ?'<span style="position:absolute;left:4px;bottom:4px;background:#BA7517;color:#fff;border-radius:999px;padding:1px 7px;font-size:10px;font-weight:700"><i class="ti ti-star-filled"></i> Capa</span>'
+      :'<button type="button" title="Usar como capa (fundo do topo no site)" onclick="capaFazendaFoto('+i+')" style="position:absolute;left:4px;bottom:4px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:999px;padding:1px 7px;font-size:10px;cursor:pointer"><i class="ti ti-star"></i> Capa</button>')
     +'</div>'
   ).join('')||'<div class="mu sm">Nenhuma foto ainda.</div>';
 }
 function removerFazendaFoto(i){_fazendaFotos.splice(i,1);renderFazendaFotos();}
+// A capa é a primeira foto da lista: vira o fundo do topo da página da fazenda e a miniatura dos cards.
+function capaFazendaFoto(i){_fazendaFotos.unshift(_fazendaFotos.splice(i,1)[0]);renderFazendaFotos();}
 async function preencherFazendaDeObra(obraId){
   if(!obraId)return;
   const{data:obra,error}=await sb.from('obras').select('*').eq('id',obraId).single();

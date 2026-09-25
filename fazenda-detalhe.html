@@ -30,6 +30,10 @@
     .fz-aviso-jur { background:rgba(224,160,48,0.10); border:1px solid #e0a030; color:#f0c878; border-radius:10px; padding:10px 14px; font-size:0.95rem; line-height:1.5; margin-bottom:24px; }
     .fz-meta { display:flex; flex-wrap:wrap; gap:8px 20px; font-size:0.92rem; color:var(--cinza); margin:14px 0 24px; }
     .fz-meta span { display:flex; align-items:center; gap:6px; }
+    /* Capa: a primeira foto cadastrada vira o fundo do topo, escurecida para o texto continuar legível */
+    .page-hero.fz-hero-foto { background-size:cover; background-position:center; }
+    .page-hero.fz-hero-foto::before { background:linear-gradient(90deg, rgba(13,27,42,0.92) 0%, rgba(13,27,42,0.70) 55%, rgba(13,27,42,0.35) 100%); }
+    .page-hero.fz-hero-foto .fz-meta { color:rgba(255,255,255,0.88); }
     .fz-preco-box { background:var(--azul2); border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:22px 26px; margin-bottom:28px; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
     .fz-preco-box small { display:block; font-size:0.72rem; font-weight:600; color:var(--cinza); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:4px; }
     .fz-preco-box strong { font-size:1.6rem; color:var(--branco); font-weight:800; }
@@ -75,7 +79,7 @@
 </div>
 
 <div id="fz-conteudo" style="display:none;">
-  <header class="page-hero">
+  <header class="page-hero" id="fz-hero">
     <div class="container">
       <div class="breadcrumb"><a href="fazendas-a-venda">Fazendas à Venda</a> › <span id="fz-titulo-breadcrumb"></span></div>
       <h1 id="fz-titulo"></h1>
@@ -210,6 +214,9 @@
 
     fotos = (f.fotos && f.fotos.length) ? f.fotos : [];
     if (fotos.length) {
+      var hero = document.getElementById('fz-hero');
+      hero.style.backgroundImage = 'url("' + String(fotos[0]).replace(/"/g, '%22') + '")';
+      hero.classList.add('fz-hero-foto');
       var gallery = document.getElementById('fz-gallery');
       gallery.innerHTML = fotos.map(function(url, i){
         return '<img src="' + esc(url) + '" alt="' + esc(f.titulo || 'Fazenda à venda') + ' - foto ' + (i+1) + '" loading="lazy" data-i="' + i + '">';
