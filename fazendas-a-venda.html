@@ -165,7 +165,7 @@
     var meta = [];
     if (f.municipio || f.uf) meta.push('<span>📍 ' + esc([f.municipio, f.uf].filter(Boolean).join(' - ')) + '</span>');
     if (f.area_ha) meta.push('<span>📐 ' + fmtArea(f.area_ha) + ' ha</span>');
-    if (f.distancia_sede_km) meta.push('<span>🚗 ' + fmtArea(f.distancia_sede_km) + ' km da sede</span>');
+    if (f.distancia_sede_km) meta.push('<span>🚗 ' + fmtArea(f.distancia_sede_km) + ' km da cidade</span>');
     var preco = f.preco
       ? '<div class="fz-preco"><small>Valor</small>' + fmtMoeda(f.preco) + '</div>'
       : '<div class="fz-preco"><small>Valor</small>Consulte</div>';

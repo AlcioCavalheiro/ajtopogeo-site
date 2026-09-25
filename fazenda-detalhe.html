@@ -198,7 +198,7 @@
     if (f.area_ha) meta.push('<span>📐 ' + fmtArea(f.area_ha) + ' ha</span>');
     if (f.area_util_ha) meta.push('<span>🌾 ' + fmtArea(f.area_util_ha) + ' ha úteis</span>');
     if (f.area_mata_ha) meta.push('<span>🌳 ' + fmtArea(f.area_mata_ha) + ' ha de mata</span>');
-    if (f.distancia_sede_km) meta.push('<span>🚗 ' + fmtArea(f.distancia_sede_km) + ' km da sede</span>');
+    if (f.distancia_sede_km) meta.push('<span>🚗 ' + fmtArea(f.distancia_sede_km) + ' km da cidade</span>');
     document.getElementById('fz-meta').innerHTML = meta.join('');
     document.getElementById('fz-aviso-jur').innerHTML = avisoJuridico(f);
 
