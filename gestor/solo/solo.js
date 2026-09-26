@@ -69,6 +69,8 @@
 #solo .so-refs{padding-left:18px;margin-top:.6rem;font-size:12.5px;line-height:1.5}#solo .so-refs li{margin-bottom:6px}
 #solo textarea.so-json{font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;min-height:260px}
 #solo .hide{display:none!important}
+#solo .fc.so-lido{background:#FFF6DC;border-color:#EF9F27}
+#solo .so-pdfpanel{background:#F4F8FF;border:1px solid var(--bor);border-radius:10px;padding:.8rem 1rem;margin-bottom:1rem}
 @media(max-width:600px){#solo .so-dose{grid-template-columns:1fr 1fr}#solo .so-big{font-size:22px}#solo .card{padding:1rem}}
 `;
 
@@ -95,6 +97,12 @@
 
 <div class="card">
   <div class="st"><i class="ti ti-flask"></i> Laudo de solo (0–20 cm)</div>
+  <div class="fx g8" style="flex-wrap:wrap;margin-bottom:.75rem">
+    <label class="btn" for="so-pdf" style="cursor:pointer"><i class="ti ti-file-type-pdf"></i> Importar laudo em PDF</label>
+    <input type="file" id="so-pdf" accept="application/pdf,.pdf" style="display:none">
+    <span class="so-hint" id="so-pdfMsg" style="margin:0"></span>
+  </div>
+  <div id="so-pdfBox"></div>
   <div class="so-grid" style="margin-bottom:10px">
     ${selecao("un", "Unidade de Ca, Mg, Al, H+Al", [["m", "mmolc/dm³"], ["c", "cmolc/dm³"]])}
     ${selecao("kun", "Unidade do K", [["same", "mesma dos cátions"], ["mg", "mg/dm³"]])}
@@ -233,6 +241,11 @@
     $("pext").value = m === "b100" ? "resina" : "mehlich";
     $("prod").value = "";
     fillCrops();
+    // laudo vindo do PDF com P resina e Mehlich: usa o extrator do método escolhido
+    if (importado && $("pdfBox") && $("pdfBox").innerHTML) {
+      const { campos } = SoloLeitor.camposFormulario(importado.sup, importado.sub, m);
+      if (campos.p != null) { $("p").value = txtNum(campos.p); $("pext").value = campos.pext; }
+    }
   }
 
   const CAMPOS = ["un", "kun", "pext", "ph", "mo", "p", "k", "ca", "mg", "al", "hal", "arg", "ca2", "mg2", "k2", "al2", "hal2",
@@ -385,6 +398,65 @@ ${htmlResultado(ultimo.r, ultimo.nome)}
     }));
   }
 
+  // ------------------------------------------------------------ importar laudo em PDF
+
+  let importado = null; // { r, sup, sub } do último PDF lido — refaz o P se trocar o método
+
+  const txtNum = (v) => (typeof v === "number" ? String(v).replace(".", ",") : v);
+
+  function preencherDoPdf(sup, sub, r) {
+    importado = { r, sup, sub };
+    const { campos, avisos } = SoloLeitor.camposFormulario(sup, sub, metodo);
+    LAUDO.forEach((f) => { $(f).value = ""; $(f).classList.remove("so-lido"); });
+    for (const [k, v] of Object.entries(campos)) {
+      const el = $(k); if (!el) continue;
+      el.value = txtNum(v);
+      if (el.tagName === "INPUT") el.classList.add("so-lido");
+    }
+    if (["s1", "s2", "B", "Cu", "Fe", "Mn", "Zn"].some((k) => campos[k] != null)) $("s1").closest("details").open = true;
+    if (!$("nome").value.trim()) $("nome").value = [r.propriedade, sup.descricao].filter(Boolean).join(" – ");
+    $("out").innerHTML = ""; ultimo = null;
+    rascunho = { metodo, v: lerCampos() };
+    $("pdfBox").innerHTML = `<div class="so-pdfpanel"><div class="sm"><b><i class="ti ti-check"></i> Laudo lido:</b> ${esc(sup.descricao)}${sub ? " + " + esc(sub.descricao) : ""}${r.propriedade ? " · " + esc(r.propriedade) : ""}.
+      Os campos preenchidos estão destacados — <b>confira com o PDF antes de calcular.</b></div>${avisos.map((a) => `<div class="so-warn">${esc(a)}</div>`).join("")}</div>`;
+  }
+
+  function escolherAmostras(r) {
+    const par = SoloLeitor.sugerirPar(r.amostras);
+    const opt = (sel) => r.amostras.map((a, i) => `<option value="${i}"${a === sel ? " selected" : ""}>${esc(a.descricao)}${a.descricao !== a.id ? " (" + esc(a.id) + ")" : ""}</option>`).join("");
+    $("pdfBox").innerHTML = `<div class="so-pdfpanel">
+      <div class="sm" style="margin-bottom:.6rem"><b>${r.amostras.length} amostras no laudo${r.propriedade ? " · " + esc(r.propriedade) : ""}.</b> Escolha as camadas:</div>
+      <div class="so-grid">
+        <div class="fg"><label class="fl" for="so-pdfSup">0–20 cm</label><select class="fc" id="so-pdfSup">${opt(par.sup)}</select></div>
+        <div class="fg"><label class="fl" for="so-pdfSub">20–40 cm</label><select class="fc" id="so-pdfSub"><option value="">— nenhuma —</option>${opt(par.sub)}</select></div>
+      </div>
+      <div class="fx g8" style="margin-top:.75rem"><button class="btn bp2 bsm" type="button" id="so-pdfOk"><i class="ti ti-check"></i> Preencher</button>
+      <button class="btn bsm" type="button" id="so-pdfCancel">Cancelar</button></div></div>`;
+    $("pdfOk").onclick = () => {
+      const sup = r.amostras[+$("pdfSup").value], iSub = $("pdfSub").value, sub = iSub === "" ? null : r.amostras[+iSub];
+      if (sub === sup) { if (typeof toast === "function") toast("Escolha camadas diferentes.", true); return; }
+      preencherDoPdf(sup, sub, r);
+    };
+    $("pdfCancel").onclick = () => ($("pdfBox").innerHTML = "");
+  }
+
+  async function importarPdf(arquivo) {
+    if (!arquivo) return;
+    $("pdfMsg").textContent = "Lendo " + arquivo.name + "…";
+    $("pdfBox").innerHTML = "";
+    try {
+      const r = await SoloLeitor.lerPdf(arquivo);
+      $("pdfMsg").textContent = "";
+      if (r.erro) { $("pdfBox").innerHTML = `<div class="so-warn">${esc(r.erro)}</div>`; return; }
+      if (r.amostras.length === 1) preencherDoPdf(r.amostras[0], null, r);
+      else escolherAmostras(r);
+    } catch (e) {
+      console.error("Leitura do laudo:", e);
+      $("pdfMsg").textContent = "";
+      $("pdfBox").innerHTML = `<div class="so-warn">Não consegui abrir este PDF (${esc(e.message || e)}). Digite os valores do laudo.</div>`;
+    } finally { $("pdf").value = ""; }
+  }
+
   // ------------------------------------------------------------ entrada no Gestor
 
   UI.render = function (el) {
@@ -403,7 +475,13 @@ ${htmlResultado(ultimo.r, ultimo.nome)}
     $("corr").onchange = onCrop;
     $("modo").onchange = () => $("fBox").classList.toggle("hide", $("modo").value !== "formula");
     $("calc").onclick = () => calc();
-    $("limpar").onclick = () => { LAUDO.forEach((f) => ($(f).value = "")); $("nome").value = ""; $("out").innerHTML = ""; ultimo = null; rascunho = null; };
+    $("limpar").onclick = () => {
+      LAUDO.forEach((f) => { $(f).value = ""; $(f).classList.remove("so-lido"); });
+      $("nome").value = ""; $("out").innerHTML = ""; $("pdfBox").innerHTML = ""; ultimo = null; rascunho = null; importado = null;
+    };
+    $("pdf").onchange = (e) => importarPdf(e.target.files && e.target.files[0]);
+    if (!window.SoloLeitor) document.querySelector('label[for="so-pdf"]').style.display = "none";
+    document.getElementById("solo").addEventListener("input", (e) => e.target.classList && e.target.classList.remove("so-lido"));
     $("save").onclick = () => {
       const v = lerCampos();
       if (!v.nome.trim()) { if (typeof toast === "function") toast("Dê um nome ao laudo (cliente / talhão).", true); $("nome").focus(); return; }

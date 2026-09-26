@@ -1,9 +1,12 @@
 /* AJ TopoGeo Gestor — service worker (instalável + abre offline).
    NÃO cacheia chamadas ao Supabase (dados/fotos/arquivos sempre na rede). */
-const CACHE='gestor-v2';
+const CACHE='gestor-v3';
 const SHELL=[
   '/gestor/','/gestor/index.html','/gestor/manifest.webmanifest','/gestor/gestor-assets.js',
-  '/gestor/solo/tabelas.js','/gestor/solo/motor.js','/gestor/solo/solo.js',   // Recomendação de Solo (uso no campo, sem sinal)
+  // Recomendação de Solo (uso no campo, sem sinal) + pdf.js para importar o laudo offline
+  '/gestor/solo/tabelas.js','/gestor/solo/motor.js','/gestor/solo/leitor-laudo.js','/gestor/solo/solo.js',
+  'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
+  'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js',
   '/gestor/icon-180.png','/gestor/icon-192.png','/gestor/icon-512.png',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
   'https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css',
