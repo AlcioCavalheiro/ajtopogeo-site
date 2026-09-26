@@ -316,6 +316,7 @@ select.fc{cursor:pointer}
 </style>
 <script>document.write('<script src="'+(location.protocol==='file:'?'pdf-lib.min.js':'/gestor/pdf-lib.min.js')+'"><\/script>');</script>
 <script>document.write('<script src="'+(location.protocol==='file:'?'relatorio-fazenda.js':'/gestor/relatorio-fazenda.js')+'"><\/script>');</script>
+<script>['tabelas','motor','solo'].forEach(function(f){document.write('<script src="'+(location.protocol==='file:'?'solo/':'/gestor/solo/')+f+'.js"><\/script>');});</script>
 </head>
 <body>
 <div id="ls">
@@ -366,6 +367,7 @@ select.fc{cursor:pointer}
       <div class="ni" onclick="nav('tributario')"><i class="ti ti-receipt-tax"></i>Controle Tributário</div>
       <div class="ng">Ferramentas</div>
       <div class="ni" onclick="nav('geoferramentas')"><i class="ti ti-map-2"></i>Ferramentas Geo</div>
+      <div class="ni" onclick="nav('solo')"><i class="ti ti-plant-2"></i>Recomendação de Solo</div>
       <div class="ng">Empresa</div>
       <div class="ni" onclick="nav('rotinas')"><i class="ti ti-rotate"></i>Rotinas Recorrentes</div>
       <div class="ni" onclick="nav('administrativo')"><i class="ti ti-building"></i>Documentos</div>
@@ -433,7 +435,7 @@ const PAGE_MODULO={
   clientes:'comercial', obras:'comercial', servicos:'comercial', orcamentos:'comercial', contratos:'comercial', fazendas:'comercial', leads:'comercial',
   contas:'financeiro', recebimentos:'financeiro', pagamentos:'financeiro', impostos:'financeiro', folha:'financeiro',
   medicao:'financeiro', nfe:'financeiro', dre:'financeiro', acompanhamento:'financeiro', tributario:'financeiro',
-  geoferramentas:'ferramentas',
+  geoferramentas:'ferramentas', solo:'ferramentas',
   rotinas:'empresa', administrativo:'empresa', funcionarios:'empresa', frotas:'empresa', pontocampo:'empresa',
   estabelecimentos:'empresa', relatorios:'empresa', config:'empresa',
   usuarios:'__admin__',
@@ -594,6 +596,7 @@ const PCFG={
   medicao:{t:'Nova Medição',tb:'medicoes',h:function(o){return '<div class="fg"><label class="fl">Descrição *</label><input class="fc" id="f-descricao" placeholder="Ex: Medição 01 — Jardim Monaco Maio/2026"></div><div class="g2"><div class="fg"><label class="fl">Cliente</label><select class="fc" id="f-cliente_id"><option value="">Selecione...</option>'+o.cOpts+'</select></div><div class="fg"><label class="fl">OS Vinculada</label><select class="fc" id="f-os_id"><option value="">Sem OS</option>'+o.oOpts+'</select></div></div><div class="g2"><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor"></div><div class="fg"><label class="fl">% Executado</label><input class="fc" type="number" min="0" max="100" id="f-perc_executado" placeholder="0-100"></div></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option>Fechar Medição</option><option>Gerar NF</option><option>Falta Pagamento</option><option>Recebido</option></select></div><div class="fg"><label class="fl">Observações</label><textarea class="fc" id="f-obs" rows="2"></textarea></div>';}},
   nfe:{t:'Nova Nota Fiscal',tb:'notas_fiscais',h:function(o){return '<div class="g2"><div class="fg"><label class="fl">Número NF *</label><input class="fc" id="f-numero" placeholder="Ex: 240"></div><div class="fg"><label class="fl">Cliente</label><select class="fc" id="f-cliente_id"><option value="">Selecione...</option>'+o.cOpts+'</select></div></div><div class="g2"><div class="fg"><label class="fl">Valor (R$) *</label><input class="fc" type="number" step="0.01" id="f-valor" oninput="calcISS()"></div><div class="fg"><label class="fl">Alíq. ISS (%)</label><input class="fc" type="number" step="0.01" id="f-aliquota_iss" value="5" oninput="calcISS()"></div></div><div class="g2"><div class="fg"><label class="fl">Valor ISS (R$)</label><input class="fc" type="number" step="0.01" id="f-valor_iss" readonly style="background:#f4f4f0"></div><div class="fg"><label class="fl">OS Vinculada</label><select class="fc" id="f-os_id"><option value="">Sem OS</option>'+o.oOpts+'</select></div></div><div class="g2"><div class="fg"><label class="fl">Data emissão</label><input class="fc" type="date" id="f-data_emissao"></div><div class="fg"><label class="fl">Status</label><select class="fc" id="f-status"><option>Pendente</option><option>Emitida</option><option>Cancelada</option></select></div></div><div class="fg"><label class="fl">PDF da NF</label><div id="nf-upload-area" class="upload-area" onclick="document.getElementById(\'nf-file-input\').click()"><i class="ti ti-file-upload"></i><p>Clique ou arraste o PDF da NF aqui</p></div><div id="nf-file-preview" style="display:none"></div><input type="file" id="nf-file-input" accept=".pdf" style="display:none" onchange="handleFileSelect(this,\'nf\')"><input type="hidden" id="f-arquivo_url" value=""></div>';}},
   geoferramentas:{t:'Ferramentas Geo',a:null},
+  solo:{t:'Recomendação de Solo',a:null},
   dre:{t:'DRE / Resultado',a:null},
   acompanhamento:{t:'Acompanhamento por Obra',a:null},
   folha:{t:'Folha / Pró-labore',a:'Lançar Pró-labore'},
@@ -757,7 +760,7 @@ function nav(page){
   document.getElementById('pt').textContent=cfg.t;
   const ba=document.getElementById('ba');
   if(cfg.a){ba.style.display='flex';document.getElementById('bal').textContent=cfg.a;}else ba.style.display='none';
-  const _semBusca=new Set(['dashboard','agenda','dre','medicao','pendencias','relatorios','config','geoferramentas','tributario','contas','pontocampo']);
+  const _semBusca=new Set(['dashboard','agenda','dre','medicao','pendencias','relatorios','config','geoferramentas','solo','tributario','contas','pontocampo']);
   const siWrap=document.querySelector('.sb2');
   const si=document.getElementById('si');
   si.value='';
@@ -8604,6 +8607,12 @@ function rGeoFerramentasFixed(){
   pcLivresInit();
 }
 pageMap.geoferramentas=rGeoFerramentasFixed;
+// Recomendação de calagem e adubação — gestor/solo/ (motor testado em gestor/solo/test/)
+pageMap.solo=function(){
+  const el=document.getElementById('ct');if(!el)return;
+  if(window.SoloUI&&SoloUI.render) SoloUI.render(el);
+  else el.innerHTML='<div class="card"><div class="mu sm">A Recomendação de Solo não carregou (arquivos gestor/solo/*.js). Recarregue a página.</div></div>';
+};
 function geoTab(tab){
   GEO_TABS.forEach(function(t){
     document.getElementById('geo-'+t.k).style.display=t.k===tab?'':'none';

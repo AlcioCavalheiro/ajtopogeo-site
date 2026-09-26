@@ -32,3 +32,8 @@ gestor/consulta-cota/
 gestor/relatorio-fazenda/
 gestor/instalador-comum/
 gestor/marca/
+
+# Recomendação de Solo: o Gestor carrega gestor/solo/*.js (NÃO excluir a pasta);
+# só os testes (Node) e a documentação ficam fora do site.
+gestor/solo/test/
+gestor/solo/*.md
